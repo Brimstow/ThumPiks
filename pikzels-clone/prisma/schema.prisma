@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  passwordHash  String
+  name          String?
+  avatarUrl     String?
+  isVerified    Boolean    @default(false)
+  settings      Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  projects      Project[]
+  thumbnails    Thumbnail[]
+  subscriptions Subscription[]
+  socialShares  SocialShare[]
+  templates     Template[] // Templates created by this user
+  
+  // Collaboration relationships
+  ownedTeams    Team[]     @relation("OwnedTeams")
+  teamMemberships TeamMember[] // Teams this user is a member of
+  teamInvitations TeamInvitation[] @relation("ReceivedInvitations") // Invitations received by this user
+  sentInvitations TeamInvitation[] @relation("SentInvitations") // Invitations sent by this user
+}
+
+model Project {
+  id            String      @id @default(uuid())
+  name          String
+  description   String?
+  userId        String      // Individual owner
+  user          User        @relation(fields: [userId], references: [id])
+  teamId        String?     // Team owner (optional)
+  team          Team?       @relation(fields: [teamId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  thumbnails    Thumbnail[] @relation("ProjectThumbnails")
+  featuredThumbnailId String? @unique  // ID of the featured thumbnail for this project
+  featuredThumbnail   Thumbnail? @relation("FeaturedThumbnail", fields: [featuredThumbnailId], references: [id])
+
+  @@index([userId])
+  @@index([teamId])
+}
+
+model Thumbnail {
+  id            String      @id @default(uuid())
+  title         String
+  imageUrl      String
+  prompt        String
+  parameters    Json
+  projectId     String
+  project       Project     @relation("ProjectThumbnails", fields: [projectId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+  isFeatured    Boolean     @default(false)  // Whether this thumbnail is featured for its project
+  featuredIn    Project?    @relation("FeaturedThumbnail")
+  socialShares  SocialShare[]
+  templates     Template[]  // Templates based on this thumbnail
+}
+
+model Subscription {
+  id            String      @id @default(uuid())
+  planType      String
+  creditsBalance Int
+  creditsUsed   Int         @default(0)
+  periodStart   DateTime
+  periodEnd     DateTime
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model SocialShare {
+  id            String      @id @default(uuid())
+  thumbnailId   String
+  thumbnail     Thumbnail   @relation(fields: [thumbnailId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  platform      String      // e.g., "twitter", "facebook", "linkedin", "pinterest"
+  shareUrl      String?     // URL of the shared post
+  shareId       String?     // ID of the shared post on the platform
+  status        String      // e.g., "pending", "success", "failed"
+  errorMessage  String?     // Error message if sharing failed
+  sharedAt      DateTime    @default(now())
+  engagement    Json?       // Platform-specific engagement metrics
+}
+
+// New model for templates in the marketplace
+model Template {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  thumbnail   Thumbnail @relation(fields: [thumbnailId], references: [id])
+  thumbnailId String
+  creator     User     @relation(fields: [creatorId], references: [id])
+  creatorId   String
+  parameters  Json     // Template parameters that can be applied to new thumbnails
+  tags        Json     // Tags for categorization and search (stored as JSON array)
+  isPublic    Boolean  @default(false) // Whether this template is publicly available
+  downloads   Int      @default(0)     // Number of times this template has been used
+  likes       Int      @default(0)     // Number of likes for this template
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt()
+
+  @@index([creatorId])
+  @@index([thumbnailId])
+  @@index([isPublic])
+}
+
+// New model for teams
+model Team {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String      // User who owns/created the team
+  owner       User        @relation("OwnedTeams", fields: [ownerId], references: [id])
+  members     TeamMember[] // Members of this team
+  invitations TeamInvitation[] // Pending invitations to join this team
+  projects    Project[]   // Projects owned by this team
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt()
+
+  @@index([ownerId])
+}
+
+// New model for team members
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String   // "owner", "admin", "member"
+  joinedAt  DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// New model for team invitations
+model TeamInvitation {
+  id           String   @id @default(uuid())
+  teamId       String
+  team         Team     @relation(fields: [teamId], references: [id])
+  inviterId    String   // User who sent the invitation
+  inviter      User     @relation("SentInvitations", fields: [inviterId], references: [id])
+  inviteeId    String   // User who received the invitation
+  invitee      User     @relation("ReceivedInvitations", fields: [inviteeId], references: [id])
+  status       String   // "pending", "accepted", "declined"
+  invitedAt    DateTime @default(now())
+  respondedAt  DateTime?
+
+  @@index([teamId])
+  @@index([inviteeId])
+  @@index([status])
+}
