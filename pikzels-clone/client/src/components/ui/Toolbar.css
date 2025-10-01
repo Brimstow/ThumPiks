@@ -1,0 +1,300 @@
+/**
+ * Toolbar Component Styles
+ * 
+ * Flexible toolbar component for grouping related actions and tools
+ */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-xs);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+/* =============================================================================
+   TOOLBAR ORIENTATIONS
+   ========================================================================== */
+
+.toolbar--horizontal {
+  flex-direction: row;
+  gap: var(--space-xs);
+}
+
+.toolbar--vertical {
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: fit-content;
+}
+
+/* =============================================================================
+   TOOLBAR SIZES
+   ========================================================================== */
+
+.toolbar--sm {
+  padding: var(--space-xs);
+}
+
+.toolbar--md {
+  padding: var(--space-sm);
+}
+
+.toolbar--lg {
+  padding: var(--space-md);
+}
+
+/* =============================================================================
+   TOOLBAR ITEMS
+   ========================================================================== */
+
+.toolbar__item {
+  position: relative;
+  min-width: auto;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.toolbar__item--active {
+  background-color: var(--color-primary-500) !important;
+  color: white !important;
+  box-shadow: var(--shadow-md);
+}
+
+.toolbar__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.toolbar__item-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* Icon-only buttons */
+.toolbar__item .toolbar__item-label:empty {
+  display: none;
+}
+
+.toolbar__item:has(.toolbar__item-label:empty) {
+  padding: var(--space-sm);
+  aspect-ratio: 1;
+}
+
+/* Hide labels on small toolbars for icons */
+.toolbar--sm .toolbar__item-label {
+  display: none;
+}
+
+.toolbar--sm .toolbar__item {
+  padding: var(--space-sm) !important;
+  aspect-ratio: 1;
+}
+
+/* =============================================================================
+   TOOLBAR SEPARATORS
+   ========================================================================== */
+
+.toolbar__separator {
+  background-color: var(--color-border-primary);
+  flex-shrink: 0;
+}
+
+.toolbar__separator--horizontal {
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 var(--space-xs);
+}
+
+.toolbar__separator--vertical {
+  height: 1px;
+  width: 1.5rem;
+  margin: var(--space-xs) 0;
+}
+
+/* =============================================================================
+   TOOLBAR VARIATIONS
+   ========================================================================== */
+
+/* Compact toolbar */
+.toolbar--compact {
+  padding: var(--space-xs);
+  gap: var(--space-xs);
+}
+
+.toolbar--compact .toolbar__item {
+  padding: var(--space-xs) !important;
+}
+
+.toolbar--compact .toolbar__item-label {
+  display: none;
+}
+
+/* Floating toolbar */
+.toolbar--floating {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  background-color: var(--color-bg-primary);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-primary);
+  backdrop-filter: blur(10px);
+}
+
+/* Primary toolbar */
+.toolbar--primary {
+  background-color: var(--color-primary-50);
+  border-color: var(--color-primary-200);
+}
+
+.dark .toolbar--primary {
+  background-color: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+/* Secondary toolbar */
+.toolbar--secondary {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border-secondary);
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .toolbar--horizontal {
+    flex-wrap: wrap;
+  }
+  
+  .toolbar__item-label {
+    display: none;
+  }
+  
+  .toolbar__item {
+    padding: var(--space-sm) !important;
+    aspect-ratio: 1;
+  }
+  
+  .toolbar__separator--horizontal {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    padding: var(--space-xs);
+    gap: var(--space-xs);
+  }
+  
+  .toolbar__item {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* Focus management */
+.toolbar {
+  /* Allow focus to move between toolbar items */
+  &:focus-within {
+    box-shadow: 0 0 0 2px var(--color-primary-500);
+  }
+}
+
+.toolbar__item:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .toolbar {
+    border-width: 2px;
+  }
+  
+  .toolbar__separator {
+    background-color: currentColor;
+    opacity: 0.8;
+  }
+  
+  .toolbar__item--active {
+    border: 2px solid var(--color-primary-700);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .toolbar__item {
+    transition: none;
+  }
+}
+
+/* =============================================================================
+   KEYBOARD NAVIGATION
+   ========================================================================== */
+
+/* Arrow key navigation styles */
+.toolbar[data-orientation=\"horizontal\"] .toolbar__item:focus {
+  /* Horizontal navigation */
+}
+
+.toolbar[data-orientation=\"vertical\"] .toolbar__item:focus {
+  /* Vertical navigation */
+}
+
+/* =============================================================================
+   TOOLTIP INTEGRATION
+   ========================================================================== */
+
+.toolbar__item[title] {
+  position: relative;
+}
+
+.toolbar__item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background-color: var(--color-gray-900);
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--border-radius-md);
+  white-space: nowrap;
+  z-index: var(--z-tooltip);
+  opacity: 0;
+  animation: tooltip-appear 0.2s ease-out forwards;
+}
+
+.toolbar--vertical .toolbar__item[title]:hover::after {
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-top: 0;
+  margin-left: var(--space-sm);
+}
+
+@keyframes tooltip-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

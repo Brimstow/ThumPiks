@@ -1,0 +1,347 @@
+/**
+ * Card Component Styles
+ * 
+ * Flexible card component with multiple variants and padding options
+ * following the design system specifications.
+ */
+
+.card {
+  /* Base card styles */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-primary);
+  border-radius: var(--border-radius-xl);
+  transition: all var(--transition-normal);
+  word-wrap: break-word;
+}
+
+/* =============================================================================
+   CARD VARIANTS
+   ========================================================================== */
+
+/* Default Variant */
+.card--default {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Outlined Variant */
+.card--outlined {
+  background-color: var(--color-bg-primary);
+  border: 2px solid var(--color-border-primary);
+  box-shadow: none;
+}
+
+/* Elevated Variant */
+.card--elevated {
+  background-color: var(--color-bg-primary);
+  border: none;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Filled Variant */
+.card--filled {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  box-shadow: none;
+}
+
+/* =============================================================================
+   CARD PADDING
+   ========================================================================== */
+
+.card--padding-none {
+  padding: 0;
+}
+
+.card--padding-sm {
+  padding: var(--space-md);
+}
+
+.card--padding-md {
+  padding: var(--space-lg);
+}
+
+.card--padding-lg {
+  padding: var(--space-xl);
+}
+
+.card--padding-xl {
+  padding: var(--space-2xl);
+}
+
+/* =============================================================================
+   INTERACTIVE STATES
+   ========================================================================== */
+
+.card--interactive {
+  cursor: pointer;
+  user-select: none;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
+  }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  /* Focus styles for accessibility */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+}
+
+/* Variant-specific interactive states */
+.card--outlined.card--interactive:hover {
+  border-color: var(--color-primary-500);
+  box-shadow: var(--shadow-md);
+}
+
+.card--filled.card--interactive:hover {
+  background-color: var(--color-bg-tertiary);
+  box-shadow: var(--shadow-md);
+}
+
+/* =============================================================================
+   CARD SUB-COMPONENTS
+   ========================================================================== */
+
+/* Card Header */
+.card-header {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border-primary);
+  
+  /* Remove padding if card has no padding */
+  .card--padding-none & {
+    padding: var(--space-lg);
+  }
+  
+  /* Adjust padding for different card padding sizes */
+  .card--padding-sm & {
+    padding: var(--space-md);
+  }
+  
+  .card--padding-lg & {
+    padding: var(--space-xl);
+  }
+  
+  .card--padding-xl & {
+    padding: var(--space-2xl);
+  }
+}
+
+.card-header:last-child {
+  border-bottom: none;
+}
+
+/* Card Body */
+.card-body {
+  flex: 1;
+  padding: var(--space-lg);
+  
+  /* Remove padding if card has no padding */
+  .card--padding-none & {
+    padding: var(--space-lg);
+  }
+  
+  /* Adjust padding for different card padding sizes */
+  .card--padding-sm & {
+    padding: var(--space-md);
+  }
+  
+  .card--padding-lg & {
+    padding: var(--space-xl);
+  }
+  
+  .card--padding-xl & {
+    padding: var(--space-2xl);
+  }
+}
+
+/* Remove top padding if preceded by header */
+.card-header + .card-body {
+  padding-top: 0;
+}
+
+/* Card Footer */
+.card-footer {
+  padding: var(--space-lg);
+  border-top: 1px solid var(--color-border-primary);
+  
+  /* Remove padding if card has no padding */
+  .card--padding-none & {
+    padding: var(--space-lg);
+  }
+  
+  /* Adjust padding for different card padding sizes */
+  .card--padding-sm & {
+    padding: var(--space-md);
+  }
+  
+  .card--padding-lg & {
+    padding: var(--space-xl);
+  }
+  
+  .card--padding-xl & {
+    padding: var(--space-2xl);
+  }
+}
+
+.card-footer:first-child {
+  border-top: none;
+}
+
+/* Remove bottom padding from body when followed by footer */
+.card-body + .card-footer {
+  padding-top: var(--space-lg);
+  
+  .card--padding-sm & {
+    padding-top: var(--space-md);
+  }
+  
+  .card--padding-lg & {
+    padding-top: var(--space-xl);
+  }
+  
+  .card--padding-xl & {
+    padding-top: var(--space-2xl);
+  }
+}
+
+/* =============================================================================
+   CARD LAYOUT UTILITIES
+   ========================================================================== */
+
+/* Horizontal card layout */
+.card--horizontal {
+  flex-direction: row;
+}
+
+.card--horizontal .card-header,
+.card--horizontal .card-body,
+.card--horizontal .card-footer {
+  border-bottom: none;
+  border-right: 1px solid var(--color-border-primary);
+}
+
+.card--horizontal .card-header:last-child,
+.card--horizontal .card-body:last-child,
+.card--horizontal .card-footer:last-child {
+  border-right: none;
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* Focus visible only (removes focus ring for mouse users) */
+.card--interactive:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .card--interactive {
+    transition: none;
+  }
+  
+  .card--interactive:hover {
+    transform: none;
+  }
+  
+  .card--interactive:active {
+    transform: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card--outlined {
+    border-width: 3px;
+  }
+  
+  .card--default {
+    border-width: 2px;
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 767px) {
+  /* Reduce padding on mobile */
+  .card--padding-lg {
+    padding: var(--space-lg);
+  }
+  
+  .card--padding-xl {
+    padding: var(--space-xl);
+  }
+  
+  .card-header,
+  .card-body,
+  .card-footer {
+    .card--padding-lg & {
+      padding: var(--space-lg);
+    }
+    
+    .card--padding-xl & {
+      padding: var(--space-xl);
+    }
+  }
+  
+  /* Force horizontal cards to stack on mobile */
+  .card--horizontal {
+    flex-direction: column;
+  }
+  
+  .card--horizontal .card-header,
+  .card--horizontal .card-body,
+  .card--horizontal .card-footer {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border-primary);
+  }
+  
+  .card--horizontal .card-header:last-child,
+  .card--horizontal .card-body:last-child,
+  .card--horizontal .card-footer:last-child {
+    border-bottom: none;
+  }
+}
+
+/* =============================================================================
+   SPECIAL CARD TYPES
+   ========================================================================== */
+
+/* Image card */
+.card--image {
+  overflow: hidden;
+}
+
+.card--image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Compact card for lists */
+.card--compact {
+  padding: var(--space-md);
+  border-radius: var(--border-radius-lg);
+}
+
+.card--compact .card-header,
+.card--compact .card-body,
+.card--compact .card-footer {
+  padding: 0;
+  border: none;
+}

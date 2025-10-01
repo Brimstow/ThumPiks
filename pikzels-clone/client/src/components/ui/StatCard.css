@@ -1,0 +1,273 @@
+/**
+ * StatCard Component Styles
+ * 
+ * Statistics card component for displaying key metrics and data points
+ */
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card__content {
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* =============================================================================
+   HEADER SECTION
+   ========================================================================== */
+
+.stat-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.stat-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--border-radius-xl);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-card__icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+/* Icon color variants */
+.stat-card__icon--primary {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+}
+
+.stat-card__icon--success {
+  background: linear-gradient(135deg, var(--color-success-500), var(--color-success-600));
+}
+
+.stat-card__icon--warning {
+  background: linear-gradient(135deg, var(--color-warning-500), var(--color-warning-600));
+}
+
+.stat-card__icon--error {
+  background: linear-gradient(135deg, var(--color-error-500), var(--color-error-600));
+}
+
+.stat-card__icon--info {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+}
+
+.stat-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stat-card__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-xs) 0;
+  line-height: var(--line-height-normal);
+}
+
+.stat-card__value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: var(--line-height-tight);
+  word-break: break-all;
+}
+
+.stat-card__subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin: var(--space-xs) 0 0 0;
+  line-height: var(--line-height-normal);
+}
+
+/* =============================================================================
+   TREND SECTION
+   ========================================================================== */
+
+.stat-card__trend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-primary);
+}
+
+.stat-card__trend-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.stat-card__trend-indicator--up {
+  color: var(--color-success-600);
+}
+
+.stat-card__trend-indicator--down {
+  color: var(--color-error-600);
+}
+
+.stat-card__trend-indicator--neutral {
+  color: var(--color-text-secondary);
+}
+
+.stat-card__trend-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.stat-card__trend-value {
+  font-weight: var(--font-weight-semibold);
+}
+
+.stat-card__trend-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .stat-card__content {
+    padding: var(--space-md);
+  }
+  
+  .stat-card__header {
+    gap: var(--space-sm);
+  }
+  
+  .stat-card__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  
+  .stat-card__icon svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  
+  .stat-card__value {
+    font-size: var(--font-size-2xl);
+  }
+  
+  .stat-card__trend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-xs);
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-card__header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-md);
+  }
+  
+  .stat-card__trend {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* =============================================================================
+   INTERACTIVE STATES
+   ========================================================================== */
+
+.stat-card.card--interactive:hover .stat-card__icon {
+  transform: scale(1.05);
+  transition: transform var(--transition-fast);
+}
+
+.stat-card.card--interactive:hover .stat-card__value {
+  color: var(--color-primary-600);
+  transition: color var(--transition-fast);
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .stat-card__trend {
+    border-top-width: 2px;
+  }
+  
+  .stat-card__icon {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .stat-card.card--interactive:hover .stat-card__icon {
+    transform: none;
+    transition: none;
+  }
+  
+  .stat-card.card--interactive:hover .stat-card__value {
+    transition: none;
+  }
+}
+
+/* =============================================================================
+   LAYOUT VARIATIONS
+   ========================================================================== */
+
+/* Compact variation */
+.stat-card--compact .stat-card__content {
+  padding: var(--space-md);
+  gap: var(--space-sm);
+}
+
+.stat-card--compact .stat-card__icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.stat-card--compact .stat-card__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.stat-card--compact .stat-card__value {
+  font-size: var(--font-size-2xl);
+}
+
+/* Horizontal layout */
+.stat-card--horizontal .stat-card__header {
+  align-items: center;
+}
+
+.stat-card--horizontal .stat-card__trend {
+  border-top: none;
+  border-left: 1px solid var(--color-border-primary);
+  padding-top: 0;
+  padding-left: var(--space-md);
+  margin-left: var(--space-md);
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}

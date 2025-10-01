@@ -7,7 +7,9 @@ import AnalyticsDashboard from './AnalyticsDashboard';
 import CreateThumbnail from './CreateThumbnail';
 import SetFeaturedThumbnail from './SetFeaturedThumbnail';
 import SocialShareModal from './SocialShareModal';
+import { Navigation, StatCard, Button, Card, CardBody } from './ui';
 import { useTheme } from '../contexts/ThemeContext';
+import './Dashboard.css';
 
 interface User {
   id: string;
@@ -393,86 +395,36 @@ const Dashboard: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <div className="dashboard__loading">
+        <div>
+          <div className="dashboard__loading-spinner"></div>
+          <div className="dashboard__loading-text">Loading your dashboard...</div>
+        </div>
+      </div>
+    );
   }
 
+  const navigationItems = [
+    {
+      id: 'templates',
+      label: 'Templates',
+      onClick: () => navigate('/templates'),
+      active: location.pathname === '/templates'
+    }
+  ];
+
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Navigation Bar */}
-      <nav className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>Pikzels Clone</h1>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`${
-                    activeTab === 'dashboard'
-                      ? `${theme === 'dark' ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900'}`
-                      : `${theme === 'dark' ? 'border-transparent text-gray-300 hover:border-gray-300 hover:text-white' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setActiveTab('thumbnails')}
-                  className={`${
-                    activeTab === 'thumbnails'
-                      ? `${theme === 'dark' ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900'}`
-                      : `${theme === 'dark' ? 'border-transparent text-gray-300 hover:border-gray-300 hover:text-white' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                >
-                  My Thumbnails
-                </button>
-                <button
-                  onClick={() => setActiveTab('projects')}
-                  className={`${
-                    activeTab === 'projects'
-                      ? `${theme === 'dark' ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900'}`
-                      : `${theme === 'dark' ? 'border-transparent text-gray-300 hover:border-gray-300 hover:text-white' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                >
-                  Projects
-                </button>
-                <button
-                  onClick={() => setActiveTab('analytics')}
-                  className={`${
-                    activeTab === 'analytics'
-                      ? `${theme === 'dark' ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900'}`
-                      : `${theme === 'dark' ? 'border-transparent text-gray-300 hover:border-gray-300 hover:text-white' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                >
-                  Analytics
-                </button>
-                {/* Add Template Marketplace link */}
-                <button
-                  onClick={() => navigate('/templates')}
-                  className={`${
-                    location.pathname === '/templates'
-                      ? `${theme === 'dark' ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900'}`
-                      : `${theme === 'dark' ? 'border-transparent text-gray-300 hover:border-gray-300 hover:text-white' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`
-                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                >
-                  Template Marketplace
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={toggleTheme}
-                className={`p-2 rounded-full ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'}`}
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? (
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ) : (
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    <div className="dashboard">
+      <Navigation
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        user={user}
+        onThemeToggle={toggleTheme}
+        onLogout={handleLogout}
+        theme={theme}
+        additionalItems={navigationItems}
+      /> strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                   </svg>
                 )}
               </button>
@@ -487,117 +439,144 @@ const Dashboard: React.FC = () => {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <div className="dashboard__container">
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <div className="px-4 py-6 sm:px-0">
-            <div className="mb-8">
-              <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                Welcome, {user?.name || user?.email}!
+          <div className="dashboard__tab-content">
+            <div className="dashboard__welcome">
+              <h1 className="dashboard__title">
+                Welcome, {user?.name || user?.email.split('@')[0]}!
               </h1>
-              <p className={`mt-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+              <p className="dashboard__subtitle">
                 Create stunning thumbnails for your content with AI-powered tools.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Stats Cards */}
-              <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} overflow-hidden shadow rounded-lg`}>
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <div className="dashboard__stats">
+              <StatCard
+                value={thumbnails.length}
+                label="Total Thumbnails"
+                icon={
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                }
+                iconColor="primary"
+                onClick={() => setActiveTab('thumbnails')}
+                trend={{
+                  direction: 'up',
+                  value: 12,
+                  label: 'vs last month'
+                }}
+              />
+
+              <StatCard
+                value={projects.length}
+                label="Active Projects"
+                icon={
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                }
+                iconColor="success"
+                onClick={() => setActiveTab('projects')}
+                trend={{
+                  direction: 'up',
+                  value: 8,
+                  label: 'vs last month'
+                }}
+              />
+
+              <StatCard
+                value="150"
+                label="Credits Remaining"
+                subtitle="Renews monthly"
+                icon={
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                }
+                iconColor="warning"
+                trend={{
+                  direction: 'neutral',
+                  value: 0,
+                  label: 'this month'
+                }}
+              />
+            </div>
+
+            <div className="dashboard__quick-actions">
+              <h2 className="dashboard__section-title">Quick Actions</h2>
+              <div className="dashboard__actions-grid">
+                <Card 
+                  variant="default" 
+                  className="dashboard__action-card"
+                  interactive
+                  onClick={() => setCreatingThumbnail(true)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label="Create new thumbnail"
+                >
+                  <div className="dashboard__action-content">
+                    <div className="dashboard__action-icon">
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} truncate`}>Total Thumbnails</dt>
-                        <dd className="flex items-baseline">
-                          <div className={`text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{thumbnails.length}</div>
-                        </dd>
-                      </dl>
+                    <div className="dashboard__action-info">
+                      <h3 className="dashboard__action-title">Create Thumbnail</h3>
+                      <p className="dashboard__action-description">Generate new AI-powered thumbnails</p>
                     </div>
                   </div>
-                </div>
-              </div>
+                </Card>
 
-              <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} overflow-hidden shadow rounded-lg`}>
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <Card 
+                  variant="default" 
+                  className="dashboard__action-card"
+                  interactive
+                  onClick={() => setActiveTab('projects')}
+                  tabIndex={0}
+                  role="button"
+                  aria-label="Manage projects"
+                >
+                  <div className="dashboard__action-content">
+                    <div className="dashboard__action-icon" style={{background: 'linear-gradient(135deg, var(--color-success-500), var(--color-success-600))'}}>
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} truncate`}>Projects</dt>
-                        <dd className="flex items-baseline">
-                          <div className={`text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{projects.length}</div>
-                        </dd>
-                      </dl>
+                    <div className="dashboard__action-info">
+                      <h3 className="dashboard__action-title">Manage Projects</h3>
+                      <p className="dashboard__action-description">Organize thumbnails into projects</p>
                     </div>
                   </div>
-                </div>
-              </div>
+                </Card>
 
-              <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} overflow-hidden shadow rounded-lg`}>
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                      <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <Card 
+                  variant="default" 
+                  className="dashboard__action-card"
+                  interactive
+                  onClick={() => setActiveTab('analytics')}
+                  tabIndex={0}
+                  role="button"
+                  aria-label="View analytics"
+                >
+                  <div className="dashboard__action-content">
+                    <div className="dashboard__action-icon" style={{background: 'linear-gradient(135deg, #06b6d4, #0891b2)'}}>
+                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} truncate`}>Credits Remaining</dt>
-                        <dd className="flex items-baseline">
-                          <div className={`text-2xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>150</div>
-                        </dd>
-                      </dl>
+                    <div className="dashboard__action-info">
+                      <h3 className="dashboard__action-title">View Analytics</h3>
+                      <p className="dashboard__action-description">Track performance and insights</p>
                     </div>
                   </div>
-                </div>
+                </Card>
               </div>
             </div>
-
-            {/* Quick Actions */}
-            <div className="mt-8">
-              <h2 className={`text-lg font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Quick Actions</h2>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <button
-                  onClick={() => setActiveTab('thumbnails')}
-                  className={`relative rounded-lg border ${
-                    theme === 'dark' 
-                      ? 'border-gray-700 bg-gray-800 hover:border-gray-500' 
-                      : 'border-gray-300 bg-white hover:border-gray-400'
-                  } px-6 py-5 shadow-sm flex items-center space-x-3 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500`}
-                >
-                  <div className="flex-shrink-0">
-                    <svg className={`h-6 w-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="absolute inset-0" aria-hidden="true"></span>
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Create Thumbnail</p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} truncate`}>Generate new thumbnails</p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('projects')}
-                  className={`relative rounded-lg border ${
-                    theme === 'dark' 
-                      ? 'border-gray-700 bg-gray-800 hover:border-gray-500' 
-                      : 'border-gray-300 bg-white hover:border-gray-400'
-                  } px-6 py-5 shadow-sm flex items-center space-x-3 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500`}
-                >
-                  <div className="flex-shrink-0">
-                    <svg className={`h-6 w-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </div>
+        )}
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">

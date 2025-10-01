@@ -1,0 +1,296 @@
+/**
+ * Landing Page Styles
+ * 
+ * Modern landing page design using the new design system
+ * Replaces inline styles with organized CSS classes
+ */
+
+.landing-page {
+  font-family: var(--font-family-primary);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: var(--color-text-primary);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.landing-page.dark {
+  background: linear-gradient(135deg, #1a2a6c 0%, #2c3e50 100%);
+}
+
+/* =============================================================================
+   HERO SECTION
+   ========================================================================== */
+
+.hero-section {
+  position: relative;
+  padding: var(--space-4xl) var(--space-md);
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  z-index: 1;
+}
+
+/* Background Pattern */
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 25%),
+                    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.1) 0%, transparent 25%);
+  background-size: 100px 100px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.hero-title {
+  font-size: clamp(var(--font-size-4xl), 5vw, var(--font-size-6xl));
+  font-weight: var(--font-weight-extrabold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tighter);
+  margin-bottom: var(--space-md);
+  color: white;
+  text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.hero-subtitle {
+  font-size: clamp(var(--font-size-lg), 3vw, var(--font-size-2xl));
+  line-height: var(--line-height-loose);
+  margin-bottom: var(--space-2xl);
+  opacity: 0.95;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.hero-cta {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3xl);
+}
+
+/* =============================================================================
+   FEATURES SECTION
+   ========================================================================== */
+
+.features-section {
+  position: relative;
+  padding: var(--space-4xl) var(--space-md);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.features-section.dark {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.section-title {
+  text-align: center;
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-3xl);
+  color: white;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-2xl);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.feature-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all var(--transition-normal);
+  text-align: center;
+  overflow: hidden;
+}
+
+.feature-card.dark {
+  background: rgba(30, 30, 40, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-2xl);
+}
+
+.feature-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-4xl);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-icon--ai {
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, #764ba2 100%);
+}
+
+.feature-icon--design {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.feature-icon--speed {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.feature-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-md);
+  color: var(--color-text-primary);
+}
+
+.feature-description {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-loose);
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+}
+
+/* =============================================================================
+   TESTIMONIALS SECTION
+   ========================================================================== */
+
+.testimonials-section {
+  padding: var(--space-4xl) var(--space-md);
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.testimonial-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin: var(--space-2xl) auto;
+  max-width: 800px;
+  position: relative;
+}
+
+.testimonial-card.dark {
+  background: rgba(30, 30, 40, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.testimonial-text {
+  font-size: var(--font-size-xl);
+  font-style: italic;
+  margin-bottom: var(--space-lg);
+  line-height: var(--line-height-loose);
+  color: var(--color-text-primary);
+}
+
+.testimonial-author {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.testimonial-role {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+}
+
+/* =============================================================================
+   FOOTER
+   ========================================================================== */
+
+.landing-footer {
+  padding: var(--space-2xl) var(--space-md);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.landing-footer.dark {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.footer-text {
+  font-size: var(--font-size-base);
+  opacity: 0.9;
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: var(--space-3xl) var(--space-md);
+  }
+  
+  .hero-cta {
+    flex-direction: column;
+    align-items: center;
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+  
+  .section-title {
+    font-size: var(--font-size-3xl);
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .feature-card {
+    transition: none;
+  }
+  
+  .feature-card:hover {
+    transform: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .feature-card {
+    border-width: 2px;
+  }
+  
+  .testimonial-card {
+    border-width: 2px;
+  }
+}
+
+/* Focus improvements */
+.feature-card:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}

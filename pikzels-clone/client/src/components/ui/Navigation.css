@@ -1,0 +1,338 @@
+/**
+ * Navigation Component Styles
+ * 
+ * Modern navigation component with clean design and accessibility features
+ */
+
+.navigation {
+  background-color: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border-primary);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  transition: all var(--transition-fast);
+}
+
+.navigation--dark {
+  background-color: var(--color-gray-800);
+  border-bottom-color: var(--color-gray-700);
+}
+
+.navigation__container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem;
+}
+
+/* =============================================================================
+   BRAND SECTION
+   ========================================================================== */
+
+.navigation__brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.navigation__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.navigation__logo-icon {
+  font-size: var(--font-size-2xl);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.navigation__logo-text {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-500);
+  margin: 0;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =============================================================================
+   NAVIGATION TABS
+   ========================================================================== */
+
+.navigation__tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+  justify-content: center;
+  max-width: 600px;
+}
+
+.navigation__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-lg);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  border-radius: var(--border-radius-lg);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  
+  /* Focus styles */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+  
+  /* Hover effects */
+  &:hover:not(.navigation__tab--active) {
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-secondary);
+    transform: translateY(-1px);
+  }
+}
+
+.navigation__tab--active {
+  color: var(--color-primary-600);
+  background-color: var(--color-primary-50);
+  font-weight: var(--font-weight-semibold);
+  
+  /* Active indicator */
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-600));
+    border-radius: var(--border-radius-full);
+  }
+}
+
+.navigation--dark .navigation__tab--active {
+  color: var(--color-primary-400);
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+.navigation__tab-text {
+  white-space: nowrap;
+}
+
+/* Tab icons */
+.nav-item__icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* =============================================================================
+   ACTIONS SECTION
+   ========================================================================== */
+
+.navigation__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-shrink: 0;
+}
+
+.navigation__theme-toggle {
+  padding: var(--space-sm) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.navigation__theme-toggle:hover {
+  color: var(--color-text-primary) !important;
+}
+
+.navigation__theme-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.navigation__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.navigation__user-greeting {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navigation__logout {
+  min-width: auto;
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+  .navigation__container {
+    padding: 0 var(--space-sm);
+  }
+  
+  .navigation__logo-text {
+    font-size: var(--font-size-lg);
+  }
+  
+  .navigation__tabs {
+    gap: var(--space-xs);
+  }
+  
+  .navigation__tab {
+    padding: var(--space-sm) var(--space-md);
+  }
+  
+  .navigation__actions {
+    gap: var(--space-sm);
+  }
+  
+  .navigation__user-greeting {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .navigation__container {
+    height: 3.5rem;
+  }
+  
+  .navigation__logo-icon {
+    font-size: var(--font-size-xl);
+  }
+  
+  .navigation__logo-text {
+    font-size: var(--font-size-base);
+  }
+  
+  .navigation__tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--color-bg-primary);
+    border-top: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-sm) var(--space-md);
+    justify-content: space-around;
+    max-width: none;
+    height: 4rem;
+    z-index: var(--z-fixed);
+  }
+  
+  .navigation--dark .navigation__tabs {
+    background-color: var(--color-gray-800);
+    border-top-color: var(--color-gray-700);
+  }
+  
+  .navigation__tab {
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    min-width: 60px;
+    text-align: center;
+    font-size: var(--font-size-xs);
+  }
+  
+  .navigation__tab--active::after {
+    bottom: auto;
+    top: -1px;
+    height: 2px;
+  }
+  
+  .nav-item__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  
+  .navigation__user-greeting {
+    display: none;
+  }
+  
+  /* Add bottom padding to main content to account for fixed navigation */
+  body {
+    padding-bottom: 4rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .navigation__logo-text {
+    display: none;
+  }
+  
+  .navigation__tab-text {
+    font-size: 0.625rem;
+  }
+  
+  .navigation__actions {
+    gap: var(--space-xs);
+  }
+  
+  .navigation__logout {
+    padding: var(--space-xs) var(--space-sm) !important;
+    font-size: var(--font-size-xs) !important;
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .navigation__tab--active {
+    border: 2px solid var(--color-primary-500);
+  }
+  
+  .navigation__tab--active::after {
+    height: 4px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .navigation__tab {
+    transition: none;
+  }
+  
+  .navigation__tab:hover {
+    transform: none;
+  }
+}
+
+/* Focus visible improvements */
+.navigation__tab:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ensure sufficient touch targets on mobile */
+@media (max-width: 767px) {
+  .navigation__tab {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

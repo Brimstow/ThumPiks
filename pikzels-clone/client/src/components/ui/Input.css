@@ -1,0 +1,345 @@
+/**
+ * Input Component Styles
+ * 
+ * Comprehensive input system with multiple variants, sizes, and states
+ * following the design system specifications.
+ */
+
+.input-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.input-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.input-label__required {
+  color: var(--color-error-500);
+  font-weight: var(--font-weight-bold);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  /* Base input styles */
+  width: 100%;
+  font-family: var(--font-family-primary);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  transition: all var(--transition-fast);
+  
+  /* Remove default browser styles */
+  appearance: none;
+  outline: none;
+  
+  /* Focus styles */
+  &:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+  
+  /* Placeholder styles */
+  &::placeholder {
+    color: var(--color-text-muted);
+    opacity: 1;
+  }
+  
+  /* Disabled state */
+  &:disabled,
+  &.input--disabled {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   INPUT SIZES
+   ========================================================================== */
+
+.input--sm {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
+  border-radius: var(--border-radius-md);
+  min-height: 2rem;
+}
+
+.input--md {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-base);
+  border-radius: var(--border-radius-lg);
+  min-height: 2.5rem;
+}
+
+.input--lg {
+  padding: var(--space-lg) var(--space-xl);
+  font-size: var(--font-size-lg);
+  border-radius: var(--border-radius-xl);
+  min-height: 3rem;
+}
+
+/* =============================================================================
+   INPUT VARIANTS
+   ========================================================================== */
+
+/* Default Variant */
+.input--default {
+  background-color: var(--color-bg-primary);
+  border-color: var(--color-border-primary);
+  
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--color-border-secondary);
+  }
+}
+
+/* Filled Variant */
+.input--filled {
+  background-color: var(--color-bg-secondary);
+  border-color: transparent;
+  
+  &:hover:not(:disabled):not(:focus) {
+    background-color: var(--color-bg-tertiary);
+  }
+  
+  &:focus {
+    background-color: var(--color-bg-primary);
+    border-color: var(--color-primary-500);
+  }
+}
+
+/* Borderless Variant */
+.input--borderless {
+  background-color: transparent;
+  border-color: transparent;
+  border-bottom: 2px solid var(--color-border-primary);
+  border-radius: 0;
+  
+  &:hover:not(:disabled):not(:focus) {
+    border-bottom-color: var(--color-border-secondary);
+  }
+  
+  &:focus {
+    border-bottom-color: var(--color-primary-500);
+    box-shadow: none;
+  }
+}
+
+/* =============================================================================
+   INPUT STATES
+   ========================================================================== */
+
+/* Error State */
+.input--error {
+  border-color: var(--color-error-500) !important;
+  
+  &:focus {
+    border-color: var(--color-error-500) !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+}
+
+/* Success State */
+.input--success {
+  border-color: var(--color-success-500) !important;
+  
+  &:focus {
+    border-color: var(--color-success-500) !important;
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+  }
+}
+
+/* =============================================================================
+   INPUT ICONS
+   ========================================================================== */
+
+.input__left-icon,
+.input__right-icon {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.input__left-icon {
+  left: var(--space-md);
+}
+
+.input__right-icon {
+  right: var(--space-md);
+}
+
+/* Adjust padding when icons are present */
+.input--has-left-icon.input--sm {
+  padding-left: calc(var(--space-md) + 1rem + var(--space-sm));
+}
+
+.input--has-left-icon.input--md {
+  padding-left: calc(var(--space-lg) + 1.125rem + var(--space-sm));
+}
+
+.input--has-left-icon.input--lg {
+  padding-left: calc(var(--space-xl) + 1.25rem + var(--space-sm));
+}
+
+.input--has-right-icon.input--sm {
+  padding-right: calc(var(--space-md) + 1rem + var(--space-sm));
+}
+
+.input--has-right-icon.input--md {
+  padding-right: calc(var(--space-lg) + 1.125rem + var(--space-sm));
+}
+
+.input--has-right-icon.input--lg {
+  padding-right: calc(var(--space-xl) + 1.25rem + var(--space-sm));
+}
+
+/* Icon sizing based on input size */
+.input--sm ~ .input__left-icon,
+.input--sm ~ .input__right-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.input--md ~ .input__left-icon,
+.input--md ~ .input__right-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.input--lg ~ .input__left-icon,
+.input--lg ~ .input__right-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* =============================================================================
+   HELP TEXT AND ERROR MESSAGES
+   ========================================================================== */
+
+.input-help {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.input-help__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.input-help__error {
+  font-size: var(--font-size-sm);
+  color: var(--color-error-500);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.input-help__error::before {
+  content: "⚠";
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .input {
+    border-width: 2px;
+  }
+  
+  .input--borderless {
+    border-bottom-width: 3px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .input {
+    transition: none;
+  }
+}
+
+/* Focus visible only (removes focus ring for mouse users) */
+.input:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
+/* Ensure sufficient touch target size for mobile */
+@media (max-width: 767px) {
+  .input {
+    min-height: 44px;
+  }
+}
+
+/* =============================================================================
+   SPECIAL INPUT TYPES
+   ========================================================================== */
+
+/* File input styling */
+.input[type="file"] {
+  padding: var(--space-sm);
+  cursor: pointer;
+}
+
+.input[type="file"]::-webkit-file-upload-button {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-xs) var(--space-md);
+  margin-right: var(--space-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.input[type="file"]::-webkit-file-upload-button:hover {
+  background-color: var(--color-bg-tertiary);
+}
+
+/* Search input styling */
+.input[type="search"] {
+  -webkit-appearance: textfield;
+}
+
+.input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  cursor: pointer;
+  height: 1rem;
+  width: 1rem;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor'%3E%3Cline x1='18' y1='6' x2='6' y2='18'%3E%3C/line%3E%3Cline x1='6' y1='6' x2='18' y2='18'%3E%3C/line%3E%3C/svg%3E");
+  background-size: 1rem 1rem;
+  opacity: 0.5;
+}
+
+.input[type="search"]::-webkit-search-cancel-button:hover {
+  opacity: 1;
+}
