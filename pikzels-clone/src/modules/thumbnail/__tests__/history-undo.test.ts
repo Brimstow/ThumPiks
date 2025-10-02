@@ -7,8 +7,8 @@ process.env.NODE_ENV = 'test';
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn().mockResolvedValue(undefined),
-    writeFile: jest.fn()
-  }
+    writeFile: jest.fn(),
+  },
 }));
 
 // Mock the entire sharp module
@@ -28,7 +28,7 @@ jest.mock('sharp', () => {
     sharpen: jest.fn().mockReturnThis(),
     convolve: jest.fn().mockReturnThis(),
     png: jest.fn().mockReturnThis(),
-    toFile: jest.fn().mockResolvedValue(undefined)
+    toFile: jest.fn().mockResolvedValue(undefined),
   }));
 });
 
@@ -37,7 +37,7 @@ describe('ImageProcessingService - History/Undo Functionality', () => {
 
   beforeEach(() => {
     imageProcessingService = new ImageProcessingService();
-    
+
     // Clear all mocks before each test
     jest.clearAllMocks();
   });
@@ -45,15 +45,19 @@ describe('ImageProcessingService - History/Undo Functionality', () => {
   describe('applyEditsToImage with history tracking', () => {
     it('should handle basic edit history correctly', async () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
-      const edits = { 
+      const edits = {
         brightness: 120,
         contrast: 90,
-        saturation: 110
+        saturation: 110,
       };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -61,7 +65,7 @@ describe('ImageProcessingService - History/Undo Functionality', () => {
 
     it('should handle complex edit history correctly', async () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
-      const edits = { 
+      const edits = {
         brightness: 120,
         contrast: 90,
         saturation: 110,
@@ -69,14 +73,18 @@ describe('ImageProcessingService - History/Undo Functionality', () => {
         flipHorizontal: true,
         resize: {
           width: 800,
-          height: 600
+          height: 600,
         },
-        filter: 'vintage'
+        filter: 'vintage',
       };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -88,14 +96,26 @@ describe('ImageProcessingService - History/Undo Functionality', () => {
       const edits1 = { brightness: 120 };
       const edits2 = { brightness: 120, contrast: 90 };
       const edits3 = { brightness: 120, contrast: 90, saturation: 110 };
-      
+
       const thumbnailId = 'test-id';
-      
+
       // Apply edits in sequence
-      await imageProcessingService.applyEditsToImage(imageUrl, edits1, thumbnailId);
-      await imageProcessingService.applyEditsToImage(imageUrl, edits2, thumbnailId);
-      await imageProcessingService.applyEditsToImage(imageUrl, edits3, thumbnailId);
-      
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits1,
+        thumbnailId
+      );
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits2,
+        thumbnailId
+      );
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits3,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the methods didn't throw an error
       expect(true).toBe(true);

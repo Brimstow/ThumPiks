@@ -6,7 +6,7 @@ import Register from './components/auth/Register';
 
 function App() {
   useEffect(() => {
-    console.log("App component mounted");
+    console.log('App component mounted');
   }, []);
 
   return (

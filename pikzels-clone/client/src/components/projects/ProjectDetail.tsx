@@ -31,8 +31,8 @@ const ProjectDetail: React.FC = () => {
 
       const response = await fetch(`/api/projects/${projectId}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (response.ok) {
@@ -62,14 +62,21 @@ const ProjectDetail: React.FC = () => {
       <div className="bg-red-50 border-l-4 border-red-400 p-4">
         <div className="flex">
           <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            <svg
+              className="h-5 w-5 text-red-400"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clipRule="evenodd"
+              />
             </svg>
           </div>
           <div className="ml-3">
-            <p className="text-sm text-red-700">
-              {error}
-            </p>
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         </div>
       </div>
@@ -79,12 +86,25 @@ const ProjectDetail: React.FC = () => {
   if (!project) {
     return (
       <div className="text-center py-12">
-        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg
+          className="mx-auto h-12 w-12 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
         </svg>
-        <h3 className="mt-2 text-sm font-medium text-gray-900">Project not found</h3>
+        <h3 className="mt-2 text-sm font-medium text-gray-900">
+          Project not found
+        </h3>
         <p className="mt-1 text-sm text-gray-500">
-          The project you're looking for doesn't exist or you don't have access to it.
+          The project you're looking for doesn't exist or you don't have access
+          to it.
         </p>
         <div className="mt-6">
           <button
@@ -103,8 +123,12 @@ const ProjectDetail: React.FC = () => {
       <div className="px-4 py-5 sm:px-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">{project.name}</h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">Project details and information.</p>
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              {project.name}
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Project details and information.
+            </p>
           </div>
           <div className="flex space-x-3">
             <button
@@ -115,7 +139,11 @@ const ProjectDetail: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                if (window.confirm('Are you sure you want to delete this project?')) {
+                if (
+                  window.confirm(
+                    'Are you sure you want to delete this project?'
+                  )
+                ) {
                   // Handle delete
                 }
               }}
@@ -130,18 +158,23 @@ const ProjectDetail: React.FC = () => {
         <dl>
           <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
             <dt className="text-sm font-medium text-gray-500">Project Name</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{project.name}</dd>
+            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+              {project.name}
+            </dd>
           </div>
           {project.description && (
             <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
               <dt className="text-sm font-medium text-gray-500">Description</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{project.description}</dd>
+              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {project.description}
+              </dd>
             </div>
           )}
           <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
             <dt className="text-sm font-medium text-gray-500">Created At</dt>
             <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {new Date(project.createdAt).toLocaleDateString()} at {new Date(project.createdAt).toLocaleTimeString()}
+              {new Date(project.createdAt).toLocaleDateString()} at{' '}
+              {new Date(project.createdAt).toLocaleTimeString()}
             </dd>
           </div>
         </dl>

@@ -19,20 +19,21 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      
+
       // Get user analytics data
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
-      
+
       // Get thumbnail statistics
       const thumbnailStats = await analyticsService.getThumbnailStats(userId);
-      
+
       // Get advanced analytics
-      const advancedAnalytics = await analyticsService.getAdvancedAnalytics(userId);
-      
+      const advancedAnalytics =
+        await analyticsService.getAdvancedAnalytics(userId);
+
       res.status(200).json({
         userAnalytics,
         thumbnailStats,
-        advancedAnalytics
+        advancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching analytics data:', error);
@@ -47,12 +48,12 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      
+
       // Get user analytics data (which includes trends)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
-      
+
       res.status(200).json({
-        trends: userAnalytics.trends
+        trends: userAnalytics.trends,
       });
     } catch (error) {
       console.error('Error fetching thumbnail trends:', error);
@@ -67,12 +68,12 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      
+
       // Get user analytics data (which includes style distribution)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
-      
+
       res.status(200).json({
-        styles: userAnalytics.styles
+        styles: userAnalytics.styles,
       });
     } catch (error) {
       console.error('Error fetching style distribution:', error);
@@ -87,12 +88,12 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      
+
       // Get user analytics data (which includes project usage)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
-      
+
       res.status(200).json({
-        projects: userAnalytics.projects
+        projects: userAnalytics.projects,
       });
     } catch (error) {
       console.error('Error fetching project usage:', error);
@@ -107,12 +108,13 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      
+
       // Get advanced analytics data
-      const advancedAnalytics = await analyticsService.getAdvancedAnalytics(userId);
-      
+      const advancedAnalytics =
+        await analyticsService.getAdvancedAnalytics(userId);
+
       res.status(200).json({
-        advancedAnalytics
+        advancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching advanced analytics data:', error);
@@ -128,18 +130,24 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      const timeframe = (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'daily';
-      
+      const timeframe =
+        (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'daily';
+
       // Validate timeframe parameter
       if (!['daily', 'weekly', 'monthly'].includes(timeframe)) {
-        return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly.' });
+        return res
+          .status(400)
+          .json({
+            error: 'Invalid timeframe. Must be daily, weekly, or monthly.',
+          });
       }
-      
+
       // Get detailed advanced analytics data
-      const detailedAdvancedAnalytics = await analyticsService.getDetailedAdvancedAnalytics(userId, timeframe);
-      
+      const detailedAdvancedAnalytics =
+        await analyticsService.getDetailedAdvancedAnalytics(userId, timeframe);
+
       res.status(200).json({
-        detailedAdvancedAnalytics
+        detailedAdvancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching detailed advanced analytics data:', error);
@@ -155,18 +163,24 @@ export class AnalyticsController {
       }
 
       const userId = req.user.id;
-      const timeframe = (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'weekly';
-      
+      const timeframe =
+        (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'weekly';
+
       // Validate timeframe parameter
       if (!['daily', 'weekly', 'monthly'].includes(timeframe)) {
-        return res.status(400).json({ error: 'Invalid timeframe. Must be daily, weekly, or monthly.' });
+        return res
+          .status(400)
+          .json({
+            error: 'Invalid timeframe. Must be daily, weekly, or monthly.',
+          });
       }
-      
+
       // Get comparative analytics data
-      const comparativeAnalytics = await analyticsService.getComparativeAnalytics(userId, timeframe);
-      
+      const comparativeAnalytics =
+        await analyticsService.getComparativeAnalytics(userId, timeframe);
+
       res.status(200).json({
-        comparativeAnalytics
+        comparativeAnalytics,
       });
     } catch (error) {
       console.error('Error fetching comparative analytics data:', error);

@@ -1,4 +1,5 @@
 import React, { HTMLAttributes } from 'react';
+import React, { HTMLAttributes } from 'react';
 import './Card.css';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -24,17 +25,19 @@ const Card: React.FC<CardProps> = ({
   const baseClasses = 'card';
   const variantClasses = `card--${variant}`;
   const paddingClasses = `card--padding-${padding}`;
-  const stateClasses = [
-    interactive && 'card--interactive'
-  ].filter(Boolean).join(' ');
+  const stateClasses = [interactive && 'card--interactive']
+    .filter(Boolean)
+    .join(' ');
 
   const combinedClassName = [
     baseClasses,
     variantClasses,
     paddingClasses,
     stateClasses,
-    className
-  ].filter(Boolean).join(' ');
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={combinedClassName} {...props}>

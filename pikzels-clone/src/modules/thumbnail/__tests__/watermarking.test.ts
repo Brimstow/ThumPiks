@@ -7,8 +7,8 @@ process.env.NODE_ENV = 'test';
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn().mockResolvedValue(undefined),
-    writeFile: jest.fn()
-  }
+    writeFile: jest.fn(),
+  },
 }));
 
 // Mock the entire sharp module
@@ -28,7 +28,7 @@ jest.mock('sharp', () => {
     sharpen: jest.fn().mockReturnThis(),
     convolve: jest.fn().mockReturnThis(),
     png: jest.fn().mockReturnThis(),
-    toFile: jest.fn().mockResolvedValue(undefined)
+    toFile: jest.fn().mockResolvedValue(undefined),
   }));
 });
 
@@ -37,7 +37,7 @@ describe('ImageProcessingService - Watermarking', () => {
 
   beforeEach(() => {
     imageProcessingService = new ImageProcessingService();
-    
+
     // Clear all mocks before each test
     jest.clearAllMocks();
   });
@@ -45,19 +45,23 @@ describe('ImageProcessingService - Watermarking', () => {
   describe('applyEditsToImage with watermark', () => {
     it('should handle text watermark correctly', async () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
-      const edits = { 
+      const edits = {
         watermark: {
           type: 'text',
           text: '© Your Brand',
           position: 'bottom-right',
           opacity: 50,
-          size: 24
-        }
+          size: 24,
+        },
       };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -65,19 +69,23 @@ describe('ImageProcessingService - Watermarking', () => {
 
     it('should handle image watermark correctly', async () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
-      const edits = { 
+      const edits = {
         watermark: {
           type: 'image',
           imageUrl: 'https://example.com/watermark.png',
           position: 'top-left',
           opacity: 30,
-          size: 36
-        }
+          size: 36,
+        },
       };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -85,13 +93,17 @@ describe('ImageProcessingService - Watermarking', () => {
 
     it('should handle undefined watermark correctly', async () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
-      const edits = { 
+      const edits = {
         // No watermark property
       };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);

@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         setIsLoading(false);
         setIsAuthenticated(false);
@@ -23,8 +23,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       try {
         const response = await fetch('/api/user/profile', {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (response.ok) {
@@ -58,7 +58,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     navigate('/login');
     return (
       <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
-        <div className="text-gray-900 dark:text-white">Redirecting to login...</div>
+        <div className="text-gray-900 dark:text-white">
+          Redirecting to login...
+        </div>
       </div>
     );
   }

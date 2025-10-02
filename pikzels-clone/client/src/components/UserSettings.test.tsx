@@ -9,7 +9,7 @@ describe('UserSettings', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     jest.clearAllMocks();
-    
+
     // Mock localStorage
     Storage.prototype.getItem = jest.fn(() => 'test-token');
   });
@@ -17,36 +17,37 @@ describe('UserSettings', () => {
   it('renders loading state initially', () => {
     (fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ settings: {} })
+      json: () => Promise.resolve({ settings: {} }),
     });
 
     render(<UserSettings />);
-    
+
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
   it('fetches and displays user settings', async () => {
     (fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ 
-        settings: {
-          theme: 'dark',
-          language: 'en',
-          notifications: {
-            email: true,
-            push: false
-          }
-        }
-      })
+      json: () =>
+        Promise.resolve({
+          settings: {
+            theme: 'dark',
+            language: 'en',
+            notifications: {
+              email: true,
+              push: false,
+            },
+          },
+        }),
     });
 
     render(<UserSettings />);
-    
+
     // Wait for the component to finish loading
     await waitFor(() => {
       expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
     });
-    
+
     // Check that the settings are displayed
     expect(screen.getByText('User Settings')).toBeInTheDocument();
     expect(screen.getByText('Appearance')).toBeInTheDocument();
@@ -58,12 +59,12 @@ describe('UserSettings', () => {
     (fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
     render(<UserSettings />);
-    
+
     // Wait for the component to finish loading
     await waitFor(() => {
       expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
     });
-    
+
     // Check that the error message is displayed
     expect(screen.getByText('Failed to load settings')).toBeInTheDocument();
   });

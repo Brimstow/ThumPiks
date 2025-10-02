@@ -11,13 +11,13 @@ describe('CollaborationService', () => {
   const mockTeamData = {
     name: 'Test Team',
     description: 'A test team',
-    ownerId: 'user-123'
+    ownerId: 'user-123',
   };
 
   const mockInvitationData = {
     teamId: 'team-123',
     inviterId: 'user-456',
-    inviteeEmail: 'test@example.com'
+    inviteeEmail: 'test@example.com',
   };
 
   describe('createTeam', () => {

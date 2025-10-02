@@ -147,7 +147,7 @@ const Slider: React.FC<SliderProps> = ({
   return (
     <div className={sliderClasses}>
       {label && (
-        <label htmlFor={sliderId} className=\"slider__label\">
+        <label htmlFor={sliderId} className="slider__label">
           {label}
         </label>
       )}

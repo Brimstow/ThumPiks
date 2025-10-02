@@ -1,7 +1,8 @@
 import React, { forwardRef, InputHTMLAttributes } from 'react';
 import './Input.css';
 
-export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Input size */
   size?: 'sm' | 'md' | 'lg';
   /** Input variant */
@@ -48,7 +49,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const baseClasses = 'input';
     const variantClasses = `input--${variant}`;
     const sizeClasses = `input--${size}`;
@@ -57,38 +58,45 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       success && 'input--success',
       disabled && 'input--disabled',
       leftIcon && 'input--has-left-icon',
-      rightIcon && 'input--has-right-icon'
-    ].filter(Boolean).join(' ');
+      rightIcon && 'input--has-right-icon',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     const combinedClassName = [
       baseClasses,
       variantClasses,
       sizeClasses,
       stateClasses,
-      className
-    ].filter(Boolean).join(' ');
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    const containerClasses = [
-      'input-container',
-      containerClassName
-    ].filter(Boolean).join(' ');
+    const containerClasses = ['input-container', containerClassName]
+      .filter(Boolean)
+      .join(' ');
 
     return (
       <div className={containerClasses}>
         {label && (
           <label htmlFor={inputId} className="input-label">
             {label}
-            {required && <span className="input-label__required" aria-label="required">*</span>}
+            {required && (
+              <span className="input-label__required" aria-label="required">
+                *
+              </span>
+            )}
           </label>
         )}
-        
+
         <div className="input-wrapper">
           {leftIcon && (
             <div className="input__left-icon" aria-hidden="true">
               {leftIcon}
             </div>
           )}
-          
+
           <input
             ref={ref}
             id={inputId}
@@ -99,23 +107,29 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-describedby={
               [
                 helperText && `${inputId}-helper`,
-                errorMessage && `${inputId}-error`
-              ].filter(Boolean).join(' ') || undefined
+                errorMessage && `${inputId}-error`,
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined
             }
             {...props}
           />
-          
+
           {rightIcon && (
             <div className="input__right-icon" aria-hidden="true">
               {rightIcon}
             </div>
           )}
         </div>
-        
+
         {(helperText || errorMessage) && (
           <div className="input-help">
             {errorMessage && (
-              <div id={`${inputId}-error`} className="input-help__error" role="alert">
+              <div
+                id={`${inputId}-error`}
+                className="input-help__error"
+                role="alert"
+              >
                 {errorMessage}
               </div>
             )}

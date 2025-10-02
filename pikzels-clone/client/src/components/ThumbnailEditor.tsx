@@ -30,7 +30,12 @@ interface Watermark {
   type: 'text' | 'image';
   text?: string;
   imageUrl?: string;
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+  position:
+    | 'top-left'
+    | 'top-right'
+    | 'bottom-left'
+    | 'bottom-right'
+    | 'center';
   opacity: number;
   size: number;
 }
@@ -73,7 +78,11 @@ interface ThumbnailEditorProps {
   onSave: (edits: EditParameters) => void;
 }
 
-const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, onSave }) => {
+const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({
+  thumbnail,
+  onClose,
+  onSave,
+}) => {
   const [edits, setEdits] = useState<EditParameters>({
     brightness: 100,
     contrast: 100,
@@ -86,7 +95,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
     flipVertical: false,
     resize: {
       width: 1280,
-      height: 720
+      height: 720,
     },
     filter: 'none',
     textOverlays: [
@@ -95,8 +104,8 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
         text: '',
         position: 'bottom',
         fontSize: 24,
-        color: '#FFFFFF'
-      }
+        color: '#FFFFFF',
+      },
     ],
     drawingPaths: [],
     watermark: {
@@ -104,21 +113,31 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
       text: '© Your Brand',
       position: 'bottom-right',
       opacity: 50,
-      size: 24
+      size: 24,
     },
     crop: {
       x: 0,
       y: 0,
       width: 100,
-      height: 100
-    }
+      height: 100,
+    },
   });
   const [history, setHistory] = useState<EditParameters[]>([{ ...edits }]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string>(thumbnail.imageUrl);
-  const [activeTab, setActiveTab] = useState<'adjust' | 'transform' | 'text' | 'filters' | 'draw' | 'watermark' | 'presets'>('adjust');
+  const [activeTab, setActiveTab] = useState<
+    | 'adjust'
+    | 'transform'
+    | 'text'
+    | 'filters'
+    | 'draw'
+    | 'watermark'
+    | 'presets'
+  >('adjust');
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
+  const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>(
+    []
+  );
   const [drawingColor, setDrawingColor] = useState('#FF0000');
   const [drawingLineWidth, setDrawingLineWidth] = useState(5);
   const [presets, setPresets] = useState<EditPreset[]>([]);
@@ -150,18 +169,21 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
   const applyEditsToImage = async (editsToApply: EditParameters) => {
     setProcessing(true);
     try {
-      const response = await fetch(`/api/thumbnails/${thumbnail.id}/apply-edits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ edits: editsToApply }),
-      });
-      
+      const response = await fetch(
+        `/api/thumbnails/${thumbnail.id}/apply-edits`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ edits: editsToApply }),
+        }
+      );
+
       if (!response.ok) {
         throw new Error('Failed to apply edits');
       }
-      
+
       const result = await response.json();
       setPreviewUrl(result.processedImageUrl);
     } catch (error) {
@@ -216,7 +238,10 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
   };
 
   // Adjust functions
-  const handleAdjustChange = (property: keyof EditParameters, value: number) => {
+  const handleAdjustChange = (
+    property: keyof EditParameters,
+    value: number
+  ) => {
     const newEdits = { ...edits, [property]: value };
     setEdits(newEdits);
     addToHistory(newEdits);
@@ -255,7 +280,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
       text: 'New Text',
       position: 'center',
       fontSize: 24,
-      color: '#FFFFFF'
+      color: '#FFFFFF',
     };
     const newTextOverlays = [...(edits.textOverlays || []), newTextOverlay];
     const newEdits = { ...edits, textOverlays: newTextOverlays };
@@ -273,7 +298,9 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
   };
 
   const removeTextOverlay = (id: string) => {
-    const newTextOverlays = (edits.textOverlays || []).filter(overlay => overlay.id !== id);
+    const newTextOverlays = (edits.textOverlays || []).filter(
+      overlay => overlay.id !== id
+    );
     const newEdits = { ...edits, textOverlays: newTextOverlays };
     setEdits(newEdits);
     addToHistory(newEdits);
@@ -282,34 +309,37 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
   // Drawing functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     setIsDrawing(true);
     setCurrentPath([{ x, y }]);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     setCurrentPath(prev => [...prev, { x, y }]);
-    
+
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.lineWidth = drawingLineWidth;
       ctx.lineCap = 'round';
       ctx.strokeStyle = drawingColor;
-      
+
       ctx.beginPath();
-      ctx.moveTo(currentPath[currentPath.length - 1].x, currentPath[currentPath.length - 1].y);
+      ctx.moveTo(
+        currentPath[currentPath.length - 1].x,
+        currentPath[currentPath.length - 1].y
+      );
       ctx.lineTo(x, y);
       ctx.stroke();
     }
@@ -317,23 +347,23 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
 
   const stopDrawing = () => {
     if (!isDrawing) return;
-    
+
     setIsDrawing(false);
-    
+
     if (currentPath.length > 0) {
       const newDrawingPath: DrawingPath = {
         id: Date.now().toString(),
         points: [...currentPath],
         color: drawingColor,
-        lineWidth: drawingLineWidth
+        lineWidth: drawingLineWidth,
       };
-      
+
       const newDrawingPaths = [...(edits.drawingPaths || []), newDrawingPath];
       const newEdits = { ...edits, drawingPaths: newDrawingPaths };
       setEdits(newEdits);
       addToHistory(newEdits);
     }
-    
+
     setCurrentPath([]);
   };
 
@@ -351,13 +381,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
       alert('Please enter a name for the preset');
       return;
     }
-    
+
     const newPreset: EditPreset = {
       id: Date.now().toString(),
       name: newPresetName,
-      edits: { ...edits }
+      edits: { ...edits },
     };
-    
+
     const newPresets = [...presets, newPreset];
     setPresets(newPresets);
     localStorage.setItem('thumbnailEditorPresets', JSON.stringify(newPresets));
@@ -389,13 +419,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           thumbnailId: thumbnail.id,
           platforms,
-          message
-        })
+          message,
+        }),
       });
 
       if (response.ok) {
@@ -409,7 +439,9 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
       }
     } catch (error) {
       console.error('Error sharing thumbnail:', error);
-      alert(`Failed to share thumbnail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to share thumbnail: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       throw error;
     }
   };
@@ -426,18 +458,18 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
           undo(); // Ctrl/Cmd + Z for undo
         }
       }
-      
+
       // Ctrl/Cmd + S for save
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
       }
-      
+
       // Escape to close
       if (e.key === 'Escape') {
         onClose();
       }
-      
+
       // Ctrl/Cmd + / for shortcut help
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
@@ -490,7 +522,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
             </button>
           </div>
         </div>
-        
+
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
@@ -504,12 +536,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 0h4M4 4a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 0h4M4 4a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
                 </svg>
                 Adjust
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('transform')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
@@ -518,12 +560,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                  />
                 </svg>
                 Transform
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('text')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
@@ -532,12 +584,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                  />
                 </svg>
                 Text
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('filters')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
@@ -546,12 +608,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  />
                 </svg>
                 Filters
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('draw')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
@@ -560,12 +632,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
                 </svg>
                 Draw
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('watermark')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
@@ -574,12 +656,22 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                  />
                 </svg>
                 Watermark
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('presets')}
                 className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
@@ -588,13 +680,23 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                <svg
+                  className="mr-3 h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                  />
                 </svg>
                 Presets
               </button>
             </nav>
-            
+
             {/* History Controls */}
             <div className="p-4 border-t border-gray-200">
               <div className="flex space-x-2">
@@ -607,8 +709,18 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  <svg
+                    className="h-4 w-4 mr-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                    />
                   </svg>
                   Undo
                 </button>
@@ -622,14 +734,24 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                   }`}
                 >
                   Redo
-                  <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  <svg
+                    className="h-4 w-4 ml-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M14 5l7 7m0 0l-7 7m7-7H3"
+                    />
                   </svg>
                 </button>
               </div>
             </div>
           </div>
-          
+
           {/* Main Editor Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Preview Area */}
@@ -641,9 +763,9 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                 </div>
               ) : (
                 <div className="relative max-w-full max-h-full">
-                  <img 
-                    src={previewUrl} 
-                    alt="Thumbnail preview" 
+                  <img
+                    src={previewUrl}
+                    alt="Thumbnail preview"
                     className="max-w-full max-h-full object-contain"
                   />
                   {activeTab === 'draw' && (
@@ -661,14 +783,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                 </div>
               )}
             </div>
-            
+
             {/* Controls */}
             <div className="h-64 border-t border-gray-200 overflow-y-auto bg-white">
               <div className="p-4">
                 {/* Adjust Tab */}
                 {activeTab === 'adjust' && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Adjustments</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Adjustments
+                    </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -679,11 +803,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="200"
                           value={edits.brightness}
-                          onChange={(e) => handleAdjustChange('brightness', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange(
+                              'brightness',
+                              parseInt(e.target.value)
+                            )
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Contrast: {edits.contrast}%
@@ -693,11 +822,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="200"
                           value={edits.contrast}
-                          onChange={(e) => handleAdjustChange('contrast', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange(
+                              'contrast',
+                              parseInt(e.target.value)
+                            )
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Saturation: {edits.saturation}%
@@ -707,11 +841,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="200"
                           value={edits.saturation}
-                          onChange={(e) => handleAdjustChange('saturation', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange(
+                              'saturation',
+                              parseInt(e.target.value)
+                            )
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Hue: {edits.hue}°
@@ -721,11 +860,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="360"
                           value={edits.hue}
-                          onChange={(e) => handleAdjustChange('hue', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange('hue', parseInt(e.target.value))
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Blur: {edits.blur}px
@@ -735,11 +876,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="20"
                           value={edits.blur}
-                          onChange={(e) => handleAdjustChange('blur', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange('blur', parseInt(e.target.value))
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Sharpen: {edits.sharpen}
@@ -749,18 +892,25 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="10"
                           value={edits.sharpen}
-                          onChange={(e) => handleAdjustChange('sharpen', parseInt(e.target.value))}
+                          onChange={e =>
+                            handleAdjustChange(
+                              'sharpen',
+                              parseInt(e.target.value)
+                            )
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Transform Tab */}
                 {activeTab === 'transform' && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Transform</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Transform
+                    </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -771,11 +921,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="0"
                           max="360"
                           value={edits.rotation}
-                          onChange={(e) => handleRotationChange(parseInt(e.target.value))}
+                          onChange={e =>
+                            handleRotationChange(parseInt(e.target.value))
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div className="flex space-x-4 items-end">
                         <button
                           onClick={() => handleFlip('horizontal')}
@@ -798,7 +950,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           Flip Vertical
                         </button>
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Width: {edits.resize?.width}px
@@ -806,11 +958,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                         <input
                           type="number"
                           value={edits.resize?.width}
-                          onChange={(e) => handleResizeChange('width', parseInt(e.target.value) || 0)}
+                          onChange={e =>
+                            handleResizeChange(
+                              'width',
+                              parseInt(e.target.value) || 0
+                            )
+                          }
                           className="w-full px-3 py-2 border border-gray-300 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Height: {edits.resize?.height}px
@@ -818,44 +975,72 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                         <input
                           type="number"
                           value={edits.resize?.height}
-                          onChange={(e) => handleResizeChange('height', parseInt(e.target.value) || 0)}
+                          onChange={e =>
+                            handleResizeChange(
+                              'height',
+                              parseInt(e.target.value) || 0
+                            )
+                          }
                           className="w-full px-3 py-2 border border-gray-300 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         />
                       </div>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Text Tab */}
                 {activeTab === 'text' && (
                   <div>
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">Text Overlays</h3>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        Text Overlays
+                      </h3>
                       <button
                         onClick={addTextOverlay}
                         className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
-                        <svg className="-ml-1 mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        <svg
+                          className="-ml-1 mr-1 h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
                         </svg>
                         Add Text
                       </button>
                     </div>
-                    
+
                     <div className="space-y-4">
-                      {(edits.textOverlays || []).map((overlay) => (
-                        <div key={overlay.id} className="p-3 bg-gray-50 rounded-md">
+                      {(edits.textOverlays || []).map(overlay => (
+                        <div
+                          key={overlay.id}
+                          className="p-3 bg-gray-50 rounded-md"
+                        >
                           <div className="grid grid-cols-2 gap-2 mb-2">
                             <input
                               type="text"
                               value={overlay.text}
-                              onChange={(e) => updateTextOverlay(overlay.id, { text: e.target.value })}
+                              onChange={e =>
+                                updateTextOverlay(overlay.id, {
+                                  text: e.target.value,
+                                })
+                              }
                               placeholder="Enter text"
                               className="px-3 py-1 border border-gray-300 dark:bg-gray-600 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             <select
                               value={overlay.position}
-                              onChange={(e) => updateTextOverlay(overlay.id, { position: e.target.value as any })}
+                              onChange={e =>
+                                updateTextOverlay(overlay.id, {
+                                  position: e.target.value as any,
+                                })
+                              }
                               className="px-3 py-1 border border-gray-300 dark:bg-gray-600 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             >
                               <option value="top">Top</option>
@@ -863,7 +1048,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                               <option value="bottom">Bottom</option>
                             </select>
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-xs text-gray-700 mb-1">
@@ -872,11 +1057,15 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                               <input
                                 type="number"
                                 value={overlay.fontSize}
-                                onChange={(e) => updateTextOverlay(overlay.id, { fontSize: parseInt(e.target.value) || 12 })}
+                                onChange={e =>
+                                  updateTextOverlay(overlay.id, {
+                                    fontSize: parseInt(e.target.value) || 12,
+                                  })
+                                }
                                 className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                               />
                             </div>
-                            
+
                             <div>
                               <label className="block text-xs text-gray-700 mb-1">
                                 Color
@@ -884,12 +1073,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                               <input
                                 type="color"
                                 value={overlay.color}
-                                onChange={(e) => updateTextOverlay(overlay.id, { color: e.target.value })}
+                                onChange={e =>
+                                  updateTextOverlay(overlay.id, {
+                                    color: e.target.value,
+                                  })
+                                }
                                 className="w-full h-8 border border-gray-300 rounded-md"
                               />
                             </div>
                           </div>
-                          
+
                           <div className="mt-2 flex justify-end">
                             <button
                               onClick={() => removeTextOverlay(overlay.id)}
@@ -903,13 +1096,23 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     </div>
                   </div>
                 )}
-                
+
                 {/* Filters Tab */}
                 {activeTab === 'filters' && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Filters</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Filters
+                    </h3>
                     <div className="grid grid-cols-4 gap-3">
-                      {['none', 'vintage', 'blackwhite', 'sepia', 'vibrant', 'cool', 'warm'].map((filter) => (
+                      {[
+                        'none',
+                        'vintage',
+                        'blackwhite',
+                        'sepia',
+                        'vibrant',
+                        'cool',
+                        'warm',
+                      ].map(filter => (
                         <button
                           key={filter}
                           onClick={() => {
@@ -931,11 +1134,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     </div>
                   </div>
                 )}
-                
+
                 {/* Draw Tab */}
                 {activeTab === 'draw' && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Drawing Tools</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Drawing Tools
+                    </h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -944,11 +1149,11 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                         <input
                           type="color"
                           value={drawingColor}
-                          onChange={(e) => setDrawingColor(e.target.value)}
+                          onChange={e => setDrawingColor(e.target.value)}
                           className="w-full h-10 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Line Width: {drawingLineWidth}px
@@ -958,11 +1163,13 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           min="1"
                           max="20"
                           value={drawingLineWidth}
-                          onChange={(e) => setDrawingLineWidth(parseInt(e.target.value))}
+                          onChange={e =>
+                            setDrawingLineWidth(parseInt(e.target.value))
+                          }
                           className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
-                      
+
                       <div className="flex items-end">
                         <button
                           onClick={() => {
@@ -970,7 +1177,12 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                             if (canvasRef.current) {
                               const ctx = canvasRef.current.getContext('2d');
                               if (ctx) {
-                                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                                ctx.clearRect(
+                                  0,
+                                  0,
+                                  canvasRef.current.width,
+                                  canvasRef.current.height
+                                );
                               }
                             }
                             // Clear drawing paths from edits
@@ -985,15 +1197,18 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                       </div>
                     </div>
                     <div className="mt-4 text-sm text-gray-600">
-                      Click and drag on the image to draw. Press "Clear Drawing" to remove all drawings.
+                      Click and drag on the image to draw. Press "Clear Drawing"
+                      to remove all drawings.
                     </div>
                   </div>
                 )}
-                
+
                 {/* Watermark Tab */}
                 {activeTab === 'watermark' && (
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Watermark</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Watermark
+                    </h3>
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1008,21 +1223,27 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                               onChange={() => updateWatermark({ type: 'text' })}
                               className="h-4 w-4 text-indigo-600 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                             />
-                            <span className="ml-2 text-sm text-gray-700">Text</span>
+                            <span className="ml-2 text-sm text-gray-700">
+                              Text
+                            </span>
                           </label>
                           <label className="inline-flex items-center">
                             <input
                               type="radio"
                               name="watermarkType"
                               checked={edits.watermark?.type === 'image'}
-                              onChange={() => updateWatermark({ type: 'image' })}
+                              onChange={() =>
+                                updateWatermark({ type: 'image' })
+                              }
                               className="h-4 w-4 text-indigo-600 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                             />
-                            <span className="ml-2 text-sm text-gray-700">Image</span>
+                            <span className="ml-2 text-sm text-gray-700">
+                              Image
+                            </span>
                           </label>
                         </div>
                       </div>
-                      
+
                       {edits.watermark?.type === 'text' && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1031,12 +1252,14 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           <input
                             type="text"
                             value={edits.watermark?.text || ''}
-                            onChange={(e) => updateWatermark({ text: e.target.value })}
+                            onChange={e =>
+                              updateWatermark({ text: e.target.value })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                           />
                         </div>
                       )}
-                      
+
                       {edits.watermark?.type === 'image' && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1045,20 +1268,24 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           <input
                             type="text"
                             value={edits.watermark?.imageUrl || ''}
-                            onChange={(e) => updateWatermark({ imageUrl: e.target.value })}
+                            onChange={e =>
+                              updateWatermark({ imageUrl: e.target.value })
+                            }
                             placeholder="Enter image URL"
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                           />
                         </div>
                       )}
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Position
                         </label>
                         <select
                           value={edits.watermark?.position}
-                          onChange={(e) => updateWatermark({ position: e.target.value as any })}
+                          onChange={e =>
+                            updateWatermark({ position: e.target.value as any })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         >
                           <option value="top-left">Top Left</option>
@@ -1068,7 +1295,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           <option value="center">Center</option>
                         </select>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1079,11 +1306,15 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                             min="0"
                             max="100"
                             value={edits.watermark?.opacity}
-                            onChange={(e) => updateWatermark({ opacity: parseInt(e.target.value) })}
+                            onChange={e =>
+                              updateWatermark({
+                                opacity: parseInt(e.target.value),
+                              })
+                            }
                             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Size: {edits.watermark?.size}px
@@ -1093,7 +1324,11 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                             min="10"
                             max="100"
                             value={edits.watermark?.size}
-                            onChange={(e) => updateWatermark({ size: parseInt(e.target.value) })}
+                            onChange={e =>
+                              updateWatermark({
+                                size: parseInt(e.target.value),
+                              })
+                            }
                             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                           />
                         </div>
@@ -1101,17 +1336,19 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                     </div>
                   </div>
                 )}
-                
+
                 {/* Presets Tab */}
                 {activeTab === 'presets' && (
                   <div>
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">Presets</h3>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        Presets
+                      </h3>
                       <div className="flex">
                         <input
                           type="text"
                           value={newPresetName}
-                          onChange={(e) => setNewPresetName(e.target.value)}
+                          onChange={e => setNewPresetName(e.target.value)}
                           placeholder="Preset name"
                           className="px-3 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         />
@@ -1123,11 +1360,16 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                         </button>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3">
-                      {presets.map((preset) => (
-                        <div key={preset.id} className="p-3 bg-gray-50 rounded-md flex justify-between items-center">
-                          <span className="font-medium text-gray-900">{preset.name}</span>
+                      {presets.map(preset => (
+                        <div
+                          key={preset.id}
+                          className="p-3 bg-gray-50 rounded-md flex justify-between items-center"
+                        >
+                          <span className="font-medium text-gray-900">
+                            {preset.name}
+                          </span>
                           <div className="flex space-x-2">
                             <button
                               onClick={() => applyPreset(preset)}
@@ -1144,10 +1386,11 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
                           </div>
                         </div>
                       ))}
-                      
+
                       {presets.length === 0 && (
                         <div className="col-span-2 text-center py-4 text-gray-500">
-                          No presets saved yet. Adjust your settings and click "Save" to create a preset.
+                          No presets saved yet. Adjust your settings and click
+                          "Save" to create a preset.
                         </div>
                       )}
                     </div>
@@ -1157,7 +1400,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
             </div>
           </div>
         </div>
-        
+
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
           <div className="text-sm text-gray-500">
@@ -1179,19 +1422,31 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
           </div>
         </div>
       </div>
-      
+
       {/* Keyboard Shortcut Help Modal */}
       {showShortcutHelp && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-medium text-gray-900">Keyboard Shortcuts</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                Keyboard Shortcuts
+              </h3>
               <button
                 onClick={() => setShowShortcutHelp(false)}
                 className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -1199,30 +1454,40 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({ thumbnail, onClose, o
               <ul className="space-y-2">
                 <li className="flex justify-between">
                   <span className="text-gray-700">Undo</span>
-                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Ctrl+Z</kbd>
+                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                    Ctrl+Z
+                  </kbd>
                 </li>
                 <li className="flex justify-between">
                   <span className="text-gray-700">Redo</span>
-                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Ctrl+Shift+Z</kbd>
+                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                    Ctrl+Shift+Z
+                  </kbd>
                 </li>
                 <li className="flex justify-between">
                   <span className="text-gray-700">Save</span>
-                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Ctrl+S</kbd>
+                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                    Ctrl+S
+                  </kbd>
                 </li>
                 <li className="flex justify-between">
                   <span className="text-gray-700">Close</span>
-                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Esc</kbd>
+                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                    Esc
+                  </kbd>
                 </li>
                 <li className="flex justify-between">
                   <span className="text-gray-700">Show Shortcuts</span>
-                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Ctrl+/</kbd>
+                  <kbd className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                    Ctrl+/
+                  </kbd>
                 </li>
               </ul>
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Social Share Modal */}
       {socialShareModal && (
         <SocialShareModal

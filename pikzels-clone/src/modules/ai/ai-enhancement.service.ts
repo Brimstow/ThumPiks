@@ -10,7 +10,10 @@ let tf: TensorFlow | null = null;
 try {
   tf = require('@tensorflow/tfjs-node');
 } catch (error) {
-  console.warn('TensorFlow.js not available, AI features will be limited:', error);
+  console.warn(
+    'TensorFlow.js not available, AI features will be limited:',
+    error
+  );
 }
 
 // Define tensor types
@@ -26,7 +29,7 @@ if (typeof fs !== 'undefined' && fs.mkdir) {
 }
 
 export class AIEnhancementService {
-  private initialized: boolean = false;
+  private initialized = false;
 
   constructor() {
     // Initialize TensorFlow.js if available
@@ -58,7 +61,11 @@ export class AIEnhancementService {
    * @param thumbnailId The ID of the thumbnail (used for filename)
    * @returns The path to the processed image
    */
-  async applyStyleTransfer(imageUrl: string, styleType: string, thumbnailId: string): Promise<string> {
+  async applyStyleTransfer(
+    imageUrl: string,
+    styleType: string,
+    thumbnailId: string
+  ): Promise<string> {
     if (!this.initialized || !tf) {
       // Fallback to simple image processing with Sharp if TensorFlow.js is not available
       return this.applySimpleStyleTransfer(imageUrl, styleType, thumbnailId);
@@ -67,13 +74,13 @@ export class AIEnhancementService {
     try {
       // Fetch the image buffer
       const imageBuffer = await this.fetchImageBuffer(imageUrl);
-      
+
       // Convert to tensor
       const imageTensor = tf.node.decodeImage(imageBuffer, 3) as Tensor3D;
-      
+
       // Apply style transfer based on type
       let styledTensor: Tensor3D;
-      
+
       switch (styleType.toLowerCase()) {
         case 'impressionist':
           styledTensor = await this.applyImpressionistStyle(imageTensor);
@@ -94,25 +101,27 @@ export class AIEnhancementService {
           // If no specific style, just return the original image
           styledTensor = imageTensor;
       }
-      
+
       // Convert tensor back to image buffer
       const styledBuffer = await tf.node.encodePng(styledTensor);
-      
+
       // Generate output filename
       const outputFilename = `styled_${thumbnailId}_${styleType}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
-      
+
       // Save the processed image
       await fs.writeFile(outputPath, styledBuffer);
-      
+
       // Clean up tensors
       imageTensor.dispose();
       styledTensor.dispose();
-      
+
       return outputPath;
     } catch (error) {
       console.error('Error applying style transfer:', error);
-      throw new Error(`Failed to apply style transfer: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to apply style transfer: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -123,14 +132,18 @@ export class AIEnhancementService {
    * @param thumbnailId The ID of the thumbnail (used for filename)
    * @returns The path to the processed image
    */
-  private async applySimpleStyleTransfer(imageUrl: string, styleType: string, thumbnailId: string): Promise<string> {
+  private async applySimpleStyleTransfer(
+    imageUrl: string,
+    styleType: string,
+    thumbnailId: string
+  ): Promise<string> {
     try {
       // Fetch the image buffer
       const imageBuffer = await this.fetchImageBuffer(imageUrl);
-      
+
       // Apply style transfer based on type using Sharp
       let styledBuffer: Buffer;
-      
+
       switch (styleType.toLowerCase()) {
         case 'impressionist':
           styledBuffer = await this.applySimpleImpressionistStyle(imageBuffer);
@@ -151,18 +164,20 @@ export class AIEnhancementService {
           // If no specific style, just return the original image
           styledBuffer = imageBuffer;
       }
-      
+
       // Generate output filename
       const outputFilename = `styled_${thumbnailId}_${styleType}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
-      
+
       // Save the processed image
       await fs.writeFile(outputPath, styledBuffer);
-      
+
       return outputPath;
     } catch (error) {
       console.error('Error applying simple style transfer:', error);
-      throw new Error(`Failed to apply simple style transfer: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to apply simple style transfer: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -173,14 +188,18 @@ export class AIEnhancementService {
    * @param thumbnailId The ID of the thumbnail (used for filename)
    * @returns The path to the processed image
    */
-  async enhanceImage(imageUrl: string, enhancementType: string, thumbnailId: string): Promise<string> {
+  async enhanceImage(
+    imageUrl: string,
+    enhancementType: string,
+    thumbnailId: string
+  ): Promise<string> {
     try {
       // Fetch the image buffer
       const imageBuffer = await this.fetchImageBuffer(imageUrl);
-      
+
       // Apply enhancement based on type
       let enhancedBuffer: Buffer;
-      
+
       switch (enhancementType.toLowerCase()) {
         case 'super-resolution':
           enhancedBuffer = await this.applySuperResolution(imageBuffer);
@@ -201,18 +220,20 @@ export class AIEnhancementService {
           // If no specific enhancement, just return the original image
           enhancedBuffer = imageBuffer;
       }
-      
+
       // Generate output filename
       const outputFilename = `enhanced_${thumbnailId}_${enhancementType}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
-      
+
       // Save the processed image
       await fs.writeFile(outputPath, enhancedBuffer);
-      
+
       return outputPath;
     } catch (error) {
       console.error('Error enhancing image:', error);
-      throw new Error(`Failed to enhance image: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to enhance image: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -221,7 +242,9 @@ export class AIEnhancementService {
    * @param imageBuffer The input image buffer
    * @returns The styled image buffer
    */
-  private async applySimpleImpressionistStyle(imageBuffer: Buffer): Promise<Buffer> {
+  private async applySimpleImpressionistStyle(
+    imageBuffer: Buffer
+  ): Promise<Buffer> {
     // Apply a soft blur and enhance saturation to simulate brush strokes
     return await sharp(imageBuffer)
       .blur(2)
@@ -248,7 +271,9 @@ export class AIEnhancementService {
    * @param imageBuffer The input image buffer
    * @returns The styled image buffer
    */
-  private async applySimpleExpressionistStyle(imageBuffer: Buffer): Promise<Buffer> {
+  private async applySimpleExpressionistStyle(
+    imageBuffer: Buffer
+  ): Promise<Buffer> {
     // Apply color shifts and contrast enhancements for emotional intensity
     return await sharp(imageBuffer)
       .modulate({ saturation: 1.5, brightness: 1.1, hue: 15 })
@@ -261,7 +286,9 @@ export class AIEnhancementService {
    * @param imageBuffer The input image buffer
    * @returns The styled image buffer
    */
-  private async applySimpleSurrealistStyle(imageBuffer: Buffer): Promise<Buffer> {
+  private async applySimpleSurrealistStyle(
+    imageBuffer: Buffer
+  ): Promise<Buffer> {
     // Apply dreamy blur and color inversion for fantastical effects
     return await sharp(imageBuffer)
       .blur(3)
@@ -288,29 +315,37 @@ export class AIEnhancementService {
    * @param imageTensor The input image tensor
    * @returns The styled image tensor
    */
-  private async applyImpressionistStyle(imageTensor: Tensor3D): Promise<Tensor3D> {
+  private async applyImpressionistStyle(
+    imageTensor: Tensor3D
+  ): Promise<Tensor3D> {
     // For demonstration purposes, we'll apply a combination of effects
     // that approximate an impressionist style
-    
+
     // Convert to float and normalize
     let styledTensor: Tensor3D = imageTensor.toFloat().div(255) as Tensor3D;
-    
+
     // Apply a soft blur to simulate brush strokes
     const [height, width] = styledTensor.shape;
-    const resized1: Tensor3D = tf.image.resizeBilinear(styledTensor, [Math.floor(height / 2), Math.floor(width / 2)]) as Tensor3D;
-    const resized2: Tensor3D = tf.image.resizeBilinear(resized1, [height, width]) as Tensor3D;
+    const resized1: Tensor3D = tf.image.resizeBilinear(styledTensor, [
+      Math.floor(height / 2),
+      Math.floor(width / 2),
+    ]) as Tensor3D;
+    const resized2: Tensor3D = tf.image.resizeBilinear(resized1, [
+      height,
+      width,
+    ]) as Tensor3D;
     styledTensor = resized2;
-    
+
     // Enhance saturation to make colors more vibrant
     const mean: Tensor = styledTensor.mean([0, 1], true);
     styledTensor = styledTensor.sub(mean).mul(1.2).add(mean) as Tensor3D;
-    
+
     // Clamp values to [0, 1] range
     styledTensor = styledTensor.clipByValue(0, 1) as Tensor3D;
-    
+
     // Convert back to integer format
     styledTensor = styledTensor.mul(255).cast('int32') as Tensor3D;
-    
+
     return styledTensor;
   }
 
@@ -322,25 +357,31 @@ export class AIEnhancementService {
   private async applyCubistStyle(imageTensor: Tensor3D): Promise<Tensor3D> {
     // For demonstration purposes, we'll apply a combination of effects
     // that approximate a cubist style
-    
+
     // Convert to float and normalize
     let styledTensor: Tensor3D = imageTensor.toFloat().div(255) as Tensor3D;
-    
+
     // Apply a strong contrast enhancement
     styledTensor = tf.pow(styledTensor, 0.7) as Tensor3D;
-    
+
     // Apply a grid-like effect by reducing resolution and then upsampling
     const [height, width] = styledTensor.shape;
-    const resized1: Tensor3D = tf.image.resizeBilinear(styledTensor, [Math.floor(height / 4), Math.floor(width / 4)]) as Tensor3D;
-    const resized2: Tensor3D = tf.image.resizeBilinear(resized1, [height, width]) as Tensor3D;
+    const resized1: Tensor3D = tf.image.resizeBilinear(styledTensor, [
+      Math.floor(height / 4),
+      Math.floor(width / 4),
+    ]) as Tensor3D;
+    const resized2: Tensor3D = tf.image.resizeBilinear(resized1, [
+      height,
+      width,
+    ]) as Tensor3D;
     styledTensor = resized2;
-    
+
     // Clamp values to [0, 1] range
     styledTensor = styledTensor.clipByValue(0, 1) as Tensor3D;
-    
+
     // Convert back to integer format
     styledTensor = styledTensor.mul(255).cast('int32') as Tensor3D;
-    
+
     return styledTensor;
   }
 
@@ -349,30 +390,35 @@ export class AIEnhancementService {
    * @param imageTensor The input image tensor
    * @returns The styled image tensor
    */
-  private async applyExpressionistStyle(imageTensor: Tensor3D): Promise<Tensor3D> {
+  private async applyExpressionistStyle(
+    imageTensor: Tensor3D
+  ): Promise<Tensor3D> {
     // For demonstration purposes, we'll apply a combination of effects
     // that approximate an expressionist style
-    
+
     // Convert to float and normalize
     let styledTensor: Tensor3D = imageTensor.toFloat().div(255) as Tensor3D;
-    
+
     // Apply a strong color shift
     const channels: Tensor[] = tf.split(styledTensor, 3, 2);
     const redChannel: Tensor = channels[0].mul(1.3).clipByValue(0, 1);
     const greenChannel: Tensor = channels[1].mul(0.8).clipByValue(0, 1);
     const blueChannel: Tensor = channels[2].mul(1.1).clipByValue(0, 1);
-    const stacked: Tensor = tf.stack([redChannel, greenChannel, blueChannel], 2);
+    const stacked: Tensor = tf.stack(
+      [redChannel, greenChannel, blueChannel],
+      2
+    );
     styledTensor = stacked.squeeze([3]) as Tensor3D;
-    
+
     // Apply a strong contrast enhancement
     styledTensor = tf.pow(styledTensor, 0.8) as Tensor3D;
-    
+
     // Clamp values to [0, 1] range
     styledTensor = styledTensor.clipByValue(0, 1) as Tensor3D;
-    
+
     // Convert back to integer format
     styledTensor = styledTensor.mul(255).cast('int32') as Tensor3D;
-    
+
     return styledTensor;
   }
 
@@ -384,32 +430,40 @@ export class AIEnhancementService {
   private async applySurrealistStyle(imageTensor: Tensor3D): Promise<Tensor3D> {
     // For demonstration purposes, we'll apply a combination of effects
     // that approximate a surrealist style
-    
+
     // Convert to float and normalize
     let styledTensor: Tensor3D = imageTensor.toFloat().div(255) as Tensor3D;
-    
+
     // Apply a dreamy blur effect
     const kernel: Tensor2D = tf.tensor2d([
-      [1/16, 1/8, 1/16],
-      [1/8, 1/4, 1/8],
-      [1/16, 1/8, 1/16]
+      [1 / 16, 1 / 8, 1 / 16],
+      [1 / 8, 1 / 4, 1 / 8],
+      [1 / 16, 1 / 8, 1 / 16],
     ]);
-    
+
     // Apply convolution for blur
     const expandedTensor: Tensor4D = styledTensor.expandDims(0) as Tensor4D;
-    const expandedKernel: Tensor4D = kernel.expandDims(2).expandDims(3).tile([1, 1, 3, 1]) as Tensor4D;
-    const convolved: Tensor4D = tf.conv2d(expandedTensor, expandedKernel, [1, 1], 'same') as Tensor4D;
+    const expandedKernel: Tensor4D = kernel
+      .expandDims(2)
+      .expandDims(3)
+      .tile([1, 1, 3, 1]) as Tensor4D;
+    const convolved: Tensor4D = tf.conv2d(
+      expandedTensor,
+      expandedKernel,
+      [1, 1],
+      'same'
+    ) as Tensor4D;
     styledTensor = convolved.squeeze([0]) as Tensor3D;
-    
+
     // Apply a color inversion effect
     styledTensor = tf.sub(1, styledTensor) as Tensor3D;
-    
+
     // Clamp values to [0, 1] range
     styledTensor = styledTensor.clipByValue(0, 1) as Tensor3D;
-    
+
     // Convert back to integer format
     styledTensor = styledTensor.mul(255).cast('int32') as Tensor3D;
-    
+
     return styledTensor;
   }
 
@@ -421,27 +475,30 @@ export class AIEnhancementService {
   private async applyPopArtStyle(imageTensor: Tensor3D): Promise<Tensor3D> {
     // For demonstration purposes, we'll apply a combination of effects
     // that approximate a pop art style
-    
+
     // Convert to float and normalize
     let styledTensor: Tensor3D = imageTensor.toFloat().div(255) as Tensor3D;
-    
+
     // Apply a strong color enhancement
     const channels: Tensor[] = tf.split(styledTensor, 3, 2);
     const redChannel: Tensor = tf.pow(channels[0], 0.9);
     const greenChannel: Tensor = tf.pow(channels[1], 0.9);
     const blueChannel: Tensor = tf.pow(channels[2], 0.9);
-    const stacked: Tensor = tf.stack([redChannel, greenChannel, blueChannel], 2);
+    const stacked: Tensor = tf.stack(
+      [redChannel, greenChannel, blueChannel],
+      2
+    );
     styledTensor = stacked.squeeze([3]) as Tensor3D;
-    
+
     // Apply a posterization effect by reducing color depth
     styledTensor = tf.round(styledTensor.mul(8)).div(8) as Tensor3D;
-    
+
     // Clamp values to [0, 1] range
     styledTensor = styledTensor.clipByValue(0, 1) as Tensor3D;
-    
+
     // Convert back to integer format
     styledTensor = styledTensor.mul(255).cast('int32') as Tensor3D;
-    
+
     return styledTensor;
   }
 
@@ -453,12 +510,12 @@ export class AIEnhancementService {
   private async applySuperResolution(imageBuffer: Buffer): Promise<Buffer> {
     // For demonstration purposes, we'll use Sharp to upscale the image
     // In a real implementation, you would use a trained super-resolution model
-    
+
     const enhancedImage = await sharp(imageBuffer)
       .resize({ width: 2560, height: 1440 }) // 2x upscale
       .sharpen()
       .toBuffer();
-    
+
     return enhancedImage;
   }
 
@@ -472,7 +529,7 @@ export class AIEnhancementService {
     const enhancedImage = await sharp(imageBuffer)
       .median(3) // Apply median filter for noise reduction
       .toBuffer();
-    
+
     return enhancedImage;
   }
 
@@ -486,7 +543,7 @@ export class AIEnhancementService {
     const enhancedImage = await sharp(imageBuffer)
       .sharpen({ sigma: 1.5 }) // Simplified sharpening
       .toBuffer();
-    
+
     return enhancedImage;
   }
 
@@ -501,7 +558,7 @@ export class AIEnhancementService {
       .modulate({ saturation: 1.2, brightness: 1.1 })
       .normalize()
       .toBuffer();
-    
+
     return enhancedImage;
   }
 
@@ -517,14 +574,10 @@ export class AIEnhancementService {
       .convolve({
         width: 3,
         height: 3,
-        kernel: [
-          -1, -1, -1,
-          -1,  9, -1,
-          -1, -1, -1
-        ]
+        kernel: [-1, -1, -1, -1, 9, -1, -1, -1, -1],
       })
       .toBuffer();
-    
+
     return enhancedImage;
   }
 
@@ -539,7 +592,7 @@ export class AIEnhancementService {
       // Create a minimal buffer for testing
       return Buffer.from('test');
     }
-    
+
     // For placeholder images, we'll create a simple buffer
     // In a real implementation, you would fetch the actual image
     if (imageUrl.includes('placehold.co')) {
@@ -549,13 +602,13 @@ export class AIEnhancementService {
           width: 1280,
           height: 720,
           channels: 4,
-          background: { r: 128, g: 128, b: 128, alpha: 1 }
-        }
+          background: { r: 128, g: 128, b: 128, alpha: 1 },
+        },
       })
-      .png()
-      .toBuffer();
+        .png()
+        .toBuffer();
     }
-    
+
     // For other images, you would fetch them from the URL
     // This is a simplified implementation
     return sharp({
@@ -563,11 +616,11 @@ export class AIEnhancementService {
         width: 1280,
         height: 720,
         channels: 4,
-        background: { r: 128, g: 128, b: 128, alpha: 1 }
-      }
+        background: { r: 128, g: 128, b: 128, alpha: 1 },
+      },
     })
-    .png()
-    .toBuffer();
+      .png()
+      .toBuffer();
   }
 
   /**
@@ -592,7 +645,7 @@ export class AIEnhancementService {
       'cubist',
       'expressionist',
       'surrealist',
-      'pop-art'
+      'pop-art',
     ];
   }
 
@@ -606,7 +659,7 @@ export class AIEnhancementService {
       'denoise',
       'deblur',
       'color-enhance',
-      'sharpen'
+      'sharpen',
     ];
   }
 }

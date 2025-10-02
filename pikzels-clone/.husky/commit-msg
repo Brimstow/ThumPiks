@@ -2,7 +2,7 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 # Check commit message format
-commit_message=$(cat $1)
+commit_message="$(cat "$1")"
 
 # Define the pattern for conventional commits
 pattern="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,50}"

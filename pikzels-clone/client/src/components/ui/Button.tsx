@@ -41,16 +41,20 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const stateClasses = [
       loading && 'btn--loading',
       disabled && 'btn--disabled',
-      fullWidth && 'btn--full-width'
-    ].filter(Boolean).join(' ');
+      fullWidth && 'btn--full-width',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     const combinedClassName = [
       baseClasses,
       variantClasses,
       sizeClasses,
       stateClasses,
-      className
-    ].filter(Boolean).join(' ');
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     return (
       <button
@@ -76,17 +80,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             </svg>
           </div>
         )}
-        
+
         {!loading && leftIcon && (
           <span className="btn__left-icon" aria-hidden="true">
             {leftIcon}
           </span>
         )}
-        
-        <span className={`btn__content ${loading ? 'btn__content--loading' : ''}`}>
+
+        <span
+          className={`btn__content ${loading ? 'btn__content--loading' : ''}`}
+        >
           {children}
         </span>
-        
+
         {!loading && rightIcon && (
           <span className="btn__right-icon" aria-hidden="true">
             {rightIcon}

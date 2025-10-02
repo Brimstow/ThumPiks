@@ -12,12 +12,12 @@ export class ThumbnailService {
     userId: string;
   }) {
     return prisma.thumbnail.create({
-      data
+      data,
     });
   }
 
   async getThumbnailsByUser(
-    userId: string, 
+    userId: string,
     filters?: {
       search?: string;
       projectId?: string;
@@ -30,20 +30,20 @@ export class ThumbnailService {
   ) {
     // Build where clause for filtering
     const where: any = { userId };
-    
+
     // Apply project filter
     if (filters?.projectId) {
       where.projectId = filters.projectId;
     }
-    
+
     // Apply search filter (title or prompt)
     if (filters?.search) {
       where.OR = [
         { title: { contains: filters.search, mode: 'insensitive' } },
-        { prompt: { contains: filters.search, mode: 'insensitive' } }
+        { prompt: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
-    
+
     // Apply date range filter
     if (filters?.dateFrom || filters?.dateTo) {
       where.createdAt = {};
@@ -54,30 +54,32 @@ export class ThumbnailService {
         where.createdAt.lte = filters.dateTo;
       }
     }
-    
+
     // Apply style filter (from parameters)
     if (filters?.style) {
       where.parameters = {
         path: ['style'],
-        equals: filters.style
+        equals: filters.style,
       };
     }
-    
+
     // Build orderBy clause for sorting
     let orderBy: any = { createdAt: 'desc' }; // default sort
     if (filters?.sortBy) {
       // Map allowed sort fields to prevent injection
       const allowedSortFields = ['createdAt', 'title', 'prompt'];
-      const sortField = allowedSortFields.includes(filters.sortBy) ? filters.sortBy : 'createdAt';
+      const sortField = allowedSortFields.includes(filters.sortBy)
+        ? filters.sortBy
+        : 'createdAt';
       orderBy = { [sortField]: filters.sortOrder || 'desc' };
     }
-    
+
     return prisma.thumbnail.findMany({
       where,
       include: {
-        project: true
+        project: true,
       },
-      orderBy
+      orderBy,
     });
   }
 
@@ -85,33 +87,36 @@ export class ThumbnailService {
     return prisma.thumbnail.findUnique({
       where: { id },
       include: {
-        project: true
-      }
+        project: true,
+      },
     });
   }
 
-  async updateThumbnail(id: string, data: Partial<{
-    title: string;
-    imageUrl: string;
-    prompt: string;
-    parameters: any;
-  }>) {
+  async updateThumbnail(
+    id: string,
+    data: Partial<{
+      title: string;
+      imageUrl: string;
+      prompt: string;
+      parameters: any;
+    }>
+  ) {
     return prisma.thumbnail.update({
       where: { id },
-      data
+      data,
     });
   }
 
   async deleteThumbnail(id: string) {
     return prisma.thumbnail.delete({
-      where: { id }
+      where: { id },
     });
   }
 
   async setThumbnailAsFeatured(thumbnailId: string, projectId: string) {
     // First verify that the thumbnail belongs to this project
     const thumbnail = await prisma.thumbnail.findUnique({
-      where: { id: thumbnailId }
+      where: { id: thumbnailId },
     });
 
     if (!thumbnail || thumbnail.projectId !== projectId) {
@@ -122,8 +127,8 @@ export class ThumbnailService {
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        featuredThumbnailId: thumbnailId
-      }
+        featuredThumbnailId: thumbnailId,
+      },
     });
 
     return thumbnail;

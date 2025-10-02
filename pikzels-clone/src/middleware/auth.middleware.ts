@@ -27,14 +27,14 @@ export const authenticateToken = async (
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
         id: true,
         email: true,
-        name: true
-      }
+        name: true,
+      },
     });
 
     if (!user) {
@@ -45,7 +45,7 @@ export const authenticateToken = async (
     req.user = {
       id: user.id,
       email: user.email,
-      name: user.name || undefined
+      name: user.name || undefined,
     } as { id: string; email: string; name?: string };
     next();
   } catch (error) {

@@ -93,6 +93,7 @@ Settings are stored in the `settings` JSON column of the `User` table.
 ## Documentation
 
 For detailed documentation, see:
+
 - [User Settings API](../../../docs/api/user-settings.md)
 - [Password Recovery API](../../../docs/api/password-recovery.md)
 - [Extending User Settings Guide](../../../docs/guides/extending-user-settings.md)

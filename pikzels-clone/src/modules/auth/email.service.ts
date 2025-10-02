@@ -3,18 +3,25 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export class EmailService {
-  static async sendPasswordResetEmail(email: string, userId: string): Promise<{ resetToken: string }> {
+  static async sendPasswordResetEmail(
+    email: string,
+    userId: string
+  ): Promise<{ resetToken: string }> {
     // Generate reset token (valid for 1 hour)
-    const resetToken = jwt.sign({ userId, action: 'reset-password' }, JWT_SECRET, {
-      expiresIn: '1h'
-    });
+    const resetToken = jwt.sign(
+      { userId, action: 'reset-password' },
+      JWT_SECRET,
+      {
+        expiresIn: '1h',
+      }
+    );
 
     // In a real application, we would integrate with an email service like:
     // - Nodemailer with SMTP
     // - SendGrid
     // - AWS SES
     // - etc.
-    
+
     // Simulate sending email
     console.log(`
     ==================== PASSWORD RESET EMAIL ====================

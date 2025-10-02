@@ -26,7 +26,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files for processed images
-app.use('/processed-images', express.static(path.join(__dirname, '../processed-images')));
+app.use(
+  '/processed-images',
+  express.static(path.join(__dirname, '../processed-images'))
+);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -41,7 +44,9 @@ app.use('/api/collaboration', collaborationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Thumbnail Maker API is running' });
+  res
+    .status(200)
+    .json({ status: 'OK', message: 'Thumbnail Maker API is running' });
 });
 
 // Start server

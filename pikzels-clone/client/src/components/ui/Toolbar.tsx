@@ -1,40 +1,10 @@
-import React from 'react';
-import { Button } from './Button';
-import './Toolbar.css';
-
-export interface ToolbarProps {
-  /** Toolbar items */
-  items: ToolbarItem[];
-  /** Current active tool */
-  activeTool?: string;
-  /** Orientation of the toolbar */
-  orientation?: 'horizontal' | 'vertical';
-  /** Size variant */
-  size?: 'sm' | 'md' | 'lg';
-  /** Additional CSS classes */
-  className?: string;
-}
-
-export interface ToolbarItem {
-  id: string;
-  label: string;
-  icon?: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  active?: boolean;
-  separator?: boolean;
-  tooltip?: string;
-  variant?: 'primary' | 'secondary' | 'ghost';
-}
-
-export interface ToolbarSeparatorProps {
-  orientation?: 'horizontal' | 'vertical';
-}
-
-const ToolbarSeparator: React.FC<ToolbarSeparatorProps> = ({ 
-  orientation = 'horizontal' 
+const ToolbarSeparator: React.FC<ToolbarSeparatorProps> = ({
+  orientation = 'horizontal',
 }) => (
-  <div className={`toolbar__separator toolbar__separator--${orientation}`} aria-hidden=\"true\" />
+  <div
+    className={`toolbar__separator toolbar__separator--${orientation}`}
+    aria-hidden="true"
+  />
 );
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -42,35 +12,36 @@ const Toolbar: React.FC<ToolbarProps> = ({
   activeTool,
   orientation = 'horizontal',
   size = 'md',
-  className = ''
+  className = '',
 }) => {
   const toolbarClasses = [
     'toolbar',
     `toolbar--${orientation}`,
     `toolbar--${size}`,
-    className
-  ].filter(Boolean).join(' ');
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={toolbarClasses} role=\"toolbar\" aria-label=\"Editor tools\">
+    <div className={toolbarClasses} role="toolbar" aria-label="Editor tools">
       {items.map((item, index) => {
         if (item.separator) {
           return (
-            <ToolbarSeparator 
-              key={`separator-${index}`} 
-              orientation={orientation} 
+            <ToolbarSeparator
+              key={`separator-${index}`}
+              orientation={orientation}
             />
           );
         }
 
-        const isActive = item.active !== undefined 
-          ? item.active 
-          : activeTool === item.id;
+        const isActive =
+          item.active !== undefined ? item.active : activeTool === item.id;
 
         return (
           <Button
             key={item.id}
-            variant={isActive ? 'primary' : (item.variant || 'ghost')}
+            variant={isActive ? 'primary' : item.variant || 'ghost'}
             size={size}
             onClick={item.onClick}
             disabled={item.disabled}
@@ -80,14 +51,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
             aria-pressed={isActive}
           >
             {item.icon && (
-              <span className=\"toolbar__item-icon\" aria-hidden=\"true\">
+              <span className="toolbar__item-icon" aria-hidden="true">
                 {item.icon}
               </span>
             )}
             {item.label && (
-              <span className=\"toolbar__item-label\">
-                {item.label}
-              </span>
+              <span className="toolbar__item-label">{item.label}</span>
             )}
           </Button>
         );
@@ -95,5 +64,3 @@ const Toolbar: React.FC<ToolbarProps> = ({
     </div>
   );
 };
-
-export default Toolbar;

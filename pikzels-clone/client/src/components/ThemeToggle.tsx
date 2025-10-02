@@ -15,16 +15,16 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
 }) => {
   return (
     <Button
-      variant=\"ghost\"
-      size=\"md\"
+      variant="ghost"
+      size="md"
       onClick={onToggle}
       className={`theme-toggle ${className}`}
       aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
     >
-      <span className=\"theme-toggle__icon\">
+      <span className="theme-toggle__icon">
         {isDarkMode ? '☀️' : '🌙'}
       </span>
-      <span className=\"theme-toggle__text\">
+      <span className="theme-toggle__text">
         {isDarkMode ? 'Light' : 'Dark'}
       </span>
     </Button>

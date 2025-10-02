@@ -6,44 +6,44 @@ export class AnalyticsService {
   async getUserAnalytics(userId: string) {
     // Get total thumbnails created by user
     const totalThumbnails = await prisma.thumbnail.count({
-      where: { userId }
+      where: { userId },
     });
 
     // Get total projects created by user
     const totalProjects = await prisma.project.count({
-      where: { userId }
+      where: { userId },
     });
 
     // Get thumbnails created in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const recentThumbnails = await prisma.thumbnail.count({
-      where: { 
+      where: {
         userId,
         createdAt: {
-          gte: thirtyDaysAgo
-        }
-      }
+          gte: thirtyDaysAgo,
+        },
+      },
     });
 
     // Get thumbnail creation trend (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     const thumbnailTrend = await prisma.thumbnail.findMany({
       where: {
         userId,
         createdAt: {
-          gte: sevenDaysAgo
-        }
+          gte: sevenDaysAgo,
+        },
       },
       select: {
-        createdAt: true
+        createdAt: true,
       },
       orderBy: {
-        createdAt: 'asc'
-      }
+        createdAt: 'asc',
+      },
     });
 
     // Group thumbnails by day for trend data
@@ -57,19 +57,22 @@ export class AnalyticsService {
     const thumbnailsWithStyles = await prisma.thumbnail.findMany({
       where: { userId },
       select: {
-        parameters: true
-      }
+        parameters: true,
+      },
     });
 
     const styleDistribution: Record<string, number> = {
       bold: 0,
       minimalist: 0,
       dramatic: 0,
-      other: 0
+      other: 0,
     };
 
     thumbnailsWithStyles.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const style = (thumbnail.parameters as any).style || 'other';
         if (style in styleDistribution) {
           styleDistribution[style]++;
@@ -89,17 +92,19 @@ export class AnalyticsService {
         name: true,
         thumbnails: {
           select: {
-            id: true
-          }
-        }
-      }
+            id: true,
+          },
+        },
+      },
     });
 
-    const projectData = projectUsage.map(project => ({
-      id: project.id,
-      name: project.name,
-      thumbnailCount: project.thumbnails.length
-    })).sort((a, b) => b.thumbnailCount - a.thumbnailCount);
+    const projectData = projectUsage
+      .map(project => ({
+        id: project.id,
+        name: project.name,
+        thumbnailCount: project.thumbnails.length,
+      }))
+      .sort((a, b) => b.thumbnailCount - a.thumbnailCount);
 
     // Get hourly distribution of thumbnail creation
     const hourlyDistribution: Record<string, number> = {};
@@ -110,28 +115,31 @@ export class AnalyticsService {
     const allThumbnails = await prisma.thumbnail.findMany({
       where: { userId },
       select: {
-        createdAt: true
-      }
+        createdAt: true,
+      },
     });
 
     allThumbnails.forEach(thumbnail => {
       const hour = thumbnail.createdAt.getHours();
-      hourlyDistribution[`${hour}:00`] = (hourlyDistribution[`${hour}:00`] || 0) + 1;
+      hourlyDistribution[`${hour}:00`] =
+        (hourlyDistribution[`${hour}:00`] || 0) + 1;
     });
 
     // Get day of week distribution
     const dayOfWeekDistribution: Record<string, number> = {
-      'Sunday': 0,
-      'Monday': 0,
-      'Tuesday': 0,
-      'Wednesday': 0,
-      'Thursday': 0,
-      'Friday': 0,
-      'Saturday': 0
+      Sunday: 0,
+      Monday: 0,
+      Tuesday: 0,
+      Wednesday: 0,
+      Thursday: 0,
+      Friday: 0,
+      Saturday: 0,
     };
 
     allThumbnails.forEach(thumbnail => {
-      const day = thumbnail.createdAt.toLocaleDateString('en-US', { weekday: 'long' });
+      const day = thumbnail.createdAt.toLocaleDateString('en-US', {
+        weekday: 'long',
+      });
       dayOfWeekDistribution[day] = (dayOfWeekDistribution[day] || 0) + 1;
     });
 
@@ -139,15 +147,15 @@ export class AnalyticsService {
       totals: {
         thumbnails: totalThumbnails,
         projects: totalProjects,
-        recentThumbnails
+        recentThumbnails,
       },
       trends: {
-        daily: trendData
+        daily: trendData,
       },
       styles: styleDistribution,
       projects: projectData.slice(0, 5), // Top 5 projects
       hourlyDistribution,
-      dayOfWeekDistribution
+      dayOfWeekDistribution,
     };
   }
 
@@ -162,13 +170,13 @@ export class AnalyticsService {
         parameters: true,
         project: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     });
 
     // Calculate average thumbnails per day
@@ -178,13 +186,18 @@ export class AnalyticsService {
         averagePerDay: 0,
         mostRecent: null,
         byProject: [],
-        byStyle: {}
+        byStyle: {},
       };
     }
 
-    const firstThumbnailDate = new Date(thumbnails[thumbnails.length - 1].createdAt);
+    const firstThumbnailDate = new Date(
+      thumbnails[thumbnails.length - 1].createdAt
+    );
     const today = new Date();
-    const daysDiff = Math.ceil((today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+    const daysDiff =
+      Math.ceil(
+        (today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) || 1;
     const averagePerDay = thumbnails.length / daysDiff;
 
     // Group by project
@@ -199,11 +212,14 @@ export class AnalyticsService {
       bold: 0,
       minimalist: 0,
       dramatic: 0,
-      other: 0
+      other: 0,
     };
 
     thumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const style = (thumbnail.parameters as any).style || 'other';
         if (style in styleStats) {
           styleStats[style]++;
@@ -218,9 +234,12 @@ export class AnalyticsService {
     // Calculate editing stats
     let totalEditedThumbnails = 0;
     let totalEdits = 0;
-    
+
     thumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && Object.keys(edits).length > 0) {
           totalEditedThumbnails++;
@@ -230,20 +249,25 @@ export class AnalyticsService {
     });
 
     // Calculate average edits per edited thumbnail
-    const averageEditsPerThumbnail = totalEditedThumbnails > 0 ? 
-      parseFloat((totalEdits / totalEditedThumbnails).toFixed(2)) : 0;
+    const averageEditsPerThumbnail =
+      totalEditedThumbnails > 0
+        ? parseFloat((totalEdits / totalEditedThumbnails).toFixed(2))
+        : 0;
 
     return {
       total: thumbnails.length,
       averagePerDay: parseFloat(averagePerDay.toFixed(2)),
       mostRecent: thumbnails[0],
-      byProject: Object.entries(projectStats).map(([name, count]) => ({ name, count })),
+      byProject: Object.entries(projectStats).map(([name, count]) => ({
+        name,
+        count,
+      })),
       byStyle: styleStats,
       editingStats: {
         totalEdited: totalEditedThumbnails,
         totalEdits: totalEdits,
-        averageEditsPerThumbnail
-      }
+        averageEditsPerThumbnail,
+      },
     };
   }
 
@@ -259,13 +283,13 @@ export class AnalyticsService {
         parameters: true,
         project: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     });
 
     // Calculate time-based metrics
@@ -274,31 +298,36 @@ export class AnalyticsService {
         productivity: {
           bestDay: null,
           bestHour: null,
-          consistency: 0
+          consistency: 0,
         },
         editing: {
           mostComplexThumbnail: null,
-          averageEditComplexity: 0
+          averageEditComplexity: 0,
         },
         engagement: {
           mostShared: null,
-          sharingRate: 0
-        }
+          sharingRate: 0,
+        },
       };
     }
 
     // Productivity metrics
-    const firstThumbnailDate = new Date(thumbnails[thumbnails.length - 1].createdAt);
+    const firstThumbnailDate = new Date(
+      thumbnails[thumbnails.length - 1].createdAt
+    );
     const today = new Date();
-    const totalDays = Math.ceil((today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    
+    const totalDays =
+      Math.ceil(
+        (today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) || 1;
+
     // Count thumbnails per day
     const thumbnailsPerDay: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
       thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
     });
-    
+
     // Find best day
     let bestDay = '';
     let maxThumbnailsInDay = 0;
@@ -308,14 +337,14 @@ export class AnalyticsService {
         bestDay = date;
       }
     });
-    
+
     // Count thumbnails per hour
     const thumbnailsPerHour: Record<number, number> = {};
     thumbnails.forEach(thumbnail => {
       const hour = thumbnail.createdAt.getHours();
       thumbnailsPerHour[hour] = (thumbnailsPerHour[hour] || 0) + 1;
     });
-    
+
     // Find best hour
     let bestHour = 0;
     let maxThumbnailsInHour = 0;
@@ -326,7 +355,7 @@ export class AnalyticsService {
         bestHour = hourNum;
       }
     });
-    
+
     // Calculate consistency (percentage of days with at least one thumbnail)
     const activeDays = Object.keys(thumbnailsPerDay).length;
     const consistency = parseFloat(((activeDays / totalDays) * 100).toFixed(2));
@@ -335,42 +364,52 @@ export class AnalyticsService {
     let maxEditComplexity = 0;
     let totalEditComplexity = 0;
     let mostComplexThumbnail = null;
-    
+
     thumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
-          
+
           if (editCount > maxEditComplexity) {
             maxEditComplexity = editCount;
             mostComplexThumbnail = {
               id: thumbnail.id,
               title: thumbnail.title,
-              editCount: editCount
+              editCount: editCount,
             };
           }
         }
       }
     });
-    
-    const averageEditComplexity = parseFloat((totalEditComplexity / thumbnails.length).toFixed(2));
+
+    const averageEditComplexity = parseFloat(
+      (totalEditComplexity / thumbnails.length).toFixed(2)
+    );
 
     // Engagement metrics (social shares)
     const socialShares = await prisma.socialShare.findMany({
-      where: { userId }
+      where: { userId },
     });
-    
-    const sharedThumbnails = new Set(socialShares.map(share => share.thumbnailId));
-    const sharingRate = parseFloat(((sharedThumbnails.size / thumbnails.length) * 100).toFixed(2));
-    
+
+    const sharedThumbnails = new Set(
+      socialShares.map(share => share.thumbnailId)
+    );
+    const sharingRate = parseFloat(
+      ((sharedThumbnails.size / thumbnails.length) * 100).toFixed(2)
+    );
+
     // Find most shared thumbnail
     const shareCountPerThumbnail: Record<string, number> = {};
     socialShares.forEach(share => {
-      shareCountPerThumbnail[share.thumbnailId] = (shareCountPerThumbnail[share.thumbnailId] || 0) + 1;
+      shareCountPerThumbnail[share.thumbnailId] =
+        (shareCountPerThumbnail[share.thumbnailId] || 0) + 1;
     });
-    
+
     let mostSharedThumbnail = null;
     let maxShares = 0;
     Object.entries(shareCountPerThumbnail).forEach(([thumbnailId, count]) => {
@@ -381,7 +420,7 @@ export class AnalyticsService {
           mostSharedThumbnail = {
             id: thumbnail.id,
             title: thumbnail.title,
-            shareCount: count
+            shareCount: count,
           };
         }
       }
@@ -391,21 +430,24 @@ export class AnalyticsService {
       productivity: {
         bestDay: bestDay ? { date: bestDay, count: maxThumbnailsInDay } : null,
         bestHour: { hour: bestHour, count: maxThumbnailsInHour },
-        consistency
+        consistency,
       },
       editing: {
         mostComplexThumbnail,
-        averageEditComplexity
+        averageEditComplexity,
       },
       engagement: {
         mostShared: mostSharedThumbnail,
-        sharingRate
-      }
+        sharingRate,
+      },
     };
   }
 
   // New method to get detailed advanced analytics with time-based filtering
-  async getDetailedAdvancedAnalytics(userId: string, timeframe: 'daily' | 'weekly' | 'monthly' = 'daily') {
+  async getDetailedAdvancedAnalytics(
+    userId: string,
+    timeframe: 'daily' | 'weekly' | 'monthly' = 'daily'
+  ) {
     // Get all thumbnails with their parameters
     const thumbnails = await prisma.thumbnail.findMany({
       where: { userId },
@@ -416,18 +458,21 @@ export class AnalyticsService {
         parameters: true,
         project: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     });
 
     // Filter thumbnails based on timeframe
-    const filteredThumbnails = this.filterThumbnailsByTimeframe(thumbnails, timeframe);
-    
+    const filteredThumbnails = this.filterThumbnailsByTimeframe(
+      thumbnails,
+      timeframe
+    );
+
     // Calculate time-based metrics
     if (filteredThumbnails.length === 0) {
       return {
@@ -435,37 +480,42 @@ export class AnalyticsService {
           bestDay: null,
           bestHour: null,
           consistency: 0,
-          creationTrend: []
+          creationTrend: [],
         },
         editing: {
           mostComplexThumbnail: null,
           averageEditComplexity: 0,
-          editDistribution: []
+          editDistribution: [],
         },
         engagement: {
           mostShared: null,
           sharingRate: 0,
-          platformDistribution: []
+          platformDistribution: [],
         },
         timeframeData: {
           totalThumbnails: 0,
-          averagePerDay: 0
-        }
+          averagePerDay: 0,
+        },
       };
     }
 
     // Productivity metrics
-    const firstThumbnailDate = new Date(filteredThumbnails[filteredThumbnails.length - 1].createdAt);
+    const firstThumbnailDate = new Date(
+      filteredThumbnails[filteredThumbnails.length - 1].createdAt
+    );
     const today = new Date();
-    const totalDays = Math.ceil((today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    
+    const totalDays =
+      Math.ceil(
+        (today.getTime() - firstThumbnailDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) || 1;
+
     // Count thumbnails per day
     const thumbnailsPerDay: Record<string, number> = {};
     filteredThumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
       thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
     });
-    
+
     // Find best day
     let bestDay = '';
     let maxThumbnailsInDay = 0;
@@ -475,14 +525,14 @@ export class AnalyticsService {
         bestDay = date;
       }
     });
-    
+
     // Count thumbnails per hour
     const thumbnailsPerHour: Record<number, number> = {};
     filteredThumbnails.forEach(thumbnail => {
       const hour = thumbnail.createdAt.getHours();
       thumbnailsPerHour[hour] = (thumbnailsPerHour[hour] || 0) + 1;
     });
-    
+
     // Find best hour
     let bestHour = 0;
     let maxThumbnailsInHour = 0;
@@ -493,47 +543,57 @@ export class AnalyticsService {
         bestHour = hourNum;
       }
     });
-    
+
     // Calculate consistency (percentage of days with at least one thumbnail)
     const activeDays = Object.keys(thumbnailsPerDay).length;
     const consistency = parseFloat(((activeDays / totalDays) * 100).toFixed(2));
 
     // Creation trend data for charting
-    const creationTrend = Object.entries(thumbnailsPerDay).map(([date, count]) => ({
-      date,
-      count
-    }));
+    const creationTrend = Object.entries(thumbnailsPerDay).map(
+      ([date, count]) => ({
+        date,
+        count,
+      })
+    );
 
     // Editing complexity metrics
     let maxEditComplexity = 0;
     let totalEditComplexity = 0;
     let mostComplexThumbnail = null;
-    
+
     filteredThumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
-          
+
           if (editCount > maxEditComplexity) {
             maxEditComplexity = editCount;
             mostComplexThumbnail = {
               id: thumbnail.id,
               title: thumbnail.title,
-              editCount: editCount
+              editCount: editCount,
             };
           }
         }
       }
     });
-    
-    const averageEditComplexity = parseFloat((totalEditComplexity / filteredThumbnails.length).toFixed(2));
+
+    const averageEditComplexity = parseFloat(
+      (totalEditComplexity / filteredThumbnails.length).toFixed(2)
+    );
 
     // Edit distribution for charting
     const editCounts: number[] = [];
     filteredThumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && typeof edits === 'object') {
           editCounts.push(Object.keys(edits).length);
@@ -551,7 +611,7 @@ export class AnalyticsService {
       '1-2 edits': 0,
       '3-5 edits': 0,
       '6-10 edits': 0,
-      '10+ edits': 0
+      '10+ edits': 0,
     };
 
     editCounts.forEach(count => {
@@ -570,18 +630,23 @@ export class AnalyticsService {
 
     // Engagement metrics (social shares)
     const socialShares = await prisma.socialShare.findMany({
-      where: { userId }
+      where: { userId },
     });
-    
-    const sharedThumbnails = new Set(socialShares.map(share => share.thumbnailId));
-    const sharingRate = parseFloat(((sharedThumbnails.size / filteredThumbnails.length) * 100).toFixed(2));
-    
+
+    const sharedThumbnails = new Set(
+      socialShares.map(share => share.thumbnailId)
+    );
+    const sharingRate = parseFloat(
+      ((sharedThumbnails.size / filteredThumbnails.length) * 100).toFixed(2)
+    );
+
     // Find most shared thumbnail
     const shareCountPerThumbnail: Record<string, number> = {};
     socialShares.forEach(share => {
-      shareCountPerThumbnail[share.thumbnailId] = (shareCountPerThumbnail[share.thumbnailId] || 0) + 1;
+      shareCountPerThumbnail[share.thumbnailId] =
+        (shareCountPerThumbnail[share.thumbnailId] || 0) + 1;
     });
-    
+
     let mostSharedThumbnail = null;
     let maxShares = 0;
     Object.entries(shareCountPerThumbnail).forEach(([thumbnailId, count]) => {
@@ -592,7 +657,7 @@ export class AnalyticsService {
           mostSharedThumbnail = {
             id: thumbnail.id,
             title: thumbnail.title,
-            shareCount: count
+            shareCount: count,
           };
         }
       }
@@ -601,42 +666,50 @@ export class AnalyticsService {
     // Platform distribution for charting
     const platformDistribution: Record<string, number> = {};
     socialShares.forEach(share => {
-      platformDistribution[share.platform] = (platformDistribution[share.platform] || 0) + 1;
+      platformDistribution[share.platform] =
+        (platformDistribution[share.platform] || 0) + 1;
     });
 
     // Timeframe data
     const totalThumbnailsInTimeframe = filteredThumbnails.length;
-    const averagePerDay = parseFloat((totalThumbnailsInTimeframe / totalDays).toFixed(2));
+    const averagePerDay = parseFloat(
+      (totalThumbnailsInTimeframe / totalDays).toFixed(2)
+    );
 
     return {
       productivity: {
         bestDay: bestDay ? { date: bestDay, count: maxThumbnailsInDay } : null,
         bestHour: { hour: bestHour, count: maxThumbnailsInHour },
         consistency,
-        creationTrend
+        creationTrend,
       },
       editing: {
         mostComplexThumbnail,
         averageEditComplexity,
-        editDistribution
+        editDistribution,
       },
       engagement: {
         mostShared: mostSharedThumbnail,
         sharingRate,
-        platformDistribution: Object.entries(platformDistribution).map(([platform, count]) => ({
-          platform,
-          count
-        }))
+        platformDistribution: Object.entries(platformDistribution).map(
+          ([platform, count]) => ({
+            platform,
+            count,
+          })
+        ),
       },
       timeframeData: {
         totalThumbnails: totalThumbnailsInTimeframe,
-        averagePerDay
-      }
+        averagePerDay,
+      },
     };
   }
 
   // Helper method to filter thumbnails by timeframe
-  private filterThumbnailsByTimeframe(thumbnails: any[], timeframe: 'daily' | 'weekly' | 'monthly') {
+  private filterThumbnailsByTimeframe(
+    thumbnails: any[],
+    timeframe: 'daily' | 'weekly' | 'monthly'
+  ) {
     const now = new Date();
     let startDate: Date;
 
@@ -654,18 +727,30 @@ export class AnalyticsService {
         return thumbnails; // Return all if no valid timeframe
     }
 
-    return thumbnails.filter(thumbnail => new Date(thumbnail.createdAt) >= startDate);
+    return thumbnails.filter(
+      thumbnail => new Date(thumbnail.createdAt) >= startDate
+    );
   }
 
   // Method to get comparative analytics (current vs previous period)
-  async getComparativeAnalytics(userId: string, timeframe: 'daily' | 'weekly' | 'monthly' = 'weekly') {
+  async getComparativeAnalytics(
+    userId: string,
+    timeframe: 'daily' | 'weekly' | 'monthly' = 'weekly'
+  ) {
     // Get current period data
-    const currentData = await this.getDetailedAdvancedAnalytics(userId, timeframe);
-    
+    const currentData = await this.getDetailedAdvancedAnalytics(
+      userId,
+      timeframe
+    );
+
     // Get previous period data by adjusting the timeframe
     const previousTimeframe = this.getPreviousTimeframe(timeframe);
-    const previousData = await this.getHistoricalAnalytics(userId, previousTimeframe.start, previousTimeframe.end);
-    
+    const previousData = await this.getHistoricalAnalytics(
+      userId,
+      previousTimeframe.start,
+      previousTimeframe.end
+    );
+
     return {
       current: currentData,
       previous: previousData,
@@ -676,7 +761,7 @@ export class AnalyticsService {
           change: this.calculatePercentageChange(
             previousData.timeframeData.totalThumbnails,
             currentData.timeframeData.totalThumbnails
-          )
+          ),
         },
         averagePerDay: {
           current: currentData.timeframeData.averagePerDay,
@@ -684,7 +769,7 @@ export class AnalyticsService {
           change: this.calculatePercentageChange(
             previousData.timeframeData.averagePerDay,
             currentData.timeframeData.averagePerDay
-          )
+          ),
         },
         sharingRate: {
           current: currentData.engagement.sharingRate,
@@ -692,7 +777,7 @@ export class AnalyticsService {
           change: this.calculatePercentageChange(
             previousData.engagement.sharingRate,
             currentData.engagement.sharingRate
-          )
+          ),
         },
         averageEditComplexity: {
           current: currentData.editing.averageEditComplexity,
@@ -700,9 +785,9 @@ export class AnalyticsService {
           change: this.calculatePercentageChange(
             previousData.editing.averageEditComplexity,
             currentData.editing.averageEditComplexity
-          )
-        }
-      }
+          ),
+        },
+      },
     };
   }
 
@@ -734,15 +819,19 @@ export class AnalyticsService {
   }
 
   // Helper method to get historical analytics for a specific date range
-  private async getHistoricalAnalytics(userId: string, startDate: Date, endDate: Date) {
+  private async getHistoricalAnalytics(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ) {
     // Get thumbnails within date range
     const thumbnails = await prisma.thumbnail.findMany({
-      where: { 
+      where: {
         userId,
         createdAt: {
           gte: startDate,
-          lte: endDate
-        }
+          lte: endDate,
+        },
       },
       select: {
         id: true,
@@ -751,13 +840,13 @@ export class AnalyticsService {
         parameters: true,
         project: {
           select: {
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     });
 
     // Calculate time-based metrics
@@ -767,34 +856,37 @@ export class AnalyticsService {
           bestDay: null,
           bestHour: null,
           consistency: 0,
-          creationTrend: []
+          creationTrend: [],
         },
         editing: {
           mostComplexThumbnail: null,
           averageEditComplexity: 0,
-          editDistribution: []
+          editDistribution: [],
         },
         engagement: {
           mostShared: null,
           sharingRate: 0,
-          platformDistribution: []
+          platformDistribution: [],
         },
         timeframeData: {
           totalThumbnails: 0,
-          averagePerDay: 0
-        }
+          averagePerDay: 0,
+        },
       };
     }
 
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    
+    const totalDays =
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) || 1;
+
     // Count thumbnails per day
     const thumbnailsPerDay: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
       thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
     });
-    
+
     // Find best day
     let bestDay = '';
     let maxThumbnailsInDay = 0;
@@ -804,14 +896,14 @@ export class AnalyticsService {
         bestDay = date;
       }
     });
-    
+
     // Count thumbnails per hour
     const thumbnailsPerHour: Record<number, number> = {};
     thumbnails.forEach(thumbnail => {
       const hour = thumbnail.createdAt.getHours();
       thumbnailsPerHour[hour] = (thumbnailsPerHour[hour] || 0) + 1;
     });
-    
+
     // Find best hour
     let bestHour = 0;
     let maxThumbnailsInHour = 0;
@@ -822,7 +914,7 @@ export class AnalyticsService {
         bestHour = hourNum;
       }
     });
-    
+
     // Calculate consistency (percentage of days with at least one thumbnail)
     const activeDays = Object.keys(thumbnailsPerDay).length;
     const consistency = parseFloat(((activeDays / totalDays) * 100).toFixed(2));
@@ -831,32 +923,40 @@ export class AnalyticsService {
     let maxEditComplexity = 0;
     let totalEditComplexity = 0;
     let mostComplexThumbnail = null;
-    
+
     thumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
-          
+
           if (editCount > maxEditComplexity) {
             maxEditComplexity = editCount;
             mostComplexThumbnail = {
               id: thumbnail.id,
               title: thumbnail.title,
-              editCount: editCount
+              editCount: editCount,
             };
           }
         }
       }
     });
-    
-    const averageEditComplexity = parseFloat((totalEditComplexity / thumbnails.length).toFixed(2));
+
+    const averageEditComplexity = parseFloat(
+      (totalEditComplexity / thumbnails.length).toFixed(2)
+    );
 
     // Edit distribution for charting
     const editCounts: number[] = [];
     thumbnails.forEach(thumbnail => {
-      if (typeof thumbnail.parameters === 'object' && thumbnail.parameters !== null) {
+      if (
+        typeof thumbnail.parameters === 'object' &&
+        thumbnail.parameters !== null
+      ) {
         const edits = (thumbnail.parameters as any).edits;
         if (edits && typeof edits === 'object') {
           editCounts.push(Object.keys(edits).length);
@@ -874,7 +974,7 @@ export class AnalyticsService {
       '1-2 edits': 0,
       '3-5 edits': 0,
       '6-10 edits': 0,
-      '10+ edits': 0
+      '10+ edits': 0,
     };
 
     editCounts.forEach(count => {
@@ -893,52 +993,61 @@ export class AnalyticsService {
 
     // Engagement metrics (social shares)
     const socialShares = await prisma.socialShare.findMany({
-      where: { 
+      where: {
         userId,
         sharedAt: {
           gte: startDate,
-          lte: endDate
-        }
-      }
+          lte: endDate,
+        },
+      },
     });
-    
-    const sharedThumbnails = new Set(socialShares.map(share => share.thumbnailId));
-    const sharingRate = parseFloat(((sharedThumbnails.size / thumbnails.length) * 100).toFixed(2));
-    
+
+    const sharedThumbnails = new Set(
+      socialShares.map(share => share.thumbnailId)
+    );
+    const sharingRate = parseFloat(
+      ((sharedThumbnails.size / thumbnails.length) * 100).toFixed(2)
+    );
+
     // Platform distribution for charting
     const platformDistribution: Record<string, number> = {};
     socialShares.forEach(share => {
-      platformDistribution[share.platform] = (platformDistribution[share.platform] || 0) + 1;
+      platformDistribution[share.platform] =
+        (platformDistribution[share.platform] || 0) + 1;
     });
 
     // Timeframe data
     const totalThumbnailsInTimeframe = thumbnails.length;
-    const averagePerDay = parseFloat((totalThumbnailsInTimeframe / totalDays).toFixed(2));
+    const averagePerDay = parseFloat(
+      (totalThumbnailsInTimeframe / totalDays).toFixed(2)
+    );
 
     return {
       productivity: {
         bestDay: bestDay ? { date: bestDay, count: maxThumbnailsInDay } : null,
         bestHour: { hour: bestHour, count: maxThumbnailsInHour },
         consistency,
-        creationTrend: []
+        creationTrend: [],
       },
       editing: {
         mostComplexThumbnail,
         averageEditComplexity,
-        editDistribution
+        editDistribution,
       },
       engagement: {
         mostShared: mostSharedThumbnail,
         sharingRate,
-        platformDistribution: Object.entries(platformDistribution).map(([platform, count]) => ({
-          platform,
-          count
-        }))
+        platformDistribution: Object.entries(platformDistribution).map(
+          ([platform, count]) => ({
+            platform,
+            count,
+          })
+        ),
       },
       timeframeData: {
         totalThumbnails: totalThumbnailsInTimeframe,
-        averagePerDay
-      }
+        averagePerDay,
+      },
     };
   }
 
@@ -947,6 +1056,6 @@ export class AnalyticsService {
     if (previous === 0) {
       return current > 0 ? 100 : 0;
     }
-    return parseFloat(((current - previous) / previous * 100).toFixed(2));
+    return parseFloat((((current - previous) / previous) * 100).toFixed(2));
   }
 }

@@ -18,9 +18,9 @@ export class CollaborationService {
         members: {
           create: {
             userId: data.ownerId,
-            role: 'owner'
-          }
-        }
+            role: 'owner',
+          },
+        },
       },
       include: {
         members: {
@@ -30,12 +30,12 @@ export class CollaborationService {
                 id: true,
                 name: true,
                 email: true,
-                avatarUrl: true
-              }
-            }
-          }
-        }
-      }
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     return team;
@@ -49,9 +49,9 @@ export class CollaborationService {
       where: {
         members: {
           some: {
-            userId: userId
-          }
-        }
+            userId: userId,
+          },
+        },
       },
       include: {
         owner: {
@@ -59,8 +59,8 @@ export class CollaborationService {
             id: true,
             name: true,
             email: true,
-            avatarUrl: true
-          }
+            avatarUrl: true,
+          },
         },
         members: {
           include: {
@@ -69,15 +69,15 @@ export class CollaborationService {
                 id: true,
                 name: true,
                 email: true,
-                avatarUrl: true
-              }
-            }
-          }
+                avatarUrl: true,
+              },
+            },
+          },
         },
         _count: {
-          select: { members: true }
-        }
-      }
+          select: { members: true },
+        },
+      },
     });
   }
 
@@ -93,8 +93,8 @@ export class CollaborationService {
             id: true,
             name: true,
             email: true,
-            avatarUrl: true
-          }
+            avatarUrl: true,
+          },
         },
         members: {
           include: {
@@ -103,28 +103,31 @@ export class CollaborationService {
                 id: true,
                 name: true,
                 email: true,
-                avatarUrl: true
-              }
-            }
-          }
+                avatarUrl: true,
+              },
+            },
+          },
         },
         _count: {
-          select: { members: true }
-        }
-      }
+          select: { members: true },
+        },
+      },
     });
   }
 
   /**
    * Update team information
    */
-  async updateTeam(teamId: string, data: Partial<{
-    name: string;
-    description: string;
-  }>) {
+  async updateTeam(
+    teamId: string,
+    data: Partial<{
+      name: string;
+      description: string;
+    }>
+  ) {
     return prisma.team.update({
       where: { id: teamId },
-      data
+      data,
     });
   }
 
@@ -134,7 +137,7 @@ export class CollaborationService {
   async deleteTeam(teamId: string, userId: string) {
     // Check if user is the owner
     const team = await prisma.team.findUnique({
-      where: { id: teamId }
+      where: { id: teamId },
     });
 
     if (!team || team.ownerId !== userId) {
@@ -143,7 +146,7 @@ export class CollaborationService {
 
     // Delete the team (cascade will handle members and invitations)
     return prisma.team.delete({
-      where: { id: teamId }
+      where: { id: teamId },
     });
   }
 
@@ -157,7 +160,7 @@ export class CollaborationService {
   }) {
     // Check if team exists
     const team = await prisma.team.findUnique({
-      where: { id: data.teamId }
+      where: { id: data.teamId },
     });
 
     if (!team) {
@@ -168,8 +171,8 @@ export class CollaborationService {
     const isMember = await prisma.teamMember.findFirst({
       where: {
         teamId: data.teamId,
-        userId: data.inviterId
-      }
+        userId: data.inviterId,
+      },
     });
 
     if (!isMember) {
@@ -178,7 +181,7 @@ export class CollaborationService {
 
     // Find the user by email
     const invitee = await prisma.user.findUnique({
-      where: { email: data.inviteeEmail }
+      where: { email: data.inviteeEmail },
     });
 
     if (!invitee) {
@@ -189,8 +192,8 @@ export class CollaborationService {
     const existingMember = await prisma.teamMember.findFirst({
       where: {
         teamId: data.teamId,
-        userId: invitee.id
-      }
+        userId: invitee.id,
+      },
     });
 
     if (existingMember) {
@@ -202,8 +205,8 @@ export class CollaborationService {
       where: {
         teamId: data.teamId,
         inviteeId: invitee.id,
-        status: 'pending'
-      }
+        status: 'pending',
+      },
     });
 
     if (existingInvitation) {
@@ -216,7 +219,7 @@ export class CollaborationService {
         teamId: data.teamId,
         inviterId: data.inviterId,
         inviteeId: invitee.id,
-        status: 'pending'
+        status: 'pending',
       },
       include: {
         team: true,
@@ -224,17 +227,17 @@ export class CollaborationService {
           select: {
             id: true,
             name: true,
-            email: true
-          }
+            email: true,
+          },
         },
         invitee: {
           select: {
             id: true,
             name: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
   }
 
@@ -245,7 +248,7 @@ export class CollaborationService {
     return prisma.teamInvitation.findMany({
       where: {
         inviteeId: userId,
-        status: 'pending'
+        status: 'pending',
       },
       include: {
         team: true,
@@ -254,21 +257,25 @@ export class CollaborationService {
             id: true,
             name: true,
             email: true,
-            avatarUrl: true
-          }
-        }
-      }
+            avatarUrl: true,
+          },
+        },
+      },
     });
   }
 
   /**
    * Respond to a team invitation
    */
-  async respondToInvitation(invitationId: string, userId: string, accept: boolean) {
+  async respondToInvitation(
+    invitationId: string,
+    userId: string,
+    accept: boolean
+  ) {
     // Check if invitation exists and belongs to user
     const invitation = await prisma.teamInvitation.findUnique({
       where: { id: invitationId },
-      include: { team: true }
+      include: { team: true },
     });
 
     if (!invitation || invitation.inviteeId !== userId) {
@@ -284,8 +291,8 @@ export class CollaborationService {
       where: { id: invitationId },
       data: {
         status: accept ? 'accepted' : 'declined',
-        respondedAt: new Date()
-      }
+        respondedAt: new Date(),
+      },
     });
 
     // If accepted, add user to team
@@ -294,8 +301,8 @@ export class CollaborationService {
         data: {
           teamId: invitation.teamId,
           userId: userId,
-          role: 'member'
-        }
+          role: 'member',
+        },
       });
     }
 
@@ -310,8 +317,8 @@ export class CollaborationService {
     const remover = await prisma.teamMember.findFirst({
       where: {
         teamId: teamId,
-        userId: removerId
-      }
+        userId: removerId,
+      },
     });
 
     if (!remover) {
@@ -327,8 +334,8 @@ export class CollaborationService {
     const member = await prisma.teamMember.findFirst({
       where: {
         teamId: teamId,
-        userId: memberId
-      }
+        userId: memberId,
+      },
     });
 
     if (!member) {
@@ -342,21 +349,26 @@ export class CollaborationService {
     // Remove the member
     return prisma.teamMember.delete({
       where: {
-        id: member.id
-      }
+        id: member.id,
+      },
     });
   }
 
   /**
    * Update member role in a team
    */
-  async updateMemberRole(teamId: string, memberId: string, updaterId: string, newRole: string) {
+  async updateMemberRole(
+    teamId: string,
+    memberId: string,
+    updaterId: string,
+    newRole: string
+  ) {
     // Check if updater is authorized (owner)
     const updater = await prisma.teamMember.findFirst({
       where: {
         teamId: teamId,
-        userId: updaterId
-      }
+        userId: updaterId,
+      },
     });
 
     if (!updater || updater.role !== 'owner') {
@@ -367,8 +379,8 @@ export class CollaborationService {
     const member = await prisma.teamMember.findFirst({
       where: {
         teamId: teamId,
-        userId: memberId
-      }
+        userId: memberId,
+      },
     });
 
     if (!member) {
@@ -382,11 +394,11 @@ export class CollaborationService {
     // Update the member role
     return prisma.teamMember.update({
       where: {
-        id: member.id
+        id: member.id,
       },
       data: {
-        role: newRole
-      }
+        role: newRole,
+      },
     });
   }
 
@@ -396,26 +408,26 @@ export class CollaborationService {
   async getTeamProjects(teamId: string) {
     return prisma.project.findMany({
       where: {
-        teamId: teamId
+        teamId: teamId,
       },
       include: {
         user: {
           select: {
             id: true,
             name: true,
-            email: true
-          }
+            email: true,
+          },
         },
         thumbnails: {
           take: 5, // Limit to 5 thumbnails for preview
           orderBy: {
-            createdAt: 'desc'
-          }
+            createdAt: 'desc',
+          },
         },
         _count: {
-          select: { thumbnails: true }
-        }
-      }
+          select: { thumbnails: true },
+        },
+      },
     });
   }
 }

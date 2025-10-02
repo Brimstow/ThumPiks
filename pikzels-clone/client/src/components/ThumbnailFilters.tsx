@@ -14,7 +14,10 @@ interface ThumbnailFiltersProps {
   projects: { id: string; name: string }[];
 }
 
-const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, projects }) => {
+const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({
+  onFilterChange,
+  projects,
+}) => {
   const { theme } = useTheme();
   const [filters, setFilters] = useState({
     search: '',
@@ -23,7 +26,7 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
     sortOrder: 'desc' as 'asc' | 'desc',
     style: '',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
   });
 
   // Apply filters whenever they change
@@ -31,11 +34,13 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
     onFilterChange(filters);
   }, [filters, onFilterChange]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFilters(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -47,7 +52,7 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
       sortOrder: 'desc',
       style: '',
       dateFrom: '',
-      dateTo: ''
+      dateTo: '',
     });
   };
 
@@ -64,11 +69,16 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
   };
 
   return (
-    <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-4 mb-6`}>
+    <div
+      className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-4 mb-6`}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Search */}
         <div>
-          <label htmlFor="search" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="search"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             Search
           </label>
           <input
@@ -79,8 +89,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             onChange={handleInputChange}
             placeholder="Title or prompt..."
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           />
@@ -88,7 +98,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Project */}
         <div>
-          <label htmlFor="projectId" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="projectId"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             Project
           </label>
           <select
@@ -97,8 +110,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.projectId}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           >
@@ -113,7 +126,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Style */}
         <div>
-          <label htmlFor="style" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="style"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             Style
           </label>
           <select
@@ -122,8 +138,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.style}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           >
@@ -136,7 +152,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Sort By */}
         <div>
-          <label htmlFor="sortBy" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="sortBy"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             Sort By
           </label>
           <select
@@ -145,8 +164,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.sortBy}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           >
@@ -158,7 +177,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Sort Order */}
         <div>
-          <label htmlFor="sortOrder" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="sortOrder"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             Sort Order
           </label>
           <select
@@ -167,8 +189,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.sortOrder}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           >
@@ -179,7 +201,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Date From */}
         <div>
-          <label htmlFor="dateFrom" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="dateFrom"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             From Date
           </label>
           <input
@@ -189,8 +214,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.dateFrom}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           />
@@ -198,7 +223,10 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
 
         {/* Date To */}
         <div>
-          <label htmlFor="dateTo" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          <label
+            htmlFor="dateTo"
+            className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}
+          >
             To Date
           </label>
           <input
@@ -208,8 +236,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             value={filters.dateTo}
             onChange={handleInputChange}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
-              theme === 'dark' 
-                ? 'bg-gray-700 border-gray-600 text-white' 
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300 text-gray-900'
             }`}
           />
@@ -221,8 +249,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({ onFilterChange, pro
             <button
               onClick={handleClearFilters}
               className={`px-4 py-2 border rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                theme === 'dark' 
-                  ? 'border-gray-600 text-gray-300 bg-gray-700 hover:bg-gray-600' 
+                theme === 'dark'
+                  ? 'border-gray-600 text-gray-300 bg-gray-700 hover:bg-gray-600'
                   : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
               }`}
             >

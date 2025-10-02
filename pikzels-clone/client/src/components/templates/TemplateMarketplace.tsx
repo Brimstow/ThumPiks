@@ -54,20 +54,20 @@ const TemplateMarketplace: React.FC = () => {
   };
 
   const handleTagToggle = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag) 
-        : [...prev, tag]
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
   };
 
   const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          template.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesTags = selectedTags.length === 0 || 
-                        selectedTags.every(tag => template.tags.includes(tag));
-    
+    const matchesSearch =
+      template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      template.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.every(tag => template.tags.includes(tag));
+
     return matchesSearch && matchesTags;
   });
 
@@ -106,7 +106,10 @@ const TemplateMarketplace: React.FC = () => {
 
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+      <div
+        className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+        role="alert"
+      >
         <strong className="font-bold">Error: </strong>
         <span className="block sm:inline">{error}</span>
       </div>
@@ -116,7 +119,7 @@ const TemplateMarketplace: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Template Marketplace</h1>
-      
+
       {/* Search and Filter Section */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -128,7 +131,7 @@ const TemplateMarketplace: React.FC = () => {
             onChange={handleSearch}
           />
         </div>
-        
+
         {/* Tags Filter */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Filter by Tags</h2>
@@ -149,19 +152,24 @@ const TemplateMarketplace: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Templates Grid */}
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No templates found matching your criteria.</p>
+          <p className="text-gray-500 text-lg">
+            No templates found matching your criteria.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTemplates.map(template => (
-            <div key={template.id} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+            <div
+              key={template.id}
+              className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200"
+            >
               <div className="relative">
-                <img 
-                  src={template.thumbnail.imageUrl} 
+                <img
+                  src={template.thumbnail.imageUrl}
                   alt={template.name}
                   className="w-full h-48 object-cover"
                 />
@@ -169,23 +177,30 @@ const TemplateMarketplace: React.FC = () => {
                   {template.downloads} downloads
                 </div>
               </div>
-              
+
               <div className="p-4">
                 <div className="flex items-center mb-2">
-                  <img 
-                    src={template.creator.avatarUrl || '/default-avatar.png'} 
+                  <img
+                    src={template.creator.avatarUrl || '/default-avatar.png'}
                     alt={template.creator.name}
                     className="w-8 h-8 rounded-full mr-2"
                   />
-                  <span className="text-sm font-medium text-gray-700">{template.creator.name}</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {template.creator.name}
+                  </span>
                 </div>
-                
+
                 <h3 className="text-xl font-bold mb-1">{template.name}</h3>
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">{template.description}</p>
-                
+                <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                  {template.description}
+                </p>
+
                 <div className="flex flex-wrap gap-1 mb-3">
                   {template.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                    <span
+                      key={tag}
+                      className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                    >
                       {tag}
                     </span>
                   ))}
@@ -195,18 +210,28 @@ const TemplateMarketplace: React.FC = () => {
                     </span>
                   )}
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <div className="flex items-center">
                     <button className="flex items-center text-gray-500 hover:text-red-500">
-                      <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      <svg
+                        className="w-5 h-5 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        />
                       </svg>
                       <span>{template.likes}</span>
                     </button>
                   </div>
-                  
-                  <button 
+
+                  <button
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     onClick={() => {
                       // TODO: Implement template usage

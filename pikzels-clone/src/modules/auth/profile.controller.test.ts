@@ -6,11 +6,11 @@ jest.mock('@prisma/client', () => {
   const mockPrisma = {
     user: {
       findUnique: jest.fn(),
-      update: jest.fn()
-    }
+      update: jest.fn(),
+    },
   };
   return {
-    PrismaClient: jest.fn(() => mockPrisma)
+    PrismaClient: jest.fn(() => mockPrisma),
   };
 });
 
@@ -30,53 +30,53 @@ describe('ProfileController', () => {
   describe('getUserSettings', () => {
     it('should return user settings when user exists', async () => {
       const mockReq: any = {
-        user: { id: 'user123' }
+        user: { id: 'user123' },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         settings: {
           theme: 'dark',
-          language: 'en'
-        }
+          language: 'en',
+        },
       });
 
       await profileController.getUserSettings(mockReq, mockRes);
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user123' },
-        select: { settings: true }
+        select: { settings: true },
       });
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         settings: {
           theme: 'dark',
-          language: 'en'
-        }
+          language: 'en',
+        },
       });
     });
 
     it('should return empty settings when user has no settings', async () => {
       const mockReq: any = {
-        user: { id: 'user123' }
+        user: { id: 'user123' },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       mockPrisma.user.findUnique.mockResolvedValueOnce({
-        settings: null
+        settings: null,
       });
 
       await profileController.getUserSettings(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
-        settings: {}
+        settings: {},
       });
     });
 
@@ -84,33 +84,35 @@ describe('ProfileController', () => {
       const mockReq: any = {};
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       await profileController.getUserSettings(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Unauthorized'
+        error: 'Unauthorized',
       });
     });
 
     it('should handle database errors', async () => {
       const mockReq: any = {
-        user: { id: 'user123' }
+        user: { id: 'user123' },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
-      mockPrisma.user.findUnique.mockRejectedValueOnce(new Error('Database error'));
+      mockPrisma.user.findUnique.mockRejectedValueOnce(
+        new Error('Database error')
+      );
 
       await profileController.getUserSettings(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Internal server error'
+        error: 'Internal server error',
       });
     });
   });
@@ -122,20 +124,20 @@ describe('ProfileController', () => {
         body: {
           settings: {
             theme: 'light',
-            language: 'es'
-          }
-        }
+            language: 'es',
+          },
+        },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       mockPrisma.user.update.mockResolvedValueOnce({
         settings: {
           theme: 'light',
-          language: 'es'
-        }
+          language: 'es',
+        },
       });
 
       await profileController.updateUserSettings(mockReq, mockRes);
@@ -143,42 +145,42 @@ describe('ProfileController', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user123' },
         data: { settings: { theme: 'light', language: 'es' } },
-        select: { settings: true }
+        select: { settings: true },
       });
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
         settings: {
           theme: 'light',
-          language: 'es'
-        }
+          language: 'es',
+        },
       });
     });
 
     it('should return 401 when user is not authenticated', async () => {
       const mockReq: any = {
-        body: { settings: { theme: 'light' } }
+        body: { settings: { theme: 'light' } },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       await profileController.updateUserSettings(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Unauthorized'
+        error: 'Unauthorized',
       });
     });
 
     it('should handle database errors', async () => {
       const mockReq: any = {
         user: { id: 'user123' },
-        body: { settings: { theme: 'light' } }
+        body: { settings: { theme: 'light' } },
       };
       const mockRes: any = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       mockPrisma.user.update.mockRejectedValueOnce(new Error('Database error'));
@@ -187,7 +189,7 @@ describe('ProfileController', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Internal server error'
+        error: 'Internal server error',
       });
     });
   });

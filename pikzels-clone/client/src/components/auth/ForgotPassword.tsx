@@ -45,7 +45,8 @@ const ForgotPassword: React.FC = () => {
             Forgot Password
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we'll send you a link to reset your
+            password.
           </p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -54,29 +55,32 @@ const ForgotPassword: React.FC = () => {
               {message}
             </div>
           )}
-          
+
           {error && (
             <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded mb-4">
               {error}
             </div>
           )}
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Email Address
               </label>
               <input
                 type="email"
                 id="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Enter your email"
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loading}
@@ -85,7 +89,7 @@ const ForgotPassword: React.FC = () => {
               {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
           </form>
-          
+
           <div className="mt-4 text-center">
             <button
               onClick={() => navigate('/login')}

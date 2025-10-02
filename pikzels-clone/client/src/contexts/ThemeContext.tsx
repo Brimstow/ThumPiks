@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
 
 interface ThemeContextType {
   theme: 'light' | 'dark';
@@ -7,7 +13,9 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -16,7 +24,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const token = localStorage.getItem('token');
       if (!token) {
         // Fallback to system preference
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const systemPrefersDark = window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches;
         setTheme(systemPrefersDark ? 'dark' : 'light');
         return;
       }
@@ -24,8 +34,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       try {
         const response = await fetch('/api/user/settings', {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (response.ok) {
@@ -35,18 +45,24 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setTheme(userTheme);
           } else {
             // Fallback to system preference if no user preference is set
-            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const systemPrefersDark = window.matchMedia(
+              '(prefers-color-scheme: dark)'
+            ).matches;
             setTheme(systemPrefersDark ? 'dark' : 'light');
           }
         } else {
           // Fallback to system preference if unable to fetch settings
-          const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const systemPrefersDark = window.matchMedia(
+            '(prefers-color-scheme: dark)'
+          ).matches;
           setTheme(systemPrefersDark ? 'dark' : 'light');
         }
       } catch (error) {
         console.error('Error fetching user theme preference:', error);
         // Fallback to system preference
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const systemPrefersDark = window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches;
         setTheme(systemPrefersDark ? 'dark' : 'light');
       }
     };
@@ -66,7 +82,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const toggleTheme = () => {
     setTheme(prevTheme => {
       const newTheme = prevTheme === 'light' ? 'dark' : 'light';
-      
+
       // Save to user settings if logged in
       const token = localStorage.getItem('token');
       if (token) {
@@ -74,18 +90,18 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             settings: {
-              theme: newTheme
-            }
-          })
+              theme: newTheme,
+            },
+          }),
         }).catch(error => {
           console.error('Error saving theme preference:', error);
         });
       }
-      
+
       return newTheme;
     });
   };

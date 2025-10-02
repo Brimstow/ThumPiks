@@ -1,6 +1,6 @@
 /**
  * UI Components Library
- * 
+ *
  * Centralized export for all UI components following the design system.
  * This provides a clean API for importing components throughout the application.
  */
@@ -15,7 +15,12 @@ export type { InputProps } from './Input';
 
 // Card Components
 export { default as Card, CardHeader, CardBody, CardFooter } from './Card';
-export type { CardProps, CardHeaderProps, CardBodyProps, CardFooterProps } from './Card';
+export type {
+  CardProps,
+  CardHeaderProps,
+  CardBodyProps,
+  CardFooterProps,
+} from './Card';
 
 // Navigation Components
 export { default as Navigation } from './Navigation';

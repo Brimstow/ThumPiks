@@ -10,18 +10,16 @@ describe('Social Share API', () => {
 
   describe('GET /api/social-share/stats', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app)
-        .get('/api/social-share/stats');
-      
+      const response = await request(app).get('/api/social-share/stats');
+
       expect(response.status).toBe(401);
     });
   });
 
   describe('GET /api/social-share/', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app)
-        .get('/api/social-share/');
-      
+      const response = await request(app).get('/api/social-share/');
+
       expect(response.status).toBe(401);
     });
   });
@@ -33,27 +31,27 @@ describe('Social Share API', () => {
         .send({
           thumbnailId: 'test-id',
           platforms: ['twitter'],
-          message: 'Test message'
+          message: 'Test message',
         });
-      
+
       expect(response.status).toBe(401);
     });
   });
 
   describe('GET /api/social-share/thumbnail/:thumbnailId', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app)
-        .get('/api/social-share/thumbnail/test-id');
-      
+      const response = await request(app).get(
+        '/api/social-share/thumbnail/test-id'
+      );
+
       expect(response.status).toBe(401);
     });
   });
 
   describe('DELETE /api/social-share/:id', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app)
-        .delete('/api/social-share/test-id');
-      
+      const response = await request(app).delete('/api/social-share/test-id');
+
       expect(response.status).toBe(401);
     });
   });

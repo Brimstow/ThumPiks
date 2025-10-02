@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, CardHeader, CardBody } from './Card';
-import { Button } from './Button';
+import Card, { CardHeader, CardBody } from './Card';
+import Button from './Button';
 import './Panel.css';
 
 export interface PanelProps {
@@ -36,57 +36,59 @@ const Panel: React.FC<PanelProps> = ({
   actions,
   bordered = true,
   className = '',
-  onCollapseChange
+  onCollapseChange,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-  
+
   const handleToggleCollapse = () => {
     const newCollapsed = !isCollapsed;
     setIsCollapsed(newCollapsed);
     onCollapseChange?.(newCollapsed);
   };
-  
+
   const panelClasses = [
     'panel',
     `panel--${size}`,
     `panel--${variant}`,
     isCollapsed && 'panel--collapsed',
     !bordered && 'panel--borderless',
-    className
-  ].filter(Boolean).join(' ');
-  
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <Card 
-      variant={bordered ? 'outlined' : 'filled'} 
-      padding=\"none\" 
+    <Card
+      variant={bordered ? 'outlined' : 'filled'}
+      padding="none"
       className={panelClasses}
     >
       {title && (
-        <CardHeader className=\"panel__header\">
-          <div className=\"panel__header-content\">
-            <h3 className=\"panel__title\">{title}</h3>
-            <div className=\"panel__header-actions\">
+        <CardHeader className="panel__header">
+          <div className="panel__header-content">
+            <h3 className="panel__title">{title}</h3>
+            <div className="panel__header-actions">
               {actions}
               {collapsible && (
                 <Button
-                  variant=\"ghost\"
-                  size=\"sm\"
+                  variant="ghost"
+                  size="sm"
                   onClick={handleToggleCollapse}
-                  className=\"panel__collapse-toggle\"
+                  className="panel__collapse-toggle"
                   aria-label={isCollapsed ? 'Expand panel' : 'Collapse panel'}
                   aria-expanded={!isCollapsed}
                 >
-                  <svg 
+                  <svg
                     className={`panel__collapse-icon ${isCollapsed ? 'panel__collapse-icon--collapsed' : ''}`}
-                    fill=\"none\" 
-                    viewBox=\"0 0 24 24\" 
-                    stroke=\"currentColor\"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <path 
-                      strokeLinecap=\"round\" 
-                      strokeLinejoin=\"round\" 
-                      strokeWidth={2} 
-                      d=\"M19 9l-7 7-7-7\" 
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
                     />
                   </svg>
                 </Button>
@@ -95,11 +97,9 @@ const Panel: React.FC<PanelProps> = ({
           </div>
         </CardHeader>
       )}
-      
+
       {(!collapsible || !isCollapsed) && (
-        <CardBody className=\"panel__body\">
-          {children}
-        </CardBody>
+        <CardBody className="panel__body">{children}</CardBody>
       )}
     </Card>
   );
@@ -115,13 +115,11 @@ export interface PanelSectionProps {
 export const PanelSection: React.FC<PanelSectionProps> = ({
   title,
   children,
-  className = ''
+  className = '',
 }) => (
   <div className={`panel__section ${className}`}>
-    {title && <h4 className=\"panel__section-title\">{title}</h4>}
-    <div className=\"panel__section-content\">
-      {children}
-    </div>
+    {title && <h4 className="panel__section-title">{title}</h4>}
+    <div className="panel__section-content">{children}</div>
   </div>
 );
 
@@ -136,9 +134,11 @@ export const PanelGroup: React.FC<PanelGroupProps> = ({
   children,
   direction = 'vertical',
   gap = 'md',
-  className = ''
+  className = '',
 }) => (
-  <div className={`panel-group panel-group--${direction} panel-group--gap-${gap} ${className}`}>
+  <div
+    className={`panel-group panel-group--${direction} panel-group--gap-${gap} ${className}`}
+  >
     {children}
   </div>
 );

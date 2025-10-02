@@ -1,4 +1,8 @@
-import { SocialMediaClient, SocialMediaPost, SocialMediaResponse } from './social-media-client';
+import {
+  SocialMediaClient,
+  SocialMediaPost,
+  SocialMediaResponse,
+} from './social-media-client';
 
 export class FacebookClient extends SocialMediaClient {
   private readonly API_BASE_URL = 'https://graph.facebook.com/v18.0';
@@ -11,13 +15,15 @@ export class FacebookClient extends SocialMediaClient {
   /**
    * Upload media to Facebook
    */
-  async uploadMedia(imageUrl: string): Promise<{ mediaId: string } | { error: string }> {
+  async uploadMedia(
+    imageUrl: string
+  ): Promise<{ mediaId: string } | { error: string }> {
     try {
       // In a real implementation, we would:
       // 1. Download the image from imageUrl
       // 2. Upload it to Facebook's media endpoint
       // 3. Return the media ID
-      
+
       // For now, we'll return a mock media ID
       return { mediaId: 'mock_facebook_media_id' };
     } catch (error: any) {
@@ -28,14 +34,17 @@ export class FacebookClient extends SocialMediaClient {
   /**
    * Create a post on Facebook
    */
-  async createPost(post: SocialMediaPost, mediaIds?: string[]): Promise<SocialMediaResponse> {
+  async createPost(
+    post: SocialMediaPost,
+    mediaIds?: string[]
+  ): Promise<SocialMediaResponse> {
     try {
       // Validate the post
       const validation = this.validatePost(post);
       if (!validation.valid) {
         return {
           success: false,
-          error: validation.errors.join(', ')
+          error: validation.errors.join(', '),
         };
       }
 
@@ -46,17 +55,17 @@ export class FacebookClient extends SocialMediaClient {
       // 1. Make a POST request to Facebook's Graph API to create a post
       // 2. Include the media IDs if provided
       // 3. Handle the response
-      
+
       // For now, we'll return a mock response
       return {
         success: true,
         postId: 'mock_facebook_post_id',
-        postUrl: 'https://facebook.com/mock/posts/mock_facebook_post_id'
+        postUrl: 'https://facebook.com/mock/posts/mock_facebook_post_id',
       };
     } catch (error: any) {
       return {
         success: false,
-        error: error.message || 'Failed to create post on Facebook'
+        error: error.message || 'Failed to create post on Facebook',
       };
     }
   }
@@ -69,16 +78,18 @@ export class FacebookClient extends SocialMediaClient {
       // In a real implementation, we would:
       // 1. Make a GET request to Facebook's Graph API to get post insights
       // 2. Return the engagement data
-      
+
       // For now, we'll return mock data
       return {
         likes: Math.floor(Math.random() * 500),
         shares: Math.floor(Math.random() * 200),
         comments: Math.floor(Math.random() * 100),
-        views: Math.floor(Math.random() * 2000)
+        views: Math.floor(Math.random() * 2000),
       };
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to get engagement metrics from Facebook');
+      throw new Error(
+        error.message || 'Failed to get engagement metrics from Facebook'
+      );
     }
   }
 
@@ -96,20 +107,25 @@ export class FacebookClient extends SocialMediaClient {
   /**
    * Validate Facebook post content
    */
-  protected validatePost(post: SocialMediaPost): { valid: boolean; errors: string[] } {
+  protected validatePost(post: SocialMediaPost): {
+    valid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
-    
+
     if (!post.text && !post.imageUrl) {
       errors.push('Facebook post must contain either text or an image');
     }
-    
+
     if (post.text && post.text.length > this.MAX_POST_LENGTH) {
-      errors.push(`Facebook post text exceeds ${this.MAX_POST_LENGTH} characters`);
+      errors.push(
+        `Facebook post text exceeds ${this.MAX_POST_LENGTH} characters`
+      );
     }
-    
+
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 }

@@ -1,6 +1,28 @@
 # Pikzels Clone - Thumbnail Maker Studio
+# 🎨 Thumbnail Maker Studio
 
-A full-featured thumbnail creation and editing platform with AI-powered tools.
+A full-featured thumbnail creation and editing platform with AI-powered tools and automated quality assurance.
+
+[![Code Quality](https://github.com/your-username/pikzels-clone/workflows/Code%20Quality%20&%20Tests/badge.svg)](https://github.com/your-username/pikzels-clone/actions)
+[![Security](https://github.com/your-username/pikzels-clone/workflows/Security%20&%20Dependency%20Checks/badge.svg)](https://github.com/your-username/pikzels-clone/actions)
+
+## 🚀 Quick Start
+
+```bash
+# Clone and setup
+git clone <repository-url>
+cd pikzels-clone
+npm install && cd client && npm install && cd ..
+
+# Setup database
+npx prisma migrate dev
+npx prisma generate
+
+# Start development (both frontend & backend)
+npm run dev:all
+```
+
+**🎯 New to the project?** Check out our [Development Workflow Guide](DEVELOPMENT_WORKFLOW.md) and [Contributing Guidelines](CONTRIBUTING.md).
 
 ## Overview
 
@@ -120,38 +142,54 @@ pikzels-clone/
 
 See [docs/api](docs/api) for detailed API documentation.
 
-## Contributing
+## 🛠️ Development Commands
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a pull request
-
-## Testing
-
-### Backend Tests
+### Code Quality (Automated)
 ```bash
-npm test
+npm run format:all         # Auto-format all code
+npm run lint:all          # Fix linting issues
+npm run check             # Run all quality checks
+npm run commit            # Guided commit with conventional format
 ```
 
-### Frontend Tests
+### Development Servers
 ```bash
-cd client
-npm test
+npm run dev               # Backend only
+npm run dev:frontend      # Frontend only  
+npm run dev:all          # Both servers
 ```
 
-## Documentation
+### Testing
+```bash
+npm test                  # Backend tests
+cd client && npm test     # Frontend tests
+npm run test:coverage     # With coverage report
+```
 
-- [Client README](client/README.md) - Frontend documentation
-- [Server README](src/README.md) - Backend documentation
-- [Auth Module README](src/modules/auth/README.md) - Authentication documentation
-- [User Settings API](docs/api/user-settings.md) - API documentation for user settings
-- [Password Recovery API](docs/api/password-recovery.md) - API documentation for password recovery
-- [User Settings Component](docs/components/user-settings.md) - Frontend component documentation
-- [Password Recovery Components](docs/components/password-recovery.md) - Frontend component documentation
-- [Extending User Settings Guide](docs/guides/extending-user-settings.md) - Developer guide for extending settings
-- [Extending Password Recovery Guide](docs/guides/extending-password-recovery.md) - Developer guide for extending password recovery
+## 🤖 Automated Quality Assurance
+
+This project includes automated code quality tools:
+
+- **✨ Pre-commit hooks**: Auto-format and lint staged files
+- **📝 Conventional commits**: Enforced commit message format
+- **🎨 Prettier**: Consistent code formatting
+- **🔍 ESLint**: Code quality and convention checking
+- **🚀 CI/CD**: Automated testing and quality gates
+
+**🎬 Demo Workflow:**
+```
+Code Change → Pre-commit Hook → Quality Checks → Commit → CI/CD → Deploy
+     ↓              ↓               ↓            ↓        ↓         ↓
+   Edit File → Format/Lint → Tests Pass → Git Commit → Build → Success! ✅
+```
+
+## 📚 Documentation
+
+- **[🛠️ Development Workflow](DEVELOPMENT_WORKFLOW.md)** - Complete development guide
+- **[🤝 Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
+- **[Client README](client/README.md)** - Frontend documentation
+- **[Server README](src/README.md)** - Backend documentation
+- **[API Documentation](docs/api)** - API endpoints and schemas
 
 ## Changelog
 

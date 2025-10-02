@@ -16,55 +16,69 @@ export class ImageProcessingService {
    * @param thumbnailId The ID of the thumbnail (used for filename)
    * @returns The path to the processed image
    */
-  async applyEditsToImage(imageUrl: string, edits: any, thumbnailId: string): Promise<string> {
+  async applyEditsToImage(
+    imageUrl: string,
+    edits: any,
+    thumbnailId: string
+  ): Promise<string> {
     try {
       // For placeholder images, we'll need to download them first
       // In a real implementation, you would fetch the actual image data
       const imageBuffer = await this.fetchImageBuffer(imageUrl);
-      
+
       // Start with the base image
       let processedImage = sharp(imageBuffer);
-      
+
       // Apply resize if specified
       if (edits.resize) {
         const { width, height } = edits.resize;
         processedImage = processedImage.resize(width, height);
       }
-      
+
       // Apply basic adjustments
-      if (edits.brightness !== undefined || edits.contrast !== undefined || edits.saturation !== undefined) {
-        const brightness = edits.brightness !== undefined ? edits.brightness / 100 : 1;
-        const contrast = edits.contrast !== undefined ? edits.contrast / 100 : 1;
-        const saturation = edits.saturation !== undefined ? edits.saturation / 100 : 1;
-        
+      if (
+        edits.brightness !== undefined ||
+        edits.contrast !== undefined ||
+        edits.saturation !== undefined
+      ) {
+        const brightness =
+          edits.brightness !== undefined ? edits.brightness / 100 : 1;
+        const contrast =
+          edits.contrast !== undefined ? edits.contrast / 100 : 1;
+        const saturation =
+          edits.saturation !== undefined ? edits.saturation / 100 : 1;
+
         processedImage = processedImage.modulate({
           brightness,
-          saturation
+          saturation,
         });
-        
+
         // Contrast adjustment (simplified)
         if (contrast !== 1) {
-          processedImage = processedImage.linear(contrast, -(128 * (contrast - 1)));
+          processedImage = processedImage.linear(
+            contrast,
+            -(128 * (contrast - 1))
+          );
         }
       }
-      
+
       // Apply hue rotation
       if (edits.hue !== undefined && edits.hue !== 0) {
         processedImage = processedImage.modulate({ hue: edits.hue });
       }
-      
+
       // Apply blur
       if (edits.blur !== undefined && edits.blur > 0) {
         processedImage = processedImage.blur(edits.blur);
       }
-      
+
       // Apply rotation
       if (edits.rotation !== undefined && edits.rotation !== 0) {
         processedImage = processedImage.rotate(edits.rotation, {
-          background: { r: 255, g: 255, b: 255, alpha: 1 }
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
         });
       }
-      
+
       // Apply flip
       if (edits.flipHorizontal || edits.flipVertical) {
         if (edits.flipHorizontal && edits.flipVertical) {
@@ -75,7 +89,7 @@ export class ImageProcessingService {
           processedImage = processedImage.flop(true);
         }
       }
-      
+
       // Apply crop
       if (edits.crop) {
         const { x, y, width, height } = edits.crop;
@@ -86,15 +100,15 @@ export class ImageProcessingService {
         const cropY = Math.round((y / 100) * imgHeight);
         const cropWidth = Math.round((width / 100) * imgWidth);
         const cropHeight = Math.round((height / 100) * imgHeight);
-        
+
         processedImage = processedImage.extract({
           left: cropX,
           top: cropY,
           width: cropWidth,
-          height: cropHeight
+          height: cropHeight,
         });
       }
-      
+
       // Apply filters
       if (edits.filter) {
         switch (edits.filter) {
@@ -106,11 +120,13 @@ export class ImageProcessingService {
             break;
           case 'vintage':
             // Apply a combination of effects for vintage look
-            processedImage = processedImage.modulate({ saturation: 0.8 })
+            processedImage = processedImage
+              .modulate({ saturation: 0.8 })
               .tint('#D0C0A0');
             break;
           case 'blackAndWhite':
-            processedImage = processedImage.grayscale()
+            processedImage = processedImage
+              .grayscale()
               .modulate({ brightness: 1.2 });
             break;
           case 'invert':
@@ -127,11 +143,7 @@ export class ImageProcessingService {
             processedImage = processedImage.convolve({
               width: 3,
               height: 3,
-              kernel: [
-                -1, -1,  0,
-                -1,  1,  1,
-                 0,  1,  1
-              ]
+              kernel: [-1, -1, 0, -1, 1, 1, 0, 1, 1],
             });
             break;
           case 'edgeDetect':
@@ -139,33 +151,29 @@ export class ImageProcessingService {
             processedImage = processedImage.convolve({
               width: 3,
               height: 3,
-              kernel: [
-                -1, -1, -1,
-                -1,  8, -1,
-                -1, -1, -1
-              ]
+              kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1],
             });
             break;
         }
       }
-      
+
       // Note: In a real implementation, we would apply text overlays, drawing paths, watermarks, and preset templates here
       // For now, we're just updating the data structure to support preset templates
-      
+
       // Generate output filename
       const outputFilename = `processed_${thumbnailId}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
-      
+
       // Save the processed image
       await processedImage.png().toFile(outputPath);
-      
+
       return outputPath;
     } catch (error) {
       console.error('Error processing image:', error);
       throw new Error('Failed to process image');
     }
   }
-  
+
   /**
    * Apply the same edits to multiple images
    * @param imageUrls Array of URLs for the source images
@@ -173,23 +181,31 @@ export class ImageProcessingService {
    * @param thumbnailIds Array of IDs for the thumbnails (used for filenames)
    * @returns Array of paths to the processed images
    */
-  async batchApplyEditsToImages(imageUrls: string[], edits: any, thumbnailIds: string[]): Promise<string[]> {
+  async batchApplyEditsToImages(
+    imageUrls: string[],
+    edits: any,
+    thumbnailIds: string[]
+  ): Promise<string[]> {
     try {
       const processedImagePaths: string[] = [];
-      
+
       // Process each image with the same edits
       for (let i = 0; i < imageUrls.length; i++) {
-        const imagePath = await this.applyEditsToImage(imageUrls[i], edits, thumbnailIds[i]);
+        const imagePath = await this.applyEditsToImage(
+          imageUrls[i],
+          edits,
+          thumbnailIds[i]
+        );
         processedImagePaths.push(imagePath);
       }
-      
+
       return processedImagePaths;
     } catch (error) {
       console.error('Error processing batch of images:', error);
       throw new Error('Failed to process batch of images');
     }
   }
-  
+
   /**
    * Fetch image buffer from URL
    * @param imageUrl The URL of the image to fetch
@@ -201,7 +217,7 @@ export class ImageProcessingService {
       // Create a minimal buffer for testing
       return Buffer.from('test');
     }
-    
+
     // For placeholder images, we'll create a simple buffer
     // In a real implementation, you would fetch the actual image
     if (imageUrl.includes('placehold.co')) {
@@ -211,13 +227,13 @@ export class ImageProcessingService {
           width: 1280,
           height: 720,
           channels: 4,
-          background: { r: 128, g: 128, b: 128, alpha: 1 }
-        }
+          background: { r: 128, g: 128, b: 128, alpha: 1 },
+        },
       })
-      .png()
-      .toBuffer();
+        .png()
+        .toBuffer();
     }
-    
+
     // For other images, you would fetch them from the URL
     // This is a simplified implementation
     return sharp({
@@ -225,13 +241,13 @@ export class ImageProcessingService {
         width: 1280,
         height: 720,
         channels: 4,
-        background: { r: 128, g: 128, b: 128, alpha: 1 }
-      }
+        background: { r: 128, g: 128, b: 128, alpha: 1 },
+      },
     })
-    .png()
-    .toBuffer();
+      .png()
+      .toBuffer();
   }
-  
+
   /**
    * Get the URL for a processed image
    * @param imagePath The path to the processed image
@@ -243,7 +259,7 @@ export class ImageProcessingService {
     const filename = path.basename(imagePath);
     return `/processed-images/${filename}`;
   }
-  
+
   /**
    * Get list of available filters
    * @returns Array of filter names
@@ -259,7 +275,7 @@ export class ImageProcessingService {
       'blur',
       'sharpen',
       'emboss',
-      'edgeDetect'
+      'edgeDetect',
     ];
   }
 }

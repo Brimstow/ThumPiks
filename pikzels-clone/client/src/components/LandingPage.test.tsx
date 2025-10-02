@@ -26,12 +26,16 @@ describe('LandingPage', () => {
   });
 
   test('renders the description', () => {
-    const description = screen.getByText(/Transform your content with AI-powered thumbnail generation/i);
+    const description = screen.getByText(
+      /Transform your content with AI-powered thumbnail generation/i
+    );
     expect(description).toBeInTheDocument();
   });
 
   test('renders the get started button', () => {
-    const getStartedButton = screen.getByRole('button', { name: /Get Started Free/i });
+    const getStartedButton = screen.getByRole('button', {
+      name: /Get Started Free/i,
+    });
     expect(getStartedButton).toBeInTheDocument();
   });
 
@@ -48,7 +52,9 @@ describe('LandingPage', () => {
 
   test('renders testimonials section', () => {
     expect(screen.getByText(/What Creators Say/i)).toBeInTheDocument();
-    expect(screen.getByText(/increased my YouTube click-through rate by 40%/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/increased my YouTube click-through rate by 40%/i)
+    ).toBeInTheDocument();
   });
 
   test('renders the footer with current year', () => {

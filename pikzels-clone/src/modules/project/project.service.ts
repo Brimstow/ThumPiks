@@ -9,7 +9,7 @@ export class ProjectService {
     userId: string;
   }) {
     return prisma.project.create({
-      data
+      data,
     });
   }
 
@@ -17,11 +17,11 @@ export class ProjectService {
     return prisma.project.findMany({
       where: { userId },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
       include: {
-        featuredThumbnail: true
-      }
+        featuredThumbnail: true,
+      },
     });
   }
 
@@ -33,34 +33,37 @@ export class ProjectService {
         thumbnails: {
           take: 5, // Get the 5 most recent thumbnails
           orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      }
+            createdAt: 'desc',
+          },
+        },
+      },
     });
   }
 
-  async updateProject(id: string, data: Partial<{
-    name: string;
-    description?: string;
-    featuredThumbnailId?: string;
-  }>) {
+  async updateProject(
+    id: string,
+    data: Partial<{
+      name: string;
+      description?: string;
+      featuredThumbnailId?: string;
+    }>
+  ) {
     return prisma.project.update({
       where: { id },
-      data
+      data,
     });
   }
 
   async deleteProject(id: string) {
     return prisma.project.delete({
-      where: { id }
+      where: { id },
     });
   }
 
   async setFeaturedThumbnail(projectId: string, thumbnailId: string) {
     // First verify that the thumbnail belongs to this project
     const thumbnail = await prisma.thumbnail.findUnique({
-      where: { id: thumbnailId }
+      where: { id: thumbnailId },
     });
 
     if (!thumbnail || thumbnail.projectId !== projectId) {
@@ -71,8 +74,8 @@ export class ProjectService {
     return prisma.project.update({
       where: { id: projectId },
       data: {
-        featuredThumbnailId: thumbnailId
-      }
+        featuredThumbnailId: thumbnailId,
+      },
     });
   }
 }

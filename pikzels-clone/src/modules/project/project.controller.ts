@@ -22,15 +22,15 @@ export class ProjectController {
 
       // Validate required fields
       if (!name) {
-        return res.status(400).json({ 
-          error: 'Project name is required' 
+        return res.status(400).json({
+          error: 'Project name is required',
         });
       }
 
       const project = await projectService.createProject({
         name,
         description,
-        userId: req.user.id
+        userId: req.user.id,
       });
 
       res.status(201).json({ project });
@@ -102,7 +102,7 @@ export class ProjectController {
       const updatedProject = await projectService.updateProject(id, {
         name,
         description,
-        featuredThumbnailId
+        featuredThumbnailId,
       });
 
       res.status(200).json({ project: updatedProject });
@@ -159,14 +159,17 @@ export class ProjectController {
       }
 
       // Set the featured thumbnail
-      const updatedProject = await projectService.setFeaturedThumbnail(projectId, thumbnailId);
+      const updatedProject = await projectService.setFeaturedThumbnail(
+        projectId,
+        thumbnailId
+      );
 
       res.status(200).json({ project: updatedProject });
     } catch (error: any) {
       if (error.message === 'Thumbnail does not belong to this project') {
         return res.status(400).json({ error: error.message });
       }
-      
+
       console.error('Error setting featured thumbnail:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

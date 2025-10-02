@@ -23,24 +23,24 @@ const ResetPassword: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Reset messages
     setMessage('');
     setError('');
-    
+
     // Validate passwords
     if (password.length < 6) {
       setError('Password must be at least 6 characters long');
       return;
     }
-    
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
@@ -53,7 +53,9 @@ const ResetPassword: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage('Password successfully reset. You can now login with your new password.');
+        setMessage(
+          'Password successfully reset. You can now login with your new password.'
+        );
         // Clear form
         setPassword('');
         setConfirmPassword('');
@@ -82,55 +84,64 @@ const ResetPassword: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
           {!token && (
             <div className="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-800 text-yellow-700 dark:text-yellow-200 px-4 py-3 rounded mb-4">
-              No reset token provided. Please use the link from your password reset email.
+              No reset token provided. Please use the link from your password
+              reset email.
             </div>
           )}
-          
+
           {message && (
             <div className="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-800 text-green-700 dark:text-green-200 px-4 py-3 rounded mb-4">
               {message}
             </div>
           )}
-          
+
           {error && (
             <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded mb-4">
               {error}
             </div>
           )}
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 New Password
               </label>
               <input
                 type="password"
                 id="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 minLength={6}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Enter new password"
               />
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Must be at least 6 characters</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Must be at least 6 characters
+              </p>
             </div>
-            
+
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Confirm New Password
               </label>
               <input
                 type="password"
                 id="confirmPassword"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={e => setConfirmPassword(e.target.value)}
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Confirm new password"
               />
             </div>
-            
+
             <button
               type="submit"
               disabled={loading || !token}
@@ -139,7 +150,7 @@ const ResetPassword: React.FC = () => {
               {loading ? 'Resetting...' : 'Reset Password'}
             </button>
           </form>
-          
+
           <div className="mt-4 text-center">
             <button
               onClick={() => navigate('/login')}

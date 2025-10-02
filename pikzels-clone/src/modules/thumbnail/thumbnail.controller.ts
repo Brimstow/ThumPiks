@@ -30,8 +30,8 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
 
     // Validate required fields
     if (!title || !prompt || !projectId) {
-      return res.status(400).json({ 
-        error: 'Title, prompt, and projectId are required' 
+      return res.status(400).json({
+        error: 'Title, prompt, and projectId are required',
       });
     }
 
@@ -41,7 +41,7 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       prompt,
       parameters: parameters || {},
       projectId,
-      userId: req.user.id
+      userId: req.user.id,
     });
 
     res.status(201).json({ thumbnail });
@@ -58,14 +58,14 @@ export const getThumbnails = async (req: AuthRequest, res: Response) => {
     }
 
     // Extract query parameters for filtering and sorting
-    const { 
-      search, 
-      projectId, 
-      sortBy = 'createdAt', 
+    const {
+      search,
+      projectId,
+      sortBy = 'createdAt',
       sortOrder = 'desc',
       style,
       dateFrom,
-      dateTo
+      dateTo,
     } = req.query;
 
     const thumbnails = await thumbnailService.getThumbnailsByUser(req.user.id, {
@@ -75,9 +75,9 @@ export const getThumbnails = async (req: AuthRequest, res: Response) => {
       sortOrder: sortOrder as 'asc' | 'desc',
       style: style as string,
       dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
-      dateTo: dateTo ? new Date(dateTo as string) : undefined
+      dateTo: dateTo ? new Date(dateTo as string) : undefined,
     });
-    
+
     res.status(200).json({ thumbnails });
   } catch (error) {
     console.error('Error fetching thumbnails:', error);
@@ -134,7 +134,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
       title,
       imageUrl,
       prompt,
-      parameters
+      parameters,
     });
 
     res.status(200).json({ thumbnail: updatedThumbnail });
@@ -180,16 +180,16 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
 
     // Validate required fields
     if (!prompt || !projectId) {
-      return res.status(400).json({ 
-        error: 'Prompt and projectId are required' 
+      return res.status(400).json({
+        error: 'Prompt and projectId are required',
       });
     }
 
     // Validate style if provided
     const validStyles = ['bold', 'minimalist', 'dramatic'];
     if (style && !validStyles.includes(style.toLowerCase())) {
-      return res.status(400).json({ 
-        error: 'Invalid style. Must be one of: bold, minimalist, dramatic' 
+      return res.status(400).json({
+        error: 'Invalid style. Must be one of: bold, minimalist, dramatic',
       });
     }
 
@@ -197,8 +197,12 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     if (aiService.isConfigured()) {
       // Use AI service to generate thumbnails
       try {
-        const imageUrls = await aiService.generateThumbnails(prompt, style || 'bold', 3);
-        
+        const imageUrls = await aiService.generateThumbnails(
+          prompt,
+          style || 'bold',
+          3
+        );
+
         // Generate 3 variations
         const thumbnails = [];
         for (let i = 0; i < Math.min(imageUrls.length, 3); i++) {
@@ -209,24 +213,27 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             parameters: {
               style: style || 'bold',
               variation: i + 1,
-              aiGenerated: true
+              aiGenerated: true,
             },
             projectId,
-            userId: req.user.id
+            userId: req.user.id,
           });
           thumbnails.push(thumbnail);
         }
 
-        res.status(201).json({ 
+        res.status(201).json({
           message: 'Thumbnails generated successfully with AI',
-          thumbnails 
+          thumbnails,
         });
       } catch (aiError) {
-        console.error('Error generating thumbnails with AI, falling back to placeholders:', aiError);
-        
+        console.error(
+          'Error generating thumbnails with AI, falling back to placeholders:',
+          aiError
+        );
+
         // Fallback to placeholder images if AI generation fails
-        const imageUrl = `https://placehold.co/1280x720/${Math.floor(Math.random()*16777215).toString(16)}/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`;
-        
+        const imageUrl = `https://placehold.co/1280x720/${Math.floor(Math.random() * 16777215).toString(16)}/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`;
+
         // Generate 3 variations
         const thumbnails = [];
         for (let i = 1; i <= 3; i++) {
@@ -238,24 +245,25 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               style: style || 'bold',
               variation: i,
               aiGenerated: false,
-              aiError: aiError instanceof Error ? aiError.message : String(aiError)
+              aiError:
+                aiError instanceof Error ? aiError.message : String(aiError),
             },
             projectId,
-            userId: req.user.id
+            userId: req.user.id,
           });
           thumbnails.push(thumbnail);
         }
 
-        res.status(201).json({ 
+        res.status(201).json({
           message: 'Thumbnails generated with placeholders (AI service error)',
           thumbnails,
-          aiError: aiError instanceof Error ? aiError.message : String(aiError)
+          aiError: aiError instanceof Error ? aiError.message : String(aiError),
         });
       }
     } else {
       // Fallback to placeholder images if AI service is not configured
-      const imageUrl = `https://placehold.co/1280x720/${Math.floor(Math.random()*16777215).toString(16)}/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`;
-      
+      const imageUrl = `https://placehold.co/1280x720/${Math.floor(Math.random() * 16777215).toString(16)}/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`;
+
       // Generate 3 variations
       const thumbnails = [];
       for (let i = 1; i <= 3; i++) {
@@ -267,18 +275,19 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             style: style || 'bold',
             variation: i,
             aiGenerated: false,
-            aiNotConfigured: true
+            aiNotConfigured: true,
           },
           projectId,
-          userId: req.user.id
+          userId: req.user.id,
         });
         thumbnails.push(thumbnail);
       }
 
-      res.status(201).json({ 
-        message: 'Thumbnails generated with placeholders (AI service not configured)',
+      res.status(201).json({
+        message:
+          'Thumbnails generated with placeholders (AI service not configured)',
         thumbnails,
-        aiNotConfigured: true
+        aiNotConfigured: true,
       });
     }
   } catch (error) {
@@ -313,11 +322,14 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
     //
     // For this implementation, we'll redirect to the image URL
     // which will allow the browser to handle the download
-    
+
     // Set headers to force download
-    res.setHeader('Content-Disposition', `attachment; filename="${thumbnail.title.replace(/[^a-zA-Z0-9]/g, '_')}.png"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${thumbnail.title.replace(/[^a-zA-Z0-9]/g, '_')}.png"`
+    );
     res.setHeader('Content-Type', 'image/png');
-    
+
     // Redirect to the image URL
     res.redirect(thumbnail.imageUrl);
   } catch (error) {
@@ -352,12 +364,14 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     try {
       // Only process if there are actual edits
       if (edits && Object.keys(edits).length > 0) {
-        const processedImagePath = await imageProcessingService.applyEditsToImage(
-          thumbnail.imageUrl,
-          edits,
-          id
-        );
-        processedImageUrl = imageProcessingService.getProcessedImageUrl(processedImagePath);
+        const processedImagePath =
+          await imageProcessingService.applyEditsToImage(
+            thumbnail.imageUrl,
+            edits,
+            id
+          );
+        processedImageUrl =
+          imageProcessingService.getProcessedImageUrl(processedImagePath);
       }
     } catch (processingError) {
       console.error('Error processing image:', processingError);
@@ -368,18 +382,18 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     const updatedParameters = {
       ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
       edits: edits || {},
-      processedImageUrl // Store the processed image URL
+      processedImageUrl, // Store the processed image URL
     };
 
     const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
       parameters: updatedParameters,
       // Update the imageUrl to point to the processed image
-      imageUrl: processedImageUrl
+      imageUrl: processedImageUrl,
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Edits applied successfully',
-      thumbnail: updatedThumbnail 
+      thumbnail: updatedThumbnail,
     });
   } catch (error) {
     console.error('Error applying edits to thumbnail:', error);
@@ -411,8 +425,8 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
     // Validate style type
     const availableStyles = aiEnhancementService.getAvailableStyles();
     if (!styleType || !availableStyles.includes(styleType.toLowerCase())) {
-      return res.status(400).json({ 
-        error: `Invalid style type. Available styles: ${availableStyles.join(', ')}` 
+      return res.status(400).json({
+        error: `Invalid style type. Available styles: ${availableStyles.join(', ')}`,
       });
     }
 
@@ -422,22 +436,25 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
       styleType,
       id
     );
-    
-    const styledImageUrl = aiEnhancementService.getProcessedImageUrl(styledImagePath);
+
+    const styledImageUrl =
+      aiEnhancementService.getProcessedImageUrl(styledImagePath);
 
     // Update the thumbnail with the styled image
     const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
       imageUrl: styledImageUrl,
       parameters: {
-        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        ...(typeof thumbnail.parameters === 'object'
+          ? thumbnail.parameters
+          : {}),
         styleType,
-        styledImageUrl
-      }
+        styledImageUrl,
+      },
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Style transfer applied successfully',
-      thumbnail: updatedThumbnail 
+      thumbnail: updatedThumbnail,
     });
   } catch (error) {
     console.error('Error applying style transfer to thumbnail:', error);
@@ -446,7 +463,10 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
 };
 
 // Apply AI image enhancement to thumbnail endpoint
-export const applyImageEnhancement = async (req: AuthRequest, res: Response) => {
+export const applyImageEnhancement = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -467,10 +487,14 @@ export const applyImageEnhancement = async (req: AuthRequest, res: Response) => 
     }
 
     // Validate enhancement type
-    const availableEnhancements = aiEnhancementService.getAvailableEnhancements();
-    if (!enhancementType || !availableEnhancements.includes(enhancementType.toLowerCase())) {
-      return res.status(400).json({ 
-        error: `Invalid enhancement type. Available enhancements: ${availableEnhancements.join(', ')}` 
+    const availableEnhancements =
+      aiEnhancementService.getAvailableEnhancements();
+    if (
+      !enhancementType ||
+      !availableEnhancements.includes(enhancementType.toLowerCase())
+    ) {
+      return res.status(400).json({
+        error: `Invalid enhancement type. Available enhancements: ${availableEnhancements.join(', ')}`,
       });
     }
 
@@ -480,22 +504,25 @@ export const applyImageEnhancement = async (req: AuthRequest, res: Response) => 
       enhancementType,
       id
     );
-    
-    const enhancedImageUrl = aiEnhancementService.getProcessedImageUrl(enhancedImagePath);
+
+    const enhancedImageUrl =
+      aiEnhancementService.getProcessedImageUrl(enhancedImagePath);
 
     // Update the thumbnail with the enhanced image
     const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
       imageUrl: enhancedImageUrl,
       parameters: {
-        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        ...(typeof thumbnail.parameters === 'object'
+          ? thumbnail.parameters
+          : {}),
         enhancementType,
-        enhancedImageUrl
-      }
+        enhancedImageUrl,
+      },
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Image enhancement applied successfully',
-      thumbnail: updatedThumbnail 
+      thumbnail: updatedThumbnail,
     });
   } catch (error) {
     console.error('Error applying image enhancement to thumbnail:', error);
@@ -524,26 +551,26 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
 
     // Generate a unique share token (in a real implementation, you might want to store this in the database)
     const shareToken = require('crypto').randomBytes(32).toString('hex');
-    
+
     // Store the share token in the thumbnail parameters
     const updatedParameters = {
       ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
       shareToken,
-      shareExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Expires in 30 days
+      shareExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Expires in 30 days
     };
 
     const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
-      parameters: updatedParameters
+      parameters: updatedParameters,
     });
 
     // Generate the shareable URL
     const shareUrl = `${req.protocol}://${req.get('host')}/api/thumbnails/share/${shareToken}`;
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Share link generated successfully',
       shareUrl,
       shareToken,
-      expiresAt: updatedParameters.shareExpiresAt
+      expiresAt: updatedParameters.shareExpiresAt,
     });
   } catch (error) {
     console.error('Error generating share link:', error);
@@ -555,7 +582,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
 export const accessSharedThumbnail = async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
-    
+
     // Find thumbnail by share token
     // Note: This is a simplified approach. In a real implementation, you might want to:
     // 1. Add a dedicated shareToken field to the database schema
@@ -566,16 +593,17 @@ export const accessSharedThumbnail = async (req: Request, res: Response) => {
         // In a production environment, you'd want a dedicated field for share tokens
       },
       include: {
-        project: true
-      }
+        project: true,
+      },
     });
-    
+
     // Filter by share token in application code
-    const thumbnail = thumbnails.find(t => 
-      t.parameters && 
-      typeof t.parameters === 'object' && 
-      'shareToken' in t.parameters && 
-      t.parameters.shareToken === token
+    const thumbnail = thumbnails.find(
+      t =>
+        t.parameters &&
+        typeof t.parameters === 'object' &&
+        'shareToken' in t.parameters &&
+        t.parameters.shareToken === token
     );
 
     if (!thumbnail) {
@@ -583,10 +611,13 @@ export const accessSharedThumbnail = async (req: Request, res: Response) => {
     }
 
     // Check if share link has expired
-    const shareExpiresAt = thumbnail.parameters && typeof thumbnail.parameters === 'object' && 'shareExpiresAt' in thumbnail.parameters 
-      ? thumbnail.parameters.shareExpiresAt 
-      : null;
-      
+    const shareExpiresAt =
+      thumbnail.parameters &&
+      typeof thumbnail.parameters === 'object' &&
+      'shareExpiresAt' in thumbnail.parameters
+        ? thumbnail.parameters.shareExpiresAt
+        : null;
+
     if (shareExpiresAt && new Date(shareExpiresAt as any) < new Date()) {
       return res.status(410).json({ error: 'Share link has expired' });
     }
@@ -618,17 +649,19 @@ export const revokeShareLink = async (req: AuthRequest, res: Response) => {
     }
 
     // Remove share token from parameters
-    const updatedParameters = { ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}) };
+    const updatedParameters = {
+      ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+    };
     delete (updatedParameters as any).shareToken;
     delete (updatedParameters as any).shareExpiresAt;
 
     const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
-      parameters: updatedParameters
+      parameters: updatedParameters,
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Share link revoked successfully',
-      thumbnail: updatedThumbnail 
+      thumbnail: updatedThumbnail,
     });
   } catch (error) {
     console.error('Error revoking share link:', error);
@@ -656,17 +689,20 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
     }
 
     // Set this thumbnail as featured for its project
-    const updatedThumbnail = await thumbnailService.setThumbnailAsFeatured(id, thumbnail.projectId);
+    const updatedThumbnail = await thumbnailService.setThumbnailAsFeatured(
+      id,
+      thumbnail.projectId
+    );
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Thumbnail set as featured successfully',
-      thumbnail: updatedThumbnail 
+      thumbnail: updatedThumbnail,
     });
   } catch (error: any) {
     if (error.message === 'Thumbnail does not belong to this project') {
       return res.status(400).json({ error: error.message });
     }
-    
+
     console.error('Error setting thumbnail as featured:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -684,7 +720,10 @@ export const getAvailableStyles = async (req: AuthRequest, res: Response) => {
 };
 
 // Get available AI enhancements
-export const getAvailableEnhancements = async (req: AuthRequest, res: Response) => {
+export const getAvailableEnhancements = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const enhancements = aiEnhancementService.getAvailableEnhancements();
     res.status(200).json({ enhancements });

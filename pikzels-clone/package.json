@@ -14,7 +14,16 @@
     "test:coverage": "jest --coverage",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
-    "prisma:studio": "npx prisma studio"
+    "prisma:studio": "npx prisma studio",
+    "lint": "eslint src/**/*.{ts,tsx} --fix",
+    "lint:client": "cd client && eslint src/**/*.{ts,tsx} --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:client": "cd client && prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:all": "npm run format && npm run format:client",
+    "lint:all": "npm run lint && npm run lint:client",
+    "check": "npm run lint:all && npm run format:all",
+    "commit": "cz",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +41,7 @@
     "sharp": "^0.34.3"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
@@ -39,14 +49,43 @@
     "@types/node": "^24.3.0",
     "@types/sharp": "^0.31.1",
     "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "commitizen": "^4.3.1",
     "concurrently": "^9.2.1",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^6.1.0",
+    "husky": "^9.1.7",
     "jest": "^30.1.3",
+    "lint-staged": "^16.2.3",
     "nodemon": "^3.1.10",
+    "prettier": "^3.6.2",
     "prisma": "^6.15.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,jsx,json,md}": [
+      "prettier --write"
+    ],
+    "client/src/**/*.{ts,tsx}": [
+      "cd client && eslint --fix",
+      "cd client && prettier --write"
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
   }
 }

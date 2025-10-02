@@ -28,8 +28,8 @@ export class SocialShareController {
 
       // Validate required fields
       if (!thumbnailId || !platforms || !Array.isArray(platforms)) {
-        return res.status(400).json({ 
-          error: 'thumbnailId and platforms array are required' 
+        return res.status(400).json({
+          error: 'thumbnailId and platforms array are required',
         });
       }
 
@@ -56,7 +56,7 @@ export class SocialShareController {
 
       // Share to each platform
       const results: any[] = [];
-      
+
       for (const platform of platforms) {
         try {
           // Create a social share record with pending status
@@ -64,7 +64,7 @@ export class SocialShareController {
             thumbnailId,
             userId: req.user.id,
             platform,
-            status: 'pending'
+            status: 'pending',
           });
 
           // Check if we have an access token for this platform
@@ -72,69 +72,75 @@ export class SocialShareController {
             // Update the social share record with failed status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'failed',
-              errorMessage: `No access token for ${platform}`
+              errorMessage: `No access token for ${platform}`,
             });
-            
+
             results.push({
               platform,
               success: false,
-              error: `No access token for ${platform}`
+              error: `No access token for ${platform}`,
             });
             continue;
           }
 
           // Create the social media client
-          const client = SocialMediaFactory.createClient(platform, userTokens[platform]);
+          const client = SocialMediaFactory.createClient(
+            platform,
+            userTokens[platform]
+          );
 
           // Upload the image
           const uploadResult = await client.uploadMedia(thumbnail.imageUrl);
-          
+
           if ('error' in uploadResult) {
             // Update the social share record with failed status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'failed',
-              errorMessage: uploadResult.error
+              errorMessage: uploadResult.error,
             });
-            
+
             results.push({
               platform,
               success: false,
-              error: uploadResult.error
+              error: uploadResult.error,
             });
             continue;
           }
 
           // Create the post
-          const postResult = await client.createPost({
-            text: message || `Check out this thumbnail: ${thumbnail.title}`,
-            imageUrl: thumbnail.imageUrl
-          }, [uploadResult.mediaId]);
+          const postResult = await client.createPost(
+            {
+              text: message || `Check out this thumbnail: ${thumbnail.title}`,
+              imageUrl: thumbnail.imageUrl,
+            },
+            [uploadResult.mediaId]
+          );
 
           if (postResult.success) {
             // Update the social share record with success status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'success',
               shareUrl: postResult.postUrl,
-              shareId: postResult.postId
+              shareId: postResult.postId,
             });
-            
+
             results.push({
               platform,
               success: true,
               shareUrl: postResult.postUrl,
-              shareId: postResult.postId
+              shareId: postResult.postId,
             });
           } else {
             // Update the social share record with failed status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'failed',
-              errorMessage: postResult.error
+              errorMessage: postResult.error,
             });
-            
+
             results.push({
               platform,
               success: false,
-              error: postResult.error
+              error: postResult.error,
             });
           }
         } catch (error: any) {
@@ -144,20 +150,20 @@ export class SocialShareController {
             userId: req.user.id,
             platform,
             status: 'failed',
-            errorMessage: error.message || 'Unknown error'
+            errorMessage: error.message || 'Unknown error',
           });
-          
+
           results.push({
             platform,
             success: false,
-            error: error.message || 'Unknown error'
+            error: error.message || 'Unknown error',
           });
         }
       }
 
-      res.status(200).json({ 
+      res.status(200).json({
         message: 'Social sharing completed',
-        results 
+        results,
       });
     } catch (error) {
       console.error('Error sharing thumbnail:', error);
@@ -176,11 +182,14 @@ export class SocialShareController {
 
       const { platform, status, thumbnailId } = req.query;
 
-      const socialShares = await socialShareService.getSocialSharesByUser(req.user.id, {
-        platform: platform as string,
-        status: status as string,
-        thumbnailId: thumbnailId as string
-      });
+      const socialShares = await socialShareService.getSocialSharesByUser(
+        req.user.id,
+        {
+          platform: platform as string,
+          status: status as string,
+          thumbnailId: thumbnailId as string,
+        }
+      );
 
       res.status(200).json({ socialShares });
     } catch (error) {
@@ -211,7 +220,8 @@ export class SocialShareController {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const socialShares = await socialShareService.getSocialSharesByThumbnail(thumbnailId);
+      const socialShares =
+        await socialShareService.getSocialSharesByThumbnail(thumbnailId);
 
       res.status(200).json({ socialShares });
     } catch (error) {
@@ -250,8 +260,10 @@ export class SocialShareController {
       const { id } = req.params;
 
       // Verify the social share belongs to the user
-      const socialShare = await socialShareService['prisma'].socialShare.findUnique({
-        where: { id }
+      const socialShare = await socialShareService[
+        'prisma'
+      ].socialShare.findUnique({
+        where: { id },
       });
 
       if (!socialShare) {

@@ -10,7 +10,7 @@ import {
   respondToInvitation,
   removeTeamMember,
   updateMemberRole,
-  getTeamProjects
+  getTeamProjects,
 } from './collaboration.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 
@@ -25,8 +25,16 @@ router.delete('/teams/:id', authenticateToken, deleteTeam);
 
 // Team member routes
 router.post('/teams/:teamId/invite', authenticateToken, inviteUserToTeam);
-router.delete('/teams/:teamId/members/:memberId', authenticateToken, removeTeamMember);
-router.put('/teams/:teamId/members/:memberId/role', authenticateToken, updateMemberRole);
+router.delete(
+  '/teams/:teamId/members/:memberId',
+  authenticateToken,
+  removeTeamMember
+);
+router.put(
+  '/teams/:teamId/members/:memberId/role',
+  authenticateToken,
+  updateMemberRole
+);
 
 // Invitation routes
 router.get('/invitations', authenticateToken, getUserInvitations);

@@ -15,7 +15,7 @@ describe('TemplateService', () => {
     creatorId: 'user-123',
     parameters: { style: 'bold', color: '#ff0000' },
     tags: ['test', 'template'],
-    isPublic: true
+    isPublic: true,
   };
 
   describe('createTemplate', () => {

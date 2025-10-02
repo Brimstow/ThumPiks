@@ -424,20 +424,7 @@ const Dashboard: React.FC = () => {
         onLogout={handleLogout}
         theme={theme}
         additionalItems={navigationItems}
-      /> strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="ml-4 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      />
 
       <div className="dashboard__container">
         {/* Dashboard Tab */}

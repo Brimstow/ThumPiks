@@ -9,24 +9,18 @@ const templateService = new TemplateService();
  */
 export const createTemplate = async (req: Request, res: Response) => {
   try {
-    const { 
-      name, 
-      description, 
-      thumbnailId, 
-      parameters, 
-      tags, 
-      isPublic 
-    } = req.body;
-    
+    const { name, description, thumbnailId, parameters, tags, isPublic } =
+      req.body;
+
     const userId = (req as any).user.id;
-    
+
     // Validate required fields
     if (!name || !thumbnailId || !parameters) {
-      return res.status(400).json({ 
-        error: 'Name, thumbnailId, and parameters are required' 
+      return res.status(400).json({
+        error: 'Name, thumbnailId, and parameters are required',
       });
     }
-    
+
     const template = await templateService.createTemplate({
       name,
       description,
@@ -34,13 +28,15 @@ export const createTemplate = async (req: Request, res: Response) => {
       creatorId: userId,
       parameters,
       tags: tags || [],
-      isPublic
+      isPublic,
     });
-    
+
     res.status(201).json(template);
   } catch (error: any) {
     console.error('Error creating template:', error);
-    res.status(500).json({ error: error.message || 'Failed to create template' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to create template' });
   }
 };
 
@@ -57,11 +53,11 @@ export const getTemplates = async (req: Request, res: Response) => {
       sortBy,
       sortOrder,
       page,
-      limit
+      limit,
     } = req.query;
-    
+
     const filters: any = {};
-    
+
     if (search) filters.search = search as string;
     if (tags) filters.tags = (tags as string).split(',');
     if (isPublic !== undefined) filters.isPublic = isPublic === 'true';
@@ -70,13 +66,15 @@ export const getTemplates = async (req: Request, res: Response) => {
     if (sortOrder) filters.sortOrder = sortOrder as 'asc' | 'desc';
     if (page) filters.page = parseInt(page as string);
     if (limit) filters.limit = parseInt(limit as string);
-    
+
     const templates = await templateService.getTemplates(filters);
-    
+
     res.status(200).json(templates);
   } catch (error: any) {
     console.error('Error fetching templates:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch templates' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to fetch templates' });
   }
 };
 
@@ -86,17 +84,19 @@ export const getTemplates = async (req: Request, res: Response) => {
 export const getTemplateById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     const template = await templateService.getTemplateById(id);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     res.status(200).json(template);
   } catch (error: any) {
     console.error('Error fetching template:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch template' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to fetch template' });
   }
 };
 
@@ -107,23 +107,27 @@ export const updateTemplate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user.id;
-    
+
     // Check if template exists and belongs to user
     const existingTemplate = await templateService.getTemplateById(id);
     if (!existingTemplate) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     if (existingTemplate.creatorId !== userId) {
-      return res.status(403).json({ error: 'Not authorized to update this template' });
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to update this template' });
     }
-    
+
     const template = await templateService.updateTemplate(id, req.body);
-    
+
     res.status(200).json(template);
   } catch (error: any) {
     console.error('Error updating template:', error);
-    res.status(500).json({ error: error.message || 'Failed to update template' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to update template' });
   }
 };
 
@@ -134,43 +138,52 @@ export const deleteTemplate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user.id;
-    
+
     // Check if template exists and belongs to user
     const existingTemplate = await templateService.getTemplateById(id);
     if (!existingTemplate) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     if (existingTemplate.creatorId !== userId) {
-      return res.status(403).json({ error: 'Not authorized to delete this template' });
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to delete this template' });
     }
-    
+
     await templateService.deleteTemplate(id);
-    
+
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting template:', error);
-    res.status(500).json({ error: error.message || 'Failed to delete template' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to delete template' });
   }
 };
 
 /**
  * Increment template download count
  */
-export const incrementTemplateDownloads = async (req: Request, res: Response) => {
+export const incrementTemplateDownloads = async (
+  req: Request,
+  res: Response
+) => {
   try {
     const { id } = req.params;
-    
+
     const template = await templateService.incrementDownloads(id);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     res.status(200).json(template);
   } catch (error: any) {
     console.error('Error incrementing template downloads:', error);
-    res.status(500).json({ error: error.message || 'Failed to increment downloads' });
+    res
+      .status(500)
+      .json({ error: error.message || 'Failed to increment downloads' });
   }
 };
 
@@ -180,13 +193,13 @@ export const incrementTemplateDownloads = async (req: Request, res: Response) =>
 export const toggleTemplateLike = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     const template = await templateService.toggleLike(id);
-    
+
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
-    
+
     res.status(200).json(template);
   } catch (error: any) {
     console.error('Error toggling template like:', error);

@@ -15,7 +15,7 @@ import {
   applyStyleTransfer,
   applyImageEnhancement,
   getAvailableStyles,
-  getAvailableEnhancements
+  getAvailableEnhancements,
 } from './thumbnail.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 

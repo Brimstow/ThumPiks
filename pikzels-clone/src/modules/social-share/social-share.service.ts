@@ -17,40 +17,43 @@ export class SocialShareService {
     engagement?: any;
   }) {
     return prisma.socialShare.create({
-      data
+      data,
     });
   }
 
   /**
    * Get social shares by user
    */
-  async getSocialSharesByUser(userId: string, filters?: {
-    platform?: string;
-    status?: string;
-    thumbnailId?: string;
-  }) {
+  async getSocialSharesByUser(
+    userId: string,
+    filters?: {
+      platform?: string;
+      status?: string;
+      thumbnailId?: string;
+    }
+  ) {
     const where: any = { userId };
-    
+
     if (filters?.platform) {
       where.platform = filters.platform;
     }
-    
+
     if (filters?.status) {
       where.status = filters.status;
     }
-    
+
     if (filters?.thumbnailId) {
       where.thumbnailId = filters.thumbnailId;
     }
-    
+
     return prisma.socialShare.findMany({
       where,
       include: {
-        thumbnail: true
+        thumbnail: true,
       },
       orderBy: {
-        sharedAt: 'desc'
-      }
+        sharedAt: 'desc',
+      },
     });
   }
 
@@ -61,24 +64,27 @@ export class SocialShareService {
     return prisma.socialShare.findMany({
       where: { thumbnailId },
       orderBy: {
-        sharedAt: 'desc'
-      }
+        sharedAt: 'desc',
+      },
     });
   }
 
   /**
    * Update a social share record
    */
-  async updateSocialShare(id: string, data: Partial<{
-    status: string;
-    shareUrl: string;
-    shareId: string;
-    errorMessage: string;
-    engagement: any;
-  }>) {
+  async updateSocialShare(
+    id: string,
+    data: Partial<{
+      status: string;
+      shareUrl: string;
+      shareId: string;
+      errorMessage: string;
+      engagement: any;
+    }>
+  ) {
     return prisma.socialShare.update({
       where: { id },
-      data
+      data,
     });
   }
 
@@ -87,7 +93,7 @@ export class SocialShareService {
    */
   async deleteSocialShare(id: string) {
     return prisma.socialShare.delete({
-      where: { id }
+      where: { id },
     });
   }
 
@@ -99,27 +105,27 @@ export class SocialShareService {
       where: { userId },
       select: {
         platform: true,
-        status: true
-      }
+        status: true,
+      },
     });
 
     // Group by platform and status
     const stats: Record<string, any> = {};
-    
+
     shares.forEach(share => {
       if (!stats[share.platform]) {
         stats[share.platform] = {
           total: 0,
           success: 0,
           failed: 0,
-          pending: 0
+          pending: 0,
         };
       }
-      
+
       stats[share.platform].total++;
       stats[share.platform][share.status]++;
     });
-    
+
     return stats;
   }
 }

@@ -23,12 +23,17 @@ export abstract class SocialMediaClient {
   /**
    * Upload media to the platform
    */
-  abstract uploadMedia(imageUrl: string): Promise<{ mediaId: string } | { error: string }>;
+  abstract uploadMedia(
+    imageUrl: string
+  ): Promise<{ mediaId: string } | { error: string }>;
 
   /**
    * Create a post on the platform
    */
-  abstract createPost(post: SocialMediaPost, mediaIds?: string[]): Promise<SocialMediaResponse>;
+  abstract createPost(
+    post: SocialMediaPost,
+    mediaIds?: string[]
+  ): Promise<SocialMediaResponse>;
 
   /**
    * Get engagement metrics for a post
@@ -46,16 +51,19 @@ export abstract class SocialMediaClient {
   /**
    * Validate post content for the platform
    */
-  protected validatePost(post: SocialMediaPost): { valid: boolean; errors: string[] } {
+  protected validatePost(post: SocialMediaPost): {
+    valid: boolean;
+    errors: string[];
+  } {
     const errors: string[] = [];
-    
+
     if (!post.text && !post.imageUrl) {
       errors.push('Post must contain either text or an image');
     }
-    
+
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 }

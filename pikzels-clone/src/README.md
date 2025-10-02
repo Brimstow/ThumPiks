@@ -19,9 +19,11 @@ src/
 ## Modules
 
 ### Auth Module
+
 Handles user authentication, registration, profile management, and user settings.
 
 Key features:
+
 - User registration and login
 - JWT-based authentication
 - Profile management
@@ -30,9 +32,11 @@ Key features:
 See [auth/README.md](modules/auth/README.md) for detailed documentation.
 
 ### Thumbnail Module
+
 Handles thumbnail generation, editing, sharing, and management.
 
 Key features:
+
 - Thumbnail generation
 - Image editing capabilities
 - Batch editing
@@ -40,9 +44,11 @@ Key features:
 - Download functionality
 
 ### Project Module
+
 Handles project organization for thumbnails.
 
 Key features:
+
 - Project creation and management
 - Thumbnail grouping
 - Project-based permissions
@@ -56,16 +62,19 @@ Key features:
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 
 ### User Management
+
 - `GET /api/user/profile` - Get user profile
 - `PUT /api/user/profile` - Update user profile
 - `GET /api/user/settings` - Get user settings
 - `PUT /api/user/settings` - Update user settings
 
 ### Thumbnails
+
 - `GET /api/thumbnails` - List user thumbnails
 - `POST /api/thumbnails/:id/edit` - Edit thumbnail
 - `POST /api/thumbnails/:id/download` - Download thumbnail
@@ -73,6 +82,7 @@ Key features:
 - `DELETE /api/thumbnails/:id/share` - Revoke share link
 
 ### Projects
+
 - `GET /api/projects` - List user projects
 - `POST /api/projects` - Create new project
 
@@ -81,6 +91,7 @@ Key features:
 The application uses Prisma ORM with SQLite for data persistence.
 
 Key models:
+
 - User - User accounts and profiles
 - Thumbnail - Generated thumbnails
 - Project - Thumbnail organization
@@ -89,5 +100,6 @@ Key models:
 ## Documentation
 
 For detailed documentation on specific features, see:
+
 - [User Settings API](../docs/api/user-settings.md)
 - [Extending User Settings Guide](../docs/guides/extending-user-settings.md)

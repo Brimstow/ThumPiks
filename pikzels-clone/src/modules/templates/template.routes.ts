@@ -6,7 +6,7 @@ import {
   updateTemplate,
   deleteTemplate,
   incrementTemplateDownloads,
-  toggleTemplateLike
+  toggleTemplateLike,
 } from './template.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 

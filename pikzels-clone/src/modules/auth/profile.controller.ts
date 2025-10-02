@@ -19,7 +19,7 @@ export class ProfileController {
       }
 
       res.status(200).json({
-        user: req.user
+        user: req.user,
       });
     } catch (error) {
       res.status(500).json({ error: 'Internal server error' });
@@ -40,16 +40,16 @@ export class ProfileController {
         select: {
           id: true,
           email: true,
-          name: true
-        }
+          name: true,
+        },
       });
 
       res.status(200).json({
         user: {
           id: updatedUser.id,
           email: updatedUser.email,
-          name: updatedUser.name || undefined
-        }
+          name: updatedUser.name || undefined,
+        },
       });
     } catch (error) {
       res.status(500).json({ error: 'Internal server error' });
@@ -66,12 +66,12 @@ export class ProfileController {
       const user = await prisma.user.findUnique({
         where: { id: req.user.id },
         select: {
-          settings: true
-        }
+          settings: true,
+        },
       });
 
       res.status(200).json({
-        settings: user?.settings || {}
+        settings: user?.settings || {},
       });
     } catch (error) {
       console.error('Error fetching user settings:', error);
@@ -92,12 +92,12 @@ export class ProfileController {
         where: { id: req.user.id },
         data: { settings },
         select: {
-          settings: true
-        }
+          settings: true,
+        },
       });
 
       res.status(200).json({
-        settings: updatedUser.settings || {}
+        settings: updatedUser.settings || {},
       });
     } catch (error) {
       console.error('Error updating user settings:', error);

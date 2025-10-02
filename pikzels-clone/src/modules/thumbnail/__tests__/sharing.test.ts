@@ -8,9 +8,9 @@ process.env.NODE_ENV = 'test';
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn().mockResolvedValue(undefined),
-    writeFile: jest.fn()
+    writeFile: jest.fn(),
   },
-  existsSync: jest.fn().mockReturnValue(true)
+  existsSync: jest.fn().mockReturnValue(true),
 }));
 
 describe('Thumbnail Sharing Functionality', () => {

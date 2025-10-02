@@ -5,7 +5,10 @@ import { LinkedInClient } from './linkedin-client';
 import { PinterestClient } from './pinterest-client';
 
 export class SocialMediaFactory {
-  static createClient(platform: string, accessToken: string): SocialMediaClient {
+  static createClient(
+    platform: string,
+    accessToken: string
+  ): SocialMediaClient {
     switch (platform.toLowerCase()) {
       case 'twitter':
       case 'x':

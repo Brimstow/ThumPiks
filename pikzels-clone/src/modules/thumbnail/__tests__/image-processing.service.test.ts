@@ -7,8 +7,8 @@ process.env.NODE_ENV = 'test';
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn().mockResolvedValue(undefined),
-    writeFile: jest.fn()
-  }
+    writeFile: jest.fn(),
+  },
 }));
 
 // Mock the entire sharp module
@@ -28,7 +28,7 @@ jest.mock('sharp', () => {
     sharpen: jest.fn().mockReturnThis(),
     convolve: jest.fn().mockReturnThis(),
     png: jest.fn().mockReturnThis(),
-    toFile: jest.fn().mockResolvedValue(undefined)
+    toFile: jest.fn().mockResolvedValue(undefined),
   }));
 });
 
@@ -37,7 +37,7 @@ describe('ImageProcessingService', () => {
 
   beforeEach(() => {
     imageProcessingService = new ImageProcessingService();
-    
+
     // Clear all mocks before each test
     jest.clearAllMocks();
   });
@@ -47,9 +47,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'grayscale' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -59,9 +63,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'sepia' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -71,9 +79,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'vintage' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -83,9 +95,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'blackAndWhite' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -95,9 +111,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'invert' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -107,9 +127,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'blur' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -119,9 +143,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'sharpen' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -131,9 +159,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'emboss' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -143,9 +175,13 @@ describe('ImageProcessingService', () => {
       const imageUrl = 'https://placehold.co/1280x720/000000/FFFFFF?text=Test';
       const edits = { filter: 'edgeDetect' };
       const thumbnailId = 'test-id';
-      
-      await imageProcessingService.applyEditsToImage(imageUrl, edits, thumbnailId);
-      
+
+      await imageProcessingService.applyEditsToImage(
+        imageUrl,
+        edits,
+        thumbnailId
+      );
+
       // Since we're mocking sharp, we can't verify the actual processing
       // but we can verify that the method didn't throw an error
       expect(true).toBe(true);
@@ -155,7 +191,7 @@ describe('ImageProcessingService', () => {
   describe('getAvailableFilters', () => {
     it('should return the correct list of available filters', () => {
       const filters = imageProcessingService.getAvailableFilters();
-      
+
       expect(filters).toEqual([
         'none',
         'grayscale',
@@ -166,7 +202,7 @@ describe('ImageProcessingService', () => {
         'blur',
         'sharpen',
         'emboss',
-        'edgeDetect'
+        'edgeDetect',
       ]);
     });
   });
