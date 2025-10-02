@@ -260,18 +260,15 @@ export class SocialShareController {
       const { id } = req.params;
 
       // Verify the social share belongs to the user
-      const socialShare = await socialShareService[
-        'prisma'
-      ].socialShare.findUnique({
-        where: { id },
-      });
+      const userShares = await socialShareService.getSocialSharesByUser(
+        req.user.id,
+        { thumbnailId: undefined }
+      );
+      
+      const socialShare = userShares.find(share => share.id === id);
 
       if (!socialShare) {
         return res.status(404).json({ error: 'Social share not found' });
-      }
-
-      if (socialShare.userId !== req.user.id) {
-        return res.status(403).json({ error: 'Forbidden' });
       }
 
       await socialShareService.deleteSocialShare(id);

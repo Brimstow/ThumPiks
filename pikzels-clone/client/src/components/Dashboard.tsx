@@ -418,8 +418,8 @@ const Dashboard: React.FC = () => {
     <div className="dashboard">
       <Navigation
         activeTab={activeTab}
-        onTabChange={setActiveTab}
-        user={user}
+        onTabChange={(tab: string) => setActiveTab(tab as 'thumbnails' | 'projects' | 'dashboard' | 'analytics')}
+        user={user || undefined}
         onThemeToggle={toggleTheme}
         onLogout={handleLogout}
         theme={theme}
@@ -560,39 +560,6 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 </Card>
-              </div>
-            </div>
-          </div>
-        )}
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="absolute inset-0" aria-hidden="true"></span>
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Manage Projects</p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} truncate`}>Organize your work</p>
-                  </div>
-                </button>
-
-                <div 
-                  onClick={() => navigate('/settings')}
-                  className={`relative rounded-lg border ${
-                    theme === 'dark' 
-                      ? 'border-gray-700 bg-gray-800 hover:border-gray-500' 
-                      : 'border-gray-300 bg-white hover:border-gray-400'
-                  } px-6 py-5 shadow-sm flex items-center space-x-3 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 cursor-pointer`}
-                >
-                  <div className="flex-shrink-0">
-                    <svg className={`h-6 w-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c-.94 1.543.826 3.31 2.37 2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="absolute inset-0" aria-hidden="true"></span>
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Settings</p>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} truncate`}>Account preferences</p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

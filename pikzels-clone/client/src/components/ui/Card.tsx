@@ -1,5 +1,4 @@
 import React, { HTMLAttributes } from 'react';
-import React, { HTMLAttributes } from 'react';
 import './Card.css';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {

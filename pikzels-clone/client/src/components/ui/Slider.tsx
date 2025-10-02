@@ -152,18 +152,18 @@ const Slider: React.FC<SliderProps> = ({
         </label>
       )}
       
-      <div className=\"slider__container\">
+      <div className="slider__container">
         <div 
           ref={sliderRef}
-          className=\"slider__track\"
+          className="slider__track"
           onMouseDown={handleMouseDown}
         >
           <div 
-            className=\"slider__fill\"
+            className="slider__fill"
             style={{ width: `${percentage}%` }}
           />
           <div 
-            className=\"slider__thumb\"
+            className="slider__thumb"
             style={{ left: `${percentage}%` }}
           />
         </div>
@@ -171,7 +171,7 @@ const Slider: React.FC<SliderProps> = ({
         <input
           ref={inputRef}
           id={sliderId}
-          type=\"range\"
+          type="range"
           min={min}
           max={max}
           step={step}
@@ -179,13 +179,13 @@ const Slider: React.FC<SliderProps> = ({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          className=\"slider__input\"
+          className="slider__input"
           aria-label={label}
         />
       </div>
       
       {showValue && (
-        <div className=\"slider__value\">
+        <div className="slider__value">
           {displayValue}
         </div>
       )}

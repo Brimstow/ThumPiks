@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { CollaborationService } from './collaboration.service';
-import { authenticateToken } from '../../middleware/auth';
+import { authenticateToken } from '../../middleware/auth.middleware';
 
 const collaborationService = new CollaborationService();
 

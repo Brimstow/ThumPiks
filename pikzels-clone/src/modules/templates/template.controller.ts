@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { TemplateService } from './template.service';
-import { authenticateToken } from '../../middleware/auth';
+import { authenticateToken } from '../../middleware/auth.middleware';
 
 const templateService = new TemplateService();
 

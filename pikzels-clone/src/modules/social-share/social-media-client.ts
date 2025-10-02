@@ -14,7 +14,7 @@ export interface SocialMediaResponse {
 
 export abstract class SocialMediaClient {
   protected accessToken: string;
-  protected baseUrl: string;
+  protected baseUrl = '';
 
   constructor(accessToken: string) {
     this.accessToken = accessToken;

@@ -1009,6 +1009,28 @@ export class AnalyticsService {
       ((sharedThumbnails.size / thumbnails.length) * 100).toFixed(2)
     );
 
+    // Find most shared thumbnail
+    const thumbnailShareCounts: Record<string, number> = {};
+    socialShares.forEach(share => {
+      thumbnailShareCounts[share.thumbnailId] = (thumbnailShareCounts[share.thumbnailId] || 0) + 1;
+    });
+    
+    let mostSharedThumbnail = null;
+    let maxShares = 0;
+    Object.entries(thumbnailShareCounts).forEach(([thumbnailId, count]) => {
+      if (count > maxShares) {
+        maxShares = count;
+        const thumbnail = thumbnails.find(t => t.id === thumbnailId);
+        if (thumbnail) {
+          mostSharedThumbnail = {
+            id: thumbnail.id,
+            title: thumbnail.title,
+            shareCount: count
+          };
+        }
+      }
+    });
+
     // Platform distribution for charting
     const platformDistribution: Record<string, number> = {};
     socialShares.forEach(share => {
