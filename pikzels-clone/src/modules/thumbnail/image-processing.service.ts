@@ -191,10 +191,18 @@ export class ImageProcessingService {
 
       // Process each image with the same edits
       for (let i = 0; i < imageUrls.length; i++) {
+        const imageUrl = imageUrls[i];
+        const thumbnailId = thumbnailIds[i];
+        if (!imageUrl) {
+          throw new Error(`Image URL at index ${i} is required`);
+        }
+        if (!thumbnailId) {
+          throw new Error(`Thumbnail ID at index ${i} is required`);
+        }
         const imagePath = await this.applyEditsToImage(
-          imageUrls[i],
+          imageUrl,
           edits,
-          thumbnailIds[i]
+          thumbnailId
         );
         processedImagePaths.push(imagePath);
       }

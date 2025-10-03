@@ -13,5 +13,10 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts'
+  ],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  // Simple approach - just ignore problematic node_modules
+  transformIgnorePatterns: [
+    'node_modules/(?!(.*\\.mjs$))'
   ]
 };

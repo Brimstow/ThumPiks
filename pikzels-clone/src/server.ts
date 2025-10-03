@@ -2,9 +2,29 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import compression from 'compression';
+// import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
-// Load environment variables
+// Load environment variables FIRST
 dotenv.config();
+
+// Import security middleware
+import { 
+  securityHeaders, 
+  generalRateLimit, 
+  authRateLimit, 
+  sanitizeInput, 
+  httpsRedirect, 
+  securityLogger, 
+  requestSizeLimit,
+  apiVersioning 
+} from './middleware/security.middleware';
+
+// Import services AFTER environment variables are loaded
+import { CacheService } from './services/cache.service';
+import { performanceMiddleware, responseTimeMiddleware } from './middleware/performance.middleware';
+import { logger } from './utils/logger';
+import { eventRegistry } from './events';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -16,14 +36,88 @@ import analyticsRoutes from './modules/analytics/analytics.routes';
 import socialShareRoutes from './modules/social-share/social-share.routes';
 import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
+import performanceRoutes from './routes/performance.routes';
 
 const app = express();
 const PORT = process.env.PORT || 8550;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Initialize cache service
+const cache = CacheService.getInstance();
+
+// Security middleware (first priority)
+if (process.env.ENABLE_HTTPS_REDIRECT === 'true') {
+  app.use(httpsRedirect);
+}
+
+if (process.env.ENABLE_SECURITY_HEADERS === 'true') {
+  app.use(securityHeaders);
+  console.log('🛡️  Security headers enabled');
+}
+
+// Security logging
+app.use(securityLogger);
+
+// Request size limiting
+app.use(requestSizeLimit);
+
+// API versioning
+app.use(apiVersioning);
+
+// Input sanitization
+app.use(sanitizeInput);
+console.log('🧹 Input sanitization enabled');
+
+// Performance monitoring middleware
+if (process.env.ENABLE_PERFORMANCE_MONITORING === 'true') {
+  app.use(performanceMiddleware());
+  app.use(responseTimeMiddleware());
+  console.log('📊 Performance monitoring enabled');
+}
+
+// Performance middleware
+if (process.env.ENABLE_COMPRESSION === 'true') {
+  app.use(compression());
+  console.log('🗜️  Compression enabled');
+}
+
+// Rate limiting with security-focused configuration
+if (process.env.ENABLE_RATE_LIMITING === 'true') {
+  // General API rate limiting
+  app.use('/api/', generalRateLimit);
+  
+  // Strict rate limiting for auth endpoints
+  app.use('/api/auth/', authRateLimit);
+  
+  console.log('🛡️  Enhanced rate limiting enabled');
+}
+
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+  credentials: process.env.CORS_CREDENTIALS === 'true',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-API-Version'],
+  maxAge: 86400, // 24 hours
+};
+
+app.use(cors(corsOptions));
+console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
+// Enhanced JSON parsing with security limits
+app.use(express.json({ 
+  limit: process.env.MAX_FILE_SIZE || '10mb',
+  strict: true,
+  verify: (req: any, _res, buf) => {
+    // Store raw body for webhook verification if needed
+    req.rawBody = buf;
+  }
+}));
+
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: process.env.MAX_FILE_SIZE || '10mb',
+  parameterLimit: 20 // Prevent parameter pollution
+}));
 
 // Serve static files for processed images
 app.use(
@@ -41,17 +135,122 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/collaboration', collaborationRoutes);
+app.use('/api/performance', performanceRoutes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res
-    .status(200)
-    .json({ status: 'OK', message: 'Thumbnail Maker API is running' });
+// Global error handler - MUST be after all routes
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error('Unhandled API error', err, {
+    url: req.url,
+    method: req.method,
+    userId: (req as any).user?.id,
+    userAgent: req.get('User-Agent'),
+  });
+  
+  // Don't leak error details in production
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  
+  res.status(500).json({
+    error: 'Internal server error',
+    ...(isDevelopment && { details: err.message, stack: err.stack })
+  });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Health check endpoint
+app.get('/health', async (_req, res) => {
+  const cacheStatus = await cache.healthCheck();
+  const eventStats = eventRegistry.getStats();
+  
+  res.status(200).json({
+    status: 'OK',
+    message: 'Thumbnail Maker API is running',
+    services: {
+      cache: cacheStatus ? 'healthy' : 'unhealthy',
+      database: 'healthy', // Will add Prisma health check later
+      events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy'
+    },
+    events: {
+      totalHandlers: eventStats.totalHandlers,
+      eventTypes: eventStats.eventTypes,
+      registeredEvents: eventStats.handlers,
+      emitterStats: eventStats.emitterStats
+    },
+    performance: {
+      compression: process.env.ENABLE_COMPRESSION === 'true',
+      caching: process.env.ENABLE_CACHE === 'true',
+      rateLimiting: process.env.ENABLE_RATE_LIMITING === 'true',
+      monitoring: process.env.ENABLE_PERFORMANCE_MONITORING === 'true',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Initialize event system before starting server
+async function initializeServer() {
+  try {
+    // Initialize event handlers
+    await eventRegistry.initialize();
+    console.log('📡 Event system initialized');
+    
+    // Start server
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🎯 Health check: http://localhost:${PORT}/health`);
+      
+      // Log performance features
+      if (process.env.ENABLE_CACHE === 'true') {
+        console.log('⚡ Redis caching enabled');
+      }
+      
+      // Log event system stats
+      const eventStats = eventRegistry.getStats();
+      console.log(`📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`);
+    });
+    
+    return server;
+  } catch (error) {
+    logger.error('Failed to initialize server', error instanceof Error ? error : new Error(String(error)));
+    process.exit(1);
+  }
+}
+
+// Initialize and start server
+const serverPromise = initializeServer();
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('📝 Received SIGTERM, shutting down gracefully');
+  const server = await serverPromise;
+  server.close(() => {
+    console.log('👋 Process terminated');
+  });
+  await cache.disconnect();
+});
+
+process.on('SIGINT', async () => {
+  console.log('📝 Received SIGINT, shutting down gracefully');
+  const server = await serverPromise;
+  server.close(() => {
+    console.log('👋 Process terminated');
+  });
+  await cache.disconnect();
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Promise Rejection', reason instanceof Error ? reason : new Error(String(reason)), {
+    promise: promise.toString(),
+  });
+  // For development, we don't exit the process
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception - shutting down', error);
+  // Always exit on uncaught exceptions
+  process.exit(1);
 });
 
 export default app;

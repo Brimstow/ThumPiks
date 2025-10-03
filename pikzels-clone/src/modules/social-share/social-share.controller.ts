@@ -1,18 +1,11 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { SocialShareService } from './social-share.service';
 import { SocialMediaFactory } from './social-media-factory';
 import { ThumbnailService } from '../thumbnail/thumbnail.service';
+import { AuthRequest } from '../../types/auth';
 
 const socialShareService = new SocialShareService();
 const thumbnailService = new ThumbnailService();
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-  };
-}
 
 export class SocialShareController {
   /**
@@ -120,8 +113,8 @@ export class SocialShareController {
             // Update the social share record with success status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'success',
-              shareUrl: postResult.postUrl,
-              shareId: postResult.postId,
+              shareUrl: postResult.postUrl || '',
+              shareId: postResult.postId || '',
             });
 
             results.push({
@@ -134,7 +127,7 @@ export class SocialShareController {
             // Update the social share record with failed status
             await socialShareService.updateSocialShare(socialShare.id, {
               status: 'failed',
-              errorMessage: postResult.error,
+              errorMessage: postResult.error || 'Unknown error',
             });
 
             results.push({
@@ -145,7 +138,7 @@ export class SocialShareController {
           }
         } catch (error: any) {
           // Create a social share record with failed status
-          const socialShare = await socialShareService.createSocialShare({
+          await socialShareService.createSocialShare({
             thumbnailId,
             userId: req.user.id,
             platform,
@@ -161,13 +154,13 @@ export class SocialShareController {
         }
       }
 
-      res.status(200).json({
+      return res.status(200).json({
         message: 'Social sharing completed',
         results,
       });
     } catch (error) {
       console.error('Error sharing thumbnail:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -191,10 +184,10 @@ export class SocialShareController {
         }
       );
 
-      res.status(200).json({ socialShares });
+      return res.status(200).json({ socialShares });
     } catch (error) {
       console.error('Error fetching social shares:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -208,6 +201,9 @@ export class SocialShareController {
       }
 
       const { thumbnailId } = req.params;
+      if (!thumbnailId) {
+        return res.status(400).json({ error: 'Thumbnail ID is required' });
+      }
 
       // Get the thumbnail to verify ownership
       const thumbnail = await thumbnailService.getThumbnailById(thumbnailId);
@@ -223,10 +219,10 @@ export class SocialShareController {
       const socialShares =
         await socialShareService.getSocialSharesByThumbnail(thumbnailId);
 
-      res.status(200).json({ socialShares });
+      return res.status(200).json({ socialShares });
     } catch (error) {
       console.error('Error fetching social shares for thumbnail:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -241,10 +237,10 @@ export class SocialShareController {
 
       const stats = await socialShareService.getSocialShareStats(req.user.id);
 
-      res.status(200).json({ stats });
+      return res.status(200).json({ stats });
     } catch (error) {
       console.error('Error fetching social share stats:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -262,7 +258,7 @@ export class SocialShareController {
       // Verify the social share belongs to the user
       const userShares = await socialShareService.getSocialSharesByUser(
         req.user.id,
-        { thumbnailId: undefined }
+        { }
       );
       
       const socialShare = userShares.find(share => share.id === id);
@@ -271,12 +267,16 @@ export class SocialShareController {
         return res.status(404).json({ error: 'Social share not found' });
       }
 
+      if (!id) {
+        return res.status(400).json({ error: 'ID is required' });
+      }
+
       await socialShareService.deleteSocialShare(id);
 
-      res.status(204).send();
+      return res.status(204).send();
     } catch (error) {
       console.error('Error deleting social share:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }

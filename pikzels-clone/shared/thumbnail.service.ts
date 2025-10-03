@@ -19,6 +19,11 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   featuredThumbnailId?: string;
+  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
+  parentProjectId?: string;    // Reference to parent project (null = root)
+  folderType: 'project' | 'folder'; // Type of folder
+  depth: number;               // 0=root, 1=sub-project, 2=folder
+  projectPath?: string;        // Full path (e.g., "/root/sub1/sub2")
 }
 
 export interface GenerateThumbnailRequest {

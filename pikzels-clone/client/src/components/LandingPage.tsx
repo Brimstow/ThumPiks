@@ -276,7 +276,7 @@ const LandingPage: React.FC = () => {
                           target.style.fontSize = '14px';
                           target.style.fontWeight = 'bold';
                           target.alt = thumbnail.title;
-                          target.innerHTML = '🖼️ ' + thumbnail.title;
+                          target.textContent = '🖼️ ' + thumbnail.title;
                         }}
                       />
                       <div className="thumbnail-info">

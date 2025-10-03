@@ -10,6 +10,11 @@ interface Project {
   id: string;
   name: string;
   description?: string;
+  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
+  parentProjectId?: string;
+  folderType: 'project' | 'folder';
+  depth: number;
+  projectPath?: string;
 }
 
 const ProjectForm: React.FC<{ isEdit?: boolean }> = ({ isEdit = false }) => {

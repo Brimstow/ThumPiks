@@ -5,7 +5,9 @@ import {
 } from './social-media-client';
 
 export class PinterestClient extends SocialMediaClient {
-  private readonly API_BASE_URL = 'https://api.pinterest.com/v5';
+  // TODO: Restore when implementing Pinterest API integration
+  // private readonly API_BASE_URL = 'https://api.pinterest.com/v5';
+
   private readonly MAX_DESCRIPTION_LENGTH = 500; // Pinterest's limit for pin descriptions
 
   constructor(accessToken: string) {
@@ -16,7 +18,7 @@ export class PinterestClient extends SocialMediaClient {
    * Upload media to Pinterest
    */
   async uploadMedia(
-    imageUrl: string
+    _imageUrl: string // Reserved for future image processing
   ): Promise<{ mediaId: string } | { error: string }> {
     try {
       // In a real implementation, we would:
@@ -36,7 +38,7 @@ export class PinterestClient extends SocialMediaClient {
    */
   async createPost(
     post: SocialMediaPost,
-    mediaIds?: string[]
+    _mediaIds?: string[] // Reserved for future media handling
   ): Promise<SocialMediaResponse> {
     try {
       // Validate the post
@@ -49,7 +51,7 @@ export class PinterestClient extends SocialMediaClient {
       }
 
       // Format text for Pinterest
-      const formattedText = this.formatTextForPinterest(post.text);
+      this.formatTextForPinterest(post.text);
 
       // In a real implementation, we would:
       // 1. Make a POST request to Pinterest's API to create a pin
@@ -73,7 +75,7 @@ export class PinterestClient extends SocialMediaClient {
   /**
    * Get engagement metrics for a Pinterest pin
    */
-  async getEngagement(postId: string): Promise<any> {
+  async getEngagement(_postId: string): Promise<any> {
     try {
       // In a real implementation, we would:
       // 1. Make a GET request to Pinterest's API to get pin analytics

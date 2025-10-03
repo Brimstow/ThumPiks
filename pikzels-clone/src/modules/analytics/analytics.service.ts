@@ -50,7 +50,9 @@ export class AnalyticsService {
     const trendData: Record<string, number> = {};
     thumbnailTrend.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
-      trendData[date] = (trendData[date] || 0) + 1;
+      if (date) {
+        trendData[date] = (trendData[date] || 0) + 1;
+      }
     });
 
     // Get style distribution
@@ -74,12 +76,12 @@ export class AnalyticsService {
         thumbnail.parameters !== null
       ) {
         const style = (thumbnail.parameters as any).style || 'other';
-        if (style in styleDistribution) {
+        if (style in styleDistribution && styleDistribution[style] !== undefined) {
           styleDistribution[style]++;
-        } else {
+        } else if (styleDistribution.other !== undefined) {
           styleDistribution.other++;
         }
-      } else {
+      } else if (styleDistribution.other !== undefined) {
         styleDistribution.other++;
       }
     });
@@ -190,9 +192,18 @@ export class AnalyticsService {
       };
     }
 
-    const firstThumbnailDate = new Date(
-      thumbnails[thumbnails.length - 1].createdAt
-    );
+    const firstThumbnail = thumbnails[thumbnails.length - 1];
+    if (!firstThumbnail) {
+      return {
+        total: 0,
+        averagePerDay: 0,
+        mostRecent: null,
+        byProject: [],
+        byStyle: {},
+      };
+    }
+
+    const firstThumbnailDate = new Date(firstThumbnail.createdAt);
     const today = new Date();
     const daysDiff =
       Math.ceil(
@@ -221,12 +232,12 @@ export class AnalyticsService {
         thumbnail.parameters !== null
       ) {
         const style = (thumbnail.parameters as any).style || 'other';
-        if (style in styleStats) {
+        if (style in styleStats && styleStats[style] !== undefined) {
           styleStats[style]++;
-        } else {
+        } else if (styleStats.other !== undefined) {
           styleStats.other++;
         }
-      } else {
+      } else if (styleStats.other !== undefined) {
         styleStats.other++;
       }
     });
@@ -312,9 +323,11 @@ export class AnalyticsService {
     }
 
     // Productivity metrics
-    const firstThumbnailDate = new Date(
-      thumbnails[thumbnails.length - 1].createdAt
-    );
+    const lastThumbnail = thumbnails[thumbnails.length - 1];
+    if (!lastThumbnail) {
+      return { error: 'No thumbnails found' };
+    }
+    const firstThumbnailDate = new Date(lastThumbnail.createdAt);
     const today = new Date();
     const totalDays =
       Math.ceil(
@@ -325,7 +338,9 @@ export class AnalyticsService {
     const thumbnailsPerDay: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
-      thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      if (date) {
+        thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      }
     });
 
     // Find best day
@@ -513,7 +528,9 @@ export class AnalyticsService {
     const thumbnailsPerDay: Record<string, number> = {};
     filteredThumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
-      thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      if (date) {
+        thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      }
     });
 
     // Find best day
@@ -616,15 +633,15 @@ export class AnalyticsService {
 
     editCounts.forEach(count => {
       if (count === 0) {
-        editDistribution['0 edits']++;
+        editDistribution['0 edits'] = (editDistribution['0 edits'] || 0) + 1;
       } else if (count <= 2) {
-        editDistribution['1-2 edits']++;
+        editDistribution['1-2 edits'] = (editDistribution['1-2 edits'] || 0) + 1;
       } else if (count <= 5) {
-        editDistribution['3-5 edits']++;
+        editDistribution['3-5 edits'] = (editDistribution['3-5 edits'] || 0) + 1;
       } else if (count <= 10) {
-        editDistribution['6-10 edits']++;
+        editDistribution['6-10 edits'] = (editDistribution['6-10 edits'] || 0) + 1;
       } else {
-        editDistribution['10+ edits']++;
+        editDistribution['10+ edits'] = (editDistribution['10+ edits'] || 0) + 1;
       }
     });
 
@@ -884,7 +901,9 @@ export class AnalyticsService {
     const thumbnailsPerDay: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
       const date = thumbnail.createdAt.toISOString().split('T')[0];
-      thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      if (date) {
+        thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
+      }
     });
 
     // Find best day
@@ -979,15 +998,15 @@ export class AnalyticsService {
 
     editCounts.forEach(count => {
       if (count === 0) {
-        editDistribution['0 edits']++;
+        editDistribution['0 edits'] = (editDistribution['0 edits'] || 0) + 1;
       } else if (count <= 2) {
-        editDistribution['1-2 edits']++;
+        editDistribution['1-2 edits'] = (editDistribution['1-2 edits'] || 0) + 1;
       } else if (count <= 5) {
-        editDistribution['3-5 edits']++;
+        editDistribution['3-5 edits'] = (editDistribution['3-5 edits'] || 0) + 1;
       } else if (count <= 10) {
-        editDistribution['6-10 edits']++;
+        editDistribution['6-10 edits'] = (editDistribution['6-10 edits'] || 0) + 1;
       } else {
-        editDistribution['10+ edits']++;
+        editDistribution['10+ edits'] = (editDistribution['10+ edits'] || 0) + 1;
       }
     });
 

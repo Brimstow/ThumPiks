@@ -43,9 +43,19 @@ model Project {
   thumbnails    Thumbnail[] @relation("ProjectThumbnails")
   featuredThumbnailId String? @unique  // ID of the featured thumbnail for this project
   featuredThumbnail   Thumbnail? @relation("FeaturedThumbnail", fields: [featuredThumbnailId], references: [id])
+  
+  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
+  parentProjectId String?   // Reference to parent project (null = root project)
+  parentProject   Project?  @relation("ProjectHierarchy", fields: [parentProjectId], references: [id])
+  subProjects     Project[] @relation("ProjectHierarchy") // Child projects
+  folderType      String    @default("project") // "project" or "folder"
+  depth           Int       @default(0)         // 0=root, 1=sub-project, 2=folder
+  projectPath     String?   // Full path for efficient queries (e.g., "/root/sub1/sub2")
 
   @@index([userId])
   @@index([teamId])
+  @@index([parentProjectId]) // For hierarchy queries
+  @@index([depth])           // For depth-based filtering
 }
 
 model Thumbnail {

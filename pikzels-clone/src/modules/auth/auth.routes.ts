@@ -1,16 +1,43 @@
 import { Router } from 'express';
-import { AuthController } from './auth.controller';
+import { register, login, requestPasswordReset, resetPassword } from './auth.controller';
+import { validateRequest, commonValidations } from '../../middleware/validation.middleware';
 
 const router = Router();
-const authController = new AuthController();
 
-router.post('/register', (req, res) => authController.register(req, res));
-router.post('/login', (req, res) => authController.login(req, res));
-router.post('/request-password-reset', (req, res) =>
-  authController.requestPasswordReset(req, res)
+
+router.post(
+  '/register',
+  validateRequest({
+    body: [commonValidations.email, commonValidations.password, commonValidations.name]
+  }),
+  register
 );
-router.post('/reset-password', (req, res) =>
-  authController.resetPassword(req, res)
+
+router.post(
+  '/login',
+  validateRequest({
+    body: [commonValidations.email, commonValidations.password]
+  }),
+  login
+);
+
+router.post(
+  '/request-password-reset',
+  validateRequest({
+    body: [commonValidations.email]
+  }),
+  requestPasswordReset
+);
+
+router.post(
+  '/reset-password',
+  validateRequest({
+    body: [
+      { field: 'token', required: true, type: 'string', minLength: 1 },
+      { field: 'newPassword', required: true, type: 'string', minLength: 6 }
+    ]
+  }),
+  resetPassword
 );
 
 export default router;

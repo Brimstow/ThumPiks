@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AnalyticsController } from './analytics.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { AuthRequest } from '../../types/auth';
 
 const router = Router();
 const analyticsController = new AnalyticsController();
@@ -9,38 +10,38 @@ const analyticsController = new AnalyticsController();
 router.use(authenticateToken);
 
 // Analytics dashboard data
-router.get('/dashboard', (req, res) =>
-  analyticsController.getDashboardData(req, res)
-);
+router.get('/dashboard', (req, res) => {
+  analyticsController.getDashboardData(req as AuthRequest, res);
+});
 
 // Advanced analytics
-router.get('/advanced', (req, res) =>
-  analyticsController.getAdvancedAnalytics(req, res)
-);
+router.get('/advanced', (req, res) => {
+  analyticsController.getAdvancedAnalytics(req as AuthRequest, res);
+});
 
 // Detailed advanced analytics with timeframe filtering
-router.get('/detailed', (req, res) =>
-  analyticsController.getDetailedAdvancedAnalytics(req, res)
-);
+router.get('/detailed', (req, res) => {
+  analyticsController.getDetailedAdvancedAnalytics(req as AuthRequest, res);
+});
 
 // Comparative analytics (current vs previous period)
-router.get('/comparative', (req, res) =>
-  analyticsController.getComparativeAnalytics(req, res)
-);
+router.get('/comparative', (req, res) => {
+  analyticsController.getComparativeAnalytics(req as AuthRequest, res);
+});
 
 // Thumbnail trends
-router.get('/trends', (req, res) =>
-  analyticsController.getThumbnailTrends(req, res)
-);
+router.get('/trends', (req, res) => {
+  analyticsController.getThumbnailTrends(req as AuthRequest, res);
+});
 
 // Style distribution
-router.get('/styles', (req, res) =>
-  analyticsController.getStyleDistribution(req, res)
-);
+router.get('/styles', (req, res) => {
+  analyticsController.getStyleDistribution(req as AuthRequest, res);
+});
 
 // Project usage
-router.get('/projects', (req, res) =>
-  analyticsController.getProjectUsage(req, res)
-);
+router.get('/projects', (req, res) => {
+  analyticsController.getProjectUsage(req as AuthRequest, res);
+});
 
 export default router;

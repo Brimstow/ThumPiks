@@ -6,6 +6,11 @@ interface Project {
   name: string;
   description?: string;
   createdAt: string;
+  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
+  parentProjectId?: string;
+  folderType: 'project' | 'folder';
+  depth: number;
+  projectPath?: string;
 }
 
 const ProjectDetail: React.FC = () => {

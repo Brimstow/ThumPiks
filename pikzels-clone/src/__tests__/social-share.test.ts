@@ -1,8 +1,5 @@
 import request from 'supertest';
 import app from '../server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 describe('Social Share API', () => {
   // We'll remove the authentication tests since they require a real setup

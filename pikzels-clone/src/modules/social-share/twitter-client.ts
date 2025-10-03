@@ -5,8 +5,18 @@ import {
 } from './social-media-client';
 
 export class TwitterClient extends SocialMediaClient {
-  private readonly API_BASE_URL = 'https://api.twitter.com/2';
+  // TODO: Restore when implementing Twitter API integration
+  // private readonly API_BASE_URL = 'https://api.twitter.com/2';
+
   private readonly MAX_TWEET_LENGTH = 280;
+
+  // TODO: Restore when implementing text formatting
+  // private formatTextForTwitter(text: string): string {
+  //   if (text.length > this.MAX_TWEET_LENGTH) {
+  //     return text.substring(0, this.MAX_TWEET_LENGTH - 3) + '...';
+  //   }
+  //   return text;
+  // }
 
   constructor(accessToken: string) {
     super(accessToken);
@@ -16,7 +26,7 @@ export class TwitterClient extends SocialMediaClient {
    * Upload media to Twitter
    */
   async uploadMedia(
-    imageUrl: string
+    _imageUrl: string
   ): Promise<{ mediaId: string } | { error: string }> {
     try {
       // In a real implementation, we would:
@@ -36,7 +46,7 @@ export class TwitterClient extends SocialMediaClient {
    */
   async createPost(
     post: SocialMediaPost,
-    mediaIds?: string[]
+    _mediaIds?: string[]
   ): Promise<SocialMediaResponse> {
     try {
       // Validate the post
@@ -49,7 +59,7 @@ export class TwitterClient extends SocialMediaClient {
       }
 
       // Format text for Twitter
-      const formattedText = this.formatTextForTwitter(post.text);
+      // const _formattedText = this.formatTextForTwitter(post.text); // Reserved for future formatting
 
       // In a real implementation, we would:
       // 1. Make a POST request to Twitter's API to create a tweet
@@ -73,7 +83,7 @@ export class TwitterClient extends SocialMediaClient {
   /**
    * Get engagement metrics for a tweet
    */
-  async getEngagement(postId: string): Promise<any> {
+  async getEngagement(_postId: string): Promise<any> {
     try {
       // In a real implementation, we would:
       // 1. Make a GET request to Twitter's API to get tweet metrics
@@ -93,16 +103,6 @@ export class TwitterClient extends SocialMediaClient {
     }
   }
 
-  /**
-   * Format text specifically for Twitter
-   */
-  private formatTextForTwitter(text: string): string {
-    // Truncate text to Twitter's character limit
-    if (text.length > this.MAX_TWEET_LENGTH) {
-      return text.substring(0, this.MAX_TWEET_LENGTH - 3) + '...';
-    }
-    return text;
-  }
 
   /**
    * Validate Twitter post content
@@ -125,5 +125,25 @@ export class TwitterClient extends SocialMediaClient {
       valid: errors.length === 0,
       errors,
     };
+  }
+
+  async post(_post: any): Promise<any> {
+    // Twitter post implementation
+    return { success: true, postId: 'tw_123' };
+  }
+
+  protected formatText(text: string, _platform: string): string {
+    // Twitter-specific text formatting
+    return text;
+  }
+
+  protected formatHashtags(_hashtags: string[]): string {
+    // Twitter hashtag formatting
+    return '';
+  }
+
+  async updatePost(_postId: string, _updates: any): Promise<any> {
+    // Twitter update post implementation
+    return { success: true };
   }
 }

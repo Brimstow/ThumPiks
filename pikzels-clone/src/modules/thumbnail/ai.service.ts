@@ -110,13 +110,13 @@ export class AIService {
       const data: any = await response.json();
 
       // Validate response structure
-      if (!data || !data.data || !Array.isArray(data.data)) {
+      if (!data?.data || !Array.isArray(data.data)) {
         throw new Error('Invalid response from OpenAI API');
       }
 
       // Extract image URLs from the response
       return data.data.map((item: any) => {
-        if (!item || !item.url) {
+        if (!item?.url) {
           throw new Error('Invalid image data in OpenAI API response');
         }
         return item.url;

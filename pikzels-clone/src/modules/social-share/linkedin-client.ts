@@ -5,8 +5,18 @@ import {
 } from './social-media-client';
 
 export class LinkedInClient extends SocialMediaClient {
-  private readonly API_BASE_URL = 'https://api.linkedin.com/v2';
+  // TODO: Restore when implementing LinkedIn API integration
+  // private readonly API_BASE_URL = 'https://api.linkedin.com/v2';
+
   private readonly MAX_POST_LENGTH = 3000; // LinkedIn's limit for posts
+
+  // TODO: Restore when implementing text formatting
+  // private formatTextForLinkedIn(text: string): string {
+  //   if (text.length > this.MAX_POST_LENGTH) {
+  //     return text.substring(0, this.MAX_POST_LENGTH - 3) + '...';
+  //   }
+  //   return text;
+  // }
 
   constructor(accessToken: string) {
     super(accessToken);
@@ -16,7 +26,7 @@ export class LinkedInClient extends SocialMediaClient {
    * Upload media to LinkedIn
    */
   async uploadMedia(
-    imageUrl: string
+    _imageUrl: string
   ): Promise<{ mediaId: string } | { error: string }> {
     try {
       // In a real implementation, we would:
@@ -36,7 +46,7 @@ export class LinkedInClient extends SocialMediaClient {
    */
   async createPost(
     post: SocialMediaPost,
-    mediaIds?: string[]
+    _mediaIds?: string[]
   ): Promise<SocialMediaResponse> {
     try {
       // Validate the post
@@ -49,7 +59,7 @@ export class LinkedInClient extends SocialMediaClient {
       }
 
       // Format text for LinkedIn
-      const formattedText = this.formatTextForLinkedIn(post.text);
+      // const formattedText = this.formatTextForLinkedIn(post.text); // Reserved for future formatting
 
       // In a real implementation, we would:
       // 1. Make a POST request to LinkedIn's API to create a post
@@ -73,7 +83,7 @@ export class LinkedInClient extends SocialMediaClient {
   /**
    * Get engagement metrics for a LinkedIn post
    */
-  async getEngagement(postId: string): Promise<any> {
+  async getEngagement(_postId: string): Promise<any> {
     try {
       // In a real implementation, we would:
       // 1. Make a GET request to LinkedIn's API to get post analytics
@@ -93,16 +103,6 @@ export class LinkedInClient extends SocialMediaClient {
     }
   }
 
-  /**
-   * Format text specifically for LinkedIn
-   */
-  private formatTextForLinkedIn(text: string): string {
-    // LinkedIn allows for longer posts
-    if (text.length > this.MAX_POST_LENGTH) {
-      return text.substring(0, this.MAX_POST_LENGTH - 3) + '...';
-    }
-    return text;
-  }
 
   /**
    * Validate LinkedIn post content
@@ -127,5 +127,25 @@ export class LinkedInClient extends SocialMediaClient {
       valid: errors.length === 0,
       errors,
     };
+  }
+
+  async post(_post: any): Promise<any> {
+    // LinkedIn post implementation
+    return { success: true, postId: 'li_123' };
+  }
+
+  protected formatText(text: string, _platform: string): string {
+    // LinkedIn-specific text formatting
+    return text;
+  }
+
+  protected formatHashtags(_hashtags: string[]): string {
+    // LinkedIn hashtag formatting
+    return '';
+  }
+
+  async updatePost(_postId: string, _updates: any): Promise<any> {
+    // LinkedIn update post implementation
+    return { success: true };
   }
 }

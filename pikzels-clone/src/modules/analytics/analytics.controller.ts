@@ -1,13 +1,6 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AnalyticsService } from './analytics.service';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-  };
-}
+import { AuthRequest } from '../../types/auth';
 
 const analyticsService = new AnalyticsService();
 
@@ -30,14 +23,14 @@ export class AnalyticsController {
       const advancedAnalytics =
         await analyticsService.getAdvancedAnalytics(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         userAnalytics,
         thumbnailStats,
         advancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching analytics data:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -52,12 +45,12 @@ export class AnalyticsController {
       // Get user analytics data (which includes trends)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         trends: userAnalytics.trends,
       });
     } catch (error) {
       console.error('Error fetching thumbnail trends:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -72,12 +65,12 @@ export class AnalyticsController {
       // Get user analytics data (which includes style distribution)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         styles: userAnalytics.styles,
       });
     } catch (error) {
       console.error('Error fetching style distribution:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -92,12 +85,12 @@ export class AnalyticsController {
       // Get user analytics data (which includes project usage)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         projects: userAnalytics.projects,
       });
     } catch (error) {
       console.error('Error fetching project usage:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -113,12 +106,12 @@ export class AnalyticsController {
       const advancedAnalytics =
         await analyticsService.getAdvancedAnalytics(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         advancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching advanced analytics data:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -146,12 +139,12 @@ export class AnalyticsController {
       const detailedAdvancedAnalytics =
         await analyticsService.getDetailedAdvancedAnalytics(userId, timeframe);
 
-      res.status(200).json({
+      return res.status(200).json({
         detailedAdvancedAnalytics,
       });
     } catch (error) {
       console.error('Error fetching detailed advanced analytics data:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -179,12 +172,12 @@ export class AnalyticsController {
       const comparativeAnalytics =
         await analyticsService.getComparativeAnalytics(userId, timeframe);
 
-      res.status(200).json({
+      return res.status(200).json({
         comparativeAnalytics,
       });
     } catch (error) {
       console.error('Error fetching comparative analytics data:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }

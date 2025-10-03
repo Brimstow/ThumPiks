@@ -43,7 +43,7 @@ export abstract class SocialMediaClient {
   /**
    * Format text for the platform (e.g., handle character limits, hashtags, etc.)
    */
-  protected formatText(text: string, platform: string): string {
+  protected formatText(text: string, _platform: string): string {
     // Basic implementation - can be overridden by platform-specific clients
     return text;
   }

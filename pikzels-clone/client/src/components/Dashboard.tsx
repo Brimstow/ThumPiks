@@ -32,6 +32,11 @@ interface Project {
   description?: string;
   createdAt: string;
   featuredThumbnail?: Thumbnail | null;
+  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
+  parentProjectId?: string;
+  folderType: 'project' | 'folder';
+  depth: number;
+  projectPath?: string;
 }
 
 const Dashboard: React.FC = () => {

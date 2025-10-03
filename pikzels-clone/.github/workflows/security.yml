@@ -5,6 +5,8 @@ on:
     - cron: '0 0 * * 1' # Weekly on Mondays
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch: # Manual trigger
 
 jobs:
@@ -36,6 +38,19 @@ jobs:
     - name: Check client outdated packages
       run: cd client && npm outdated || true
 
+    - name: Run comprehensive security scan
+      run: node scripts/security-scan.js
+      
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report
+        path: |
+          security-report.json
+          SECURITY_REPORT.md
+        retention-days: 30
+
   codeql-analysis:
     runs-on: ubuntu-latest
     permissions:
@@ -57,3 +72,45 @@ jobs:
       
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v3
+      with:
+        fail-on-severity: moderate
+        
+  secret-scanning:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run secret scanning
+      run: |
+        # Check for common secret patterns
+        echo "Scanning for potential secrets..."
+        
+        # API Keys (32+ char alphanumeric)
+        if grep -r -E '[a-zA-Z0-9]{32,}' --include="*.js" --include="*.ts" --exclude-dir=node_modules . | grep -v '.example' | head -5; then
+          echo "⚠️ Potential API keys found"
+        fi
+        
+        # JWT secrets
+        if grep -r -i 'jwt.*secret' --include="*.js" --include="*.ts" --exclude-dir=node_modules . | grep -v '.example' | head -5; then
+          echo "⚠️ Potential JWT secrets found"
+        fi
+        
+        # Database URLs with credentials
+        if grep -r -E 'postgresql://.*:.*@' --include="*.js" --include="*.ts" --exclude-dir=node_modules . | grep -v '.example' | head -5; then
+          echo "⚠️ Potential database URLs with credentials found"
+        fi
+        
+        echo "Secret scan completed"

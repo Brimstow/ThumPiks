@@ -44,7 +44,7 @@ export class AIEnhancementService {
   private async initialize() {
     try {
       // Warm up TensorFlow.js
-      if (tf && tf.ready) {
+      if (tf?.ready) {
         await tf.ready();
         console.log('TensorFlow.js initialized successfully');
         this.initialized = true;

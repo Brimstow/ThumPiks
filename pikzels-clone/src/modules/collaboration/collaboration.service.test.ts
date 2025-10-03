@@ -1,10 +1,8 @@
-import { CollaborationService } from './collaboration.service';
+// import { CollaborationService } from './collaboration.service'; // Reserved for future tests
 
 describe('CollaborationService', () => {
-  let collaborationService: CollaborationService;
-
   beforeEach(() => {
-    collaborationService = new CollaborationService();
+    // collaborationService = new CollaborationService();
   });
 
   // Mock data for testing

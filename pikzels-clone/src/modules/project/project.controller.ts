@@ -1,15 +1,8 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { ProjectService } from './project.service';
+import { AuthRequest } from '../../types/auth';
 
 const projectService = new ProjectService();
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-  };
-}
 
 export class ProjectController {
   async createProject(req: AuthRequest, res: Response) {
@@ -18,7 +11,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { name, description } = req.body;
+      const { name, description, parentProjectId, folderType } = req.body;
 
       // Validate required fields
       if (!name) {
@@ -27,16 +20,43 @@ export class ProjectController {
         });
       }
 
+      // Validate folder type
+      if (folderType && !['project', 'folder'].includes(folderType)) {
+        return res.status(400).json({
+          error: 'Folder type must be either "project" or "folder"',
+        });
+      }
+
+      // If parentProjectId is provided, verify it belongs to the user
+      if (parentProjectId) {
+        const parentProject = await projectService.getProjectById(parentProjectId);
+        if (!parentProject || parentProject.userId !== req.user.id) {
+          return res.status(400).json({
+            error: 'Invalid parent project or access denied',
+          });
+        }
+      }
+
       const project = await projectService.createProject({
         name,
         description,
         userId: req.user.id,
+        parentProjectId,
+        folderType,
       });
 
-      res.status(201).json({ project });
-    } catch (error) {
+      return res.status(201).json({ project });
+    } catch (error: any) {
       console.error('Error creating project:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      
+      // Handle hierarchy validation errors
+      if (error.message.includes('Maximum nesting depth') || 
+          error.message.includes('Folders cannot contain') ||
+          error.message.includes('Parent project not found')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -47,10 +67,10 @@ export class ProjectController {
       }
 
       const projects = await projectService.getProjectsByUser(req.user.id);
-      res.status(200).json({ projects });
+      return res.status(200).json({ projects });
     } catch (error) {
       console.error('Error fetching projects:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -61,6 +81,10 @@ export class ProjectController {
       }
 
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+
       const project = await projectService.getProjectById(id);
 
       if (!project) {
@@ -72,10 +96,10 @@ export class ProjectController {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      res.status(200).json({ project });
+      return res.status(200).json({ project });
     } catch (error) {
       console.error('Error fetching project:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -86,6 +110,9 @@ export class ProjectController {
       }
 
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
       const { name, description, featuredThumbnailId } = req.body;
 
       const project = await projectService.getProjectById(id);
@@ -105,10 +132,10 @@ export class ProjectController {
         featuredThumbnailId,
       });
 
-      res.status(200).json({ project: updatedProject });
+      return res.status(200).json({ project: updatedProject });
     } catch (error) {
       console.error('Error updating project:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -119,6 +146,9 @@ export class ProjectController {
       }
 
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
       const project = await projectService.getProjectById(id);
 
       if (!project) {
@@ -131,10 +161,10 @@ export class ProjectController {
       }
 
       await projectService.deleteProject(id);
-      res.status(204).send();
+      return res.status(204).send();
     } catch (error) {
       console.error('Error deleting project:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -145,7 +175,13 @@ export class ProjectController {
       }
 
       const { projectId } = req.params;
+      if (!projectId) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
       const { thumbnailId } = req.body;
+      if (!thumbnailId) {
+        return res.status(400).json({ error: 'Thumbnail ID is required' });
+      }
 
       // Verify the project exists and belongs to the user
       const project = await projectService.getProjectById(projectId);
@@ -164,14 +200,135 @@ export class ProjectController {
         thumbnailId
       );
 
-      res.status(200).json({ project: updatedProject });
+      return res.status(200).json({ project: updatedProject });
     } catch (error: any) {
       if (error.message === 'Thumbnail does not belong to this project') {
         return res.status(400).json({ error: error.message });
       }
 
       console.error('Error setting featured thumbnail:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+  
+  // 🏗️ HIERARCHY-SPECIFIC ENDPOINTS
+  
+  /**
+   * Get projects in hierarchical tree structure
+   * GET /api/projects/tree
+   */
+  async getProjectsTree(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const projectsTree = await projectService.getProjectsTree(req.user.id);
+      return res.status(200).json({ projectsTree });
+    } catch (error) {
+      console.error('Error fetching projects tree:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+  
+  /**
+   * Get direct children of a project
+   * GET /api/projects/:id/children
+   */
+  async getProjectChildren(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+      
+      // Verify the parent project belongs to the user
+      const parentProject = await projectService.getProjectById(id);
+      if (!parentProject || parentProject.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const children = await projectService.getProjectChildren(id);
+      return res.status(200).json({ children });
+    } catch (error) {
+      console.error('Error fetching project children:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+  
+  /**
+   * Get project breadcrumb path
+   * GET /api/projects/:id/breadcrumb
+   */
+  async getProjectBreadcrumb(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+      const project = await projectService.getProjectById(id);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const breadcrumb = await projectService.getProjectBreadcrumb(id);
+      return res.status(200).json({ breadcrumb });
+    } catch (error) {
+      console.error('Error fetching project breadcrumb:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+  
+  /**
+   * Move project to different parent
+   * PUT /api/projects/:id/move
+   */
+  async moveProject(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+      const { newParentId } = req.body;
+      
+      // Verify the project belongs to the user
+      const project = await projectService.getProjectById(id);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      
+      // If new parent is specified, verify it belongs to the user
+      if (newParentId) {
+        const newParent = await projectService.getProjectById(newParentId);
+        if (!newParent || newParent.userId !== req.user.id) {
+          return res.status(400).json({ error: 'Invalid new parent project' });
+        }
+      }
+
+      const movedProject = await projectService.moveProject(id, newParentId);
+      return res.status(200).json({ project: movedProject });
+    } catch (error: any) {
+      console.error('Error moving project:', error);
+      
+      // Handle specific move validation errors
+      if (error.message.includes('circular reference') || 
+          error.message.includes('Maximum nesting depth')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 }

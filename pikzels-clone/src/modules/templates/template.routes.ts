@@ -1,26 +1,23 @@
-import express from 'express';
+import { Router } from 'express';
 import {
   createTemplate,
   getTemplates,
   getTemplateById,
   updateTemplate,
   deleteTemplate,
-  incrementTemplateDownloads,
-  toggleTemplateLike,
 } from './template.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { AuthRequest } from '../../types/auth';
 
-const router = express.Router();
+const router = Router();
 
 // Public routes
-router.get('/', getTemplates);
-router.get('/:id', getTemplateById);
-router.post('/:id/download', incrementTemplateDownloads);
-router.post('/:id/like', toggleTemplateLike);
+router.get('/', (req, res) => getTemplates(req as unknown as AuthRequest, res));
+router.get('/:id', (req, res) => getTemplateById(req as unknown as AuthRequest, res));
 
-// Protected routes
-router.post('/', authenticateToken, createTemplate);
-router.put('/:id', authenticateToken, updateTemplate);
-router.delete('/:id', authenticateToken, deleteTemplate);
+// Protected routes  
+router.post('/', authenticateToken, (req, res) => createTemplate(req as unknown as AuthRequest, res));
+router.put('/:id', authenticateToken, (req, res) => updateTemplate(req as unknown as AuthRequest, res));
+router.delete('/:id', authenticateToken, (req, res) => deleteTemplate(req as unknown as AuthRequest, res));
 
 export default router;
