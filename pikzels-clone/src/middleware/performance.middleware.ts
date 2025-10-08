@@ -143,11 +143,16 @@ export const responseTimeMiddleware = () => {
   return (_req: Request, res: Response, next: NextFunction) => {
     const startTime = Date.now();
 
-    // Monitor response timing and add header
-    res.on('finish', () => {
+    // Set the header before the response is sent
+    const originalSend = res.send;
+    res.send = function(data) {
       const responseTime = Date.now() - startTime;
-      res.set('X-Response-Time', `${responseTime}ms`);
-    });
+      // Only set header if response hasn't been sent yet
+      if (!res.headersSent) {
+        res.set('X-Response-Time', `${responseTime}ms`);
+      }
+      return originalSend.call(this, data);
+    };
 
     next();
   };

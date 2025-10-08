@@ -38,6 +38,13 @@ import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
 import performanceRoutes from './routes/performance.routes';
 
+// Import admin routes
+import adminAuthRoutes from './modules/admin/admin-auth.routes';
+import userManagementRoutes from './modules/admin/user-management.routes';
+import analyticsAdminRoutes from './modules/admin/analytics.routes';
+import systemMonitoringRoutes from './modules/admin/system-monitoring.routes';
+import sitemapRoutes from './modules/admin/sitemap.routes';
+
 const app = express();
 const PORT = process.env.PORT || 8550;
 
@@ -93,7 +100,7 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
 
 // Enhanced CORS configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:8556'],
   credentials: process.env.CORS_CREDENTIALS === 'true',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -136,6 +143,13 @@ app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/performance', performanceRoutes);
+
+// Admin routes
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/users', userManagementRoutes);
+app.use('/api/admin/analytics', analyticsAdminRoutes);
+app.use('/api/admin/system', systemMonitoringRoutes);
+app.use('/api/admin/sitemap', sitemapRoutes);
 
 // Global error handler - MUST be after all routes
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

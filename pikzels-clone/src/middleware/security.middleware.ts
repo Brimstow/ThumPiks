@@ -8,14 +8,16 @@ export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https:"],
-      fontSrc: ["'self'", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:", "data:"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https:", "ws:", "wss:"],
+      fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
+      mediaSrc: ["'self'", "data:"],
       frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
     },
   },
   crossOriginEmbedderPolicy: false, // Disable for compatibility

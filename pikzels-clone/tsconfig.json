@@ -19,8 +19,9 @@
     "sourceMap": true,
     "removeComments": false,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "src/__tests__/**/*"]
+  "exclude": ["node_modules", "dist", "client"]
 }

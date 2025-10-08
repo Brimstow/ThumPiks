@@ -1,6 +1,5 @@
 import { AuthService } from '../../modules/auth/auth.service';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
-import { AuthService } from '../../modules/auth/auth.service';
 import { PrismaClient } from '@prisma/client';
 
 // Mock Prisma

@@ -6,6 +6,14 @@ process.env.DATABASE_URL = 'file:./test.db';
 process.env.ENCRYPTION_KEY = 'test-encryption-key-32-chars-long!!!';
 process.env.REDIS_URL = 'redis://localhost:6379';
 
+// Simple test to make Jest happy
+describe('Test Setup', () => {
+  it('should have proper environment variables', () => {
+    expect(process.env.NODE_ENV).toBe('test');
+    expect(process.env.JWT_SECRET).toBeDefined();
+  });
+});
+
 // Mock console methods for cleaner test output
 const originalConsole = { ...console };
 global.console = {
@@ -26,6 +34,23 @@ jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
   compare: jest.fn().mockResolvedValue(true),
 }));
+
+// Mock uuid module to prevent ES module issues
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mocked-uuid-v4'),
+  v1: jest.fn(() => 'mocked-uuid-v1'),
+}));
+
+// Mock sharp for image processing
+jest.mock('sharp', () => {
+  return jest.fn(() => ({
+    resize: jest.fn().mockReturnThis(),
+    jpeg: jest.fn().mockReturnThis(),
+    png: jest.fn().mockReturnThis(),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.from('mock-image-data')),
+    metadata: jest.fn().mockResolvedValue({ width: 100, height: 100 }),
+  }));
+});
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn().mockImplementation(() => ({

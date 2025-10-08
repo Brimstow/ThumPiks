@@ -90,14 +90,13 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
 export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const { token, newPassword } = req.body;
     if (!token) {
       return res.status(400).json({ error: 'Token is required' });
     }
 
-    const { password } = req.body;
-    if (!password) {
-      return res.status(400).json({ error: 'Password is required' });
+    if (!newPassword) {
+      return res.status(400).json({ error: 'New password is required' });
     }
 
     // Reset password logic here

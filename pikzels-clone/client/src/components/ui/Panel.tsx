@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Card, { CardHeader, CardBody } from './Card';
-import Button from './Button';
+import { default as Card, CardHeader, CardBody } from './Card';
+import { default as Button } from './Button';
 import './Panel.css';
 
 export interface PanelProps {

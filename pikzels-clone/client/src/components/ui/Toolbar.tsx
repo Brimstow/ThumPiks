@@ -1,3 +1,31 @@
+import React from 'react';
+import { default as Button } from './Button';
+import './Toolbar.css';
+
+export interface ToolbarItem {
+  id: string;
+  label?: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+  tooltip?: string;
+  separator?: boolean;
+}
+
+export interface ToolbarProps {
+  items: ToolbarItem[];
+  activeTool?: string;
+  orientation?: 'horizontal' | 'vertical';
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}
+
+export interface ToolbarSeparatorProps {
+  orientation?: 'horizontal' | 'vertical';
+}
+
 const ToolbarSeparator: React.FC<ToolbarSeparatorProps> = ({
   orientation = 'horizontal',
 }) => (
@@ -64,3 +92,5 @@ const Toolbar: React.FC<ToolbarProps> = ({
     </div>
   );
 };
+
+export default Toolbar;
