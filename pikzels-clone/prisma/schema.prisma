@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -17,17 +17,26 @@ model User {
   settings      Json?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+  lastLoginAt   DateTime?  // Track last login for admin analytics
+  isActive      Boolean    @default(true) // Admin can deactivate users
   projects      Project[]
   thumbnails    Thumbnail[]
   subscriptions Subscription[]
   socialShares  SocialShare[]
   templates     Template[] // Templates created by this user
   
+  // Admin role-based access control
+  adminRoles    AdminRole[] // Admin roles assigned to this user
+  
   // Collaboration relationships
   ownedTeams    Team[]     @relation("OwnedTeams")
   teamMemberships TeamMember[] // Teams this user is a member of
   teamInvitations TeamInvitation[] @relation("ReceivedInvitations") // Invitations received by this user
   sentInvitations TeamInvitation[] @relation("SentInvitations") // Invitations sent by this user
+  
+  // Admin activity tracking
+  auditLogs     AuditLog[] @relation("UserAuditLogs")
+  performedActions AuditLog[] @relation("AdminActions")
 }
 
 model Project {
@@ -171,4 +180,131 @@ model TeamInvitation {
   @@index([teamId])
   @@index([inviteeId])
   @@index([status])
+}
+
+// ========================================
+// ADMIN SYSTEM MODELS
+// ========================================
+
+// Admin roles and permissions
+model AdminRole {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  role        String   // "super_admin", "admin", "moderator", "analyst"
+  permissions Json     // Specific permissions array
+  assignedBy  String?  // Who assigned this role
+  assignedAt  DateTime @default(now())
+  expiresAt   DateTime? // Optional expiration for temporary roles
+  isActive    Boolean  @default(true)
+  
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
+  @@index([isActive])
+}
+
+// Comprehensive audit logging
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  // User who performed the action (null for system actions)
+  user        User?    @relation("UserAuditLogs", fields: [userId], references: [id])
+  adminId     String?  // Admin who performed the action
+  admin       User?    @relation("AdminActions", fields: [adminId], references: [id])
+  action      String   // Action type (CREATE, UPDATE, DELETE, LOGIN, etc.)
+  resource    String   // Resource affected (user, project, thumbnail, etc.)
+  resourceId  String?  // ID of the affected resource
+  details     Json?    // Additional action details
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+  severity    String   @default("info") // "info", "warning", "error", "critical"
+  
+  @@index([userId])
+  @@index([adminId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+  @@index([severity])
+}
+
+// System analytics and metrics
+model SystemMetrics {
+  id              String   @id @default(uuid())
+  metricType      String   // "daily_active_users", "thumbnails_created", "revenue", etc.
+  metricValue     Float    // Numeric value of the metric
+  metricDate      DateTime // Date this metric is for
+  additionalData  Json?    // Additional metadata
+  createdAt       DateTime @default(now())
+  
+  @@unique([metricType, metricDate])
+  @@index([metricType])
+  @@index([metricDate])
+}
+
+// System health monitoring
+model SystemHealth {
+  id          String   @id @default(uuid())
+  service     String   // "database", "redis", "file_storage", "api", etc.
+  status      String   // "healthy", "degraded", "down"
+  response    Float?   // Response time in milliseconds
+  errorRate   Float?   // Error rate percentage
+  details     Json?    // Additional health check details
+  checkedAt   DateTime @default(now())
+  
+  @@index([service])
+  @@index([status])
+  @@index([checkedAt])
+}
+
+// User sessions for admin monitoring
+model UserSession {
+  id          String   @id @default(uuid())
+  userId      String
+  sessionId   String   @unique
+  ipAddress   String?
+  userAgent   String?
+  loginAt     DateTime @default(now())
+  lastActivity DateTime @default(now())
+  logoutAt    DateTime?
+  isActive    Boolean  @default(true)
+  
+  @@index([userId])
+  @@index([sessionId])
+  @@index([isActive])
+  @@index([lastActivity])
+}
+
+// Feature flags for admin control
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isEnabled   Boolean  @default(false)
+  config      Json?    // Feature-specific configuration
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([name])
+  @@index([isEnabled])
+}
+
+// System notifications for admins
+model AdminNotification {
+  id          String   @id @default(uuid())
+  title       String
+  message     String
+  type        String   // "info", "warning", "error", "success"
+  priority    String   @default("normal") // "low", "normal", "high", "critical"
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime? // Optional expiration
+  metadata    Json?    // Additional notification data
+  
+  @@index([type])
+  @@index([priority])
+  @@index([isRead])
+  @@index([createdAt])
 }
