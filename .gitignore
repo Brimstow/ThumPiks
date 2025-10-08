@@ -105,6 +105,9 @@ prisma/migrations/*.sql
 *.db
 *.sqlite
 *.sqlite3
+database/
+events-store/
+*.jsonl
 
 # Uploads and generated files
 uploads/
@@ -152,3 +155,52 @@ thumbnail-maker-studio/
 
 # Exclude embedded git repos
 pikzels-clone/mobile/
+
+# Development scripts and utilities
+*.bat
+*.ps1
+*.py
+create-*.js
+setup-*.js
+verify-*.js
+test-*.js
+test-*.ts
+seed-*.js
+fix-*.js
+cleanup-*.js
+auto-restart.js
+smart-restart.js
+validate-*.js
+quick-*.js
+check-*.js
+run-*.bat
+install-*.bat
+setup-*.bat
+docker-*.bat
+download-*.py
+setup-*.py
+
+# Admin and troubleshooting guides
+ADMIN_*.md
+AUTO_*.md
+PORT_*.md
+PROJECT_*.md
+admin-*.md
+
+# Task and project documentation
+Task*.md
+Project*.md
+Editing*.md
+Common*.md
+DEVELOPMENT_*.md
+PERFORMANCE.md
+SECURITY_*.md
+CONTRIBUTING.md
+*.summary.md
+*.verification.md
+*.testing.md
+*.task.md
+*.roadmap.md
+*.glossary.md
+*.faq.md
+*.guide.md
