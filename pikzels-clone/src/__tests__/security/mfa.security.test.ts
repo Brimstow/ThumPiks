@@ -62,10 +62,21 @@ describe('Security - Multi-Factor Authentication', () => {
       secret: 'MOCK_SECRET_BASE32',
       backupCodes: ['ABCD1234', 'EFGH5678'],
     }));
+    
+    // Setup default user mock for user.findUnique calls
+    mockPrisma.user.findUnique.mockResolvedValue({
+      settings: {
+        mfa: {
+          encrypted: 'encrypted_data',
+          iv: 'initialization_vector',
+        },
+      },
+    });
   });
 
   describe('MFA Setup', () => {
     test('should setup MFA for valid user', async () => {
+      // Override the default mock for this specific test
       mockPrisma.user.findUnique.mockResolvedValue({
         email: 'test@example.com',
         name: 'Test User',

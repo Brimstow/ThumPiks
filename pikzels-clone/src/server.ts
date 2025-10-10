@@ -151,6 +151,45 @@ app.use('/api/admin/analytics', analyticsAdminRoutes);
 app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
 
+// Production static files serving
+if (process.env.NODE_ENV === 'production') {
+  // Serve admin static files
+  app.use('/admin', express.static(path.join(__dirname, '../client/dist')));
+  
+  // Serve main app static files
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Admin SPA fallback - serve index.html for admin routes
+  app.get('/admin/*', (_req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+  
+  // Main app SPA fallback
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+} else {
+  // Development mode - provide API info and redirect to frontend
+  app.get('/admin', (_req, res) => {
+    res.json({
+      message: 'Admin panel is running in development mode',
+      frontend: 'http://localhost:8556/admin',
+      backend: `http://localhost:${PORT}/api`,
+      note: 'Please access the admin panel through the frontend URL above'
+    });
+  });
+  
+  app.get('/', (_req, res) => {
+    res.json({
+      message: 'Thumbnail Maker API is running',
+      environment: 'development',
+      frontend: 'http://localhost:8556',
+      backend: `http://localhost:${PORT}/api`,
+      documentation: `http://localhost:${PORT}/health`
+    });
+  });
+}
+
 // Global error handler - MUST be after all routes
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Unhandled API error', err, {

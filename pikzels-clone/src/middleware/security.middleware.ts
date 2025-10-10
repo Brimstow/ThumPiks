@@ -8,11 +8,11 @@ export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:", "data:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:", "data:", "blob:"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https:", "ws:", "wss:"],
-      fontSrc: ["'self'", "https:", "data:"],
+      connectSrc: ["'self'", "https:", "ws:", "wss:", "http://localhost:8556", "http://localhost:8550"],
+      fontSrc: ["'self'", "https:", "data:", "blob:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "data:"],
       frameSrc: ["'none'"],

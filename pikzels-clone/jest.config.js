@@ -7,16 +7,24 @@ module.exports = {
     '**/?(*.)+(spec|test).+(ts|tsx|js)'
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: 'tsconfig.test.json'
+    }]
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts'
+    '!src/**/*.d.ts',
+    '!src/**/*.test.ts',
+    '!src/**/*.spec.ts',
+    '!src/__tests__/**/*'
   ],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  // Simple approach - just ignore problematic node_modules
+  // Transform ES modules from node_modules that Jest can't handle
   transformIgnorePatterns: [
-    'node_modules/(?!(.*\\.mjs$))'
-  ]
+    'node_modules/(?!(uuid|node-fetch|.*\\.mjs$))'
+  ],
+  // Handle ES modules properly
+  extensionsToTreatAsEsm: ['.ts'],
+  testTimeout: 10000
 };

@@ -82,7 +82,7 @@ export const validateRequest = (options: ValidationOptions) => {
 
       return res.status(400).json({
         error: 'Validation failed',
-        details: errors,
+        errors: errors,
         code: 'VALIDATION_ERROR',
       });
     }

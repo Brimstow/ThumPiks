@@ -50,3 +50,26 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 .nyc_output/
+
+# Large binary files and generated data (Repository Size Management)
+*.jsonl
+database-installations/
+processed-images/*.png
+processed-images/*.jpg
+processed-images/*.jpeg
+dump.rdb
+*.rdb
+
+# Temporary and cache files
+temp/
+cache/
+.tmp/
+
+# Windows specific
+*.tmp
+~*
+
+# Package lock files (as per project specification)
+# Generally not committed unless specifically required
+package-lock.json
+client/package-lock.json
