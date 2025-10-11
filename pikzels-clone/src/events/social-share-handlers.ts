@@ -23,6 +23,7 @@ export class SocialShareEventHandlers {
   private retryQueue: ShareJob[] = [];
   private maxRetries = 3;
   private retryDelays = [1000, 3000, 10000]; // 1s, 3s, 10s
+  private retryProcessorInterval: NodeJS.Timeout | null = null;
   
   private platformConfigs = {
     twitter: { 
@@ -334,7 +335,7 @@ export class SocialShareEventHandlers {
    * Retry processor for failed shares
    */
   private startRetryProcessor(): void {
-    setInterval(() => {
+    this.retryProcessorInterval = setInterval(() => {
       if (this.retryQueue.length > 0) {
         const job = this.retryQueue.shift();
         if (job) {
@@ -366,6 +367,12 @@ export class SocialShareEventHandlers {
    */
   async cleanup(): Promise<void> {
     console.log(`🧹 Cleaning up ${this.activeShares.size} active shares`);
+    
+    if (this.retryProcessorInterval) {
+      clearInterval(this.retryProcessorInterval);
+      this.retryProcessorInterval = null;
+    }
+    
     this.activeShares.clear();
     this.retryQueue.length = 0;
   }

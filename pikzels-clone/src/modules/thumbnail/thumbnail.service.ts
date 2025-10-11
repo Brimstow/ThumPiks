@@ -4,10 +4,32 @@ import { createHash } from 'crypto';
 import { emitThumbnailCreated, emitAnalyticsEvent } from '../../events';
 import { eventEmitter } from '../../events/event-emitter';
 
-const prisma = new PrismaClient();
-const cache = CacheService.getInstance();
+// Default instances for production use
+const defaultPrisma = new PrismaClient();
+const defaultCache = CacheService.getInstance();
+
+export interface ThumbnailServiceDependencies {
+  prisma?: PrismaClient;
+  cache?: CacheService;
+  eventEmitter?: typeof eventEmitter;
+  emitThumbnailCreated?: typeof emitThumbnailCreated;
+  emitAnalyticsEvent?: typeof emitAnalyticsEvent;
+}
 
 export class ThumbnailService {
+  private prisma: PrismaClient;
+  private cache: CacheService;
+  private eventEmitter: typeof eventEmitter;
+  private emitThumbnailCreated: typeof emitThumbnailCreated;
+  private emitAnalyticsEvent: typeof emitAnalyticsEvent;
+
+  constructor(dependencies: ThumbnailServiceDependencies = {}) {
+    this.prisma = dependencies.prisma || defaultPrisma;
+    this.cache = dependencies.cache || defaultCache;
+    this.eventEmitter = dependencies.eventEmitter || eventEmitter;
+    this.emitThumbnailCreated = dependencies.emitThumbnailCreated || emitThumbnailCreated;
+    this.emitAnalyticsEvent = dependencies.emitAnalyticsEvent || emitAnalyticsEvent;
+  }
   async createThumbnail(data: {
     title: string;
     imageUrl: string;
@@ -16,12 +38,12 @@ export class ThumbnailService {
     projectId: string;
     userId: string;
   }) {
-    const thumbnail = await prisma.thumbnail.create({
+    const thumbnail = await this.prisma.thumbnail.create({
       data,
     });
 
     // 🚀 EVENT-DRIVEN: Emit thumbnail created event
-    await emitThumbnailCreated(
+    await this.emitThumbnailCreated(
       data.userId,
       thumbnail.id,
       data.projectId,
@@ -57,7 +79,7 @@ export class ThumbnailService {
     const cacheKey = `thumbnails:user:${userId}:${filterHash}`;
 
     // Use cache-aside pattern
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
         // Build where clause for filtering
@@ -106,7 +128,7 @@ export class ThumbnailService {
           orderBy = { [sortField]: filters.sortOrder || 'desc' };
         }
 
-        return prisma.thumbnail.findMany({
+        return this.prisma.thumbnail.findMany({
           where,
           include: {
             project: true,
@@ -121,10 +143,10 @@ export class ThumbnailService {
   async getThumbnailById(id: string) {
     const cacheKey = `thumbnail:${id}`;
     
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
-        return prisma.thumbnail.findUnique({
+        return this.prisma.thumbnail.findUnique({
           where: { id },
           include: {
             project: true,
@@ -145,19 +167,19 @@ export class ThumbnailService {
     }>
   ) {
     // Get thumbnail info for cache invalidation
-    const existingThumbnail = await prisma.thumbnail.findUnique({
+    const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
       select: { userId: true, projectId: true },
     });
 
-    const thumbnail = await prisma.thumbnail.update({
+    const thumbnail = await this.prisma.thumbnail.update({
       where: { id },
       data,
     });
 
     // 🚀 EVENT-DRIVEN: Emit thumbnail updated event
     if (existingThumbnail) {
-      await eventEmitter.createAndEmit(
+      await this.eventEmitter.createAndEmit(
         'thumbnail.updated',
         existingThumbnail.userId,
         {
@@ -168,7 +190,7 @@ export class ThumbnailService {
       );
 
       // Emit analytics event for the update
-      await emitAnalyticsEvent(
+      await this.emitAnalyticsEvent(
         existingThumbnail.userId,
         'thumbnail_updated',
         'thumbnail',
@@ -182,7 +204,7 @@ export class ThumbnailService {
     }
 
     // Invalidate caches
-    await cache.del(`thumbnail:${id}`);
+    await this.cache.del(`thumbnail:${id}`);
     if (existingThumbnail) {
       await this.invalidateUserThumbnailsCache(existingThumbnail.userId);
       await this.invalidateProjectCache(existingThumbnail.projectId);
@@ -194,18 +216,18 @@ export class ThumbnailService {
 
   async deleteThumbnail(id: string) {
     // Get thumbnail info for cache invalidation and events
-    const existingThumbnail = await prisma.thumbnail.findUnique({
+    const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
       select: { userId: true, projectId: true, imageUrl: true },
     });
 
-    const thumbnail = await prisma.thumbnail.delete({
+    const thumbnail = await this.prisma.thumbnail.delete({
       where: { id },
     });
 
     // 🚀 EVENT-DRIVEN: Emit thumbnail deleted event
     if (existingThumbnail) {
-      await eventEmitter.createAndEmit(
+      await this.eventEmitter.createAndEmit(
         'thumbnail.deleted',
         existingThumbnail.userId,
         {
@@ -215,7 +237,7 @@ export class ThumbnailService {
       );
 
       // Emit analytics event for the deletion
-      await emitAnalyticsEvent(
+      await this.emitAnalyticsEvent(
         existingThumbnail.userId,
         'thumbnail_deleted',
         'thumbnail',
@@ -227,7 +249,7 @@ export class ThumbnailService {
     }
 
     // Invalidate caches
-    await cache.del(`thumbnail:${id}`);
+    await this.cache.del(`thumbnail:${id}`);
     if (existingThumbnail) {
       await this.invalidateUserThumbnailsCache(existingThumbnail.userId);
       await this.invalidateProjectCache(existingThumbnail.projectId);
@@ -239,7 +261,7 @@ export class ThumbnailService {
 
   async setThumbnailAsFeatured(thumbnailId: string, projectId: string) {
     // First verify that the thumbnail belongs to this project
-    const thumbnail = await prisma.thumbnail.findUnique({
+    const thumbnail = await this.prisma.thumbnail.findUnique({
       where: { id: thumbnailId },
       select: { id: true, projectId: true, userId: true }
     });
@@ -249,7 +271,7 @@ export class ThumbnailService {
     }
 
     // Set this thumbnail as featured for the project
-    await prisma.project.update({
+    await this.prisma.project.update({
       where: { id: projectId },
       data: {
         featuredThumbnailId: thumbnailId,
@@ -257,7 +279,7 @@ export class ThumbnailService {
     });
 
     // 🚀 EVENT-DRIVEN: Emit analytics event for featured thumbnail
-    await emitAnalyticsEvent(
+    await this.emitAnalyticsEvent(
       thumbnail.userId,
       'thumbnail_featured',
       'thumbnail',
@@ -275,11 +297,11 @@ export class ThumbnailService {
   private async invalidateUserThumbnailsCache(userId: string) {
     // Delete all cache keys that start with the user thumbnail pattern
     const pattern = `thumbnails:user:${userId}:*`;
-    await cache.delPattern(pattern);
+    await this.cache.delPattern(pattern);
   }
 
   private async invalidateProjectCache(projectId: string) {
     // Invalidate project-related caches if needed
-    await cache.del(`project:${projectId}`);
+    await this.cache.del(`project:${projectId}`);
   }
 }

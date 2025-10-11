@@ -309,81 +309,216 @@ const LandingPage: React.FC = () => {
         </div>
 
         <div className="pricing-cards">
-          <Card variant="outlined" padding="lg" className="pricing-card">
-            <CardHeader>
-              <div className="pricing-header-content">
-                <h3 className="pricing-plan">Essential</h3>
-                <div className="pricing-discount">-30%</div>
+          <Card variant="outlined" padding="lg" className="pricing-card glass-effect">
+            {/* Top Badge */}
+            <div className="pricing-card-header">
+              <div className="icon-circle">
+                <span style={{ fontSize: '14px' }}>🚀</span>
               </div>
-            </CardHeader>
-            <CardBody>
-              <div className="pricing-price">
-                <span className="price-old">$20</span>
-                <span className="price-current">$14</span>
-                <span className="price-period">/mo</span>
+              <h3 className="pricing-card-title">Essential</h3>
+            </div>
+            
+            {/* Price */}
+            <div className="pricing-price">
+              <span className="price-current">$14</span>
+              <span className="price-period">/month</span>
+            </div>
+            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>Perfect for individuals and small projects</p>
+            
+            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
+            
+            {/* Features */}
+            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>240 thumbnails/year</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>2400 AI credits</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Basic templates</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Email support</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
+                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
+                <span>No custom training</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
+                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
+                <span>No priority support</span>
+              </li>
+            </ul>
+            
+            {/* Stats */}
+            <div className="pricing-stats">
+              <div className="pricing-stat">
+                <div className="pricing-stat-value">99.5%</div>
+                <div className="pricing-stat-label">Uptime</div>
               </div>
-              <p className="pricing-billing">Billed Annually</p>
-              <p className="pricing-description">Generate up to <strong>240 thumbnails</strong> per year.</p>
-              <ul className="pricing-features">
-                <li>✅ 2400 credits</li>
-                <li>✅ Works in Any Language</li>
-                <li>✅ Thumbnail Generator</li>
-                <li>✅ Edit Thumbnail</li>
-              </ul>
-              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Subscribe</Button>
-            </CardBody>
+              <div className="pricing-stat">
+                <div className="pricing-stat-value">150ms</div>
+                <div className="pricing-stat-label">Response</div>
+              </div>
+            </div>
+            
+            {/* CTA */}
+            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
+              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Start Free Trial</Button>
+              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>No credit card required</p>
+            </div>
           </Card>
 
-          <Card variant="elevated" padding="lg" className="pricing-card featured" interactive>
-            <div className="popular-badge">Most popular</div>
-            <CardHeader>
-              <div className="pricing-header-content">
-                <h3 className="pricing-plan">Premium</h3>
-                <div className="pricing-discount">-30%</div>
+          <Card variant="elevated" padding="lg" className="pricing-card featured glass-effect" interactive>
+            {/* Popular Badge */}
+            <div style={{ position: 'absolute', top: '-2px', right: '30px', padding: '4px 10px', background: 'rgba(37, 99, 235, 0.9)', color: 'white', fontSize: '12px', fontWeight: '500', borderRadius: '0 0 6px 6px', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)' }}>MOST POPULAR</div>
+            
+            {/* Top Badge */}
+            <div className="pricing-card-header">
+              <div className="icon-circle" style={{ background: 'rgba(37, 99, 235, 0.2)', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
+                <span style={{ fontSize: '14px', color: '#3b82f6' }}>⚡</span>
               </div>
-            </CardHeader>
-            <CardBody>
-              <div className="pricing-price">
-                <span className="price-old">$40</span>
-                <span className="price-current">$28</span>
-                <span className="price-period">/mo</span>
+              <h3 className="pricing-card-title">Professional</h3>
+            </div>
+            
+            {/* Price */}
+            <div className="pricing-price">
+              <span className="price-current">$28</span>
+              <span className="price-period">/month</span>
+            </div>
+            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>For teams with advanced AI needs</p>
+            
+            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
+            
+            {/* Features */}
+            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>1800 thumbnails/year</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>18000 AI credits</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Advanced templates</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Priority support</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Custom training</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
+                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
+                <span>No dedicated resources</span>
+              </li>
+            </ul>
+            
+            {/* Stats */}
+            <div className="pricing-stats">
+              <div className="pricing-stat featured">
+                <div className="pricing-stat-value">99.95%</div>
+                <div className="pricing-stat-label">Uptime</div>
               </div>
-              <p className="pricing-billing">Billed Annually</p>
-              <p className="pricing-description">Generate up to <strong>1800 thumbnails</strong> per year.</p>
-              <ul className="pricing-features">
-                <li>✅ 18000 credits</li>
-                <li>✅ Works in Any Language</li>
-                <li>✅ All AI features</li>
-                <li>✅ Early Access to New Features</li>
-              </ul>
-              <Button variant="primary" size="lg" fullWidth className="pricing-btn">Subscribe</Button>
-            </CardBody>
+              <div className="pricing-stat featured">
+                <div className="pricing-stat-value">80ms</div>
+                <div className="pricing-stat-label">Response</div>
+              </div>
+            </div>
+            
+            {/* CTA */}
+            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
+              <Button variant="primary" size="lg" fullWidth className="pricing-btn">Get Started</Button>
+              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>14-day free trial included</p>
+            </div>
           </Card>
 
-          <Card variant="outlined" padding="lg" className="pricing-card">
-            <CardHeader>
-              <div className="pricing-header-content">
-                <h3 className="pricing-plan">Ultimate</h3>
-                <div className="pricing-discount">-30%</div>
+          <Card variant="outlined" padding="lg" className="pricing-card glass-effect">
+            {/* Top Badge */}
+            <div className="pricing-card-header">
+              <div className="icon-circle">
+                <span style={{ fontSize: '14px', color: '#8b5cf6' }}>🏢</span>
               </div>
-            </CardHeader>
-            <CardBody>
-              <div className="pricing-price">
-                <span className="price-old">$80</span>
-                <span className="price-current">$56</span>
-                <span className="price-period">/mo</span>
+              <h3 className="pricing-card-title">Enterprise</h3>
+            </div>
+            
+            {/* Price */}
+            <div className="pricing-price">
+              <span className="price-current">$56</span>
+              <span className="price-period">/month</span>
+            </div>
+            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>For organizations with advanced requirements</p>
+            
+            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
+            
+            {/* Features */}
+            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Unlimited thumbnails</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Unlimited AI models</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Full API ecosystem</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>24/7 dedicated support</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Advanced custom training</span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
+                <span>Dedicated resources</span>
+              </li>
+            </ul>
+            
+            {/* Stats */}
+            <div className="pricing-stats">
+              <div className="pricing-stat">
+                <div className="pricing-stat-value">99.99%</div>
+                <div className="pricing-stat-label">Uptime</div>
               </div>
-              <p className="pricing-billing">Billed Annually</p>
-              <p className="pricing-description">Generate up to <strong>5400 thumbnails</strong> per year.</p>
-              <ul className="pricing-features">
-                <li>✅ 54000 credits</li>
-                <li>✅ Works in Any Language</li>
-                <li>✅ All features</li>
-                <li>✅ Priority support</li>
-              </ul>
-              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Subscribe</Button>
-            </CardBody>
+              <div className="pricing-stat">
+                <div className="pricing-stat-value">50ms</div>
+                <div className="pricing-stat-label">Response</div>
+              </div>
+            </div>
+            
+            {/* CTA */}
+            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
+              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Contact Sales</Button>
+              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>Custom pricing available</p>
+            </div>
           </Card>
+        </div>
+        
+        {/* Bottom compliance text and badges */}
+        <div className="compliance-section">
+          <p className="compliance-text">
+            All plans include core features: Advanced AI models, REST API, 99.9% uptime SLA, Enterprise encryption, and Community access.
+          </p>
+          <div className="compliance-badges">
+            <span className="compliance-badge">GDPR COMPLIANT</span>
+            <span className="compliance-badge">SOC 2 CERTIFIED</span>
+            <span className="compliance-badge">HIPAA READY</span>
+            <span className="compliance-badge">ISO 27001</span>
+          </div>
         </div>
       </section>
 

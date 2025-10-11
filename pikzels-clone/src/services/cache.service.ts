@@ -3,19 +3,36 @@ import Redis from 'ioredis';
 export class CacheService {
   private static instance: CacheService;
   private redis: Redis | null = null;
+  private inMemoryCache: Map<string, { value: any; expires: number }> = new Map();
+  private isRedisAvailable = false;
+  private redisCheckInterval: NodeJS.Timeout | null = null;
+  private memoryCacheCleanupInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     // Skip Redis connection in test environment
     if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
-      console.log('🧪 Test environment detected - skipping Redis connection');
+      console.log('🧪 Test environment detected - using in-memory cache only');
+      this.startMemoryCacheCleanup();
       return;
     }
 
+    // Initialize in-memory cache as fallback
+    this.startMemoryCacheCleanup();
+    
+    // Try to connect to Redis (production-like setup)
+    this.initializeRedis();
+  }
+
+  private initializeRedis() {
     const redisConfig: any = {
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      maxRetriesPerRequest: 3,
+      // NOTE: Changed from standard port 6379 to 8520 to follow project port convention (8500-8599)
+      port: parseInt(process.env.REDIS_PORT || '8520'),
+      maxRetriesPerRequest: 2,
+      retryDelayOnFailover: 100,
       lazyConnect: true,
+      connectTimeout: 3000,
+      commandTimeout: 2000,
     };
 
     if (process.env.REDIS_PASSWORD) {
@@ -26,12 +43,56 @@ export class CacheService {
 
     // Handle connection events
     this.redis.on('connect', () => {
-      console.log('✅ Redis connected successfully');
+      console.log('✅ Redis connected successfully - using Redis cache');
+      this.isRedisAvailable = true;
+      if (this.redisCheckInterval) {
+        clearInterval(this.redisCheckInterval);
+        this.redisCheckInterval = null;
+      }
     });
 
     this.redis.on('error', (error) => {
-      console.warn('⚠️  Redis connection error:', error.message);
+      if (!this.isRedisAvailable) {
+        // Only log once when initially failing
+        console.log('⚠️  Redis unavailable - falling back to in-memory cache');
+      }
+      this.isRedisAvailable = false;
+      this.startRedisRetryCheck();
     });
+
+    this.redis.on('close', () => {
+      console.log('📴 Redis connection closed - using in-memory cache');
+      this.isRedisAvailable = false;
+      this.startRedisRetryCheck();
+    });
+  }
+
+  private startRedisRetryCheck() {
+    if (this.redisCheckInterval) return;
+    
+    // Check Redis availability every 30 seconds
+    this.redisCheckInterval = setInterval(async () => {
+      try {
+        if (this.redis) {
+          await this.redis.ping();
+          // If ping succeeds, Redis is back online
+        }
+      } catch {
+        // Redis still unavailable
+      }
+    }, 30000);
+  }
+
+  private startMemoryCacheCleanup() {
+    // Clean up expired entries every 5 minutes
+    this.memoryCacheCleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of this.inMemoryCache.entries()) {
+        if (entry.expires && entry.expires < now) {
+          this.inMemoryCache.delete(key);
+        }
+      }
+    }, 300000);
   }
 
   static getInstance(): CacheService {
@@ -42,31 +103,52 @@ export class CacheService {
   }
 
   /**
-   * Get cached data
+   * Get cached data - tries Redis first, falls back to in-memory
    */
   async get<T>(key: string): Promise<T | null> {
-    if (!this.redis) return null;
+    // Try Redis first (production-like)
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        const data = await this.redis.get(key);
+        return data ? JSON.parse(data) : null;
+      } catch (error) {
+        // Redis failed, fall back to in-memory
+        this.isRedisAvailable = false;
+        this.startRedisRetryCheck();
+      }
+    }
     
-    try {
-      const data = await this.redis.get(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.warn(`Cache get error for key ${key}:`, error);
+    // Use in-memory cache as fallback
+    const entry = this.inMemoryCache.get(key);
+    if (!entry) return null;
+    
+    // Check if expired
+    if (entry.expires && entry.expires < Date.now()) {
+      this.inMemoryCache.delete(key);
       return null;
     }
+    
+    return entry.value;
   }
 
   /**
-   * Set cached data with TTL
+   * Set cached data with TTL - uses both Redis and in-memory for resilience
    */
   async set(key: string, value: any, ttlSeconds = 300): Promise<void> {
-    if (!this.redis) return;
-    
-    try {
-      await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
-    } catch (error) {
-      console.warn(`Cache set error for key ${key}:`, error);
+    // Try Redis first (production-like)
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
+      } catch (error) {
+        // Redis failed, mark as unavailable
+        this.isRedisAvailable = false;
+        this.startRedisRetryCheck();
+      }
     }
+    
+    // Always store in in-memory cache as backup
+    const expires = ttlSeconds > 0 ? Date.now() + (ttlSeconds * 1000) : 0;
+    this.inMemoryCache.set(key, { value, expires });
   }
 
   /**
@@ -149,17 +231,37 @@ export class CacheService {
   }
 
   /**
-   * Health check
+   * Health check - returns true if either Redis or in-memory cache is available
    */
   async healthCheck(): Promise<boolean> {
-    if (!this.redis) return false;
-    
-    try {
-      await this.redis.ping();
-      return true;
-    } catch {
-      return false;
+    // Check Redis first
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        await this.redis.ping();
+        return true;
+      } catch {
+        this.isRedisAvailable = false;
+        this.startRedisRetryCheck();
+      }
     }
+    
+    // In-memory cache is always available as fallback
+    return true;
+  }
+
+  /**
+   * Cleanup method for tests - clears all timers
+   */
+  cleanup(): void {
+    if (this.redisCheckInterval) {
+      clearInterval(this.redisCheckInterval);
+      this.redisCheckInterval = null;
+    }
+    if (this.memoryCacheCleanupInterval) {
+      clearInterval(this.memoryCacheCleanupInterval);
+      this.memoryCacheCleanupInterval = null;
+    }
+    this.inMemoryCache.clear();
   }
 
   /**

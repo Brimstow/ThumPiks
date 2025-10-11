@@ -22,7 +22,23 @@ export interface MFASettings {
 export class MFAService {
   
   /**
-   * Setup MFA for a user
+   * Setup Multi-Factor Authentication for a user
+   * 
+   * Generates TOTP secret, backup codes, and QR code for authenticator app setup.
+   * The MFA is initially disabled until user verifies they can generate valid tokens.
+   * 
+   * @param {string} userId - Unique identifier for the user
+   * @returns {Promise<MFASetupResponse>} Setup data including secret, QR code, and backup codes
+   * @throws {Error} Specific error messages for different failure scenarios
+   * 
+   * @example
+   * ```typescript
+   * const setupData = await MFAService.setupMFA('user_123');
+   * // User scans setupData.qrCodeUrl with authenticator app
+   * // setupData.backupCodes should be saved securely by user
+   * ```
+   * 
+   * @since 1.0.0
    */
   static async setupMFA(userId: string): Promise<MFASetupResponse> {
     try {
@@ -69,8 +85,34 @@ export class MFAService {
         backupCodes,
       };
     } catch (error) {
-      logger.error('MFA setup failed', error as Error, { userId });
-      throw new Error('Failed to setup MFA');
+      const err = error as Error;
+      
+      // ENHANCED: Log the exact error for debugging but preserve specific messages
+      try {
+        logger.error('MFA setup failed', err, { userId, step: 'setup' });
+      } catch (logError) {
+        // If logger fails, don't let it break the error reporting
+        console.error('Logger error:', logError);
+        console.error('Original MFA error:', err.message);
+      }
+      
+      // FIXED: Preserve specific error messages instead of masking them
+      if (err.message === 'User not found') {
+        throw new Error('User not found');
+      }
+      if (err.message.includes('already enabled') || err.message.includes('MFA')) {
+        throw err; // Preserve MFA-specific errors
+      }
+      if (err.message.includes('encrypt') || err.message.includes('store') || err.message.includes('Failed to store')) {
+        throw new Error('Failed to store MFA settings');
+      }
+      if (err.message.includes('logger') || err.message.includes('security')) {
+        // Logger-related errors shouldn't break MFA setup
+        throw new Error('MFA setup completed but logging failed');
+      }
+      
+      // For debugging: include the original error message
+      throw new Error(`Failed to setup MFA: ${err.message}`);
     }
   }
 
@@ -205,14 +247,29 @@ export class MFAService {
   }
 
   /**
-   * Generate new backup codes
+   * Generate new backup codes for MFA
+   * 
+   * Replaces existing backup codes with fresh ones. Only works for users with MFA enabled.
+   * Old backup codes become invalid immediately.
+   * 
+   * @param {string} userId - User identifier
+   * @returns {Promise<string[]>} Array of 10 new 8-character backup codes
+   * @throws {Error} When MFA is not enabled or regeneration fails
+   * 
+   * @example
+   * ```typescript
+   * const newCodes = await MFAService.regenerateBackupCodes('user_123');
+   * // newCodes = ['ABC12345', 'DEF67890', ...]
+   * ```
+   * 
+   * @since 1.0.0
    */
   static async regenerateBackupCodes(userId: string): Promise<string[]> {
     try {
       const mfaSettings = await this.getMFASettings(userId);
       
       if (!mfaSettings?.enabled) {
-        throw new Error('MFA not enabled for this user');
+        throw new Error('MFA not enabled');
       }
 
       const newBackupCodes = this.generateBackupCodes();
@@ -223,7 +280,17 @@ export class MFAService {
       logger.security('info', 'MFA backup codes regenerated', { userId });
       return newBackupCodes;
     } catch (error) {
-      logger.error('Failed to regenerate backup codes', error as Error, { userId });
+      const err = error as Error;
+      logger.error('Failed to regenerate backup codes', err, { userId });
+      
+      // FIXED: Preserve specific error messages
+      if (err.message === 'MFA not enabled') {
+        throw new Error('MFA not enabled');
+      }
+      if (err.message.includes('store') || err.message.includes('encrypt')) {
+        throw new Error('Failed to store backup codes');
+      }
+      
       throw new Error('Failed to regenerate backup codes');
     }
   }

@@ -54,7 +54,8 @@ Performs a coordinated restart of both servers.
 - **Coordinated restart**: Both servers restart together
 
 ### 3. Session Persistence
-- Sessions stored in persistent storage (Redis or files)
+- Sessions stored in persistent storage (Redis on port 8520 or files)
+- NOTE: Redis port changed from standard 6379 to 8520 for project port convention
 - Automatic session restoration after server restarts
 - Login state maintained across restarts
 - **No more login failures!**

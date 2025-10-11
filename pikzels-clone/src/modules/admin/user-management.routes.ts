@@ -43,7 +43,17 @@ router.get(
   userManagementController.getUserStats
 );
 
-// Get user by ID
+// Health check for user management system
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    service: 'user-management',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
+// Get user by ID (this must come AFTER /stats and /health to avoid conflicts)
 router.get(
   '/:userId',
   authenticateAdmin,
@@ -125,17 +135,5 @@ router.delete(
   removeRoleValidation,
   userManagementController.removeAdminRole
 );
-
-/**
- * Health check for user management system
- */
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    service: 'user-management',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
-});
 
 export default router;

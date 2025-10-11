@@ -1,10 +1,23 @@
 import { PrismaClient } from '@prisma/client';
 import { CacheService } from '../../services/cache.service';
 
-const prisma = new PrismaClient();
-const cache = CacheService.getInstance();
+// Default instances for production use
+const defaultPrisma = new PrismaClient();
+const defaultCache = CacheService.getInstance();
+
+export interface ProjectServiceDependencies {
+  prisma?: PrismaClient;
+  cache?: CacheService;
+}
 
 export class ProjectService {
+  private prisma: PrismaClient;
+  private cache: CacheService;
+
+  constructor(dependencies: ProjectServiceDependencies = {}) {
+    this.prisma = dependencies.prisma || defaultPrisma;
+    this.cache = dependencies.cache || defaultCache;
+  }
   // 🏗️ HIERARCHY HELPER METHODS
   
   /**
@@ -16,7 +29,7 @@ export class ProjectService {
       return '/'; // Root project
     }
     
-    const parentProject = await prisma.project.findUnique({
+    const parentProject = await this.prisma.project.findUnique({
       where: { id: parentProjectId },
       select: { projectPath: true }
     });
@@ -32,7 +45,7 @@ export class ProjectService {
       return 0; // Root project
     }
     
-    const parentProject = await prisma.project.findUnique({
+    const parentProject = await this.prisma.project.findUnique({
       where: { id: parentProjectId },
       select: { depth: true }
     });
@@ -49,7 +62,7 @@ export class ProjectService {
   ): Promise<void> {
     if (!parentProjectId) return; // Root projects are always valid
     
-    const parentProject = await prisma.project.findUnique({
+    const parentProject = await this.prisma.project.findUnique({
       where: { id: parentProjectId },
       select: { depth: true, folderType: true }
     });
@@ -86,7 +99,7 @@ export class ProjectService {
     const depth = await this.calculateDepth(data.parentProjectId);
     const projectPath = await this.generateProjectPath(data.parentProjectId);
     
-    const project = await prisma.project.create({
+    const project = await this.prisma.project.create({
       data: {
         name: data.name,
         description: data.description || null,
@@ -99,10 +112,10 @@ export class ProjectService {
     });
 
     // Invalidate related caches
-    await cache.del(`projects:user:${data.userId}`);
-    await cache.del(`projects:tree:${data.userId}`);
+    await this.cache.del(`projects:user:${data.userId}`);
+    await this.cache.del(`projects:tree:${data.userId}`);
     if (data.parentProjectId) {
-      await cache.del(`projects:children:${data.parentProjectId}`);
+      await this.cache.del(`projects:children:${data.parentProjectId}`);
     }
 
     return project;
@@ -111,10 +124,10 @@ export class ProjectService {
   async getProjectsByUser(userId: string) {
     const cacheKey = `projects:user:${userId}`;
     
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
-        return prisma.project.findMany({
+        return this.prisma.project.findMany({
           where: { userId },
           orderBy: {
             createdAt: 'desc',
@@ -131,10 +144,10 @@ export class ProjectService {
   async getProjectById(id: string) {
     const cacheKey = `project:${id}`;
     
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
-        return prisma.project.findUnique({
+        return this.prisma.project.findUnique({
           where: { id },
           include: {
             featuredThumbnail: true,
@@ -160,20 +173,20 @@ export class ProjectService {
     }>
   ) {
     // Get project info for cache invalidation
-    const existingProject = await prisma.project.findUnique({
+    const existingProject = await this.prisma.project.findUnique({
       where: { id },
       select: { userId: true },
     });
 
-    const project = await prisma.project.update({
+    const project = await this.prisma.project.update({
       where: { id },
       data,
     });
 
     // Invalidate caches
-    await cache.del(`project:${id}`);
+    await this.cache.del(`project:${id}`);
     if (existingProject) {
-      await cache.del(`projects:user:${existingProject.userId}`);
+      await this.cache.del(`projects:user:${existingProject.userId}`);
     }
 
     return project;
@@ -181,19 +194,19 @@ export class ProjectService {
 
   async deleteProject(id: string) {
     // Get project info for cache invalidation
-    const existingProject = await prisma.project.findUnique({
+    const existingProject = await this.prisma.project.findUnique({
       where: { id },
       select: { userId: true },
     });
 
-    const project = await prisma.project.delete({
+    const project = await this.prisma.project.delete({
       where: { id },
     });
 
     // Invalidate caches
-    await cache.del(`project:${id}`);
+    await this.cache.del(`project:${id}`);
     if (existingProject) {
-      await cache.del(`projects:user:${existingProject.userId}`);
+      await this.cache.del(`projects:user:${existingProject.userId}`);
     }
 
     return project;
@@ -201,7 +214,7 @@ export class ProjectService {
 
   async setFeaturedThumbnail(projectId: string, thumbnailId: string) {
     // First verify that the thumbnail belongs to this project
-    const thumbnail = await prisma.thumbnail.findUnique({
+    const thumbnail = await this.prisma.thumbnail.findUnique({
       where: { id: thumbnailId },
     });
 
@@ -210,7 +223,7 @@ export class ProjectService {
     }
 
     // Update the project with the featured thumbnail
-    const project = await prisma.project.update({
+    const project = await this.prisma.project.update({
       where: { id: projectId },
       data: {
         featuredThumbnailId: thumbnailId,
@@ -218,16 +231,16 @@ export class ProjectService {
     });
 
     // Invalidate project cache
-    await cache.del(`project:${projectId}`);
+    await this.cache.del(`project:${projectId}`);
     
     // Get user ID for invalidating user projects cache
-    const projectInfo = await prisma.project.findUnique({
+    const projectInfo = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { userId: true },
     });
     
     if (projectInfo) {
-      await cache.del(`projects:user:${projectInfo.userId}`);
+      await this.cache.del(`projects:user:${projectInfo.userId}`);
     }
 
     return project;
@@ -241,11 +254,11 @@ export class ProjectService {
   async getProjectsTree(userId: string) {
     const cacheKey = `projects:tree:${userId}`;
     
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
         // Get all projects for the user
-        const allProjects = await prisma.project.findMany({
+        const allProjects = await this.prisma.project.findMany({
           where: { userId },
           orderBy: [
             { depth: 'asc' },
@@ -298,10 +311,10 @@ export class ProjectService {
   async getProjectChildren(parentProjectId: string) {
     const cacheKey = `projects:children:${parentProjectId}`;
     
-    return cache.getOrSet(
+    return this.cache.getOrSet(
       cacheKey,
       async () => {
-        return prisma.project.findMany({
+        return this.prisma.project.findMany({
           where: { parentProjectId },
           orderBy: [
             { folderType: 'asc' }, // Projects first, then folders
@@ -326,7 +339,7 @@ export class ProjectService {
    * Get project breadcrumb path
    */
   async getProjectBreadcrumb(projectId: string): Promise<Array<{id: string, name: string, folderType: string}>> {
-    const project = await prisma.project.findUnique({
+    const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { id: true, name: true, folderType: true, parentProjectId: true }
     });
@@ -365,7 +378,7 @@ export class ProjectService {
     const newDepth = await this.calculateDepth(newParentId);
     const newPath = await this.generateProjectPath(newParentId);
     
-    const project = await prisma.project.update({
+    const project = await this.prisma.project.update({
       where: { id: projectId },
       data: {
         parentProjectId: newParentId || null,
@@ -375,14 +388,14 @@ export class ProjectService {
     });
     
     // Invalidate relevant caches
-    const projectInfo = await prisma.project.findUnique({
+    const projectInfo = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { userId: true }
     });
     
     if (projectInfo) {
-      await cache.del(`projects:tree:${projectInfo.userId}`);
-      await cache.del(`projects:user:${projectInfo.userId}`);
+      await this.cache.del(`projects:tree:${projectInfo.userId}`);
+      await this.cache.del(`projects:user:${projectInfo.userId}`);
     }
     
     return project;

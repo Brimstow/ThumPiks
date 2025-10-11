@@ -1,9 +1,9 @@
 import { Response } from 'express';
-// import { PrismaClient } from '@prisma/client'; // Reserved for future database operations
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../../types/auth';
 
-// TODO: Restore when implementing database operations
-// const prisma = new PrismaClient();
+// Initialize Prisma client for database operations
+const prisma = new PrismaClient();
 
 export class ProfileController {
   async getProfile(req: AuthRequest, res: Response) {
@@ -37,38 +37,83 @@ export class ProfileController {
     }
   }
 
-  // Get user settings
-  async getUserSettings(req: AuthRequest, res: Response) {
+  /**
+   * Get user settings from database
+   * 
+   * @param {AuthRequest} req - Express request with authenticated user
+   * @param {Response} res - Express response object
+   * @returns {Promise<void>} JSON response with user settings
+   * 
+   * @example Success response
+   * ```json
+   * {
+   *   "settings": {
+   *     "theme": "dark",
+   *     "language": "en"
+   *   }
+   * }
+   * ```
+   */
+  async getUserSettings(req: AuthRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
       }
 
-      // Get user settings logic here
-      const settings = { theme: 'light', notifications: true };
+      // Fetch user settings from database
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { settings: true },
+      });
+
+      // Return settings or empty object if no settings found
+      const settings = user?.settings || {};
       
-      return res.status(200).json({ settings });
+      res.status(200).json({ settings });
     } catch (error) {
       console.error('Error getting user settings:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  async updateUserSettings(req: AuthRequest, res: Response) {
+  /**
+   * Update user settings in database
+   * 
+   * @param {AuthRequest} req - Express request with settings data
+   * @param {Response} res - Express response object
+   * @returns {Promise<void>} JSON response with updated settings
+   * 
+   * @example Request body
+   * ```json
+   * {
+   *   "settings": {
+   *     "theme": "dark",
+   *     "language": "es"
+   *   }
+   * }
+   * ```
+   */
+  async updateUserSettings(req: AuthRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
       }
 
-      const { theme, notifications } = req.body;
+      const { settings } = req.body;
       
-      // Update user settings logic here
-      const settings = { theme, notifications };
+      // Update user settings in database
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user.id },
+        data: { settings },
+        select: { settings: true },
+      });
       
-      return res.status(200).json({ settings });
+      res.status(200).json({ settings: updatedUser.settings });
     } catch (error) {
       console.error('Error updating user settings:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 }

@@ -52,48 +52,28 @@ jest.mock('sharp', () => {
   }));
 });
 
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => ({
-    $connect: jest.fn().mockResolvedValue(undefined),
-    $disconnect: jest.fn().mockResolvedValue(undefined),
-    user: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    thumbnail: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    project: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    socialShare: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      delete: jest.fn(),
-    },
-  })),
-}));
+// Global teardown to cleanup intervals and timers
+afterAll(async () => {
+  // Clean up all service singletons and their timers
+  try {
+    // Import services dynamically to avoid import issues
+    const { CacheService } = await import('../services/cache.service');
+    const { analyticsHandlers } = await import('../events/analytics-handlers');
+    const { socialShareHandlers } = await import('../events/social-share-handlers');
+    const { systemMonitoringService } = await import('../modules/admin/system-monitoring.service');
 
-// Mock Redis
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue('OK'),
-    del: jest.fn().mockResolvedValue(1),
-    exists: jest.fn().mockResolvedValue(0),
-    expire: jest.fn().mockResolvedValue(1),
-    connect: jest.fn().mockResolvedValue(undefined),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-  }));
+    // Call cleanup methods
+    const cacheService = CacheService.getInstance();
+    cacheService.cleanup();
+    
+    await analyticsHandlers.cleanup();
+    await socialShareHandlers.cleanup();
+    systemMonitoringService.stop();
+    
+  } catch (error) {
+    console.error('❌ Error during global test cleanup:', error);
+  }
 });
+
+// Note: Service-specific mocks (Prisma, Redis, etc.) should be handled 
+// in individual test files to avoid conflicts and ensure proper isolation

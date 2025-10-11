@@ -44,11 +44,19 @@ module.exports = {
     '@typescript-eslint/prefer-optional-chain': 'warn', // Consistent warning level
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/explicit-function-return-type': 'off',
-    // Temporary commit-ready adjustments
-    '@typescript-eslint/no-explicit-any': 'off', // Temporarily disabled for commit
-    '@typescript-eslint/prefer-nullish-coalescing': 'off', // Temporarily disabled for commit
-    '@typescript-eslint/ban-types': 'off', // Temporarily disabled for commit
-    '@typescript-eslint/naming-convention': 'off', // Temporarily disabled for commit
+    // PROFESSIONAL CODE QUALITY RULES (Progressive re-enablement)
+    '@typescript-eslint/no-explicit-any': 'warn', // Warn first, then error
+    '@typescript-eslint/prefer-nullish-coalescing': 'warn', // Re-enabled with warning
+    '@typescript-eslint/ban-types': 'warn', // Re-enabled with warning
+    '@typescript-eslint/naming-convention': 'warn', // Re-enabled with warning
+    
+    // ADDITIONAL PROFESSIONAL STANDARDS
+    'complexity': ['warn', 10], // Cyclomatic complexity
+    'max-depth': ['warn', 3], // Max nesting depth
+    'max-lines-per-function': ['warn', 50], // Function size limit
+    'no-magic-numbers': ['warn', { 'ignore': [0, 1, -1, 100, 404, 401, 500] }],
+    'prefer-const': 'error',
+    'no-var': 'error'
   },
   env: {
     node: true,

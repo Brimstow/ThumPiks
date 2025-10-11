@@ -10,11 +10,63 @@ if (typeof fs !== 'undefined' && fs.mkdir) {
 
 export class ImageProcessingService {
   /**
-   * Apply edits to an image and save the result
-   * @param imageUrl The URL of the source image
-   * @param edits The edit parameters to apply
-   * @param thumbnailId The ID of the thumbnail (used for filename)
-   * @returns The path to the processed image
+   * Apply comprehensive edits to an image using Sharp.js for high-performance processing
+   * 
+   * Supports resize, color adjustments, filters, transformations, and crop operations.
+   * Processes the image server-side and saves result to the processed-images directory.
+   * 
+   * @param {string} imageUrl - URL or path to the source image to process
+   * @param {Object} edits - Edit parameters configuration object
+   * @param {Object} [edits.resize] - Resize dimensions
+   * @param {number} edits.resize.width - Target width in pixels (1-4000)
+   * @param {number} edits.resize.height - Target height in pixels (1-4000)
+   * @param {number} [edits.brightness] - Brightness adjustment (-100 to 100, 0 = no change)
+   * @param {number} [edits.contrast] - Contrast adjustment (-100 to 100, 0 = no change)
+   * @param {number} [edits.saturation] - Saturation adjustment (-100 to 100, 0 = no change)
+   * @param {number} [edits.hue] - Hue rotation in degrees (0-360)
+   * @param {number} [edits.blur] - Blur radius (0-50)
+   * @param {number} [edits.rotation] - Rotation angle in degrees (0-360)
+   * @param {boolean} [edits.flipHorizontal] - Flip image horizontally
+   * @param {boolean} [edits.flipVertical] - Flip image vertically
+   * @param {Object} [edits.crop] - Crop region as percentages
+   * @param {number} edits.crop.x - X position (0-100%)
+   * @param {number} edits.crop.y - Y position (0-100%)
+   * @param {number} edits.crop.width - Width (1-100%)
+   * @param {number} edits.crop.height - Height (1-100%)
+   * @param {string} [edits.filter] - Pre-built filter name
+   * @param {string} thumbnailId - Unique identifier for the thumbnail (used in output filename)
+   * @returns {Promise<string>} Absolute file path to the processed image (PNG format)
+   * @throws {Error} When image processing fails or invalid parameters provided
+   * 
+   * @example Basic resize and brightness adjustment
+   * ```typescript
+   * const processedPath = await imageService.applyEditsToImage(
+   *   'https://example.com/image.jpg',
+   *   {
+   *     resize: { width: 800, height: 600 },
+   *     brightness: 20,
+   *     contrast: 10
+   *   },
+   *   'thumb_123'
+   * );
+   * console.log('Processed image saved to:', processedPath);
+   * ```
+   * 
+   * @example Apply filter and crop
+   * ```typescript
+   * const editedImage = await imageService.applyEditsToImage(
+   *   '/uploads/photo.png',
+   *   {
+   *     filter: 'vintage',
+   *     crop: { x: 10, y: 10, width: 80, height: 80 },
+   *     rotation: 45
+   *   },
+   *   'thumb_456'
+   * );
+   * ```
+   * 
+   * @since 1.0.0
+   * @see {@link batchApplyEditsToImages} For processing multiple images with same edits
    */
   async applyEditsToImage(
     imageUrl: string,

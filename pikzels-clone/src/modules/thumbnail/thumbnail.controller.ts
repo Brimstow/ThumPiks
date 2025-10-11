@@ -6,9 +6,52 @@ import { emitAnalyticsEvent } from '../../events/event-emitter';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 
-const thumbnailService = new ThumbnailService();
-const imageProcessingService = new ImageProcessingService();
-const prisma = new PrismaClient();
+// Create shared instances that can be overridden for testing
+let sharedPrisma: PrismaClient;
+let sharedThumbnailService: ThumbnailService;
+let sharedImageProcessingService: ImageProcessingService;
+
+// Initialize services (can be overridden in tests)
+export const initializeServices = (
+  prismaClient?: PrismaClient, 
+  cacheService?: any,
+  eventDependencies?: any
+) => {
+  sharedPrisma = prismaClient || new PrismaClient();
+  sharedThumbnailService = new ThumbnailService({ 
+    prisma: sharedPrisma,
+    cache: cacheService,
+    ...eventDependencies
+  });
+  sharedImageProcessingService = new ImageProcessingService();
+};
+
+// Initialize with default instances for production
+if (process.env.NODE_ENV !== 'test') {
+  initializeServices();
+}
+
+// Getter functions to access services
+const getThumbnailService = () => {
+  if (!sharedThumbnailService) {
+    initializeServices();
+  }
+  return sharedThumbnailService;
+};
+
+const getPrisma = () => {
+  if (!sharedPrisma) {
+    initializeServices();
+  }
+  return sharedPrisma;
+};
+
+const getImageProcessingService = () => {
+  if (!sharedImageProcessingService) {
+    initializeServices();
+  }
+  return sharedImageProcessingService;
+};
 
 // Mock AI service for now
 const aiService = {
@@ -32,7 +75,7 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const thumbnail = await thumbnailService.createThumbnail({
+    const thumbnail = await getThumbnailService().createThumbnail({
       title,
       imageUrl: imageUrl || '',
       prompt,
@@ -75,12 +118,14 @@ export const getThumbnails = async (req: AuthRequest, res: Response) => {
     if (dateFrom) filters.dateFrom = new Date(String(dateFrom));
     if (dateTo) filters.dateTo = new Date(String(dateTo));
 
-    const thumbnails = await thumbnailService.getThumbnailsByUser(req.user.id, filters);
+    const thumbnails = await getThumbnailService().getThumbnailsByUser(req.user.id, filters);
 
     return res.status(200).json({ thumbnails });
   } catch (error) {
     console.error('Error fetching thumbnails:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', { message: error instanceof Error ? error.message : String(error), userId: req.user?.id });
+    return res.status(500).json({ error: 'Internal server error', debug: process.env.NODE_ENV === 'test' ? String(error) : undefined });
   }
 };
 
@@ -95,7 +140,7 @@ export const getThumbnailById = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -126,7 +171,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
     
     const { title, imageUrl, prompt, parameters } = req.body;
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -137,7 +182,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       title,
       imageUrl,
       prompt,
@@ -162,7 +207,7 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -173,7 +218,7 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    await thumbnailService.deleteThumbnail(id);
+    await getThumbnailService().deleteThumbnail(id);
     return res.status(204).send();
   } catch (error) {
     console.error('Error deleting thumbnail:', error);
@@ -218,7 +263,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         // Generate 3 variations
         const thumbnails = [];
         for (let i = 0; i < Math.min(imageUrls.length, 3); i++) {
-          const thumbnail = await thumbnailService.createThumbnail({
+          const thumbnail = await getThumbnailService().createThumbnail({
             title: `${prompt.substring(0, 30)} ${i + 1}`,
             imageUrl: imageUrls[i] || '',
             prompt,
@@ -249,7 +294,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         // Generate 3 variations
         const thumbnails = [];
         for (let i = 1; i <= 3; i++) {
-          const thumbnail = await thumbnailService.createThumbnail({
+          const thumbnail = await getThumbnailService().createThumbnail({
             title: `${prompt.substring(0, 30)} ${i}`,
             imageUrl: imageUrl,
             prompt,
@@ -279,7 +324,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
       // Generate 3 variations
       const thumbnails = [];
       for (let i = 1; i <= 3; i++) {
-        const thumbnail = await thumbnailService.createThumbnail({
+        const thumbnail = await getThumbnailService().createThumbnail({
           title: `${prompt.substring(0, 30)} ${i}`,
           imageUrl: imageUrl,
           prompt,
@@ -320,7 +365,7 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -365,7 +410,7 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -382,13 +427,13 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
       // Only process if there are actual edits
       if (edits && Object.keys(edits).length > 0) {
         const processedImagePath =
-          await imageProcessingService.applyEditsToImage(
+          await getImageProcessingService().applyEditsToImage(
             thumbnail.imageUrl,
             edits,
             id
           );
         processedImageUrl =
-          imageProcessingService.getProcessedImageUrl(processedImagePath);
+          getImageProcessingService().getProcessedImageUrl(processedImagePath);
       }
     } catch (processingError) {
       console.error('Error processing image:', processingError);
@@ -402,7 +447,7 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
       processedImageUrl, // Store the processed image URL
     };
 
-    const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       parameters: updatedParameters,
       // Update the imageUrl to point to the processed image
       imageUrl: processedImageUrl,
@@ -430,7 +475,7 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -442,7 +487,7 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
     }
 
     // Style transfer logic here
-    const updatedThumbnail = await thumbnailService.updateThumbnail(
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(
       id,
       { parameters: { styleTransfer: true } }
     );
@@ -469,7 +514,7 @@ export const applyImageEnhancement = async (
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -481,7 +526,7 @@ export const applyImageEnhancement = async (
     }
 
     // Image enhancement logic here
-    const updatedThumbnail = await thumbnailService.updateThumbnail(
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(
       id,
       { parameters: { imageEnhancement: true } }
     );
@@ -505,7 +550,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
     
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -526,7 +571,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
       shareExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Expires in 30 days
     };
 
-    await thumbnailService.updateThumbnail(id, {
+    await getThumbnailService().updateThumbnail(id, {
       parameters: updatedParameters,
     });
 
@@ -558,7 +603,7 @@ export const accessSharedThumbnail = async (req: Request, res: Response) => {
     // Note: This is a simplified approach. In a real implementation, you might want to:
     // 1. Add a dedicated shareToken field to the database schema
     // 2. Or use a more robust method to query JSON fields
-    const thumbnails = await prisma.thumbnail.findMany({
+    const thumbnails = await getPrisma().thumbnail.findMany({
       where: {
         // This is a workaround for querying JSON fields
         // In a production environment, you'd want a dedicated field for share tokens
@@ -612,7 +657,7 @@ export const revokeShareLink = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
     
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -630,7 +675,7 @@ export const revokeShareLink = async (req: AuthRequest, res: Response) => {
     delete (updatedParameters as any).shareToken;
     delete (updatedParameters as any).shareExpiresAt;
 
-    const updatedThumbnail = await thumbnailService.updateThumbnail(id, {
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       parameters: updatedParameters,
     });
 
@@ -656,7 +701,7 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
     
-    const thumbnail = await thumbnailService.getThumbnailById(id);
+    const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Thumbnail not found' });
@@ -668,7 +713,7 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
     }
 
     // Set this thumbnail as featured for its project
-    const updatedThumbnail = await thumbnailService.setThumbnailAsFeatured(
+    const updatedThumbnail = await getThumbnailService().setThumbnailAsFeatured(
       id,
       thumbnail.projectId
     );

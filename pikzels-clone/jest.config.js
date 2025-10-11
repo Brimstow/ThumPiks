@@ -26,5 +26,7 @@ module.exports = {
   ],
   // Handle ES modules properly
   extensionsToTreatAsEsm: ['.ts'],
-  testTimeout: 10000
+  testTimeout: 10000,
+  // Force Jest to exit after tests complete (prevents hanging from open handles)
+  forceExit: true
 };

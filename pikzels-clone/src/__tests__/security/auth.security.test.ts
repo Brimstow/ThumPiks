@@ -1,8 +1,6 @@
-import { AuthService } from '../../modules/auth/auth.service';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
-import { PrismaClient } from '@prisma/client';
 
-// Mock Prisma
+// Mock Prisma BEFORE importing services that use it
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
@@ -15,6 +13,10 @@ const mockPrisma = {
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
 }));
+
+// Import AuthService AFTER mocking Prisma
+import { AuthService } from '../../modules/auth/auth.service';
+import { PrismaClient } from '@prisma/client';
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({

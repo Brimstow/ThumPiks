@@ -1,8 +1,30 @@
 import { Response } from 'express';
 import { ProjectService } from './project.service';
 import { AuthRequest } from '../../types/auth';
+import { PrismaClient } from '@prisma/client';
 
-const projectService = new ProjectService();
+// Create shared instances that can be overridden for testing
+let sharedPrisma: PrismaClient;
+let sharedProjectService: ProjectService;
+
+// Initialize services (can be overridden in tests)
+export const initializeProjectServices = (prismaClient?: PrismaClient, cacheService?: any) => {
+  sharedPrisma = prismaClient || new PrismaClient();
+  sharedProjectService = new ProjectService({ prisma: sharedPrisma, cache: cacheService });
+};
+
+// Initialize with default instances for production
+if (process.env.NODE_ENV !== 'test') {
+  initializeProjectServices();
+}
+
+// Getter function to access service
+const getProjectService = () => {
+  if (!sharedProjectService) {
+    initializeProjectServices();
+  }
+  return sharedProjectService;
+};
 
 export class ProjectController {
   async createProject(req: AuthRequest, res: Response) {
@@ -29,7 +51,7 @@ export class ProjectController {
 
       // If parentProjectId is provided, verify it belongs to the user
       if (parentProjectId) {
-        const parentProject = await projectService.getProjectById(parentProjectId);
+        const parentProject = await getProjectService().getProjectById(parentProjectId);
         if (!parentProject || parentProject.userId !== req.user.id) {
           return res.status(400).json({
             error: 'Invalid parent project or access denied',
@@ -37,7 +59,7 @@ export class ProjectController {
         }
       }
 
-      const project = await projectService.createProject({
+      const project = await getProjectService().createProject({
         name,
         description,
         userId: req.user.id,
@@ -66,7 +88,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const projects = await projectService.getProjectsByUser(req.user.id);
+      const projects = await getProjectService().getProjectsByUser(req.user.id);
       return res.status(200).json({ projects });
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -85,7 +107,7 @@ export class ProjectController {
         return res.status(400).json({ error: 'Project ID is required' });
       }
 
-      const project = await projectService.getProjectById(id);
+      const project = await getProjectService().getProjectById(id);
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -115,7 +137,7 @@ export class ProjectController {
       }
       const { name, description, featuredThumbnailId } = req.body;
 
-      const project = await projectService.getProjectById(id);
+      const project = await getProjectService().getProjectById(id);
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -126,7 +148,7 @@ export class ProjectController {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const updatedProject = await projectService.updateProject(id, {
+      const updatedProject = await getProjectService().updateProject(id, {
         name,
         description,
         featuredThumbnailId,
@@ -149,7 +171,7 @@ export class ProjectController {
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
-      const project = await projectService.getProjectById(id);
+      const project = await getProjectService().getProjectById(id);
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -160,7 +182,7 @@ export class ProjectController {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      await projectService.deleteProject(id);
+      await getProjectService().deleteProject(id);
       return res.status(204).send();
     } catch (error) {
       console.error('Error deleting project:', error);
@@ -184,7 +206,7 @@ export class ProjectController {
       }
 
       // Verify the project exists and belongs to the user
-      const project = await projectService.getProjectById(projectId);
+      const project = await getProjectService().getProjectById(projectId);
 
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -195,7 +217,7 @@ export class ProjectController {
       }
 
       // Set the featured thumbnail
-      const updatedProject = await projectService.setFeaturedThumbnail(
+      const updatedProject = await getProjectService().setFeaturedThumbnail(
         projectId,
         thumbnailId
       );
@@ -223,7 +245,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const projectsTree = await projectService.getProjectsTree(req.user.id);
+      const projectsTree = await getProjectService().getProjectsTree(req.user.id);
       return res.status(200).json({ projectsTree });
     } catch (error) {
       console.error('Error fetching projects tree:', error);
@@ -247,12 +269,12 @@ export class ProjectController {
       }
       
       // Verify the parent project belongs to the user
-      const parentProject = await projectService.getProjectById(id);
+      const parentProject = await getProjectService().getProjectById(id);
       if (!parentProject || parentProject.userId !== req.user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const children = await projectService.getProjectChildren(id);
+      const children = await getProjectService().getProjectChildren(id);
       return res.status(200).json({ children });
     } catch (error) {
       console.error('Error fetching project children:', error);
@@ -274,12 +296,12 @@ export class ProjectController {
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
-      const project = await projectService.getProjectById(id);
+      const project = await getProjectService().getProjectById(id);
       if (!project || project.userId !== req.user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const breadcrumb = await projectService.getProjectBreadcrumb(id);
+      const breadcrumb = await getProjectService().getProjectBreadcrumb(id);
       return res.status(200).json({ breadcrumb });
     } catch (error) {
       console.error('Error fetching project breadcrumb:', error);
@@ -304,20 +326,20 @@ export class ProjectController {
       const { newParentId } = req.body;
       
       // Verify the project belongs to the user
-      const project = await projectService.getProjectById(id);
+      const project = await getProjectService().getProjectById(id);
       if (!project || project.userId !== req.user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
       
       // If new parent is specified, verify it belongs to the user
       if (newParentId) {
-        const newParent = await projectService.getProjectById(newParentId);
+        const newParent = await getProjectService().getProjectById(newParentId);
         if (!newParent || newParent.userId !== req.user.id) {
           return res.status(400).json({ error: 'Invalid new parent project' });
         }
       }
 
-      const movedProject = await projectService.moveProject(id, newParentId);
+      const movedProject = await getProjectService().moveProject(id, newParentId);
       return res.status(200).json({ project: movedProject });
     } catch (error: any) {
       console.error('Error moving project:', error);
