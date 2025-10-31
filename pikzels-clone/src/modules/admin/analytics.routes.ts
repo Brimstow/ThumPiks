@@ -118,7 +118,7 @@ router.get(
 /**
  * Health check for analytics system
  */
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     service: 'analytics',

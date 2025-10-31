@@ -3,6 +3,7 @@ import { adminAuthService, AdminUser, ADMIN_PERMISSIONS } from './admin-auth.ser
 
 // Extend Express Request interface to include admin user
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       adminUser?: AdminUser;

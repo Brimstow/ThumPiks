@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { adminAuthService } from './admin-auth.service';
 
 const prisma = new PrismaClient();
 
@@ -132,7 +131,7 @@ export class AnalyticsService {
         totalUsers,
         activeUsers,
         newUsers,
-        previousNewUsers,
+        ,
         userGrowthData,
         topUsers
       ] = await Promise.all([

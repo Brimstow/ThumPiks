@@ -100,7 +100,7 @@ router.post(
 /**
  * Health check for monitoring system
  */
-router.get('/status', (req, res) => {
+router.get('/status', (_req, res) => {
   res.json({
     success: true,
     service: 'system-monitoring',

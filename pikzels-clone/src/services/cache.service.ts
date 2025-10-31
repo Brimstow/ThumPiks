@@ -51,7 +51,7 @@ export class CacheService {
       }
     });
 
-    this.redis.on('error', (error) => {
+    this.redis.on('error', (_error) => {
       if (!this.isRedisAvailable) {
         // Only log once when initially failing
         console.log('⚠️  Redis unavailable - falling back to in-memory cache');

@@ -137,7 +137,7 @@ const Navigation: React.FC<NavigationProps> = ({
         <div className="navigation__brand">
           <div className="navigation__logo">
             <span className="navigation__logo-icon">📸</span>
-            <h1 className="navigation__logo-text">Pikzels Studio</h1>
+            <h1 className="navigation__logo-text">ThumPiks Studio</h1>
           </div>
         </div>
 

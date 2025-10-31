@@ -7,304 +7,285 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String     @id @default(uuid())
-  email         String     @unique
-  passwordHash  String
-  name          String?
-  avatarUrl     String?
-  isVerified    Boolean    @default(false)
-  settings      Json?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  lastLoginAt   DateTime?  // Track last login for admin analytics
-  isActive      Boolean    @default(true) // Admin can deactivate users
-  projects      Project[]
-  thumbnails    Thumbnail[]
-  subscriptions Subscription[]
-  socialShares  SocialShare[]
-  templates     Template[] // Templates created by this user
-  
-  // Admin role-based access control
-  adminRoles    AdminRole[] // Admin roles assigned to this user
-  
-  // Collaboration relationships
-  ownedTeams    Team[]     @relation("OwnedTeams")
-  teamMemberships TeamMember[] // Teams this user is a member of
-  teamInvitations TeamInvitation[] @relation("ReceivedInvitations") // Invitations received by this user
-  sentInvitations TeamInvitation[] @relation("SentInvitations") // Invitations sent by this user
-  
-  // Admin activity tracking
-  auditLogs     AuditLog[] @relation("UserAuditLogs")
-  performedActions AuditLog[] @relation("AdminActions")
+model AdminNotification {
+  id        String    @id
+  title     String
+  message   String
+  type      String
+  priority  String    @default("normal")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  metadata  Json?
+
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([priority])
+  @@index([type])
+}
+
+model AdminRole {
+  id          String    @id
+  userId      String
+  role        String
+  permissions Json
+  assignedBy  String?
+  assignedAt  DateTime  @default(now())
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  User        User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, role])
+  @@index([isActive])
+  @@index([role])
+  @@index([userId])
+}
+
+model AuditLog {
+  id                          String   @id
+  userId                      String?
+  adminId                     String?
+  action                      String
+  resource                    String
+  resourceId                  String?
+  details                     Json?
+  ipAddress                   String?
+  userAgent                   String?
+  timestamp                   DateTime @default(now())
+  severity                    String   @default("info")
+  User_AuditLog_adminIdToUser User?    @relation("AuditLog_adminIdToUser", fields: [adminId], references: [id])
+  User_AuditLog_userIdToUser  User?    @relation("AuditLog_userIdToUser", fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([adminId])
+  @@index([resource])
+  @@index([severity])
+  @@index([timestamp])
+  @@index([userId])
+}
+
+model FeatureFlag {
+  id          String   @id
+  name        String   @unique
+  description String?
+  isEnabled   Boolean  @default(false)
+  config      Json?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([isEnabled])
+  @@index([name])
 }
 
 model Project {
-  id            String      @id @default(uuid())
-  name          String
-  description   String?
-  userId        String      // Individual owner
-  user          User        @relation(fields: [userId], references: [id])
-  teamId        String?     // Team owner (optional)
-  team          Team?       @relation(fields: [teamId], references: [id])
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  thumbnails    Thumbnail[] @relation("ProjectThumbnails")
-  featuredThumbnailId String? @unique  // ID of the featured thumbnail for this project
-  featuredThumbnail   Thumbnail? @relation("FeaturedThumbnail", fields: [featuredThumbnailId], references: [id])
-  
-  // 🏗️ HIERARCHICAL STRUCTURE FIELDS
-  parentProjectId String?   // Reference to parent project (null = root project)
-  parentProject   Project?  @relation("ProjectHierarchy", fields: [parentProjectId], references: [id])
-  subProjects     Project[] @relation("ProjectHierarchy") // Child projects
-  folderType      String    @default("project") // "project" or "folder"
-  depth           Int       @default(0)         // 0=root, 1=sub-project, 2=folder
-  projectPath     String?   // Full path for efficient queries (e.g., "/root/sub1/sub2")
+  id                                               String      @id
+  name                                             String
+  description                                      String?
+  userId                                           String
+  teamId                                           String?
+  createdAt                                        DateTime    @default(now())
+  updatedAt                                        DateTime
+  featuredThumbnailId                              String?     @unique
+  parentProjectId                                  String?
+  folderType                                       String      @default("project")
+  depth                                            Int         @default(0)
+  projectPath                                      String?
+  Thumbnail_Project_featuredThumbnailIdToThumbnail Thumbnail?  @relation("Project_featuredThumbnailIdToThumbnail", fields: [featuredThumbnailId], references: [id])
+  Project                                          Project?    @relation("ProjectToProject", fields: [parentProjectId], references: [id])
+  other_Project                                    Project[]   @relation("ProjectToProject")
+  Team                                             Team?       @relation(fields: [teamId], references: [id])
+  User                                             User        @relation(fields: [userId], references: [id])
+  Thumbnail_Thumbnail_projectIdToProject           Thumbnail[] @relation("Thumbnail_projectIdToProject")
 
-  @@index([userId])
+  @@index([depth])
+  @@index([parentProjectId])
   @@index([teamId])
-  @@index([parentProjectId]) // For hierarchy queries
-  @@index([depth])           // For depth-based filtering
-}
-
-model Thumbnail {
-  id            String      @id @default(uuid())
-  title         String
-  imageUrl      String
-  prompt        String
-  parameters    Json
-  projectId     String
-  project       Project     @relation("ProjectThumbnails", fields: [projectId], references: [id])
-  userId        String
-  user          User        @relation(fields: [userId], references: [id])
-  createdAt     DateTime    @default(now())
-  isFeatured    Boolean     @default(false)  // Whether this thumbnail is featured for its project
-  featuredIn    Project?    @relation("FeaturedThumbnail")
-  socialShares  SocialShare[]
-  templates     Template[]  // Templates based on this thumbnail
-}
-
-model Subscription {
-  id            String      @id @default(uuid())
-  planType      String
-  creditsBalance Int
-  creditsUsed   Int         @default(0)
-  periodStart   DateTime
-  periodEnd     DateTime
-  userId        String
-  user          User        @relation(fields: [userId], references: [id])
-  createdAt     DateTime    @default(now())
+  @@index([userId])
 }
 
 model SocialShare {
-  id            String      @id @default(uuid())
-  thumbnailId   String
-  thumbnail     Thumbnail   @relation(fields: [thumbnailId], references: [id])
-  userId        String
-  user          User        @relation(fields: [userId], references: [id])
-  platform      String      // e.g., "twitter", "facebook", "linkedin", "pinterest"
-  shareUrl      String?     // URL of the shared post
-  shareId       String?     // ID of the shared post on the platform
-  status        String      // e.g., "pending", "success", "failed"
-  errorMessage  String?     // Error message if sharing failed
-  sharedAt      DateTime    @default(now())
-  engagement    Json?       // Platform-specific engagement metrics
+  id           String    @id
+  thumbnailId  String
+  userId       String
+  platform     String
+  shareUrl     String?
+  shareId      String?
+  status       String
+  errorMessage String?
+  sharedAt     DateTime  @default(now())
+  engagement   Json?
+  Thumbnail    Thumbnail @relation(fields: [thumbnailId], references: [id])
+  User         User      @relation(fields: [userId], references: [id])
 }
 
-// New model for templates in the marketplace
-model Template {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  thumbnail   Thumbnail @relation(fields: [thumbnailId], references: [id])
-  thumbnailId String
-  creator     User     @relation(fields: [creatorId], references: [id])
-  creatorId   String
-  parameters  Json     // Template parameters that can be applied to new thumbnails
-  tags        Json     // Tags for categorization and search (stored as JSON array)
-  isPublic    Boolean  @default(false) // Whether this template is publicly available
-  downloads   Int      @default(0)     // Number of times this template has been used
-  likes       Int      @default(0)     // Number of likes for this template
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt()
-
-  @@index([creatorId])
-  @@index([thumbnailId])
-  @@index([isPublic])
+model Subscription {
+  id             String   @id
+  planType       String
+  creditsBalance Int
+  creditsUsed    Int      @default(0)
+  periodStart    DateTime
+  periodEnd      DateTime
+  userId         String
+  createdAt      DateTime @default(now())
+  User           User     @relation(fields: [userId], references: [id])
 }
 
-// New model for teams
+model SystemHealth {
+  id        String   @id @default(uuid())
+  service   String
+  status    String
+  response  Float?
+  errorRate Float?
+  details   Json?
+  checkedAt DateTime @default(now())
+
+  @@index([checkedAt])
+  @@index([service])
+  @@index([status])
+}
+
+model SystemMetrics {
+  id             String   @id @default(uuid())
+  metricType     String
+  metricValue    Float
+  metricDate     DateTime
+  additionalData Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([metricType, metricDate])
+  @@index([metricDate])
+  @@index([metricType])
+}
+
 model Team {
-  id          String      @id @default(uuid())
-  name        String
-  description String?
-  ownerId     String      // User who owns/created the team
-  owner       User        @relation("OwnedTeams", fields: [ownerId], references: [id])
-  members     TeamMember[] // Members of this team
-  invitations TeamInvitation[] // Pending invitations to join this team
-  projects    Project[]   // Projects owned by this team
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt()
+  id             String           @id
+  name           String
+  description    String?
+  ownerId        String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  Project        Project[]
+  User           User             @relation(fields: [ownerId], references: [id])
+  TeamInvitation TeamInvitation[]
+  TeamMember     TeamMember[]
 
   @@index([ownerId])
 }
 
-// New model for team members
+model TeamInvitation {
+  id                                  String    @id
+  teamId                              String
+  inviterId                           String
+  inviteeId                           String
+  status                              String
+  invitedAt                           DateTime  @default(now())
+  respondedAt                         DateTime?
+  User_TeamInvitation_inviteeIdToUser User      @relation("TeamInvitation_inviteeIdToUser", fields: [inviteeId], references: [id])
+  User_TeamInvitation_inviterIdToUser User      @relation("TeamInvitation_inviterIdToUser", fields: [inviterId], references: [id])
+  Team                                Team      @relation(fields: [teamId], references: [id])
+
+  @@index([inviteeId])
+  @@index([status])
+  @@index([teamId])
+}
+
 model TeamMember {
-  id        String   @id @default(uuid())
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  role      String   // "owner", "admin", "member"
-  joinedAt  DateTime @default(now())
+  id       String   @id
+  teamId   String
+  userId   String
+  role     String
+  joinedAt DateTime @default(now())
+  Team     Team     @relation(fields: [teamId], references: [id])
+  User     User     @relation(fields: [userId], references: [id])
 
   @@unique([teamId, userId])
   @@index([teamId])
   @@index([userId])
 }
 
-// New model for team invitations
-model TeamInvitation {
-  id           String   @id @default(uuid())
-  teamId       String
-  team         Team     @relation(fields: [teamId], references: [id])
-  inviterId    String   // User who sent the invitation
-  inviter      User     @relation("SentInvitations", fields: [inviterId], references: [id])
-  inviteeId    String   // User who received the invitation
-  invitee      User     @relation("ReceivedInvitations", fields: [inviteeId], references: [id])
-  status       String   // "pending", "accepted", "declined"
-  invitedAt    DateTime @default(now())
-  respondedAt  DateTime?
+model Template {
+  id          String    @id
+  name        String
+  description String?
+  thumbnailId String
+  creatorId   String
+  parameters  Json
+  tags        Json
+  isPublic    Boolean   @default(false)
+  downloads   Int       @default(0)
+  likes       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  User        User      @relation(fields: [creatorId], references: [id])
+  Thumbnail   Thumbnail @relation(fields: [thumbnailId], references: [id])
 
-  @@index([teamId])
-  @@index([inviteeId])
-  @@index([status])
+  @@index([creatorId])
+  @@index([isPublic])
+  @@index([thumbnailId])
 }
 
-// ========================================
-// ADMIN SYSTEM MODELS
-// ========================================
-
-// Admin roles and permissions
-model AdminRole {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  role        String   // "super_admin", "admin", "moderator", "analyst"
-  permissions Json     // Specific permissions array
-  assignedBy  String?  // Who assigned this role
-  assignedAt  DateTime @default(now())
-  expiresAt   DateTime? // Optional expiration for temporary roles
-  isActive    Boolean  @default(true)
-  
-  @@unique([userId, role])
-  @@index([userId])
-  @@index([role])
-  @@index([isActive])
+model Thumbnail {
+  id                                             String        @id
+  title                                          String
+  imageUrl                                       String
+  prompt                                         String
+  parameters                                     Json
+  projectId                                      String
+  userId                                         String
+  createdAt                                      DateTime      @default(now())
+  isFeatured                                     Boolean       @default(false)
+  Project_Project_featuredThumbnailIdToThumbnail Project?      @relation("Project_featuredThumbnailIdToThumbnail")
+  SocialShare                                    SocialShare[]
+  Template                                       Template[]
+  Project_Thumbnail_projectIdToProject           Project       @relation("Thumbnail_projectIdToProject", fields: [projectId], references: [id])
+  User                                           User          @relation(fields: [userId], references: [id])
 }
 
-// Comprehensive audit logging
-model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String?  // User who performed the action (null for system actions)
-  user        User?    @relation("UserAuditLogs", fields: [userId], references: [id])
-  adminId     String?  // Admin who performed the action
-  admin       User?    @relation("AdminActions", fields: [adminId], references: [id])
-  action      String   // Action type (CREATE, UPDATE, DELETE, LOGIN, etc.)
-  resource    String   // Resource affected (user, project, thumbnail, etc.)
-  resourceId  String?  // ID of the affected resource
-  details     Json?    // Additional action details
-  ipAddress   String?
-  userAgent   String?
-  timestamp   DateTime @default(now())
-  severity    String   @default("info") // "info", "warning", "error", "critical"
-  
-  @@index([userId])
-  @@index([adminId])
-  @@index([action])
-  @@index([resource])
-  @@index([timestamp])
-  @@index([severity])
+model User {
+  id                                            String           @id @default(uuid())
+  email                                         String           @unique
+  username                                      String           @unique
+  passwordHash                                  String
+  name                                          String
+  avatarUrl                                     String?
+  isVerified                                    Boolean          @default(false)
+  emailVerificationToken                        String?          @unique
+  emailVerificationExpiry                       DateTime?
+  displayPreference                             String           @default("name")
+  settings                                      Json?
+  createdAt                                     DateTime         @default(now())
+  updatedAt                                     DateTime         @updatedAt
+  lastLoginAt                                   DateTime?
+  isActive                                      Boolean          @default(true)
+  AdminRole                                     AdminRole[]
+  AuditLog_AuditLog_adminIdToUser               AuditLog[]       @relation("AuditLog_adminIdToUser")
+  AuditLog_AuditLog_userIdToUser                AuditLog[]       @relation("AuditLog_userIdToUser")
+  Project                                       Project[]
+  SocialShare                                   SocialShare[]
+  Subscription                                  Subscription[]
+  Team                                          Team[]
+  TeamInvitation_TeamInvitation_inviteeIdToUser TeamInvitation[] @relation("TeamInvitation_inviteeIdToUser")
+  TeamInvitation_TeamInvitation_inviterIdToUser TeamInvitation[] @relation("TeamInvitation_inviterIdToUser")
+  TeamMember                                    TeamMember[]
+  Template                                      Template[]
+  Thumbnail                                     Thumbnail[]
 }
 
-// System analytics and metrics
-model SystemMetrics {
-  id              String   @id @default(uuid())
-  metricType      String   // "daily_active_users", "thumbnails_created", "revenue", etc.
-  metricValue     Float    // Numeric value of the metric
-  metricDate      DateTime // Date this metric is for
-  additionalData  Json?    // Additional metadata
-  createdAt       DateTime @default(now())
-  
-  @@unique([metricType, metricDate])
-  @@index([metricType])
-  @@index([metricDate])
-}
-
-// System health monitoring
-model SystemHealth {
-  id          String   @id @default(uuid())
-  service     String   // "database", "redis", "file_storage", "api", etc.
-  status      String   // "healthy", "degraded", "down"
-  response    Float?   // Response time in milliseconds
-  errorRate   Float?   // Error rate percentage
-  details     Json?    // Additional health check details
-  checkedAt   DateTime @default(now())
-  
-  @@index([service])
-  @@index([status])
-  @@index([checkedAt])
-}
-
-// User sessions for admin monitoring
 model UserSession {
-  id          String   @id @default(uuid())
-  userId      String
-  sessionId   String   @unique
-  ipAddress   String?
-  userAgent   String?
-  loginAt     DateTime @default(now())
-  lastActivity DateTime @default(now())
-  logoutAt    DateTime?
-  isActive    Boolean  @default(true)
-  
-  @@index([userId])
-  @@index([sessionId])
+  id           String    @id
+  userId       String
+  sessionId    String    @unique
+  ipAddress    String?
+  userAgent    String?
+  loginAt      DateTime  @default(now())
+  lastActivity DateTime  @default(now())
+  logoutAt     DateTime?
+  isActive     Boolean   @default(true)
+
   @@index([isActive])
   @@index([lastActivity])
-}
-
-// Feature flags for admin control
-model FeatureFlag {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  isEnabled   Boolean  @default(false)
-  config      Json?    // Feature-specific configuration
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@index([name])
-  @@index([isEnabled])
-}
-
-// System notifications for admins
-model AdminNotification {
-  id          String   @id @default(uuid())
-  title       String
-  message     String
-  type        String   // "info", "warning", "error", "success"
-  priority    String   @default("normal") // "low", "normal", "high", "critical"
-  isRead      Boolean  @default(false)
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime? // Optional expiration
-  metadata    Json?    // Additional notification data
-  
-  @@index([type])
-  @@index([priority])
-  @@index([isRead])
-  @@index([createdAt])
+  @@index([sessionId])
+  @@index([userId])
 }

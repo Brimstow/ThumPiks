@@ -1,7 +1,9 @@
 {
   "devDependencies": {
+    "@prisma/client": "^6.18.0",
     "@types/cors": "^2.8.19",
     "@types/helmet": "^0.0.48",
+    "prisma": "^6.18.0",
     "ts-node": "^10.9.2"
   },
   "dependencies": {

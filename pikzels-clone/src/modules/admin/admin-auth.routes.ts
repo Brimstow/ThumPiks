@@ -83,7 +83,7 @@ router.get(
 /**
  * Health check for admin auth system
  */
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     service: 'admin-auth',

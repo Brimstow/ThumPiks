@@ -1,165 +1,357 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { EmailService } from './email.service';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { logger } from '../../utils/logger';
+import { PasswordUtils } from '../../utils/password.utils';
+import { UsernameUtils } from '../../utils/username.utils';
 
 const prisma = new PrismaClient();
 
 export class AuthService {
-  async register(email: string, password: string, name?: string) {
+  /**
+   * Register a new user with username, email, name, and password
+   */
+  async register(
+    username: string,
+    email: string,
+    name: string,
+    password: string
+  ) {
     try {
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
+      // Validate username
+      const usernameValidation = await UsernameUtils.validateUsername(username);
+      if (!usernameValidation.valid) {
+        throw new Error(usernameValidation.error || 'Invalid username');
+      }
+
+      // Check if email already exists
+      const existingEmail = await prisma.user.findUnique({
         where: { email },
       });
 
-      if (existingUser) {
+      if (existingEmail) {
         logger.warn('Registration attempt with existing email', { email });
-        throw new Error('User already exists');
+        throw new Error('Email already exists');
       }
 
-      // Enhanced password validation
-      if (password.length < 8) {
-        throw new Error('Password must be at least 8 characters long');
-      }
-
-      // Check for common password patterns
-      const commonPasswords = ['password', '12345678', 'qwerty123'];
-      if (commonPasswords.includes(password.toLowerCase())) {
-        throw new Error('Password is too common, please choose a stronger password');
-      }
-
-      // Hash password with higher cost for better security
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash: hashedPassword,
-          name: name || null, // Convert undefined to null for Prisma
-          isVerified: process.env.REQUIRE_EMAIL_VERIFICATION !== 'true', // Auto-verify if not required
+      // Check if username already exists (case-insensitive)
+      const existingUsername = await prisma.user.findFirst({
+        where: {
+          username: {
+            equals: username,
+            mode: 'insensitive',
+          },
         },
       });
 
-      logger.info('User registered successfully', { 
-        userId: user.id, 
-        email: user.email 
+      if (existingUsername) {
+        logger.warn('Registration attempt with existing username', { username });
+        throw new Error('Username already taken');
+      }
+
+      // Validate password with OWASP standards
+      const passwordValidation = PasswordUtils.validate(password);
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.errors.join(', '));
+      }
+
+      // Hash password with high cost factor
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // Generate email verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpiry = new Date();
+      verificationExpiry.setHours(verificationExpiry.getHours() + 24); // 24 hour expiry
+
+      // Create user (store username in lowercase for consistency)
+      const user = await prisma.user.create({
+        data: {
+          username: username.toLowerCase(),
+          email,
+          name,
+          passwordHash: hashedPassword,
+          isVerified: false, // Require email verification
+          emailVerificationToken: verificationToken,
+          emailVerificationExpiry: verificationExpiry,
+          displayPreference: 'name', // Default to showing name
+        },
       });
 
-      // Send welcome email
+      logger.info('User registered successfully', {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+      });
+
+      // Send verification email
       try {
-        await EmailService.sendWelcomeEmail(email, name || '');
+        await EmailService.sendVerificationEmail(
+          email,
+          name,
+          verificationToken
+        );
       } catch (emailError) {
-        logger.warn('Failed to send welcome email', { 
+        logger.warn('Failed to send verification email', {
           userId: user.id,
-          error: emailError
+          error: emailError,
         });
         // Don't fail registration if email fails
       }
 
-      // Generate enhanced token pair
+      // Generate token pair (user can explore but not save)
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
 
       return {
         user: {
           id: user.id,
           email: user.email,
+          username: user.username,
           name: user.name,
           isVerified: user.isVerified,
+          displayPreference: user.displayPreference,
         },
         ...tokens,
+        message: 'Registration successful. Please verify your email to unlock all features.',
       };
     } catch (error: any) {
-      logger.error('Registration failed', error, { email });
+      logger.error('Registration failed', error, { email, username });
       throw error;
     }
   }
 
-  async login(email: string, password: string) {
+  /**
+   * Login with username OR email
+   */
+  async login(identifier: string, password: string) {
     try {
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { email },
-      });
+      // Determine if identifier is email or username
+      const isEmail = identifier.includes('@');
+
+      // Find user by email or username (case-insensitive)
+      const user = isEmail
+        ? await prisma.user.findUnique({
+            where: { email: identifier },
+          })
+        : await prisma.user.findFirst({
+            where: {
+              username: {
+                equals: identifier.toLowerCase(),
+                mode: 'insensitive',
+              },
+            },
+          });
 
       if (!user) {
-        logger.warn('Login attempt with non-existent email', { email });
-        // Use generic error message to prevent email enumeration
+        logger.warn('Login attempt with non-existent identifier', {
+          identifier,
+          isEmail,
+        });
+        // Generic error to prevent enumeration
         throw new Error('Invalid credentials');
       }
 
-      // Check password with timing-safe comparison
+      // Verify password with timing-safe comparison
       const isValid = await bcrypt.compare(password, user.passwordHash);
 
       if (!isValid) {
-        logger.warn('Login attempt with invalid password', { 
+        logger.warn('Login attempt with invalid password', {
           userId: user.id,
-          email 
+          identifier,
         });
         throw new Error('Invalid credentials');
       }
 
-      // Check if user is verified (if verification is required)
-      if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.isVerified) {
-        throw new Error('Email verification required');
-      }
-
-      logger.info('User logged in successfully', { 
-        userId: user.id,
-        email: user.email 
+      // Update last login
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
       });
 
-      // Generate enhanced token pair
+      logger.info('User logged in successfully', {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+      });
+
+      // Generate token pair
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
 
       return {
         user: {
           id: user.id,
           email: user.email,
+          username: user.username,
           name: user.name,
           isVerified: user.isVerified,
+          displayPreference: user.displayPreference,
         },
         ...tokens,
+        requiresVerification: !user.isVerified,
       };
     } catch (error: any) {
-      logger.error('Login failed', error, { email });
+      logger.error('Login failed', error, { identifier });
       throw error;
     }
   }
 
-  async requestPasswordReset(email: string) {
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token: string) {
     try {
-      // Check if user exists
+      // Find user with this verification token
+      const user = await prisma.user.findFirst({
+        where: {
+          emailVerificationToken: token,
+          emailVerificationExpiry: {
+            gt: new Date(), // Token must not be expired
+          },
+        },
+      });
+
+      if (!user) {
+        logger.warn('Invalid or expired verification token used', { token });
+        throw new Error('Invalid or expired verification token');
+      }
+
+      // Update user as verified and clear token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpiry: null,
+        },
+      });
+
+      logger.info('Email verified successfully', {
+        userId: user.id,
+        email: user.email,
+      });
+
+      return {
+        message: 'Email verified successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          name: user.name,
+          isVerified: true,
+        },
+      };
+    } catch (error: any) {
+      logger.error('Email verification failed', error, { token });
+      throw error;
+    }
+  }
+
+  /**
+   * Resend verification email
+   */
+  async resendVerification(email: string) {
+    try {
       const user = await prisma.user.findUnique({
         where: { email },
       });
 
       if (!user) {
-        // We don't reveal if the email exists or not for security reasons
-        logger.info('Password reset requested for non-existent email', { email });
+        // Don't reveal if email exists
+        return {
+          message: 'If your email is registered, you will receive a verification email.',
+        };
+      }
+
+      if (user.isVerified) {
+        throw new Error('Email is already verified');
+      }
+
+      // Generate new verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpiry = new Date();
+      verificationExpiry.setHours(verificationExpiry.getHours() + 24);
+
+      // Update user with new token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: verificationToken,
+          emailVerificationExpiry: verificationExpiry,
+        },
+      });
+
+      // Send verification email
+      try {
+        await EmailService.sendVerificationEmail(
+          email,
+          user.name,
+          verificationToken
+        );
+      } catch (emailError) {
+        logger.error('Failed to resend verification email', {
+          userId: user.id,
+          error: emailError,
+        });
+        throw new Error('Failed to send verification email');
+      }
+
+      logger.info('Verification email resent', {
+        userId: user.id,
+        email: user.email,
+      });
+
+      return {
+        message: 'Verification email sent successfully',
+      };
+    } catch (error: any) {
+      logger.error('Resend verification failed', error, { email });
+      throw error;
+    }
+  }
+
+  /**
+   * Request password reset
+   */
+  async requestPasswordReset(email: string) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        // Don't reveal if email exists for security
+        logger.info('Password reset requested for non-existent email', {
+          email,
+        });
         return {
           message:
             'If your email is registered, you will receive a password reset link.',
         };
       }
 
-      logger.info('Password reset requested', { 
+      logger.info('Password reset requested', {
         userId: user.id,
-        email 
+        email,
       });
 
       // Generate secure reset token
-      const resetToken = EnhancedJWTService.createResetToken(user.id, user.email);
+      const resetToken = EnhancedJWTService.createResetToken(
+        user.id,
+        user.email
+      );
 
       // Send password reset email
       try {
         await EmailService.sendPasswordResetEmail(user.email, resetToken);
       } catch (emailError) {
-        logger.error('Failed to send password reset email', emailError instanceof Error ? emailError : new Error(String(emailError)), {
-          userId: user.id
-        });
+        logger.error(
+          'Failed to send password reset email',
+          emailError instanceof Error ? emailError : new Error(String(emailError)),
+          {
+            userId: user.id,
+          }
+        );
         // Return generic message even if email fails
       }
 
@@ -173,16 +365,20 @@ export class AuthService {
     }
   }
 
+  /**
+   * Reset password with token
+   */
   async resetPassword(token: string, newPassword: string) {
     try {
-      // Enhanced password validation
-      if (newPassword.length < 8) {
-        throw new Error('Password must be at least 8 characters long');
+      // Validate new password with OWASP standards
+      const passwordValidation = PasswordUtils.validate(newPassword);
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.errors.join(', '));
       }
 
       // Verify the reset token
       const decoded = EnhancedJWTService.verifyResetToken(token);
-      
+
       if (!decoded?.userId) {
         logger.warn('Invalid password reset token used');
         throw new Error('Invalid or expired reset token');
@@ -198,7 +394,7 @@ export class AuthService {
       });
 
       logger.info('Password reset successfully', {
-        userId: decoded.userId
+        userId: decoded.userId,
       });
 
       return { message: 'Password successfully reset' };
@@ -207,27 +403,32 @@ export class AuthService {
       if (error.message.includes('Password must be')) {
         throw error; // Re-throw validation errors
       }
-      throw new Error('Invalid password reset token');
+      throw new Error('Invalid or expired reset token');
     }
   }
 
-  // New method: Refresh access token
+  /**
+   * Refresh access token
+   */
   async refreshToken(refreshToken: string) {
     try {
       const decoded = EnhancedJWTService.verifyRefreshToken(refreshToken);
-      
+
       if (!decoded) {
         throw new Error('Invalid refresh token');
       }
 
-      // Verify user still exists
+      // Verify user still exists and is active
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         select: {
           id: true,
           email: true,
+          username: true,
           name: true,
           isVerified: true,
+          isActive: true,
+          displayPreference: true,
         },
       });
 
@@ -235,25 +436,95 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      // Generate new access token
+      if (!user.isActive) {
+        throw new Error('Account is deactivated');
+      }
+
+      // Generate new token pair
       const newTokens = EnhancedJWTService.createTokens(user.id, user.email);
 
       logger.info('Token refreshed successfully', {
-        userId: user.id
+        userId: user.id,
       });
 
       return {
         user: {
           id: user.id,
           email: user.email,
+          username: user.username,
           name: user.name,
           isVerified: user.isVerified,
+          displayPreference: user.displayPreference,
         },
         ...newTokens,
       };
     } catch (error: any) {
       logger.error('Token refresh failed', error);
       throw new Error('Invalid refresh token');
+    }
+  }
+
+  /**
+   * Generate username suggestions
+   */
+  async generateUsernameSuggestions(fullName: string, email: string) {
+    try {
+      const suggestions = await UsernameUtils.generateSuggestions(
+        fullName,
+        email
+      );
+
+      return {
+        suggestions,
+      };
+    } catch (error: any) {
+      logger.error('Username suggestion generation failed', error);
+      throw new Error('Failed to generate username suggestions');
+    }
+  }
+
+  /**
+   * Check username availability
+   */
+  async checkUsernameAvailability(username: string) {
+    try {
+      const validation = await UsernameUtils.validateUsername(username);
+
+      return {
+        available: validation.valid,
+        error: validation.error,
+      };
+    } catch (error: any) {
+      logger.error('Username availability check failed', error);
+      throw new Error('Failed to check username availability');
+    }
+  }
+
+  /**
+   * Update display preference
+   */
+  async updateDisplayPreference(
+    userId: string,
+    preference: 'name' | 'username'
+  ) {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { displayPreference: preference },
+      });
+
+      logger.info('Display preference updated', {
+        userId,
+        preference,
+      });
+
+      return {
+        message: 'Display preference updated successfully',
+        displayPreference: preference,
+      };
+    } catch (error: any) {
+      logger.error('Display preference update failed', error, { userId });
+      throw new Error('Failed to update display preference');
     }
   }
 }

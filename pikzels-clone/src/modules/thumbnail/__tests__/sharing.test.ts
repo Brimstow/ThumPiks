@@ -1,6 +1,3 @@
-import { ThumbnailService } from '../thumbnail.service';
-import { ImageProcessingService } from '../image-processing.service';
-
 // Set NODE_ENV to test
 process.env.NODE_ENV = 'test';
 

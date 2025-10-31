@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, query, param } from 'express-validator';
+import { query } from 'express-validator';
 import {
   authenticateAdmin,
   requirePermission,
@@ -70,7 +70,7 @@ const sitemapController = {
       ];
 
       // Apply filters
-      let filteredEntries = mockEntries.filter(entry => {
+      const filteredEntries = mockEntries.filter(entry => {
         const matchesSearch = entry.url.toLowerCase().includes(search.toLowerCase());
         const matchesType = type === 'all' || entry.type === type;
         const matchesStatus = status === 'all' || entry.status === status;
@@ -117,7 +117,7 @@ const sitemapController = {
   },
 
   // Get sitemap statistics
-  getSitemapStats: async (req: any, res: any) => {
+  getSitemapStats: async (_req: any, res: any) => {
     try {
       // Mock stats - replace with actual database queries
       const stats = {
@@ -144,7 +144,7 @@ const sitemapController = {
   },
 
   // Generate new sitemap
-  generateSitemap: async (req: any, res: any) => {
+  generateSitemap: async (_req: any, res: any) => {
     try {
       // Mock sitemap generation - replace with actual implementation
       console.log('Generating sitemap...');
@@ -171,7 +171,7 @@ const sitemapController = {
   },
 
   // Export sitemap XML
-  exportSitemap: async (req: any, res: any) => {
+  exportSitemap: async (_req: any, res: any) => {
     try {
       // Mock XML generation - replace with actual sitemap XML generation
       const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -260,7 +260,7 @@ router.get(
 /**
  * Health check for sitemap system
  */
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     service: 'sitemap-admin',

@@ -219,7 +219,7 @@ const sessionCoordinator = new SessionCoordinator();
  */
 export const sessionCoordinationMiddleware = async (
   req: Request & { sessionCoordinator?: SessionCoordinator; sessionId?: string },
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
@@ -314,7 +314,7 @@ export const invalidateSession = async (sessionId: string): Promise<void> => {
  * Server restart notification middleware
  */
 export const notifyServerRestart = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

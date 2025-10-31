@@ -229,7 +229,9 @@ const AdminLayout: React.FC = () => {
   const visibleNavItems = filterNavItems(navItems);
 
   const handleLogout = async () => {
-    navigate('/admin/login');
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    navigate('/admin/login', { replace: true });
   };
 
   return (

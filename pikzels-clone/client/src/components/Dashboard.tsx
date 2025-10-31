@@ -40,11 +40,23 @@ interface Project {
 }
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   const [user, setUser] = useState<User | null>(null);
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'thumbnails' | 'projects' | 'analytics'>('dashboard');
+  
+  // Determine active tab from current route
+  const getActiveTab = (): 'dashboard' | 'thumbnails' | 'projects' | 'analytics' => {
+    if (location.pathname.startsWith('/thumbnails')) return 'thumbnails';
+    if (location.pathname.startsWith('/projects')) return 'projects';
+    if (location.pathname.startsWith('/analytics')) return 'analytics';
+    return 'dashboard';
+  };
+  const activeTab = getActiveTab();
+  
   const [editingThumbnail, setEditingThumbnail] = useState<Thumbnail | null>(null);
   const [creatingThumbnail, setCreatingThumbnail] = useState(false);
   const [selectedThumbnails, setSelectedThumbnails] = useState<Thumbnail[]>([]);
@@ -59,8 +71,6 @@ const Dashboard: React.FC = () => {
     dateFrom: '',
     dateTo: ''
   });
-  const navigate = useNavigate();
-  const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const [settingFeaturedForProject, setSettingFeaturedForProject] = useState<string | null>(null);
   const [socialShareModal, setSocialShareModal] = useState<{ thumbnailId: string; thumbnailTitle: string } | null>(null);
@@ -70,7 +80,7 @@ const Dashboard: React.FC = () => {
       const token = localStorage.getItem('token');
       
       if (!token) {
-        navigate('/login');
+        navigate('/login', { replace: true });
         return;
       }
 
@@ -87,7 +97,7 @@ const Dashboard: React.FC = () => {
           setUser(profileData.user);
         } else {
           localStorage.removeItem('token');
-          navigate('/login');
+          navigate('/login', { replace: true });
           return;
         }
 
@@ -99,7 +109,7 @@ const Dashboard: React.FC = () => {
       } catch (error) {
         console.error('Error fetching data:', error);
         localStorage.removeItem('token');
-        navigate('/login');
+        navigate('/login', { replace: true });
       } finally {
         setLoading(false);
       }
@@ -169,7 +179,7 @@ const Dashboard: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    navigate('/login');
+    navigate('/', { replace: true });
   };
 
   const handleSaveEdits = async (edits: any) => {
@@ -419,11 +429,31 @@ const Dashboard: React.FC = () => {
     }
   ];
 
+  const handleTabChange = (tab: string) => {
+    // Navigate to the appropriate route based on tab
+    switch (tab) {
+      case 'dashboard':
+        navigate('/dashboard');
+        break;
+      case 'thumbnails':
+        navigate('/thumbnails');
+        break;
+      case 'projects':
+        navigate('/projects');
+        break;
+      case 'analytics':
+        navigate('/analytics');
+        break;
+      default:
+        navigate('/dashboard');
+    }
+  };
+
   return (
     <div className="dashboard">
       <Navigation
         activeTab={activeTab}
-        onTabChange={(tab: string) => setActiveTab(tab as 'thumbnails' | 'projects' | 'dashboard' | 'analytics')}
+        onTabChange={handleTabChange}
         user={user || undefined}
         onThemeToggle={toggleTheme}
         onLogout={handleLogout}
@@ -454,7 +484,7 @@ const Dashboard: React.FC = () => {
                   </svg>
                 }
                 iconColor="primary"
-                onClick={() => setActiveTab('thumbnails')}
+                onClick={() => navigate('/thumbnails')}
                 trend={{
                   direction: 'up',
                   value: 12,
@@ -471,7 +501,7 @@ const Dashboard: React.FC = () => {
                   </svg>
                 }
                 iconColor="success"
-                onClick={() => setActiveTab('projects')}
+                onClick={() => navigate('/projects')}
                 trend={{
                   direction: 'up',
                   value: 8,

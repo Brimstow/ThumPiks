@@ -3,11 +3,31 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import LandingPage from './components/LandingPage';
+import LandingPage2 from './components/LandingPage2';
+import ThumPiksLanding from './components/PikzelsLanding';
+import ThumPiksTest from './components/PikzelsTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
+import VerifyEmailSuccess from './components/auth/VerifyEmailSuccess';
 import ShadcnTest from './components/ShadcnTest';
+
+// User Components
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
+import ThumbnailEditor from './components/ThumbnailEditor';
+import BatchEditor from './components/BatchEditor';
+import UserAnalyticsDashboard from './components/AnalyticsDashboard';
+import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
+import SocialShareAnalytics from './components/SocialShareAnalytics';
+import UserSettings from './components/UserSettings';
+import CreateThumbnail from './components/CreateThumbnail';
+import SharedThumbnailPage from './components/SharedThumbnailPage';
+import AboutPage from './components/AboutPage';
+import ContactPage from './components/ContactPage';
+import PrivacyPage from './components/PrivacyPage';
+import TermsPage from './components/TermsPage';
 
 // Import custom styles
 import './styles/animations.css';
@@ -33,11 +53,35 @@ const TestPage = () => (
     <p style={{ color: '#666' }}>This confirms React is rendering properly.</p>
     <div style={{ marginTop: '20px' }}>
       <h3>Test Navigation:</h3>
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
-        <a href="/" style={{ color: '#007bff', textDecoration: 'underline' }}>Home (Landing)</a>
-        <a href="/login" style={{ color: '#007bff', textDecoration: 'underline' }}>Login</a>
-        <a href="/register" style={{ color: '#007bff', textDecoration: 'underline' }}>Register</a>
-        <a href="/forgot-password" style={{ color: '#007bff', textDecoration: 'underline' }}>Forgot Password</a>
+      <div
+        style={{
+          display: 'flex',
+          gap: '10px',
+          flexWrap: 'wrap',
+          marginTop: '10px',
+        }}
+      >
+        <a href="/" style={{ color: '#007bff', textDecoration: 'underline' }}>
+          Home (Landing)
+        </a>
+        <a
+          href="/login"
+          style={{ color: '#007bff', textDecoration: 'underline' }}
+        >
+          Login
+        </a>
+        <a
+          href="/register"
+          style={{ color: '#007bff', textDecoration: 'underline' }}
+        >
+          Register
+        </a>
+        <a
+          href="/forgot-password"
+          style={{ color: '#007bff', textDecoration: 'underline' }}
+        >
+          Forgot Password
+        </a>
       </div>
     </div>
   </div>
@@ -55,101 +99,274 @@ function App() {
           <div className="App">
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<ThumPiksLanding />} />
+              <Route path="/landing2" element={<LandingPage2 />} />
+              <Route path="/thumpiks" element={<ThumPiksLanding />} />
+              <Route path="/test-thumpiks" element={<ThumPiksTest />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password/:token" element={<ResetPassword />} />
-              
+              <Route
+                path="/reset-password/:token"
+                element={<ResetPassword />}
+              />
+              <Route
+                path="/verify-email/:token"
+                element={<VerifyEmailSuccess />}
+              />
+
+              {/* Public Content Routes */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+
+              {/* Shared Content Routes (No Auth Required) */}
+              <Route path="/shared/:token" element={<SharedThumbnailPage />} />
+              <Route
+                path="/thumbnails/shared/:token"
+                element={<SharedThumbnailPage />}
+              />
+
+              {/* User Dashboard Routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Thumbnail Management Routes */}
+              <Route
+                path="/thumbnails"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/thumbnails/create"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Projects Routes */}
+              <Route
+                path="/projects"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/thumbnails/edit/:id"
+                element={
+                  <ProtectedRoute>
+                    <ThumbnailEditor />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/thumbnails/batch-edit"
+                element={
+                  <ProtectedRoute>
+                    <BatchEditor />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Analytics Routes */}
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <UserAnalyticsDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics/social"
+                element={
+                  <ProtectedRoute>
+                    <SocialShareAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/analytics/advanced"
+                element={
+                  <ProtectedRoute>
+                    <AdvancedAnalyticsDashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* User Management Routes */}
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <UserSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <UserSettings />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Admin Routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={
-                <AdminProtectedRoute>
-                  <AdminLayout />
-                </AdminProtectedRoute>
-              }>
+              <Route
+                path="/admin"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminLayout />
+                  </AdminProtectedRoute>
+                }
+              >
                 <Route index element={<AdminDashboard />} />
-                
+
                 {/* User Management */}
-                <Route path="users" element={
-                  <AdminProtectedRoute requiredPermissions={['users.view']}>
-                    <UserManagement />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="users/roles" element={
-                  <AdminProtectedRoute requiredPermissions={['admin.roles']}>
-                    <RolePermissionManagement />
-                  </AdminProtectedRoute>
-                } />
-                
+                <Route
+                  path="users"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['users.view']}>
+                      <UserManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="users/roles"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['admin.roles']}>
+                      <RolePermissionManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+
                 {/* Content Management */}
-                <Route path="content" element={
-                  <AdminProtectedRoute requiredPermissions={['content.view']}>
-                    <ContentManagement />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="content/thumbnails" element={
-                  <AdminProtectedRoute requiredPermissions={['content.view']}>
-                    <ContentManagement />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="content/templates" element={
-                  <AdminProtectedRoute requiredPermissions={['content.view']}>
-                    <ContentManagement />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="content/projects" element={
-                  <AdminProtectedRoute requiredPermissions={['content.view']}>
-                    <ContentManagement />
-                  </AdminProtectedRoute>
-                } />
-                
+                <Route
+                  path="content"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['content.view']}>
+                      <ContentManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="content/thumbnails"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['content.view']}>
+                      <ContentManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="content/templates"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['content.view']}>
+                      <ContentManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="content/projects"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['content.view']}>
+                      <ContentManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+
                 {/* Sitemap */}
-                <Route path="sitemap" element={
-                  <AdminProtectedRoute requiredPermissions={['content.view']}>
-                    <SitemapAdmin />
-                  </AdminProtectedRoute>
-                } />
-                
+                <Route
+                  path="sitemap"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['content.view']}>
+                      <SitemapAdmin />
+                    </AdminProtectedRoute>
+                  }
+                />
+
                 {/* Analytics */}
-                <Route path="analytics" element={
-                  <AdminProtectedRoute requiredPermissions={['analytics.view']}>
-                    <AnalyticsDashboard />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="analytics/users" element={
-                  <AdminProtectedRoute requiredPermissions={['analytics.view']}>
-                    <AnalyticsDashboard />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="analytics/performance" element={
-                  <AdminProtectedRoute requiredPermissions={['analytics.view']}>
-                    <AnalyticsDashboard />
-                  </AdminProtectedRoute>
-                } />
-                
+                <Route
+                  path="analytics"
+                  element={
+                    <AdminProtectedRoute
+                      requiredPermissions={['analytics.view']}
+                    >
+                      <AnalyticsDashboard />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="analytics/users"
+                  element={
+                    <AdminProtectedRoute
+                      requiredPermissions={['analytics.view']}
+                    >
+                      <AnalyticsDashboard />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="analytics/performance"
+                  element={
+                    <AdminProtectedRoute
+                      requiredPermissions={['analytics.view']}
+                    >
+                      <AnalyticsDashboard />
+                    </AdminProtectedRoute>
+                  }
+                />
+
                 {/* System Management */}
-                <Route path="system/health" element={
-                  <AdminProtectedRoute requiredPermissions={['system.health']}>
-                    <SystemHealthMonitoring />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="system/logs" element={
-                  <AdminProtectedRoute requiredPermissions={['system.logs']}>
-                    <AuditLogs />
-                  </AdminProtectedRoute>
-                } />
-                <Route path="system/settings" element={
-                  <AdminProtectedRoute requiredPermissions={['system.config']}>
-                    <AdminSettings />
-                  </AdminProtectedRoute>
-                } />
+                <Route
+                  path="system/health"
+                  element={
+                    <AdminProtectedRoute
+                      requiredPermissions={['system.health']}
+                    >
+                      <SystemHealthMonitoring />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="system/logs"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['system.logs']}>
+                      <AuditLogs />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="system/settings"
+                  element={
+                    <AdminProtectedRoute
+                      requiredPermissions={['system.config']}
+                    >
+                      <AdminSettings />
+                    </AdminProtectedRoute>
+                  }
+                />
               </Route>
-              
+
               {/* Test pages */}
               <Route path="/test" element={<TestPage />} />
               <Route path="/shadcn-test" element={<ShadcnTest />} />
-              
+
               {/* Catch-all for testing */}
               <Route path="*" element={<TestPage />} />
             </Routes>

@@ -19,7 +19,7 @@ jest.mock('jsonwebtoken', () => ({
 
 // Mock Cache Service
 const mockCacheService = {
-  getOrSet: jest.fn().mockImplementation(async (key, fn) => await fn()),
+  getOrSet: jest.fn().mockImplementation(async (_key, fn) => await fn()),
   get: jest.fn().mockResolvedValue(null),
   set: jest.fn().mockResolvedValue(undefined),
   del: jest.fn().mockResolvedValue(undefined),
@@ -165,10 +165,6 @@ import analyticsRoutes from '../modules/analytics/analytics.routes';
 import socialShareRoutes from '../modules/social-share/social-share.routes';
 import templateRoutes from '../modules/templates/template.routes';
 
-// Import controller service initialization functions
-import { initializeServices } from '../modules/thumbnail/thumbnail.controller';
-import { initializeProjectServices } from '../modules/project/project.controller';
-
 // Create test app
 const createTestApp = () => {
   const app = express();
@@ -198,7 +194,7 @@ describe('User App API Routes Tests', () => {
     app = createTestApp();
     
     // Setup cache service mock to bypass caching and return data directly
-    mockCacheService.getOrSet.mockImplementation(async (key, fn) => {
+    mockCacheService.getOrSet.mockImplementation(async (_key, fn) => {
       return await fn();
     });
   });
