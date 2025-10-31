@@ -67,7 +67,7 @@ export class PasswordUtils {
   ];
 
   // Special characters allowed
-  private static readonly SPECIAL_CHARS = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+  private static readonly SPECIAL_CHARS = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+/;
 
   /**
    * Validate password against all requirements
