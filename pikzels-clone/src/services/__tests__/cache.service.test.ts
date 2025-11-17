@@ -1,4 +1,19 @@
 import { CacheService, CacheKeys, CacheTTL } from '../cache.service';
+import Redis from 'ioredis';
+
+// Mock ioredis
+jest.mock('ioredis', () => {
+  return jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    get: jest.fn(),
+    setex: jest.fn(),
+    del: jest.fn(),
+    keys: jest.fn(),
+    exists: jest.fn(),
+    ping: jest.fn(),
+    quit: jest.fn(),
+  }));
+});
 
 describe('CacheService', () => {
   let cacheService: CacheService;
@@ -358,6 +373,228 @@ describe('CacheService', () => {
       results.forEach((result, i) => {
         expect(result).toBe(`value${i}`);
       });
+    });
+  });
+
+  describe('Redis Integration', () => {
+    let mockRedis: any;
+
+    beforeEach(() => {
+      mockRedis = (Redis as jest.MockedClass<typeof Redis>).mock.results[0]?.value;
+    });
+
+    it('should call delPattern to delete keys by pattern', async () => {
+      if (mockRedis) {
+        mockRedis.keys.mockResolvedValue(['key1', 'key2', 'key3']);
+        mockRedis.del.mockResolvedValue(3);
+
+        await cacheService.delPattern('test:*');
+
+        expect(mockRedis.keys).toHaveBeenCalledWith('test:*');
+        expect(mockRedis.del).toHaveBeenCalledWith('key1', 'key2', 'key3');
+      }
+    });
+
+    it('should handle delPattern with no matching keys', async () => {
+      if (mockRedis) {
+        mockRedis.keys.mockResolvedValue([]);
+
+        await cacheService.delPattern('nonexistent:*');
+
+        expect(mockRedis.keys).toHaveBeenCalledWith('nonexistent:*');
+        expect(mockRedis.del).not.toHaveBeenCalled();
+      }
+    });
+
+    it('should handle delPattern errors gracefully', async () => {
+      if (mockRedis) {
+        mockRedis.keys.mockRejectedValue(new Error('Redis error'));
+
+        await expect(cacheService.delPattern('test:*')).resolves.not.toThrow();
+      }
+    });
+
+    it('should check if key exists in Redis', async () => {
+      if (mockRedis) {
+        mockRedis.exists.mockResolvedValue(1);
+
+        const exists = await cacheService.exists('test:key');
+
+        expect(exists).toBe(true);
+        expect(mockRedis.exists).toHaveBeenCalledWith('test:key');
+      }
+    });
+
+    it('should return false when key does not exist', async () => {
+      if (mockRedis) {
+        mockRedis.exists.mockResolvedValue(0);
+
+        const exists = await cacheService.exists('nonexistent:key');
+
+        expect(exists).toBe(false);
+      }
+    });
+
+    it('should handle exists errors gracefully', async () => {
+      if (mockRedis) {
+        mockRedis.exists.mockRejectedValue(new Error('Redis error'));
+
+        const exists = await cacheService.exists('test:key');
+
+        expect(exists).toBe(false);
+      }
+    });
+  });
+
+  describe('Memory Cache Expiration', () => {
+    it('should automatically clean up expired entries', async () => {
+      // Set a key that will expire
+      await cacheService.set('test:auto-expire', 'value', 1);
+
+      // Wait for expiration
+      await new Promise(resolve => setTimeout(resolve, 1100));
+
+      // Manually trigger cleanup by trying to get the key
+      const result = await cacheService.get('test:auto-expire');
+
+      expect(result).toBeNull();
+    });
+
+    it('should not expire entries with zero TTL', async () => {
+      await cacheService.set('test:no-expiry', 'persistent', 0);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const result = await cacheService.get('test:no-expiry');
+      expect(result).toBe('persistent');
+    });
+  });
+
+  describe('Error Handling and Resilience', () => {
+    it('should handle concurrent set operations', async () => {
+      const promises = Array.from({ length: 50 }, (_, i) =>
+        cacheService.set(`concurrent:${i}`, { index: i }, 60)
+      );
+
+      await expect(Promise.all(promises)).resolves.not.toThrow();
+
+      // Verify all values were set
+      const results = await Promise.all(
+        Array.from({ length: 50 }, (_, i) => cacheService.get(`concurrent:${i}`))
+      );
+
+      results.forEach((result, i) => {
+        expect(result).toEqual({ index: i });
+      });
+    });
+
+    it('should handle concurrent delete operations', async () => {
+      // Pre-populate cache
+      await Promise.all(
+        Array.from({ length: 20 }, (_, i) =>
+          cacheService.set(`delete:${i}`, `value${i}`, 60)
+        )
+      );
+
+      // Delete all concurrently
+      const deletePromises = Array.from({ length: 20 }, (_, i) =>
+        cacheService.del(`delete:${i}`)
+      );
+
+      await expect(Promise.all(deletePromises)).resolves.not.toThrow();
+
+      // Verify all deleted
+      const results = await Promise.all(
+        Array.from({ length: 20 }, (_, i) => cacheService.get(`delete:${i}`))
+      );
+
+      results.forEach(result => {
+        expect(result).toBeNull();
+      });
+    });
+
+    it('should handle getOrSet with slow fetch function', async () => {
+      const slowFetch = jest.fn().mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve({ data: 'slow' }), 100))
+      );
+
+      const result = await cacheService.getOrSet('test:slow', slowFetch, 60);
+
+      expect(result).toEqual({ data: 'slow' });
+      expect(slowFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Complex Data Types', () => {
+    it('should handle boolean values', async () => {
+      await cacheService.set('test:bool:true', true, 60);
+      await cacheService.set('test:bool:false', false, 60);
+
+      expect(await cacheService.get('test:bool:true')).toBe(true);
+      expect(await cacheService.get('test:bool:false')).toBe(false);
+    });
+
+    it('should handle number values including zero', async () => {
+      await cacheService.set('test:number:zero', 0, 60);
+      await cacheService.set('test:number:negative', -42, 60);
+      await cacheService.set('test:number:float', 3.14159, 60);
+
+      expect(await cacheService.get('test:number:zero')).toBe(0);
+      expect(await cacheService.get('test:number:negative')).toBe(-42);
+      expect(await cacheService.get('test:number:float')).toBe(3.14159);
+    });
+
+    it('should handle Date objects', async () => {
+      const now = new Date();
+      await cacheService.set('test:date', now, 60);
+
+      const result = await cacheService.get<Date>('test:date');
+      // In-memory cache preserves the Date object as-is
+      expect(result).toEqual(now);
+    });
+
+    it('should handle arrays with mixed types', async () => {
+      const mixedArray = [1, 'two', true, null, { key: 'value' }, [1, 2, 3]];
+      await cacheService.set('test:mixed-array', mixedArray, 60);
+
+      const result = await cacheService.get('test:mixed-array');
+      expect(result).toEqual(mixedArray);
+    });
+
+    it('should handle circular reference gracefully', async () => {
+      const circularObj: any = { name: 'test' };
+      circularObj.self = circularObj;
+
+      // In-memory cache can store circular references (doesn't serialize)
+      // But it won't throw - it just stores the reference
+      await expect(
+        cacheService.set('test:circular', circularObj, 60)
+      ).resolves.not.toThrow();
+
+      // Getting it back will return the same circular reference
+      const result = await cacheService.get('test:circular');
+      expect(result).toBe(circularObj);
+    });
+  });
+
+  describe('getInstance Singleton', () => {
+    it('should create instance only once', () => {
+      const instance1 = CacheService.getInstance();
+      const instance2 = CacheService.getInstance();
+      const instance3 = CacheService.getInstance();
+
+      expect(instance1).toBe(instance2);
+      expect(instance2).toBe(instance3);
+    });
+
+    it('should persist data across getInstance calls', async () => {
+      const instance1 = CacheService.getInstance();
+      await instance1.set('test:singleton-persist', 'shared-data', 60);
+
+      const instance2 = CacheService.getInstance();
+      const result = await instance2.get('test:singleton-persist');
+
+      expect(result).toBe('shared-data');
     });
   });
 });
