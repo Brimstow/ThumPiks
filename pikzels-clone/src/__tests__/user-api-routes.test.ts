@@ -6,12 +6,12 @@ process.env.NODE_ENV = 'test';
 // Mock dependencies before imports
 jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
-  hash: jest.fn()
+  hash: jest.fn(),
 }));
 
 jest.mock('jsonwebtoken', () => ({
   sign: jest.fn(),
-  verify: jest.fn()
+  verify: jest.fn(),
 }));
 
 // Mock Cache Service
@@ -23,43 +23,46 @@ const mockCacheService = {
   delPattern: jest.fn().mockResolvedValue(undefined),
   disconnect: jest.fn().mockResolvedValue(undefined),
   healthCheck: jest.fn().mockResolvedValue(true),
-  getInstance: jest.fn()
+  getInstance: jest.fn(),
 };
 
 jest.mock('../services/cache.service', () => ({
   CacheService: {
-    getInstance: () => mockCacheService
+    getInstance: () => mockCacheService,
   },
   CacheTTL: {
     SHORT: 60,
     MEDIUM: 300,
     LONG: 1800,
     VERY_LONG: 3600,
-    DAILY: 86400
+    DAILY: 86400,
   },
   CacheKeys: {
     user: (userId: string) => `user:${userId}`,
     userProjects: (userId: string) => `user:${userId}:projects`,
-    userThumbnails: (userId: string, page = 1) => `user:${userId}:thumbnails:${page}`,
+    userThumbnails: (userId: string, page = 1) =>
+      `user:${userId}:thumbnails:${page}`,
     project: (projectId: string) => `project:${projectId}`,
     thumbnail: (thumbnailId: string) => `thumbnail:${thumbnailId}`,
-    analytics: (userId: string, period: string) => `analytics:${userId}:${period}`,
+    analytics: (userId: string, period: string) =>
+      `analytics:${userId}:${period}`,
     socialShares: (thumbnailId: string) => `social:${thumbnailId}`,
-    rateLimit: (userId: string, action: string) => `ratelimit:${userId}:${action}`
-  }
+    rateLimit: (userId: string, action: string) =>
+      `ratelimit:${userId}:${action}`,
+  },
 }));
 
 // Mock event emitters
 jest.mock('../events/event-emitter', () => ({
   emitAnalyticsEvent: jest.fn(),
   eventEmitter: {
-    createAndEmit: jest.fn()
-  }
+    createAndEmit: jest.fn(),
+  },
 }));
 
 jest.mock('../events', () => ({
   emitThumbnailCreated: jest.fn(),
-  emitAnalyticsEvent: jest.fn()
+  emitAnalyticsEvent: jest.fn(),
 }));
 
 // Mock ThumbnailService and ProjectService at module level
@@ -69,7 +72,7 @@ const mockThumbnailService = {
   createThumbnail: jest.fn(),
   updateThumbnail: jest.fn(),
   deleteThumbnail: jest.fn(),
-  setThumbnailAsFeatured: jest.fn()
+  setThumbnailAsFeatured: jest.fn(),
 };
 
 const mockProjectService = {
@@ -78,7 +81,7 @@ const mockProjectService = {
   createProject: jest.fn(),
   updateProject: jest.fn(),
   deleteProject: jest.fn(),
-  setFeaturedThumbnail: jest.fn()
+  setFeaturedThumbnail: jest.fn(),
 };
 
 const mockSocialShareService = {
@@ -87,28 +90,36 @@ const mockSocialShareService = {
   getSocialSharesByUser: jest.fn(),
   getSocialSharesByThumbnail: jest.fn(),
   getSocialShareStats: jest.fn(),
-  deleteSocialShare: jest.fn()
+  deleteSocialShare: jest.fn(),
 };
 
 jest.mock('../modules/thumbnail/thumbnail.service', () => ({
-  ThumbnailService: jest.fn().mockImplementation(() => mockThumbnailService)
+  ThumbnailService: jest.fn().mockImplementation(() => mockThumbnailService),
 }));
 
 jest.mock('../modules/project/project.service', () => ({
-  ProjectService: jest.fn().mockImplementation(() => mockProjectService)
+  ProjectService: jest.fn().mockImplementation(() => mockProjectService),
 }));
 
 jest.mock('../modules/social-share/social-share.service', () => ({
-  SocialShareService: jest.fn().mockImplementation(() => mockSocialShareService)
+  SocialShareService: jest
+    .fn()
+    .mockImplementation(() => mockSocialShareService),
 }));
 
 jest.mock('../modules/social-share/social-media-factory', () => ({
   SocialMediaFactory: {
     createClient: jest.fn().mockReturnValue({
       uploadMedia: jest.fn().mockResolvedValue({ mediaId: 'mock-media-id' }),
-      createPost: jest.fn().mockResolvedValue({ success: true, postUrl: 'https://mock-url', postId: 'mock-post-id' })
-    })
-  }
+      createPost: jest
+        .fn()
+        .mockResolvedValue({
+          success: true,
+          postUrl: 'https://mock-url',
+          postId: 'mock-post-id',
+        }),
+    }),
+  },
 }));
 
 // Mock Prisma Client
@@ -119,32 +130,32 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn()
+    delete: jest.fn(),
   },
   thumbnail: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn()
+    delete: jest.fn(),
   },
   project: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn()
+    delete: jest.fn(),
   },
   socialShare: {
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn()
-  }
+    delete: jest.fn(),
+  },
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => mockPrisma)
+  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
 }));
 
 // Now import the modules
@@ -166,7 +177,7 @@ import templateRoutes from '../modules/templates/template.routes';
 const createTestApp = () => {
   const app = express();
   app.use(express.json());
-  
+
   // Add user routes
   app.use('/api/auth', authRoutes);
   app.use('/api/user', profileRoutes);
@@ -175,7 +186,7 @@ const createTestApp = () => {
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/social-share', socialShareRoutes);
   app.use('/api/templates', templateRoutes);
-  
+
   return app;
 };
 
@@ -184,26 +195,26 @@ describe('User App API Routes Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Clear all service mocks
     jest.clearAllMocks();
-    
+
     app = createTestApp();
-    
+
     // Setup cache service mock to bypass caching and return data directly
     mockCacheService.getOrSet.mockImplementation(async (_key, fn) => {
       return await fn();
     });
   });
-  
+
   afterAll(async () => {
     // Clean up any open handles
     jest.clearAllMocks();
-    
+
     // Give a moment for any pending operations to complete
     await new Promise(resolve => setImmediate(resolve));
   });
-  
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -215,7 +226,7 @@ describe('User App API Routes Tests', () => {
           username: 'newuser',
           email: 'newuser@test.com',
           password: 'SecurePass123!',
-          name: 'New User'
+          name: 'New User',
         };
 
         const createdUser = {
@@ -225,16 +236,20 @@ describe('User App API Routes Tests', () => {
           name: newUser.name,
           isVerified: false,
           createdAt: new Date(),
-          displayPreference: 'name'
+          displayPreference: 'name',
         };
 
         // Mock username validation to pass
         const UsernameUtils = require('../utils/username.utils').UsernameUtils;
-        jest.spyOn(UsernameUtils, 'validateUsername').mockResolvedValue({ valid: true, error: null });
-        
+        jest
+          .spyOn(UsernameUtils, 'validateUsername')
+          .mockResolvedValue({ valid: true, error: null });
+
         // Mock password validation to pass
         const PasswordUtils = require('../utils/password.utils').PasswordUtils;
-        jest.spyOn(PasswordUtils, 'validate').mockReturnValue({ valid: true, errors: [] });
+        jest
+          .spyOn(PasswordUtils, 'validate')
+          .mockReturnValue({ valid: true, errors: [] });
 
         mockPrisma.user.findUnique.mockResolvedValue(null); // User doesn't exist
         mockPrisma.user.findFirst.mockResolvedValue(null); // Username available
@@ -257,32 +272,28 @@ describe('User App API Routes Tests', () => {
           id: 'existing123',
           username: 'existinguser',
           email: 'existing@test.com',
-          name: 'Existing User'
+          name: 'Existing User',
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(existingUser);
         mockPrisma.user.findFirst.mockResolvedValue(null); // Username available
 
-        const response = await request(app)
-          .post('/api/auth/register')
-          .send({
-            username: 'newuser',
-            email: 'existing@test.com',
-            password: 'Password123!',
-            name: 'New User'
-          });
+        const response = await request(app).post('/api/auth/register').send({
+          username: 'newuser',
+          email: 'existing@test.com',
+          password: 'Password123!',
+          name: 'New User',
+        });
 
         expect(response.status).toBe(409);
         expect(response.body).toHaveProperty('error');
       });
 
       it('should validate required fields', async () => {
-        const response = await request(app)
-          .post('/api/auth/register')
-          .send({
-            email: 'invalid-email',
-            // missing password and name
-          });
+        const response = await request(app).post('/api/auth/register').send({
+          email: 'invalid-email',
+          // missing password and name
+        });
 
         expect(response.status).toBe(400);
         expect(response.body).toHaveProperty('errors');
@@ -297,7 +308,7 @@ describe('User App API Routes Tests', () => {
           name: 'Test User',
           passwordHash: 'hashedPassword',
           isActive: true,
-          isVerified: true
+          isVerified: true,
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(user);
@@ -305,12 +316,10 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.update.mockResolvedValue(user);
         (jwt.sign as jest.Mock).mockReturnValue('mock-access-token');
 
-        const response = await request(app)
-          .post('/api/auth/login')
-          .send({
-            email: 'user@test.com',
-            password: 'Password123!'
-          });
+        const response = await request(app).post('/api/auth/login').send({
+          email: 'user@test.com',
+          password: 'Password123!',
+        });
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('user');
@@ -321,12 +330,10 @@ describe('User App API Routes Tests', () => {
       it('should reject login with invalid credentials', async () => {
         mockPrisma.user.findUnique.mockResolvedValue(null);
 
-        const response = await request(app)
-          .post('/api/auth/login')
-          .send({
-            email: 'nonexistent@test.com',
-            password: 'WrongPass123!'
-          });
+        const response = await request(app).post('/api/auth/login').send({
+          email: 'nonexistent@test.com',
+          password: 'WrongPass123!',
+        });
 
         expect(response.status).toBe(401);
         expect(response.body).toHaveProperty('error');
@@ -338,7 +345,7 @@ describe('User App API Routes Tests', () => {
         const user = {
           id: 'user123',
           email: 'user@test.com',
-          name: 'Test User'
+          name: 'Test User',
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(user);
@@ -347,7 +354,7 @@ describe('User App API Routes Tests', () => {
         const response = await request(app)
           .post('/api/auth/request-password-reset')
           .send({
-            email: 'user@test.com'
+            email: 'user@test.com',
           });
 
         expect(response.status).toBe(200);
@@ -361,18 +368,20 @@ describe('User App API Routes Tests', () => {
           id: 'user123',
           email: 'user@test.com',
           passwordResetToken: 'valid-reset-token',
-          passwordResetExpires: new Date(Date.now() + 3600000) // 1 hour from now
+          passwordResetExpires: new Date(Date.now() + 3600000), // 1 hour from now
         };
 
         // Mock JWT verification for reset token
-        (jwt.verify as jest.Mock).mockReturnValue({ 
-          userId: 'user123', 
-          action: 'reset-password' 
+        (jwt.verify as jest.Mock).mockReturnValue({
+          userId: 'user123',
+          action: 'reset-password',
         });
-        
+
         // Mock password validation to pass
         const PasswordUtils = require('../utils/password.utils').PasswordUtils;
-        jest.spyOn(PasswordUtils, 'validate').mockReturnValue({ valid: true, errors: [] });
+        jest
+          .spyOn(PasswordUtils, 'validate')
+          .mockReturnValue({ valid: true, errors: [] });
 
         mockPrisma.user.findFirst.mockResolvedValue(user);
         mockPrisma.user.update.mockResolvedValue(user);
@@ -382,7 +391,7 @@ describe('User App API Routes Tests', () => {
           .post('/api/auth/reset-password')
           .send({
             token: 'valid-reset-token',
-            newPassword: 'NewPassword123!'
+            newPassword: 'NewPassword123!',
           });
 
         expect(response.status).toBe(200);
@@ -393,12 +402,12 @@ describe('User App API Routes Tests', () => {
 
   describe('User Profile Routes', () => {
     const mockUserToken = 'valid-user-token';
-    
+
     beforeEach(() => {
       // Setup mock user authentication
       const mockDecoded = {
         userId: 'user123',
-        email: 'user@test.com'
+        email: 'user@test.com',
       };
 
       const mockUser = {
@@ -406,7 +415,7 @@ describe('User App API Routes Tests', () => {
         email: 'user@test.com',
         name: 'Test User',
         isActive: true,
-        isVerified: true
+        isVerified: true,
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -425,8 +434,7 @@ describe('User App API Routes Tests', () => {
       });
 
       it('should reject unauthorized access', async () => {
-        const response = await request(app)
-          .get('/api/user/profile');
+        const response = await request(app).get('/api/user/profile');
 
         expect(response.status).toBe(401);
       });
@@ -436,14 +444,14 @@ describe('User App API Routes Tests', () => {
       it('should update user profile', async () => {
         const updateData = {
           name: 'Updated Name',
-          bio: 'Updated bio'
+          bio: 'Updated bio',
         };
 
         mockPrisma.user.update.mockResolvedValue({
           id: 'user123',
           email: 'user@test.com',
           name: updateData.name,
-          bio: updateData.bio
+          bio: updateData.bio,
         });
 
         const response = await request(app)
@@ -460,19 +468,19 @@ describe('User App API Routes Tests', () => {
 
   describe('Thumbnail Routes', () => {
     const mockUserToken = 'valid-user-token';
-    
+
     beforeEach(() => {
       // Setup mock user authentication
       const mockDecoded = {
         userId: 'user123',
-        email: 'user@test.com'
+        email: 'user@test.com',
       };
 
       const mockUser = {
         id: 'user123',
         email: 'user@test.com',
         name: 'Test User',
-        isActive: true
+        isActive: true,
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -487,21 +495,26 @@ describe('User App API Routes Tests', () => {
             title: 'Thumbnail 1',
             imageUrl: 'https://example.com/thumb1.jpg',
             userId: 'user123',
-            createdAt: new Date()
+            createdAt: new Date(),
           },
           {
             id: 'thumb2',
             title: 'Thumbnail 2',
             imageUrl: 'https://example.com/thumb2.jpg',
             userId: 'user123',
-            createdAt: new Date()
-          }
+            createdAt: new Date(),
+          },
         ];
 
-        mockThumbnailService.getThumbnailsByUser.mockResolvedValue(mockThumbnails);
-        
+        mockThumbnailService.getThumbnailsByUser.mockResolvedValue(
+          mockThumbnails
+        );
+
         console.log('Mock setup complete, making request...');
-        console.log('mockThumbnailService.getThumbnailsByUser mock calls before:', mockThumbnailService.getThumbnailsByUser.mock.calls.length);
+        console.log(
+          'mockThumbnailService.getThumbnailsByUser mock calls before:',
+          mockThumbnailService.getThumbnailsByUser.mock.calls.length
+        );
 
         const response = await request(app)
           .get('/api/thumbnails')
@@ -509,8 +522,14 @@ describe('User App API Routes Tests', () => {
 
         console.log('Response status:', response.status);
         console.log('Response body:', JSON.stringify(response.body, null, 2));
-        console.log('mockThumbnailService.getThumbnailsByUser mock calls after:', mockThumbnailService.getThumbnailsByUser.mock.calls.length);
-        console.log('mockThumbnailService.getThumbnailsByUser was called with:', mockThumbnailService.getThumbnailsByUser.mock.calls);
+        console.log(
+          'mockThumbnailService.getThumbnailsByUser mock calls after:',
+          mockThumbnailService.getThumbnailsByUser.mock.calls.length
+        );
+        console.log(
+          'mockThumbnailService.getThumbnailsByUser was called with:',
+          mockThumbnailService.getThumbnailsByUser.mock.calls
+        );
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('thumbnails');
         expect(response.body.thumbnails).toHaveLength(2);
@@ -518,13 +537,15 @@ describe('User App API Routes Tests', () => {
 
       it('should handle pagination', async () => {
         const mockThumbnails: any[] = [];
-        mockThumbnailService.getThumbnailsByUser.mockResolvedValue(mockThumbnails);
+        mockThumbnailService.getThumbnailsByUser.mockResolvedValue(
+          mockThumbnails
+        );
 
         const response = await request(app)
           .get('/api/thumbnails')
           .query({
             page: 2,
-            limit: 10
+            limit: 10,
           })
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -539,7 +560,7 @@ describe('User App API Routes Tests', () => {
         const thumbnailData = {
           title: 'New Thumbnail',
           prompt: 'Create a beautiful thumbnail',
-          projectId: 'project123'
+          projectId: 'project123',
         };
 
         const createdThumbnail = {
@@ -548,10 +569,12 @@ describe('User App API Routes Tests', () => {
           prompt: thumbnailData.prompt,
           projectId: thumbnailData.projectId,
           userId: 'user123',
-          createdAt: new Date()
+          createdAt: new Date(),
         };
 
-        mockThumbnailService.createThumbnail.mockResolvedValue(createdThumbnail);
+        mockThumbnailService.createThumbnail.mockResolvedValue(
+          createdThumbnail
+        );
 
         const response = await request(app)
           .post('/api/thumbnails')
@@ -572,7 +595,10 @@ describe('User App API Routes Tests', () => {
           });
 
         expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty('error', 'Title, prompt, and projectId are required');
+        expect(response.body).toHaveProperty(
+          'error',
+          'Title, prompt, and projectId are required'
+        );
       });
     });
 
@@ -582,7 +608,7 @@ describe('User App API Routes Tests', () => {
           id: 'thumb123',
           title: 'Test Thumbnail',
           userId: 'user123',
-          createdAt: new Date()
+          createdAt: new Date(),
         };
 
         mockThumbnailService.getThumbnailById.mockResolvedValue(mockThumbnail);
@@ -610,19 +636,19 @@ describe('User App API Routes Tests', () => {
 
   describe('Project Routes', () => {
     const mockUserToken = 'valid-user-token';
-    
+
     beforeEach(() => {
       // Setup mock user authentication
       const mockDecoded = {
         userId: 'user123',
-        email: 'user@test.com'
+        email: 'user@test.com',
       };
 
       const mockUser = {
         id: 'user123',
         email: 'user@test.com',
         name: 'Test User',
-        isActive: true
+        isActive: true,
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -637,15 +663,15 @@ describe('User App API Routes Tests', () => {
             name: 'Project 1',
             description: 'Test project 1',
             userId: 'user123',
-            createdAt: new Date()
+            createdAt: new Date(),
           },
           {
             id: 'project2',
             name: 'Project 2',
             description: 'Test project 2',
             userId: 'user123',
-            createdAt: new Date()
-          }
+            createdAt: new Date(),
+          },
         ];
 
         mockProjectService.getProjectsByUser.mockResolvedValue(mockProjects);
@@ -664,7 +690,7 @@ describe('User App API Routes Tests', () => {
       it('should create new project', async () => {
         const projectData = {
           name: 'New Project',
-          description: 'Test project description'
+          description: 'Test project description',
         };
 
         const createdProject = {
@@ -672,7 +698,7 @@ describe('User App API Routes Tests', () => {
           name: projectData.name,
           description: projectData.description,
           userId: 'user123',
-          createdAt: new Date()
+          createdAt: new Date(),
         };
 
         mockProjectService.createProject.mockResolvedValue(createdProject);
@@ -691,19 +717,19 @@ describe('User App API Routes Tests', () => {
 
   describe('Social Share Routes', () => {
     const mockUserToken = 'valid-user-token';
-    
+
     beforeEach(() => {
       // Setup mock user authentication
       const mockDecoded = {
         userId: 'user123',
-        email: 'user@test.com'
+        email: 'user@test.com',
       };
 
       const mockUser = {
         id: 'user123',
         email: 'user@test.com',
         name: 'Test User',
-        isActive: true
+        isActive: true,
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -715,16 +741,16 @@ describe('User App API Routes Tests', () => {
         const shareData = {
           thumbnailId: 'thumb123',
           platforms: ['twitter', 'facebook'],
-          message: 'Check out my thumbnail!'
+          message: 'Check out my thumbnail!',
         };
 
         // Mock thumbnail exists and belongs to user
         const mockThumbnail = {
           id: 'thumb123',
           userId: 'user123',
-          title: 'Test Thumbnail'
+          title: 'Test Thumbnail',
         };
-        
+
         // Mock social share creation
         const createdShare = {
           id: 'share123',
@@ -732,15 +758,17 @@ describe('User App API Routes Tests', () => {
           platform: 'twitter',
           status: 'pending',
           userId: 'user123',
-          createdAt: new Date()
+          createdAt: new Date(),
         };
 
         mockThumbnailService.getThumbnailById.mockResolvedValue(mockThumbnail);
-        mockSocialShareService.createSocialShare.mockResolvedValue(createdShare);
+        mockSocialShareService.createSocialShare.mockResolvedValue(
+          createdShare
+        );
         mockSocialShareService.updateSocialShare.mockResolvedValue({
           ...createdShare,
           status: 'failed',
-          errorMessage: 'No access token for twitter'
+          errorMessage: 'No access token for twitter',
         });
 
         const response = await request(app)
@@ -761,9 +789,9 @@ describe('User App API Routes Tests', () => {
           platformBreakdown: {
             twitter: 10,
             facebook: 8,
-            linkedin: 7
+            linkedin: 7,
           },
-          topSharedThumbnails: []
+          topSharedThumbnails: [],
         };
 
         mockSocialShareService.getSocialShareStats.mockResolvedValue(mockStats);
@@ -780,14 +808,14 @@ describe('User App API Routes Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle database connection errors', async () => {
-      mockPrisma.user.findUnique.mockRejectedValue(new Error('Database connection failed'));
+      mockPrisma.user.findUnique.mockRejectedValue(
+        new Error('Database connection failed')
+      );
 
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'user@test.com',
-          password: 'password123'
-        });
+      const response = await request(app).post('/api/auth/login').send({
+        email: 'user@test.com',
+        password: 'password123',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
@@ -803,8 +831,7 @@ describe('User App API Routes Tests', () => {
     });
 
     it('should handle missing authorization headers', async () => {
-      const response = await request(app)
-        .get('/api/user/profile');
+      const response = await request(app).get('/api/user/profile');
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error');
@@ -828,12 +855,10 @@ describe('User App API Routes Tests', () => {
     it('should handle rate limiting on auth endpoints', async () => {
       // This test would need actual rate limiting middleware
       // For now, just ensure the route responds
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'user@test.com',
-          password: 'password123'
-        });
+      const response = await request(app).post('/api/auth/login').send({
+        email: 'user@test.com',
+        password: 'password123',
+      });
 
       // Should respond (either success or failure, but not rate limited in test)
       expect([200, 400, 401, 403, 500]).toContain(response.status);
@@ -842,39 +867,33 @@ describe('User App API Routes Tests', () => {
 
   describe('Input Validation', () => {
     it('should validate email formats', async () => {
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'invalid-email-format',
-          password: 'password123',
-          name: 'Test User'
-        });
+      const response = await request(app).post('/api/auth/register').send({
+        email: 'invalid-email-format',
+        password: 'password123',
+        name: 'Test User',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
     });
 
     it('should validate password strength', async () => {
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'user@test.com',
-          password: '123', // Too short
-          name: 'Test User'
-        });
+      const response = await request(app).post('/api/auth/register').send({
+        email: 'user@test.com',
+        password: '123', // Too short
+        name: 'Test User',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
     });
 
     it('should sanitize input data', async () => {
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'user@test.com',
-          password: 'password123',
-          name: '<script>alert("xss")</script>Test User'
-        });
+      const response = await request(app).post('/api/auth/register').send({
+        email: 'user@test.com',
+        password: 'password123',
+        name: '<script>alert("xss")</script>Test User',
+      });
 
       // Should either clean the input or reject it
       expect([400, 500]).toContain(response.status);

@@ -3,7 +3,8 @@ import Redis from 'ioredis';
 export class CacheService {
   private static instance: CacheService;
   private redis: Redis | null = null;
-  private inMemoryCache: Map<string, { value: any; expires: number }> = new Map();
+  private inMemoryCache: Map<string, { value: any; expires: number }> =
+    new Map();
   private isRedisAvailable = false;
   private redisCheckInterval: NodeJS.Timeout | null = null;
   private memoryCacheCleanupInterval: NodeJS.Timeout | null = null;
@@ -18,7 +19,7 @@ export class CacheService {
 
     // Initialize in-memory cache as fallback
     this.startMemoryCacheCleanup();
-    
+
     // Try to connect to Redis (production-like setup)
     this.initializeRedis();
   }
@@ -51,7 +52,7 @@ export class CacheService {
       }
     });
 
-    this.redis.on('error', (_error) => {
+    this.redis.on('error', _error => {
       if (!this.isRedisAvailable) {
         // Only log once when initially failing
         console.log('⚠️  Redis unavailable - falling back to in-memory cache');
@@ -69,7 +70,7 @@ export class CacheService {
 
   private startRedisRetryCheck() {
     if (this.redisCheckInterval) return;
-    
+
     // Check Redis availability every 30 seconds
     this.redisCheckInterval = setInterval(async () => {
       try {
@@ -117,17 +118,17 @@ export class CacheService {
         this.startRedisRetryCheck();
       }
     }
-    
+
     // Use in-memory cache as fallback
     const entry = this.inMemoryCache.get(key);
     if (!entry) return null;
-    
+
     // Check if expired
     if (entry.expires && entry.expires < Date.now()) {
       this.inMemoryCache.delete(key);
       return null;
     }
-    
+
     return entry.value;
   }
 
@@ -145,9 +146,9 @@ export class CacheService {
         this.startRedisRetryCheck();
       }
     }
-    
+
     // Always store in in-memory cache as backup
-    const expires = ttlSeconds > 0 ? Date.now() + (ttlSeconds * 1000) : 0;
+    const expires = ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : 0;
     this.inMemoryCache.set(key, { value, expires });
   }
 
@@ -163,7 +164,7 @@ export class CacheService {
         console.warn(`Cache del error for key ${key}:`, error);
       }
     }
-    
+
     // Also delete from in-memory cache
     this.inMemoryCache.delete(key);
   }
@@ -173,7 +174,7 @@ export class CacheService {
    */
   async delPattern(pattern: string): Promise<void> {
     if (!this.redis) return;
-    
+
     try {
       const keys = await this.redis.keys(pattern);
       if (keys.length > 0) {
@@ -189,7 +190,7 @@ export class CacheService {
    */
   async exists(key: string): Promise<boolean> {
     if (!this.redis) return false;
-    
+
     try {
       return (await this.redis.exists(key)) === 1;
     } catch (error) {
@@ -221,7 +222,7 @@ export class CacheService {
    */
   async increment(key: string, ttlSeconds = 3600): Promise<number> {
     if (!this.redis) return 0;
-    
+
     try {
       const count = await this.redis.incr(key);
       if (count === 1) {
@@ -248,7 +249,7 @@ export class CacheService {
         this.startRedisRetryCheck();
       }
     }
-    
+
     // In-memory cache is always available as fallback
     return true;
   }
@@ -282,12 +283,15 @@ export class CacheService {
 export const CacheKeys = {
   user: (userId: string) => `user:${userId}`,
   userProjects: (userId: string) => `user:${userId}:projects`,
-  userThumbnails: (userId: string, page = 1) => `user:${userId}:thumbnails:${page}`,
+  userThumbnails: (userId: string, page = 1) =>
+    `user:${userId}:thumbnails:${page}`,
   project: (projectId: string) => `project:${projectId}`,
   thumbnail: (thumbnailId: string) => `thumbnail:${thumbnailId}`,
-  analytics: (userId: string, period: string) => `analytics:${userId}:${period}`,
+  analytics: (userId: string, period: string) =>
+    `analytics:${userId}:${period}`,
   socialShares: (thumbnailId: string) => `social:${thumbnailId}`,
-  rateLimit: (userId: string, action: string) => `ratelimit:${userId}:${action}`,
+  rateLimit: (userId: string, action: string) =>
+    `ratelimit:${userId}:${action}`,
 };
 
 // Cache TTL constants (in seconds)
