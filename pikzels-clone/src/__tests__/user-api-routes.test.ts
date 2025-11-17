@@ -212,6 +212,7 @@ describe('User App API Routes Tests', () => {
     describe('POST /api/auth/register', () => {
       it('should register new user successfully', async () => {
         const newUser = {
+          username: 'newuser',
           email: 'newuser@test.com',
           password: 'SecurePass123!',
           name: 'New User'
@@ -219,13 +220,24 @@ describe('User App API Routes Tests', () => {
 
         const createdUser = {
           id: 'user123',
+          username: newUser.username,
           email: newUser.email,
           name: newUser.name,
           isVerified: false,
-          createdAt: new Date()
+          createdAt: new Date(),
+          displayPreference: 'name'
         };
 
+        // Mock username validation to pass
+        const UsernameUtils = require('../utils/username.utils').UsernameUtils;
+        jest.spyOn(UsernameUtils, 'validateUsername').mockResolvedValue({ valid: true, error: null });
+        
+        // Mock password validation to pass
+        const PasswordUtils = require('../utils/password.utils').PasswordUtils;
+        jest.spyOn(PasswordUtils, 'validate').mockReturnValue({ valid: true, errors: [] });
+
         mockPrisma.user.findUnique.mockResolvedValue(null); // User doesn't exist
+        mockPrisma.user.findFirst.mockResolvedValue(null); // Username available
         (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
         mockPrisma.user.create.mockResolvedValue(createdUser);
         (jwt.sign as jest.Mock).mockReturnValue('mock-access-token');
@@ -243,15 +255,18 @@ describe('User App API Routes Tests', () => {
       it('should reject registration with existing email', async () => {
         const existingUser = {
           id: 'existing123',
+          username: 'existinguser',
           email: 'existing@test.com',
           name: 'Existing User'
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(existingUser);
+        mockPrisma.user.findFirst.mockResolvedValue(null); // Username available
 
         const response = await request(app)
           .post('/api/auth/register')
           .send({
+            username: 'newuser',
             email: 'existing@test.com',
             password: 'Password123!',
             name: 'New User'
@@ -349,9 +364,19 @@ describe('User App API Routes Tests', () => {
           passwordResetExpires: new Date(Date.now() + 3600000) // 1 hour from now
         };
 
+        // Mock JWT verification for reset token
+        (jwt.verify as jest.Mock).mockReturnValue({ 
+          userId: 'user123', 
+          action: 'reset-password' 
+        });
+        
+        // Mock password validation to pass
+        const PasswordUtils = require('../utils/password.utils').PasswordUtils;
+        jest.spyOn(PasswordUtils, 'validate').mockReturnValue({ valid: true, errors: [] });
+
         mockPrisma.user.findFirst.mockResolvedValue(user);
-        (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
         mockPrisma.user.update.mockResolvedValue(user);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
 
         const response = await request(app)
           .post('/api/auth/reset-password')

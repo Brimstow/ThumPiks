@@ -155,13 +155,17 @@ export class CacheService {
    * Delete cached data
    */
   async del(key: string): Promise<void> {
-    if (!this.redis) return;
-    
-    try {
-      await this.redis.del(key);
-    } catch (error) {
-      console.warn(`Cache del error for key ${key}:`, error);
+    // Delete from Redis if available
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        await this.redis.del(key);
+      } catch (error) {
+        console.warn(`Cache del error for key ${key}:`, error);
+      }
     }
+    
+    // Also delete from in-memory cache
+    this.inMemoryCache.delete(key);
   }
 
   /**
