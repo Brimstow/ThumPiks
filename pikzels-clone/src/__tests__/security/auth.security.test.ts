@@ -4,6 +4,7 @@ import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -88,32 +89,37 @@ describe('Security - Authentication', () => {
     test('should enforce minimum password length', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
 
       await expect(
-        authService.register('test@example.com', 'short')
+        authService.register('testuser', 'test@example.com', 'Test User', 'short')
       ).rejects.toThrow('Password must be at least 8 characters long');
     });
 
     test('should reject common passwords', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
 
       await expect(
-        authService.register('test@example.com', 'password')
+        authService.register('testuser', 'test@example.com', 'Test User', 'password')
       ).rejects.toThrow('Password is too common');
     });
 
     test('should accept strong passwords', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
         id: 'user123',
         email: 'test@example.com',
+        username: 'testuser',
         name: 'Test User',
         isVerified: true,
+        displayPreference: 'name',
       });
 
-      const result = await authService.register('test@example.com', 'SecurePass123!');
+      const result = await authService.register('testuser', 'test@example.com', 'Test User', 'SecurePass123!');
       
       expect(result.user.email).toBe('test@example.com');
       expect(result.accessToken).toBeTruthy();
@@ -130,8 +136,8 @@ describe('Security - Authentication', () => {
       });
 
       await expect(
-        authService.register('test@example.com', 'SecurePass123!')
-      ).rejects.toThrow('User already exists');
+        authService.register('testuser', 'test@example.com', 'Test User', 'SecurePass123!')
+      ).rejects.toThrow('Email already exists');
     });
 
     test('should use generic error for invalid login', async () => {

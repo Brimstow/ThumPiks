@@ -16,12 +16,17 @@ describe('Test Setup', () => {
 
 // Mock console methods for cleaner test output
 const originalConsole = { ...console };
+const mockLog = jest.fn();
+const mockWarn = jest.fn();
+const mockError = jest.fn();
+const mockInfo = jest.fn();
+
 global.console = {
   ...console,
-  log: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  info: jest.fn(),
+  log: mockLog,
+  warn: mockWarn,
+  error: mockError,
+  info: mockInfo,
 };
 
 // Restore console for specific tests that need it

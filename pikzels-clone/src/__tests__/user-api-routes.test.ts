@@ -3,8 +3,8 @@ process.env.JWT_SECRET = 'test-secret-key-that-is-32-chars-long!!';
 process.env.JWT_ACCESS_EXPIRY = '15m';
 process.env.NODE_ENV = 'test';
 
-// Mock timers to prevent intervals
-jest.useFakeTimers();
+// Mock timers to prevent intervals (Jest 29 modern API)
+jest.useFakeTimers({ legacyFakeTimers: false });
 
 // Mock dependencies before imports
 jest.mock('bcryptjs', () => ({

@@ -58,7 +58,7 @@ describe('AdminAuthService', () => {
         passwordHash: 'hashedPassword',
         isActive: true,
         lastLoginAt: null,
-        adminRoles: [
+        AdminRole: [
           {
             role: AdminRoles.ADMIN,
             isActive: true,
@@ -93,7 +93,7 @@ describe('AdminAuthService', () => {
         email: 'admin@test.com',
         passwordHash: 'hashedPassword',
         isActive: true,
-        adminRoles: [{ role: AdminRoles.ADMIN, isActive: true }]
+        AdminRole: [{ role: AdminRoles.ADMIN, isActive: true }]
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
@@ -116,7 +116,7 @@ describe('AdminAuthService', () => {
         email: 'user@test.com',
         passwordHash: 'hashedPassword',
         isActive: true,
-        adminRoles: []
+        AdminRole: []
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
@@ -233,7 +233,7 @@ describe('AdminAuthService', () => {
         email: 'admin@test.com',
         name: 'Admin User',
         isActive: true,
-        adminRoles: [
+        AdminRole: [
           {
             role: AdminRoles.ADMIN,
             isActive: true,

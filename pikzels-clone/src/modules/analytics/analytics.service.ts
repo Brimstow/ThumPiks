@@ -92,7 +92,7 @@ export class AnalyticsService {
       select: {
         id: true,
         name: true,
-        thumbnails: {
+        Thumbnail_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
           select: {
             id: true,
           },
@@ -104,7 +104,7 @@ export class AnalyticsService {
       .map(project => ({
         id: project.id,
         name: project.name,
-        thumbnailCount: project.thumbnails.length,
+        thumbnailCount: project.Thumbnail_Thumbnail_projectIdToProject.length,
       }))
       .sort((a, b) => b.thumbnailCount - a.thumbnailCount);
 
@@ -170,7 +170,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        project: {
+        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -214,7 +214,7 @@ export class AnalyticsService {
     // Group by project
     const projectStats: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
-      const projectName = thumbnail.project?.name || 'Unknown';
+      const projectName = thumbnail.Project_Thumbnail_projectIdToProject?.name || 'Unknown';
       projectStats[projectName] = (projectStats[projectName] || 0) + 1;
     });
 
@@ -292,7 +292,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        project: {
+        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -471,7 +471,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        project: {
+        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -855,7 +855,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        project: {
+        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
