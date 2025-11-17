@@ -239,12 +239,13 @@ describe('EnhancedJWTService', () => {
     it('should create unique reset tokens', async () => {
       const token1 = EnhancedJWTService.createResetToken(userId, email);
       
-      // Wait 1ms to ensure different iat timestamp
-      await new Promise(resolve => setTimeout(resolve, 1));
+      // Wait 1000ms (1 second) to ensure different iat timestamp
+      // JWT timestamps are in seconds, not milliseconds
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       const token2 = EnhancedJWTService.createResetToken(userId, email);
 
-      // Tokens should be different due to iat timestamp
+      // Tokens should be different due to iat timestamp (JWT uses second precision)
       expect(token1).not.toBe(token2);
     });
   });

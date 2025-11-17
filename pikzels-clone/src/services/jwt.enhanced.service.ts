@@ -2,9 +2,6 @@ import * as jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { logger } from '../utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET || 'your-refresh-secret';
-
 interface TokenPayload {
   userId: string;
   email: string;
@@ -13,6 +10,15 @@ interface TokenPayload {
 }
 
 export class EnhancedJWTService {
+  // Dynamic getters for secrets to support test environment variable injection
+  private static getJwtSecret(): string {
+    return process.env.JWT_SECRET || 'your-secret-key';
+  }
+
+  private static getRefreshSecret(): string {
+    return process.env.REFRESH_TOKEN_SECRET || 'your-refresh-secret';
+  }
+
   static generateSessionId(): string {
     return crypto.randomBytes(32).toString('hex');
   }
@@ -22,13 +28,13 @@ export class EnhancedJWTService {
     
     const accessToken = jwt.sign(
       { userId, email, sessionId },
-      JWT_SECRET,
+      this.getJwtSecret(),
       { expiresIn: '15m' }
     );
 
     const refreshToken = jwt.sign(
       { userId, email, sessionId, type: 'refresh' },
-      REFRESH_SECRET,
+      this.getRefreshSecret(),
       { expiresIn: '7d' }
     );
 
@@ -42,7 +48,7 @@ export class EnhancedJWTService {
 
   static verifyAccessToken(token: string): TokenPayload | null {
     try {
-      return jwt.verify(token, JWT_SECRET) as TokenPayload;
+      return jwt.verify(token, this.getJwtSecret()) as TokenPayload;
     } catch (error) {
       logger.warn('Access token verification failed', { error });
       return null;
@@ -51,7 +57,7 @@ export class EnhancedJWTService {
 
   static verifyRefreshToken(token: string): TokenPayload | null {
     try {
-      const payload = jwt.verify(token, REFRESH_SECRET) as TokenPayload;
+      const payload = jwt.verify(token, this.getRefreshSecret()) as TokenPayload;
       if (payload.type !== 'refresh') {
         throw new Error('Invalid token type');
       }
@@ -65,14 +71,14 @@ export class EnhancedJWTService {
   static createResetToken(userId: string, email: string): string {
     return jwt.sign(
       { userId, email, action: 'reset-password' },
-      JWT_SECRET,
+      this.getJwtSecret(),
       { expiresIn: '1h' }
     );
   }
 
   static verifyResetToken(token: string): TokenPayload | null {
     try {
-      return jwt.verify(token, JWT_SECRET) as TokenPayload;
+      return jwt.verify(token, this.getJwtSecret()) as TokenPayload;
     } catch (error) {
       logger.warn('Reset token verification failed', { error });
       return null;
