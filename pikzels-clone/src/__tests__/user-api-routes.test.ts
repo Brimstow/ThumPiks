@@ -3,9 +3,6 @@ process.env.JWT_SECRET = 'test-secret-key-that-is-32-chars-long!!';
 process.env.JWT_ACCESS_EXPIRY = '15m';
 process.env.NODE_ENV = 'test';
 
-// Mock timers to prevent intervals (Jest 29 modern API)
-jest.useFakeTimers({ legacyFakeTimers: false });
-
 // Mock dependencies before imports
 jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
@@ -201,20 +198,14 @@ describe('User App API Routes Tests', () => {
   
   afterAll(async () => {
     // Clean up any open handles
-    jest.runOnlyPendingTimers();
-    jest.clearAllTimers();
     jest.clearAllMocks();
-    
-    // Restore real timers
-    jest.useRealTimers();
     
     // Give a moment for any pending operations to complete
     await new Promise(resolve => setImmediate(resolve));
   });
   
   afterEach(() => {
-    // Clear all timers after each test
-    jest.clearAllTimers();
+    jest.clearAllMocks();
   });
 
   describe('Authentication Routes', () => {
