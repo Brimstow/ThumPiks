@@ -278,7 +278,7 @@ describe('OAuthService', () => {
         provider: 'github',
         emails: [{ value: 'dev@example.com' }],
         username: 'cooldev',
-        displayName: undefined,
+        // displayName is optional, so omit it entirely
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(null);
@@ -397,6 +397,7 @@ describe('OAuthService', () => {
         id: 'user456',
         email: 'error@example.com',
         name: 'Error User',
+        isVerified: false,
       };
 
       const tokenError = new Error('JWT signing failed');

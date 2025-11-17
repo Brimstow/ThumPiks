@@ -8,6 +8,17 @@ import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface PassportProfile {
+  id: string;
+  provider: string;
+  displayName?: string;
+  username?: string;
+  emails?: Array<{ value: string }>;
+  photos?: Array<{ value: string }>;
+  [key: string]: unknown;
+}
+
 interface OAuthProfile {
   id: string;
   provider: 'google' | 'github';
@@ -16,32 +27,43 @@ interface OAuthProfile {
   avatar?: string;
 }
 
+interface OAuthUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl?: string | null;
+  isVerified: boolean;
+}
+
 export class OAuthService {
   
   static initializePassport() {
     // Google OAuth Strategy
     if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       passport.use(new GoogleStrategy({
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: "/api/auth/google/callback"
-      }, this.handleOAuthCallback));
+      }, this.handleOAuthCallback as any)); // OAuth library types are complex
       
       logger.info('Google OAuth strategy initialized');
     }
 
     // GitHub OAuth Strategy  
     if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       passport.use(new GitHubStrategy({
         clientID: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET,
         callbackURL: "/api/auth/github/callback"
-      }, this.handleOAuthCallback));
+      }, this.handleOAuthCallback as any)); // OAuth library types are complex
       
       logger.info('GitHub OAuth strategy initialized');
     }
 
     // Serialize/deserialize user for session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     passport.serializeUser((user: any, done) => {
       done(null, user.id);
     });
@@ -68,16 +90,17 @@ export class OAuthService {
   static async handleOAuthCallback(
     _accessToken: string,
     _refreshToken: string,
-    profile: any,
+    profile: PassportProfile,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     done: any
   ) {
     try {
       const oauthProfile: OAuthProfile = {
         id: profile.id,
-        provider: profile.provider,
-        email: profile.emails?.[0]?.value,
-        name: profile.displayName || profile.username,
-        avatar: profile.photos?.[0]?.value,
+        provider: profile.provider as 'google' | 'github',
+        email: profile.emails?.[0]?.value ?? '',
+        name: profile.displayName ?? profile.username ?? '',
+        ...(profile.photos?.[0]?.value && { avatar: profile.photos[0].value }),
       };
 
       if (!oauthProfile.email) {
@@ -94,8 +117,8 @@ export class OAuthService {
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
-            name: user.name || oauthProfile.name,
-            avatarUrl: user.avatarUrl || oauthProfile.avatar || null,
+            name: user.name ?? oauthProfile.name,
+            avatarUrl: user.avatarUrl ?? oauthProfile.avatar ?? null,
             isVerified: true, // OAuth users are auto-verified
           },
         });
@@ -109,14 +132,17 @@ export class OAuthService {
         // Create new user
         // Generate username from email or name
         const emailParts = oauthProfile.email.split('@');
-        const baseUsername = (emailParts[0] || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const DEFAULT_USERNAME = 'user';
+        const baseUsername = (emailParts[0] ?? DEFAULT_USERNAME)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
         user = await prisma.user.create({
           data: {
             id: uuidv4(),
             email: oauthProfile.email,
             username: baseUsername, // OAuth users get username from email
             name: oauthProfile.name,
-            avatarUrl: oauthProfile.avatar || null,
+            avatarUrl: oauthProfile.avatar ?? null,
             passwordHash: '', // OAuth users don't have passwords
             isVerified: true,
             updatedAt: new Date(),
@@ -140,7 +166,7 @@ export class OAuthService {
     }
   }
 
-  static async generateTokensForOAuthUser(user: any) {
+  static async generateTokensForOAuthUser(user: OAuthUser) {
     try {
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
       

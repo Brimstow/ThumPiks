@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 export class CacheService {
   private static instance: CacheService;
   private redis: Redis | null = null;
-  private inMemoryCache: Map<string, { value: any; expires: number }> =
+  private inMemoryCache: Map<string, { value: unknown; expires: number }> =
     new Map();
   private isRedisAvailable = false;
   private redisCheckInterval: NodeJS.Timeout | null = null;
@@ -25,10 +25,19 @@ export class CacheService {
   }
 
   private initializeRedis() {
-    const redisConfig: any = {
-      host: process.env.REDIS_HOST || 'localhost',
+    const redisConfig: {
+      host: string;
+      port: number;
+      maxRetriesPerRequest: number;
+      retryDelayOnFailover: number;
+      lazyConnect: boolean;
+      connectTimeout: number;
+      commandTimeout: number;
+      password?: string;
+    } = {
+      host: process.env.REDIS_HOST ?? 'localhost',
       // NOTE: Changed from standard port 6379 to 8520 to follow project port convention (8500-8599)
-      port: parseInt(process.env.REDIS_PORT || '8520'),
+      port: parseInt(process.env.REDIS_PORT ?? '8520'),
       maxRetriesPerRequest: 2,
       retryDelayOnFailover: 100,
       lazyConnect: true,
@@ -71,6 +80,7 @@ export class CacheService {
   private startRedisRetryCheck() {
     if (this.redisCheckInterval) return;
 
+    const REDIS_CHECK_INTERVAL_MS = 30000; // 30 seconds
     // Check Redis availability every 30 seconds
     this.redisCheckInterval = setInterval(async () => {
       try {
@@ -81,10 +91,11 @@ export class CacheService {
       } catch {
         // Redis still unavailable
       }
-    }, 30000);
+    }, REDIS_CHECK_INTERVAL_MS);
   }
 
   private startMemoryCacheCleanup() {
+    const CLEANUP_INTERVAL_MS = 300000; // 5 minutes
     // Clean up expired entries every 5 minutes
     this.memoryCacheCleanupInterval = setInterval(() => {
       const now = Date.now();
@@ -93,7 +104,7 @@ export class CacheService {
           this.inMemoryCache.delete(key);
         }
       }
-    }, 300000);
+    }, CLEANUP_INTERVAL_MS);
   }
 
   static getInstance(): CacheService {
@@ -129,13 +140,13 @@ export class CacheService {
       return null;
     }
 
-    return entry.value;
+    return entry.value as T;
   }
 
   /**
    * Set cached data with TTL - uses both Redis and in-memory for resilience
    */
-  async set(key: string, value: any, ttlSeconds = 300): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds = CacheTTL.MEDIUM): Promise<void> {
     // Try Redis first (production-like)
     if (this.redis && this.isRedisAvailable) {
       try {
@@ -148,7 +159,8 @@ export class CacheService {
     }
 
     // Always store in in-memory cache as backup
-    const expires = ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : 0;
+    const MILLISECONDS_PER_SECOND = 1000;
+    const expires = ttlSeconds > 0 ? Date.now() + ttlSeconds * MILLISECONDS_PER_SECOND : 0;
     this.inMemoryCache.set(key, { value, expires });
   }
 
@@ -205,7 +217,7 @@ export class CacheService {
   async getOrSet<T>(
     key: string,
     fetchFunction: () => Promise<T>,
-    ttlSeconds = 300
+    ttlSeconds = CacheTTL.MEDIUM
   ): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== null) {
@@ -220,7 +232,7 @@ export class CacheService {
   /**
    * Increment counter (for rate limiting)
    */
-  async increment(key: string, ttlSeconds = 3600): Promise<number> {
+  async increment(key: string, ttlSeconds = CacheTTL.VERY_LONG): Promise<number> {
     if (!this.redis) return 0;
 
     try {
@@ -280,7 +292,7 @@ export class CacheService {
 }
 
 // Cache key generators
-export const CacheKeys = {
+export const CACHE_KEYS = {
   user: (userId: string) => `user:${userId}`,
   userProjects: (userId: string) => `user:${userId}:projects`,
   userThumbnails: (userId: string, page = 1) =>
@@ -295,10 +307,22 @@ export const CacheKeys = {
 };
 
 // Cache TTL constants (in seconds)
+const TTL_SHORT = 60; // 1 minute
+const TTL_MEDIUM = 300; // 5 minutes
+const TTL_LONG = 1800; // 30 minutes
+const TTL_VERY_LONG = 3600; // 1 hour
+const TTL_DAILY = 86400; // 24 hours
+
+/* eslint-disable @typescript-eslint/naming-convention */
 export const CacheTTL = {
-  SHORT: 60, // 1 minute
-  MEDIUM: 300, // 5 minutes
-  LONG: 1800, // 30 minutes
-  VERY_LONG: 3600, // 1 hour
-  DAILY: 86400, // 24 hours
+  SHORT: TTL_SHORT,
+  MEDIUM: TTL_MEDIUM,
+  LONG: TTL_LONG,
+  VERY_LONG: TTL_VERY_LONG,
+  DAILY: TTL_DAILY,
 };
+/* eslint-enable @typescript-eslint/naming-convention */
+
+// Re-export with backwards compatibility
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export const CacheKeys = CACHE_KEYS;

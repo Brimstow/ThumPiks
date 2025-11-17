@@ -12,15 +12,16 @@ interface TokenPayload {
 export class EnhancedJWTService {
   // Dynamic getters for secrets to support test environment variable injection
   private static getJwtSecret(): string {
-    return process.env.JWT_SECRET || 'your-secret-key';
+    return process.env.JWT_SECRET ?? 'your-secret-key';
   }
 
   private static getRefreshSecret(): string {
-    return process.env.REFRESH_TOKEN_SECRET || 'your-refresh-secret';
+    return process.env.REFRESH_TOKEN_SECRET ?? 'your-refresh-secret';
   }
 
   static generateSessionId(): string {
-    return crypto.randomBytes(32).toString('hex');
+    const SESSION_ID_BYTES = 32;
+    return crypto.randomBytes(SESSION_ID_BYTES).toString('hex');
   }
 
   static createTokens(userId: string, email: string) {
