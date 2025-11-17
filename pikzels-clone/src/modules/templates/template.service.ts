@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -17,13 +18,14 @@ export class TemplateService {
   }) {
     return prisma.template.create({
       data: {
+        id: uuidv4(),
         ...data,
         tags: JSON.stringify(data.tags),
         isPublic: data.isPublic ?? false,
+        updatedAt: new Date(),
       },
       include: {
-        thumbnail: true,
-        creator: true,
+        Thumbnail: true,
       },
     });
   }
@@ -88,8 +90,8 @@ export class TemplateService {
     const templates = await prisma.template.findMany({
       where,
       include: {
-        thumbnail: true,
-        creator: {
+        Thumbnail: true,
+        User: {
           select: {
             id: true,
             name: true,
@@ -116,8 +118,8 @@ export class TemplateService {
     const template = await prisma.template.findUnique({
       where: { id },
       include: {
-        thumbnail: true,
-        creator: {
+        Thumbnail: true,
+        User: {
           select: {
             id: true,
             name: true,
@@ -160,8 +162,7 @@ export class TemplateService {
       where: { id },
       data: updateData,
       include: {
-        thumbnail: true,
-        creator: true,
+        Thumbnail: true,
       },
     });
 

@@ -52,7 +52,7 @@ export class UsernameUtils {
     email: string
   ): Promise<string[]> {
     const suggestions: string[] = [];
-    const emailPrefix = email.split('@')[0].toLowerCase();
+    const emailPrefix = (email.split('@')[0] || '').toLowerCase();
 
     // Clean and prepare the name
     const cleanName = fullName

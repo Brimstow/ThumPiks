@@ -4,6 +4,7 @@ import { Strategy as GitHubStrategy } from 'passport-github2';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../../utils/logger';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -106,13 +107,19 @@ export class OAuthService {
         });
       } else {
         // Create new user
+        // Generate username from email or name
+        const emailParts = oauthProfile.email.split('@');
+        const baseUsername = (emailParts[0] || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
         user = await prisma.user.create({
           data: {
+            id: uuidv4(),
             email: oauthProfile.email,
+            username: baseUsername, // OAuth users get username from email
             name: oauthProfile.name,
             avatarUrl: oauthProfile.avatar || null,
             passwordHash: '', // OAuth users don't have passwords
             isVerified: true,
+            updatedAt: new Date(),
           },
         });
 

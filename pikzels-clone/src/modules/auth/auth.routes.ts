@@ -151,7 +151,7 @@ router.put(
         field: 'preference',
         required: true,
         type: 'string',
-        enum: ['name', 'username'],
+        whitelist: ['name', 'username'],
       },
     ],
   }),

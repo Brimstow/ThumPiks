@@ -72,4 +72,4 @@ cache/
 # Package lock files (as per project specification)
 # Generally not committed unless specifically required
 package-lock.json
-client/package-lock.json
+client/package-lock.jsonnul

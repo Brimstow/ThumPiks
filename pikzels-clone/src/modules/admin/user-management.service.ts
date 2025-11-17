@@ -192,7 +192,7 @@ export class UserManagementService {
       });
 
       return {
-        users: users as UserListItem[],
+        users: users as unknown as UserListItem[],
         pagination: {
           page,
           limit,
@@ -235,7 +235,7 @@ export class UserManagementService {
         }
       });
 
-      return user as UserDetailsResponse;
+      return user as unknown as UserDetailsResponse;
     } catch (error) {
       console.error('Error getting user by ID:', error);
       throw error;
@@ -263,7 +263,8 @@ export class UserManagementService {
       const newUser = await prisma.user.create({
         data: {
           email: userData.email.toLowerCase(),
-          name: userData.name || null,
+          name: userData.name || 'User',
+          username: userData.email.split('@')[0]?.toLowerCase() || 'user',
           passwordHash,
           isVerified: userData.isVerified || false,
           isActive: userData.isActive !== false, // Default to true

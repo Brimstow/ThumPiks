@@ -6,6 +6,7 @@ import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { logger } from '../../utils/logger';
 import { PasswordUtils } from '../../utils/password.utils';
 import { UsernameUtils } from '../../utils/username.utils';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -68,6 +69,7 @@ export class AuthService {
       // Create user (store username in lowercase for consistency)
       const user = await prisma.user.create({
         data: {
+          id: uuidv4(),
           username: username.toLowerCase(),
           email,
           name,
@@ -289,10 +291,13 @@ export class AuthService {
           verificationToken
         );
       } catch (emailError) {
-        logger.error('Failed to resend verification email', {
-          userId: user.id,
-          error: emailError,
-        });
+        logger.error(
+          'Failed to resend verification email',
+          emailError instanceof Error ? emailError : new Error(String(emailError)),
+          {
+            userId: user.id,
+          }
+        );
         throw new Error('Failed to send verification email');
       }
 
