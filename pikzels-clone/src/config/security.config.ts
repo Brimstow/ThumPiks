@@ -256,9 +256,12 @@ export function generateSecureKey(length = 32): string {
 }
 
 /**
- * Encrypt sensitive data
+ * Encrypt sensitive data using AES-256-GCM
+ * @param data - Data to encrypt
+ * @param key - Optional encryption key (uses ENCRYPTION_KEY env if not provided)
+ * @returns Object containing encrypted data, IV, and auth tag
  */
-export function encryptData(data: string, key?: string): { encrypted: string; iv: string } {
+export function encryptData(data: string, key?: string): { encrypted: string; iv: string; authTag: string } {
   const encryptionKey = key || getRequiredEnv('ENCRYPTION_KEY');
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(encryptionKey.slice(0, 32)), iv);
@@ -266,18 +269,30 @@ export function encryptData(data: string, key?: string): { encrypted: string; iv
   let encrypted = cipher.update(data, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   
+  // Get authentication tag for GCM mode (CRITICAL for data integrity)
+  const authTag = cipher.getAuthTag();
+  
   return {
     encrypted,
-    iv: iv.toString('hex')
+    iv: iv.toString('hex'),
+    authTag: authTag.toString('hex')
   };
 }
 
 /**
- * Decrypt sensitive data
+ * Decrypt sensitive data using AES-256-GCM
+ * @param encryptedData - Encrypted data in hex format
+ * @param iv - Initialization vector in hex format
+ * @param authTag - Authentication tag in hex format (required for GCM)
+ * @param key - Optional encryption key (uses ENCRYPTION_KEY env if not provided)
+ * @returns Decrypted plaintext string
  */
-export function decryptData(encryptedData: string, iv: string, key?: string): string {
+export function decryptData(encryptedData: string, iv: string, authTag: string, key?: string): string {
   const encryptionKey = key || getRequiredEnv('ENCRYPTION_KEY');
   const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(encryptionKey.slice(0, 32)), Buffer.from(iv, 'hex'));
+  
+  // Set authentication tag (CRITICAL for GCM integrity verification)
+  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
   
   let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
