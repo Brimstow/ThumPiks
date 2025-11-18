@@ -76,7 +76,10 @@ export class AnalyticsService {
         thumbnail.parameters !== null
       ) {
         const style = (thumbnail.parameters as any).style || 'other';
-        if (style in styleDistribution && styleDistribution[style] !== undefined) {
+        if (
+          style in styleDistribution &&
+          styleDistribution[style] !== undefined
+        ) {
           styleDistribution[style]++;
         } else if (styleDistribution.other !== undefined) {
           styleDistribution.other++;
@@ -92,7 +95,7 @@ export class AnalyticsService {
       select: {
         id: true,
         name: true,
-        Thumbnail_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
+        Thumbnail_Thumbnail_projectIdToProject: {
           select: {
             id: true,
           },
@@ -170,7 +173,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
+        Project_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -214,7 +217,8 @@ export class AnalyticsService {
     // Group by project
     const projectStats: Record<string, number> = {};
     thumbnails.forEach(thumbnail => {
-      const projectName = thumbnail.Project_Thumbnail_projectIdToProject?.name || 'Unknown';
+      const projectName =
+        thumbnail.Project_Thumbnail_projectIdToProject?.name || 'Unknown';
       projectStats[projectName] = (projectStats[projectName] || 0) + 1;
     });
 
@@ -292,7 +296,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
+        Project_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -471,7 +475,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
+        Project_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -635,13 +639,17 @@ export class AnalyticsService {
       if (count === 0) {
         editDistribution['0 edits'] = (editDistribution['0 edits'] || 0) + 1;
       } else if (count <= 2) {
-        editDistribution['1-2 edits'] = (editDistribution['1-2 edits'] || 0) + 1;
+        editDistribution['1-2 edits'] =
+          (editDistribution['1-2 edits'] || 0) + 1;
       } else if (count <= 5) {
-        editDistribution['3-5 edits'] = (editDistribution['3-5 edits'] || 0) + 1;
+        editDistribution['3-5 edits'] =
+          (editDistribution['3-5 edits'] || 0) + 1;
       } else if (count <= 10) {
-        editDistribution['6-10 edits'] = (editDistribution['6-10 edits'] || 0) + 1;
+        editDistribution['6-10 edits'] =
+          (editDistribution['6-10 edits'] || 0) + 1;
       } else {
-        editDistribution['10+ edits'] = (editDistribution['10+ edits'] || 0) + 1;
+        editDistribution['10+ edits'] =
+          (editDistribution['10+ edits'] || 0) + 1;
       }
     });
 
@@ -855,7 +863,7 @@ export class AnalyticsService {
         title: true,
         createdAt: true,
         parameters: true,
-        Project_Thumbnail_projectIdToProject_Thumbnail_projectIdToProject: {
+        Project_Thumbnail_projectIdToProject: {
           select: {
             name: true,
           },
@@ -1000,13 +1008,17 @@ export class AnalyticsService {
       if (count === 0) {
         editDistribution['0 edits'] = (editDistribution['0 edits'] || 0) + 1;
       } else if (count <= 2) {
-        editDistribution['1-2 edits'] = (editDistribution['1-2 edits'] || 0) + 1;
+        editDistribution['1-2 edits'] =
+          (editDistribution['1-2 edits'] || 0) + 1;
       } else if (count <= 5) {
-        editDistribution['3-5 edits'] = (editDistribution['3-5 edits'] || 0) + 1;
+        editDistribution['3-5 edits'] =
+          (editDistribution['3-5 edits'] || 0) + 1;
       } else if (count <= 10) {
-        editDistribution['6-10 edits'] = (editDistribution['6-10 edits'] || 0) + 1;
+        editDistribution['6-10 edits'] =
+          (editDistribution['6-10 edits'] || 0) + 1;
       } else {
-        editDistribution['10+ edits'] = (editDistribution['10+ edits'] || 0) + 1;
+        editDistribution['10+ edits'] =
+          (editDistribution['10+ edits'] || 0) + 1;
       }
     });
 
@@ -1031,9 +1043,10 @@ export class AnalyticsService {
     // Find most shared thumbnail
     const thumbnailShareCounts: Record<string, number> = {};
     socialShares.forEach(share => {
-      thumbnailShareCounts[share.thumbnailId] = (thumbnailShareCounts[share.thumbnailId] || 0) + 1;
+      thumbnailShareCounts[share.thumbnailId] =
+        (thumbnailShareCounts[share.thumbnailId] || 0) + 1;
     });
-    
+
     let mostSharedThumbnail = null;
     let maxShares = 0;
     Object.entries(thumbnailShareCounts).forEach(([thumbnailId, count]) => {
@@ -1044,7 +1057,7 @@ export class AnalyticsService {
           mostSharedThumbnail = {
             id: thumbnail.id,
             title: thumbnail.title,
-            shareCount: count
+            shareCount: count,
           };
         }
       }
