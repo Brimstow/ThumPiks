@@ -544,7 +544,7 @@ describe('Admin Auth Middleware', () => {
       );
     });
 
-    it.skip('should reset limit after time window', () => {
+    it('should reset limit after time window', () => {
       mockReq.adminUser = {
         id: 'admin-123',
         username: 'admin',
