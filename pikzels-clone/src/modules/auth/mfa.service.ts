@@ -323,7 +323,7 @@ export class MFAService {
   private static async storeMFASettings(userId: string, settings: MFASettings): Promise<void> {
     try {
       // Encrypt sensitive MFA data
-      const encryptedSettings = encryptData(JSON.stringify(settings));
+      const { encrypted, iv, authTag } = encryptData(JSON.stringify(settings));
       
       // Get current user settings
       const user = await prisma.user.findUnique({
@@ -339,7 +339,7 @@ export class MFAService {
         data: {
           settings: {
             ...currentSettings,
-            mfa: encryptedSettings,
+            mfa: { encrypted, iv, authTag },
           },
         },
       });
@@ -362,7 +362,7 @@ export class MFAService {
       }
 
       // Decrypt MFA settings
-      const decryptedData = decryptData(settings.mfa.encrypted, settings.mfa.iv);
+      const decryptedData = decryptData(settings.mfa.encrypted, settings.mfa.iv, settings.mfa.authTag);
       return JSON.parse(decryptedData) as MFASettings;
     } catch (error) {
       // SECURITY: Don't swallow errors - throw them so callers can handle appropriately
