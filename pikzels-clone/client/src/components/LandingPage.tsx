@@ -1,33 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// import { Button, Card, CardBody } from './ui';
-// import ThemeToggle from './ThemeToggle'; // Temporarily disabled due to quote issues
+import { Button, Card, CardBody } from './ui';
+import ThemeToggle from './ThemeToggle';
 import './LandingPage.css';
-
-// Temporary Button component to replace UI import
-const Button: React.FC<{
-  children: React.ReactNode;
-  onClick?: () => void;
-  className?: string;
-  size?: string;
-  variant?: string;
-}> = ({ children, onClick, className = '', size = '', variant = '' }) => (
-  <button
-    onClick={onClick}
-    className={`btn ${className} btn--${size} btn--${variant}`}
-  >
-    {children}
-  </button>
-);
-
-const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className = '',
-}) => <div className={`card ${className}`}>{children}</div>;
-
-const CardBody: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="card-body">{children}</div>
-);
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -162,10 +137,10 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className={`landing-page ${isDarkMode ? 'dark' : ''}`}>
-      {/* <ThemeToggle 
+      <ThemeToggle 
         isDarkMode={isDarkMode} 
         onToggle={toggleTheme} 
-      /> */}
+      />
 
       {/* Pill Navigation Header */}
       <header className="pill-navigation">
