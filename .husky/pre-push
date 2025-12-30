@@ -5,7 +5,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Run full test suite with coverage
 echo "🧪 [1/3] Running full test suite with coverage..."
-npm test -- --coverage --bail --maxWorkers=50%
+cd pikzels-clone && npm test -- --coverage --bail --maxWorkers=50%
 if [ $? -ne 0 ]; then
   echo "❌ Tests FAILED! Cannot push broken code."
   echo "Fix tests or use 'git push --no-verify' to bypass (NOT RECOMMENDED)."

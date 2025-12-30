@@ -204,3 +204,27 @@ CONTRIBUTING.md
 *.glossary.md
 *.faq.md
 *.guide.md
+
+# Additional embedded projects and tools to ignore
+magicpath-project(2)/
+magicpath-project(3)/
+thumpiks-landing/
+thumpiks_landing_project/
+thumpiks-site files/
+animated-bg-debugger/
+
+# Qoder personal settings (keep .qoder docs)
+.qoder/settings.json
+
+# Root-level integration and MCP/debug tools
+diagnose-mcp-servers.js
+mcp-fixed.json
+test-chrome-devtools-mcp.js
+test-mcp-servers.js
+test-routes.js
+warp-integration-fix.ps1
+show-output.ps1
+q.ps1
+qoder-terminal.ps1
+setup-custom-ports.py
+setup-professional-postgresql.py

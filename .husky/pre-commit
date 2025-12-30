@@ -32,7 +32,7 @@ fi
 
 # Run FULL test suite - NO BYPASS
 echo "🧪 [4/5] Running FULL test suite (strict mode)..."
-npm test -- --bail --maxWorkers=50%
+cd pikzels-clone && npm test -- --bail --maxWorkers=50%
 if [ $? -ne 0 ]; then
   echo "❌ Tests FAILED! Cannot commit broken code."
   echo "Fix tests or use 'git commit --no-verify' to bypass (NOT RECOMMENDED)."

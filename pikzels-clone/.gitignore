@@ -69,7 +69,46 @@ cache/
 *.tmp
 ~*
 
+
 # Package lock files (as per project specification)
+
 # Generally not committed unless specifically required
+
 package-lock.json
+
 client/package-lock.jsonnul
+
+# Test results and security reports
+git-security-report.json
+security-report.json
+security-test-results.json
+test-output.txt
+NAVIGATION_TEST_RESULTS.txt
+
+# Generated markdown status / summary / report files
+GIT_SECURITY_REPORT.md
+GIT_SECURITY_SUMMARY.md
+HUSKY_SETUP_STATUS.md
+
+# Misc generated / platform artifacts
+nul
+
+# Screenshots and visual test artifacts
+scripts/screenshots/
+scripts/modal-screenshots/
+test-screenshots/
+
+# Debug / test scripts (not part of main app)
+scripts/compare-input-styling.js
+scripts/final-visual-test.js
+scripts/git-security-scan.js
+scripts/inspect-input-container.js
+scripts/run-security-tests.js
+
+# Local-only setup utilities
+check-admins.ts
+setup-all-test-users.ts
+
+# Duplicate secretlint configs (root versions are canonical)
+.secretlintrc.json
+.secretlintignore
