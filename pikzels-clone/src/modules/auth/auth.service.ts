@@ -7,6 +7,11 @@ import { logger } from '../../utils/logger';
 import { PasswordUtils } from '../../utils/password.utils';
 import { UsernameUtils } from '../../utils/username.utils';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  ValidationError,
+  ConflictError,
+  UnauthorizedError,
+} from '../../utils/errors';
 
 const prisma = new PrismaClient();
 
@@ -24,7 +29,12 @@ export class AuthService {
       // Validate username
       const usernameValidation = await UsernameUtils.validateUsername(username);
       if (!usernameValidation.valid) {
-        throw new Error(usernameValidation.error || 'Invalid username');
+        const error = usernameValidation.error || 'Invalid username';
+        // Username already exists is a conflict, not a validation error
+        if (error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already exists')) {
+          throw new ConflictError(error);
+        }
+        throw new ValidationError(error);
       }
 
       // Check if email already exists
@@ -34,7 +44,7 @@ export class AuthService {
 
       if (existingEmail) {
         logger.warn('Registration attempt with existing email', { email });
-        throw new Error('Email already exists');
+        throw new ConflictError('Email already exists');
       }
 
       // Check if username already exists (case-insensitive)
@@ -49,13 +59,13 @@ export class AuthService {
 
       if (existingUsername) {
         logger.warn('Registration attempt with existing username', { username });
-        throw new Error('Username already taken');
+        throw new ConflictError('Username already taken');
       }
 
       // Validate password with OWASP standards
       const passwordValidation = PasswordUtils.validate(password);
       if (!passwordValidation.valid) {
-        throw new Error(passwordValidation.errors.join(', '));
+        throw new ValidationError(passwordValidation.errors.join(', '));
       }
 
       // Hash password with high cost factor
@@ -151,7 +161,7 @@ export class AuthService {
           isEmail,
         });
         // Generic error to prevent enumeration
-        throw new Error('Invalid credentials');
+        throw new UnauthorizedError('Invalid credentials');
       }
 
       // Verify password with timing-safe comparison
@@ -162,7 +172,7 @@ export class AuthService {
           userId: user.id,
           identifier,
         });
-        throw new Error('Invalid credentials');
+        throw new UnauthorizedError('Invalid credentials');
       }
 
       // Update last login

@@ -1,7 +1,6 @@
 import { AuthService } from '../auth.service';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { EmailService } from '../email.service';
 import { EnhancedJWTService } from '../../../services/jwt.enhanced.service';
 import { logger } from '../../../utils/logger';

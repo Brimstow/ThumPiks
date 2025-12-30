@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { logger } from '../../utils/logger';
+import {
+  ValidationError,
+  ConflictError,
+  UnauthorizedError,
+} from '../../utils/errors';
 
 const authService = new AuthService();
 
@@ -30,31 +35,20 @@ export const register = async (req: Request, res: Response) => {
       userAgent: req.get('User-Agent'),
     });
 
-    // Handle specific error types
-    if (error.message === 'Email already exists') {
+    // Handle typed errors with appropriate status codes
+    if (error instanceof ConflictError) {
       return res.status(409).json({
-        error: 'Email already exists',
+        error: error.message,
       });
     }
 
-    if (error.message === 'Username already taken') {
-      return res.status(409).json({
-        error: 'Username already taken',
-      });
-    }
-
-    if (error.message.includes('Password')) {
+    if (error instanceof ValidationError) {
       return res.status(400).json({
         error: error.message,
       });
     }
 
-    if (error.message.includes('Username')) {
-      return res.status(400).json({
-        error: error.message,
-      });
-    }
-
+    // Generic error for unexpected failures
     return res.status(500).json({
       error: 'Registration failed. Please try again.',
     });
@@ -88,12 +82,14 @@ export const login = async (req: Request, res: Response) => {
       userAgent: req.get('User-Agent'),
     });
 
-    if (error.message === 'Invalid credentials') {
+    // Handle typed errors with appropriate status codes
+    if (error instanceof UnauthorizedError) {
       return res.status(401).json({
-        error: 'Invalid credentials',
+        error: error.message,
       });
     }
 
+    // Generic error for unexpected failures
     return res.status(500).json({
       error: 'Login failed. Please try again.',
     });

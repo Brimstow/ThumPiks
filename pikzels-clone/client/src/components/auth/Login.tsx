@@ -31,8 +31,8 @@ const Login: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem('token', data.token);
+        // Store token in localStorage (API returns accessToken)
+        localStorage.setItem('token', data.accessToken || data.token);
 
         // Store user info
         if (data.user) {

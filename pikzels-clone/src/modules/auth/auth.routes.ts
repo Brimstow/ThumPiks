@@ -35,7 +35,22 @@ router.post(
         maxLength: 30,
       },
       commonValidations.email,
-      { field: 'name', required: true, type: 'string', minLength: 1 },
+      {
+        field: 'name',
+        required: true,
+        type: 'string',
+        minLength: 1,
+        maxLength: 100,
+        sanitize: true,
+        custom: (value: string) => {
+          // Reject if contains HTML tags after sanitization check
+          const htmlPattern = /<[^>]*>/g;
+          if (htmlPattern.test(value)) {
+            return 'Name cannot contain HTML tags or scripts';
+          }
+          return true;
+        },
+      },
       commonValidations.password,
     ],
   }),
@@ -125,7 +140,21 @@ router.post(
   '/suggest-usernames',
   validateRequest({
     body: [
-      { field: 'fullName', required: true, type: 'string', minLength: 1 },
+      {
+        field: 'fullName',
+        required: true,
+        type: 'string',
+        minLength: 1,
+        maxLength: 100,
+        sanitize: true,
+        custom: (value: string) => {
+          const htmlPattern = /<[^>]*>/g;
+          if (htmlPattern.test(value)) {
+            return 'Name cannot contain HTML tags or scripts';
+          }
+          return true;
+        },
+      },
       commonValidations.email,
     ],
   }),
