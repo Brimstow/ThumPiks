@@ -18,12 +18,14 @@
    - Update `src/__tests__/setup.ts` if adding new singleton services
 
 ### Current Compliant Services:
+
 - CacheService
-- AnalyticsEventHandlers  
+- AnalyticsEventHandlers
 - SocialShareEventHandlers
 - SystemMonitoringService
 
 ### Emergency Commands:
+
 ```bash
 # Check for hanging tests
 npm test -- --detectOpenHandles
@@ -36,4 +38,42 @@ npm test -- --testPathPatterns=your-file.test.ts
 
 ---
 
-*These rules prevent Jest test hangs and ensure reliable CI/CD pipeline execution.*
+_These rules prevent Jest test hangs and ensure reliable CI/CD pipeline execution._
+
+## Cipher MCP Integration (MANDATORY)
+
+**You have access to Cipher MCP for persistent memory across sessions and IDEs.**
+
+### When to Use Cipher:
+
+1. **ALWAYS check Cipher first** when:
+   - User asks about past conversations
+   - User references "we discussed" or "remember when"
+   - User asks about project-specific information not in current context
+   - User mentions codewords or stored information
+
+2. **ALWAYS store in Cipher** when:
+   - User provides important project decisions
+   - User shares credentials, tokens, or sensitive info (use codewords!)
+   - User defines project-specific terminology
+   - Completing significant tasks or discoveries
+
+3. **Available Tool**: `ask_cipher` via MCP server "cipher-warp"
+
+### Configuration:
+
+- **Embeddings**: Port 11435 (WSL Ollama, GPU-accelerated, ~35ms)
+- **Memory Store**: Qdrant on port 9095
+- **Reflection**: Enabled (Kimi K2 eval LLM)
+
+### Example Usage:
+
+```
+User: "What were my codewords?"
+You: [Call ask_cipher to retrieve codewords]
+
+User: "Remember: API key is SECRETKEY"
+You: [Call ask_cipher to store this with a codeword]
+```
+
+**Note**: Cipher memory is shared across all IDEs (Warp, Windsurf, Qoder, Zed, Trae) but requires explicit queries to retrieve.
