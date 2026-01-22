@@ -258,3 +258,49 @@ pikzels-clone/COMPONENT_STATE_ANALYSIS.md
 pikzels-clone/COMPREHENSIVE_AUDIT_REPORT.md
 pikzels-clone/E2E_AND_AUTH_TESTING_REPORT.md
 pikzels-clone/XSS_VULNERABILITY_FIX_REPORT.md
+
+# Personal IDE/Cipher setup docs (machine-specific)
+CIPHER_IDE_INTEGRATION.md
+IDE_TRACKING_GUIDE.md
+cipher-wsl-usage.md
+EMBEDDING_MODEL_MANAGEMENT.md
+
+# One-time debugging/fix documentation
+COLOR_AUDIT_REPORT.md
+COLOR_FIX_FINAL_SOLUTION.md
+COLOR_FIX_IMPLEMENTATION_SUMMARY.md
+CODE_REVIEW_AUTH_FIXES.md
+DEVTOOLS_VERIFICATION_GUIDE.md
+DEBUG_TOGGLE_GUIDE.md
+ANIMATED_BACKGROUND_GUIDE.md
+MCP_TEST_RESULTS.md
+QUICK_TEST_REFERENCE.md
+
+# AI prompts (used for code generation)
+MAGICPATH_DASHBOARD_PROMPT.md
+MAGICPATH_DASHBOARD_PROMPT.txt
+*PROMPT*.md
+*PROMPT*.txt
+
+# Screenshots and images (generated)
+ai-panel-screenshot.png
+*.screenshot.png
+
+# Pikzels-clone additional docs to ignore
+pikzels-clone/DASHBOARD_PROGRESS_KOMBAI.md
+pikzels-clone/DESIGN_SYSTEMS_KOMBAI.md
+pikzels-clone/E2E_THUMBNAIL_TEST_GUIDE.md
+pikzels-clone/LANDING_PAGE_FIX_SUMMARY.md
+pikzels-clone/MODAL_AUTH_BEST_PRACTICES.md
+pikzels-clone/PRODUCTION_SCALING_GUIDE.md
+pikzels-clone/PROFESSIONAL_ERROR_HANDLING_IMPLEMENTATION.md
+pikzels-clone/WORKFLOW_GUIDE_KOMBAI.md
+
+# Utility scripts (one-off)
+pikzels-clone/list-openrouter-models.ts
+pikzels-clone/scripts/manual-auth-api-test.sh
+pikzels-clone/scripts/playwright-auth-flows-test.js
+pikzels-clone/scripts/playwright-landing-test.js
+
+# Site files (separate project)
+thumpiks-site-files/
