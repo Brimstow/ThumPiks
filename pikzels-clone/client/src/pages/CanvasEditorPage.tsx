@@ -23,7 +23,7 @@ const CanvasEditorPage: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/thumbnails', {
+      const response = await fetch('/api/thumbnails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

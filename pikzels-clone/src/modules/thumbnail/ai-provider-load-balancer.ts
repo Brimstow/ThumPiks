@@ -388,7 +388,7 @@ export class AIProviderLoadBalancer {
         return this.selectFailover(available);
 
       default:
-        return available[0];
+        return available[0]!;
     }
   }
 
@@ -416,7 +416,7 @@ export class AIProviderLoadBalancer {
         }
         // Reset rate limit status
         status.rateLimited = false;
-        status.rateLimitResetAt = undefined;
+        delete status.rateLimitResetAt;
       }
 
       // Check if provider has capacity
@@ -443,7 +443,7 @@ export class AIProviderLoadBalancer {
   private selectRoundRobin(available: ProviderName[]): ProviderName {
     const index = this.roundRobinIndex % available.length;
     this.roundRobinIndex++;
-    return available[index];
+    return available[index]!;
   }
 
   /**
@@ -451,7 +451,7 @@ export class AIProviderLoadBalancer {
    */
   private selectLeastLoaded(available: ProviderName[]): ProviderName {
     let minLoad = Infinity;
-    let selected = available[0];
+    let selected = available[0]!;
 
     for (const name of available) {
       const status = this.providerStatus.get(name);
@@ -469,7 +469,7 @@ export class AIProviderLoadBalancer {
    */
   private selectFastest(available: ProviderName[]): ProviderName {
     let minTime = Infinity;
-    let selected = available[0];
+    let selected = available[0]!;
 
     for (const name of available) {
       const status = this.providerStatus.get(name);
@@ -491,13 +491,13 @@ export class AIProviderLoadBalancer {
     let random = Math.random() * totalWeight;
 
     for (let i = 0; i < available.length; i++) {
-      random -= weights[i];
+      random -= weights[i]!;
       if (random <= 0) {
-        return available[i];
+        return available[i]!;
       }
     }
 
-    return available[available.length - 1];
+    return available[available.length - 1]!;
   }
 
   /**
@@ -505,7 +505,7 @@ export class AIProviderLoadBalancer {
    */
   private selectFailover(available: ProviderName[]): ProviderName {
     // Available is already sorted by priority
-    return available[0];
+    return available[0]!;
   }
 
   /**
@@ -696,7 +696,7 @@ export class AIProviderLoadBalancer {
       if (status.rateLimited && status.rateLimitResetAt) {
         if (new Date() >= status.rateLimitResetAt) {
           status.rateLimited = false;
-          status.rateLimitResetAt = undefined;
+          delete status.rateLimitResetAt;
           console.log(`[LoadBalancer] Provider ${name} rate limit cooldown expired`);
         }
       }
@@ -779,9 +779,7 @@ export class AIProviderLoadBalancer {
       providers: Array.from(this.providerStatus.values()),
       queue: {
         size: this.requestQueue.length,
-        oldestRequestAge: oldestRequest
-          ? Date.now() - oldestRequest.enqueuedAt.getTime()
-          : undefined,
+        ...(oldestRequest && { oldestRequestAge: Date.now() - oldestRequest.enqueuedAt.getTime() }),
       },
       stats: {
         totalRequests: this.totalRequests,
@@ -817,9 +815,9 @@ export class AIProviderLoadBalancer {
     if (status) {
       status.healthy = true;
       status.rateLimited = false;
-      status.rateLimitResetAt = undefined;
-      status.lastError = undefined;
-      status.lastErrorAt = undefined;
+      delete status.rateLimitResetAt;
+      delete status.lastError;
+      delete status.lastErrorAt;
       status.successCount = 0;
       status.failureCount = 0;
       console.log(`[LoadBalancer] Provider ${providerName} reset`);

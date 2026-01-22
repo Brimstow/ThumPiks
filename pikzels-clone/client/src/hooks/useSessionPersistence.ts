@@ -100,7 +100,7 @@ export const useSessionPersistence = () => {
 
     try {
       // Check backend health
-      const response = await fetch(`http://localhost:8550/health`, {
+      const response = await fetch(`/health`, {
         method: 'GET',
         timeout: 5000,
         headers: {
@@ -130,7 +130,7 @@ export const useSessionPersistence = () => {
    */
   const validateSession = useCallback(async (sessionData: SessionData): Promise<boolean> => {
     try {
-      const response = await fetch(`http://localhost:8550/admin/auth/validate`, {
+      const response = await fetch(`/admin/auth/validate`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${sessionData.token}`,
@@ -287,7 +287,7 @@ export const useSessionPersistence = () => {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`http://localhost:8550/admin/auth/login`, {
+      const response = await fetch(`/admin/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -326,7 +326,7 @@ export const useSessionPersistence = () => {
     if (session) {
       try {
         // Notify backend of logout
-        await fetch(`http://localhost:8550/admin/auth/logout`, {
+        await fetch(`/admin/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.token}`,
