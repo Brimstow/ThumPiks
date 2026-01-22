@@ -18,7 +18,8 @@ const ThumbnailFilters: React.FC<ThumbnailFiltersProps> = ({
   onFilterChange,
   projects,
 }) => {
-  const { theme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
   const [filters, setFilters] = useState({
     search: '',
     projectId: '',

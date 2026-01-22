@@ -18,7 +18,8 @@ const CreateThumbnail: React.FC<CreateThumbnailProps> = ({
     projects.length > 0 ? projects[0].id : ''
   );
   const [isGenerating, setIsGenerating] = useState(false);
-  const { theme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
