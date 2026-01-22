@@ -25,7 +25,11 @@ const UserSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const { theme: currentTheme, toggleTheme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const currentTheme = isDark ? 'dark' : 'light';
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle('dark');
+  };
 
   useEffect(() => {
     fetchSettings();

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 
 const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { token: urlToken } = useParams<{ token: string }>();
   const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -11,15 +12,19 @@ const ResetPassword: React.FC = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Get token from URL query parameter
+  // Get token from URL parameter OR query parameter (support both formats)
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('token');
+    const tokenFromUrl = urlToken; // From /reset-password/:token
+    const tokenFromQuery = searchParams.get('token'); // From /reset-password?token=xyz
+    
     if (tokenFromUrl) {
       setToken(tokenFromUrl);
+    } else if (tokenFromQuery) {
+      setToken(tokenFromQuery);
     } else {
       setError('No reset token provided. Please use the link from your email.');
     }
-  }, [searchParams]);
+  }, [searchParams, urlToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

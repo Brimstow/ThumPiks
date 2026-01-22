@@ -204,3 +204,103 @@ CONTRIBUTING.md
 *.glossary.md
 *.faq.md
 *.guide.md
+
+# Additional embedded projects and tools to ignore
+magicpath-project(2)/
+magicpath-project(3)/
+thumpiks-landing/
+thumpiks_landing_project/
+thumpiks-site files/
+animated-bg-debugger/
+
+# Qoder personal settings (keep .qoder docs)
+.qoder/settings.json
+
+# Root-level integration and MCP/debug tools
+diagnose-mcp-servers.js
+mcp-fixed.json
+test-chrome-devtools-mcp.js
+test-mcp-servers.js
+test-routes.js
+warp-integration-fix.ps1
+show-output.ps1
+q.ps1
+qoder-terminal.ps1
+setup-custom-ports.py
+setup-professional-postgresql.py
+
+# Test artifacts and reports (Playwright, Jest, etc.)
+playwright-report/
+test-results/
+*.test-results.json
+*-test-results.json
+*-test-results-old.json
+
+# Screenshots from automated tests
+**/auth-flow-screenshots/
+**/landing-screenshots/
+**/screenshots/
+
+# API and security test reports (generated)
+api-security-test-report.json
+
+# Temporary files
+temp_*.txt
+*.backup
+
+# Kombai tool settings
+.kombai/
+
+# Generated documentation reports (keep manually written docs)
+# These are auto-generated and can be regenerated
+pikzels-clone/API_SECURITY_TEST_REPORT.md
+pikzels-clone/COMPONENT_STATE_ANALYSIS.md
+pikzels-clone/COMPREHENSIVE_AUDIT_REPORT.md
+pikzels-clone/E2E_AND_AUTH_TESTING_REPORT.md
+pikzels-clone/XSS_VULNERABILITY_FIX_REPORT.md
+
+# Personal IDE/Cipher setup docs (machine-specific)
+CIPHER_IDE_INTEGRATION.md
+IDE_TRACKING_GUIDE.md
+cipher-wsl-usage.md
+EMBEDDING_MODEL_MANAGEMENT.md
+
+# One-time debugging/fix documentation
+COLOR_AUDIT_REPORT.md
+COLOR_FIX_FINAL_SOLUTION.md
+COLOR_FIX_IMPLEMENTATION_SUMMARY.md
+CODE_REVIEW_AUTH_FIXES.md
+DEVTOOLS_VERIFICATION_GUIDE.md
+DEBUG_TOGGLE_GUIDE.md
+ANIMATED_BACKGROUND_GUIDE.md
+MCP_TEST_RESULTS.md
+QUICK_TEST_REFERENCE.md
+
+# AI prompts (used for code generation)
+MAGICPATH_DASHBOARD_PROMPT.md
+MAGICPATH_DASHBOARD_PROMPT.txt
+*PROMPT*.md
+*PROMPT*.txt
+
+# Screenshots and images (generated)
+ai-panel-screenshot.png
+*.screenshot.png
+
+# Pikzels-clone additional docs to ignore
+pikzels-clone/DASHBOARD_PROGRESS_KOMBAI.md
+pikzels-clone/DESIGN_SYSTEMS_KOMBAI.md
+pikzels-clone/E2E_THUMBNAIL_TEST_GUIDE.md
+pikzels-clone/LANDING_PAGE_FIX_SUMMARY.md
+pikzels-clone/MODAL_AUTH_BEST_PRACTICES.md
+pikzels-clone/PRODUCTION_SCALING_GUIDE.md
+pikzels-clone/PROFESSIONAL_ERROR_HANDLING_IMPLEMENTATION.md
+pikzels-clone/WORKFLOW_GUIDE_KOMBAI.md
+
+# Utility scripts (one-off)
+pikzels-clone/list-openrouter-models.ts
+pikzels-clone/scripts/manual-auth-api-test.sh
+pikzels-clone/scripts/playwright-auth-flows-test.js
+pikzels-clone/scripts/playwright-landing-test.js
+
+# Site files (separate project)
+thumpiks-site-files/

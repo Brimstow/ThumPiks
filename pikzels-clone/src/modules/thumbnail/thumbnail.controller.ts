@@ -609,7 +609,7 @@ export const accessSharedThumbnail = async (req: Request, res: Response) => {
         // In a production environment, you'd want a dedicated field for share tokens
       },
       include: {
-        project: true,
+        Project_Thumbnail_projectIdToProject: true,
       },
     });
 

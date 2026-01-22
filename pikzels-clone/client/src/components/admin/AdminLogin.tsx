@@ -47,7 +47,7 @@ const AdminLogin: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8550/api/admin/auth/login', {
+      const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ const AdminLogin: React.FC = () => {
       localStorage.setItem('adminToken', data.token);
       localStorage.setItem('adminUser', JSON.stringify(data.admin || data.user));
       
-      navigate('/admin');
+      navigate('/admin', { replace: true });
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login');

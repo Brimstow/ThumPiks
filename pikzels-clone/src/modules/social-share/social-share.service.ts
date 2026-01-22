@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,10 @@ export class SocialShareService {
     engagement?: any;
   }) {
     return prisma.socialShare.create({
-      data,
+      data: {
+        id: uuidv4(),
+        ...data,
+      },
     });
   }
 
@@ -49,7 +53,8 @@ export class SocialShareService {
     return prisma.socialShare.findMany({
       where,
       include: {
-        thumbnail: true,
+        Thumbnail: true,
+        User: true,
       },
       orderBy: {
         sharedAt: 'desc',

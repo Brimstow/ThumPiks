@@ -2,7 +2,6 @@ import request from 'supertest';
 import express from 'express';
 import { 
   securityHeaders, 
-  generalRateLimit, 
   sanitizeInput, 
   securityLogger 
 } from '../../middleware/security.middleware';
@@ -18,7 +17,7 @@ const createTestApp = () => {
   app.use(express.json());
   
   // Test routes
-  app.get('/test', (req, res) => {
+  app.get('/test', (_req, res) => {
     res.json({ message: 'success' });
   });
   

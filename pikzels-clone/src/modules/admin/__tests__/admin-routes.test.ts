@@ -560,14 +560,6 @@ describe('Admin Routing Tests', () => {
 
     describe('GET /api/admin/users/stats', () => {
       it('should return user statistics', async () => {
-        const mockStats = {
-          totalUsers: 100,
-          activeUsers: 95,
-          inactiveUsers: 5,
-          newUsersThisMonth: 15,
-          userGrowthRate: 12.5
-        };
-
         // Mock the database queries for stats
         mockPrisma.user.count
           .mockResolvedValueOnce(100) // total users

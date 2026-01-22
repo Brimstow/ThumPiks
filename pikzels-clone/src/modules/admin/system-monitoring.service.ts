@@ -2,7 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import { analyticsService } from './analytics.service';
 import { adminAuthService } from './admin-auth.service';
 import Redis from 'ioredis';
-import fs from 'fs';
 import os from 'os';
 
 const prisma = new PrismaClient();
@@ -288,7 +287,6 @@ export class SystemMonitoringService {
    */
   private async checkFileSystem(): Promise<HealthCheck> {
     try {
-      const stats = fs.statSync(process.cwd());
       const diskUsage = await this.getDiskUsage();
 
       let status: 'healthy' | 'degraded' | 'down' = 'healthy';

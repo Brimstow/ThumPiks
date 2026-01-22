@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { adminAuthService, AdminRoles, ROLE_PERMISSIONS } from '../modules/admin/admin-auth.service';
 import readline from 'readline';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -41,11 +42,11 @@ async function createSuperAdmin() {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { adminRoles: true }
+      include: { AdminRole: true }
     });
 
     if (existingUser) {
-      if (existingUser.adminRoles.some(role => role.role === AdminRoles.SUPER_ADMIN && role.isActive)) {
+      if (existingUser.AdminRole.some((role: any) => role.role === AdminRoles.SUPER_ADMIN && role.isActive)) {
         console.log('❌ User already has super admin role');
         return;
       }
@@ -71,9 +72,13 @@ async function createSuperAdmin() {
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user
+    const emailParts = email.split('@');
+    const baseUsername = (emailParts[0] || 'admin').toLowerCase();
     const newUser = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: email.toLowerCase(),
+        username: baseUsername,
         name: name.trim(),
         passwordHash,
         isVerified: true, // Super admin is automatically verified
@@ -119,12 +124,12 @@ async function listAdmins() {
 
     const admins = await prisma.user.findMany({
       where: {
-        adminRoles: {
+        AdminRole: {
           some: { isActive: true }
         }
       },
       include: {
-        adminRoles: {
+        AdminRole: {
           where: { isActive: true },
           orderBy: { assignedAt: 'desc' }
         }
@@ -138,7 +143,7 @@ async function listAdmins() {
     }
 
     admins.forEach((admin, index) => {
-      const roles = admin.adminRoles.map(role => role.role).join(', ');
+      const roles = admin.AdminRole.map((role: any) => role.role).join(', ');
       console.log(`${index + 1}. ${admin.name || 'Unnamed'} (${admin.email})`);
       console.log(`   Roles: ${roles}`);
       console.log(`   Created: ${admin.createdAt.toISOString()}`);

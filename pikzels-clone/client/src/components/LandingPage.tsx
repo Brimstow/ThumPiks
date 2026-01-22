@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Gradually adding shadcn components - systematic approach
-import { Button, Input, Card, CardHeader, CardBody } from './ui';
+import { Button, Card, CardBody } from './ui';
+import ThemeToggle from './ThemeToggle';
 import './LandingPage.css';
 
 const LandingPage: React.FC = () => {
@@ -13,125 +13,136 @@ const LandingPage: React.FC = () => {
   const [includeFace, setIncludeFace] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState('home');
   const [activeFAQ, setActiveFAQ] = useState<number | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
-  // FAQ data for the FAQ section
-  const faqData = [
-    {
-      question: 'How can custom AI thumbnails improve my YouTube video views?',
-      answer: 'Custom thumbnails grab attention and make your videos stand out. A well-designed thumbnail shows what your video is about and encourages viewers to click.',
-    },
-    {
-      question: 'What file formats does the thumbnail software support?',
-      answer: 'Our AI thumbnail generator supports file formats like JPG, PNG, and GIF. This flexibility allows you to upload thumbnails directly to YouTube.',
-    },
-    {
-      question: 'How does the AI suggest thumbnail designs?',
-      answer: 'The AI analyzes your video link and key content to recommend thumbnail designs that best capture the essence of your video.',
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+
+    if (newTheme) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
-  ];
+  };
 
-  // Thumbnail examples for infinite scroll
+  // Sample thumbnail examples for slideshow - using actual working images
   const thumbnailExamples = [
     {
       id: 1,
-      src: 'https://picsum.photos/280/160?random=1',
+      src: 'https://via.placeholder.com/300x200/6366f1/ffffff?text=Gaming+Tutorial',
       title: 'How to Master Gaming Skills',
       views: '1.2M',
-      category: 'Gaming'
     },
     {
       id: 2,
-      src: 'https://picsum.photos/280/160?random=2',
+      src: 'https://via.placeholder.com/300x200/8b5cf6/ffffff?text=Tech+Review',
       title: 'Latest Tech Reviews 2024',
       views: '850K',
-      category: 'Tech'
     },
     {
       id: 3,
-      src: 'https://picsum.photos/280/160?random=3',
-      title: 'AI Tools for Creators',
-      views: '2.5M',
-      category: 'Tech'
+      src: 'https://via.placeholder.com/300x200/06b6d4/ffffff?text=Lifestyle+Tips',
+      title: 'Daily Lifestyle Hacks',
+      views: '2.1M',
     },
     {
       id: 4,
-      src: 'https://picsum.photos/280/160?random=4',
-      title: 'Learn JavaScript Fast',
-      views: '1.8M',
-      category: 'Programming'
+      src: 'https://via.placeholder.com/300x200/10b981/ffffff?text=Cooking+Show',
+      title: 'Quick Cooking Recipes',
+      views: '650K',
     },
     {
       id: 5,
-      src: 'https://picsum.photos/280/160?random=5',
-      title: 'Best Mobile Apps 2024',
-      views: '920K',
-      category: 'Tech'
+      src: 'https://via.placeholder.com/300x200/f59e0b/ffffff?text=Travel+Guide',
+      title: 'Amazing Travel Destinations',
+      views: '1.8M',
     },
     {
       id: 6,
-      src: 'https://picsum.photos/280/160?random=6',
-      title: 'Top Games This Month',
+      src: 'https://via.placeholder.com/300x200/ef4444/ffffff?text=Music+Hits',
+      title: 'Top Music Hits 2024',
       views: '3.2M',
-      category: 'Gaming'
     },
     {
       id: 7,
-      src: 'https://picsum.photos/280/160?random=7',
+      src: 'https://via.placeholder.com/300x200/8b5cf6/ffffff?text=DIY+Projects',
       title: 'Easy DIY Home Projects',
       views: '940K',
-      category: 'DIY'
     },
     {
       id: 8,
-      src: 'https://picsum.photos/280/160?random=8',
+      src: 'https://via.placeholder.com/300x200/06b6d4/ffffff?text=Fitness+Tips',
       title: 'Complete Fitness Guide',
       views: '1.5M',
-      category: 'Fitness'
     },
     {
       id: 9,
-      src: 'https://picsum.photos/280/160?random=9',
+      src: 'https://via.placeholder.com/300x200/10b981/ffffff?text=Art+Tutorial',
       title: 'Digital Art Masterclass',
       views: '780K',
-      category: 'Art'
     },
-    {
-      id: 10,
-      src: 'https://picsum.photos/280/160?random=10',
-      title: 'Amazing Travel Destinations',
-      views: '1.8M',
-      category: 'Travel'
-    },
-    {
-      id: 11,
-      src: 'https://picsum.photos/280/160?random=11',
-      title: 'Fashion Trends 2024',
-      views: '1.1M',
-      category: 'Fashion'
-    },
-    {
-      id: 12,
-      src: 'https://picsum.photos/280/160?random=12',
-      title: 'Photography Basics',
-      views: '890K',
-      category: 'Photography'
-    }
   ];
 
-  const topRowThumbnails = thumbnailExamples.slice(0, 6);
-  const bottomRowThumbnails = thumbnailExamples.slice(6);
+  // Auto-slide for thumbnail gallery
+  useEffect(() => {
+    console.log('ThumbnailMaker Landing Page loaded successfully!');
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => {
+        const nextSlide = (prev + 1) % Math.ceil(thumbnailExamples.length / 3);
+        console.log('Sliding from', prev, 'to', nextSlide);
+        return nextSlide;
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [thumbnailExamples.length]);
 
   const handleGenerateThumbnail = () => {
     if (!videoLink.trim()) {
       alert('Please enter a video link');
       return;
     }
+    // Navigate to thumbnail editor or handle generation
     navigate('/dashboard');
   };
 
+  const faqData = [
+    {
+      question: 'How can custom AI thumbnails improve my YouTube video views?',
+      answer:
+        'Custom thumbnails grab attention and make your videos stand out. A well-designed thumbnail shows what your video is about and encourages viewers to click. Using an AI thumbnail maker boosts click-through rates and helps you grow your audience faster.',
+    },
+    {
+      question: 'What file formats does the thumbnail software support?',
+      answer:
+        "Our AI thumbnail generator supports file formats like JPG, PNG, and GIF. This flexibility allows you to upload thumbnails directly to YouTube. Using this thumbnail generator, it's easy to create and save your thumbnails in the right format every time.",
+    },
+    {
+      question: 'How does the AI suggest thumbnail designs?',
+      answer:
+        'The AI analyzes your video link and key content to recommend thumbnail designs. It suggests designs that best capture the essence of your video. It focuses on elements like colors, text placement, and imagery to maximize clicks.',
+    },
+    {
+      question: 'What styles and themes can users create with your software?',
+      answer:
+        "Our software can generate thumbnails from a wide variety of styles and themes, from bold and colorful to sleek and minimalist. Our AI thumbnail maker adapts the style according to what works best for your video's genre.",
+    },
+    {
+      question:
+        'How does your software save time for creators with many videos?',
+      answer:
+        'Managing thumbnails for multiple videos can be time-consuming. Our AI thumbnail generator automates much of the process and generates thumbnails instantly from video links. Our software streamlines your workflow so you can focus on growing your channel.',
+    },
+  ];
+
   return (
     <div className={`landing-page ${isDarkMode ? 'dark' : ''}`}>
-      {/* Navigation Header */}
+      <ThemeToggle 
+        isDarkMode={isDarkMode} 
+        onToggle={toggleTheme} 
+      />
+
+      {/* Pill Navigation Header */}
       <header className="pill-navigation">
         <div className="nav-container">
           <div className="logo">
@@ -150,7 +161,6 @@ const LandingPage: React.FC = () => {
           </nav>
           <Button
             variant="primary"
-            size="md"
             onClick={() => navigate('/register')}
             className="nav-cta"
           >
@@ -171,44 +181,35 @@ const LandingPage: React.FC = () => {
             professional designs instantly - no design skills needed.
           </p>
 
-          {/* Generate Interface */}
+          {/* Generate Thumbnail Interface */}
           <div className="generate-interface">
             <div className="generate-options">
-              <Button
-                variant={includeFace ? 'primary' : 'ghost'}
-                size="sm"
+              <button
+                className={`option-pill ${includeFace ? 'active' : ''}`}
                 onClick={() => setIncludeFace(!includeFace)}
-                leftIcon={<span>👤</span>}
-                className="option-pill"
               >
+                <span className="option-icon">👤</span>
                 Include face
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                leftIcon={<span>👁️</span>}
-                className="option-pill"
-              >
+              </button>
+              <button className="option-pill">
+                <span className="option-icon">👁️</span>
                 See example
-              </Button>
+              </button>
             </div>
 
             <div className="video-input-container">
               <div className="input-icon">🎬</div>
-              <Input
+              <input
                 type="text"
                 placeholder="Drop link to your YouTube video"
                 value={videoLink}
-                onChange={(e) => setVideoLink(e.target.value)}
+                onChange={e => setVideoLink(e.target.value)}
                 className="video-link-input"
-                size="lg"
-                leftIcon={<span>🎬</span>}
               />
               <Button
                 onClick={handleGenerateThumbnail}
-                variant="primary"
-                size="lg"
                 className="generate-btn"
+                size="lg"
               >
                 Generate Thumbnail
               </Button>
@@ -217,340 +218,205 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Infinite Scroll Gallery */}
-      <section className="infinite-scroll-section">
+      {/* Slideshow Gallery Section */}
+      <section className="slideshow-section">
         <h2 className="section-title">
           Discover amazing thumbnails by creators like you.
         </h2>
-        
-        {/* Top Row - Scrolling Left */}
-        <div className="infinite-scroll-row">
-          <div className="scroll-track scroll-left">
-            {[...topRowThumbnails, ...topRowThumbnails, ...topRowThumbnails].map((thumbnail, index) => (
-              <div key={`top-${thumbnail.id}-${index}`} className="scroll-thumbnail-card">
-                <div className="thumbnail-container">
-                  <img
-                    src={thumbnail.src}
-                    alt={thumbnail.title}
-                    className="scroll-thumbnail-image"
-                    onError={e => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)';
-                      target.style.display = 'flex';
-                      target.style.alignItems = 'center';
-                      target.style.justifyContent = 'center';
-                      target.style.color = 'white';
-                      target.style.fontSize = '12px';
-                      target.style.fontWeight = 'bold';
-                      target.textContent = '🎬 ' + thumbnail.title.slice(0, 15) + '...';
-                    }}
-                  />
-                  <div className="thumbnail-text-overlay">
-                    <h3 className="thumbnail-overlay-title">{thumbnail.title}</h3>
-                    <div className="thumbnail-overlay-stats">
-                      <span className="views-badge">{thumbnail.views} views</span>
-                      <span className="category-badge">{thumbnail.category}</span>
+        <div className="thumbnail-gallery">
+          <div
+            className="gallery-track"
+            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+          >
+            {Array.from({
+              length: Math.ceil(thumbnailExamples.length / 3),
+            }).map((_, slideIndex) => (
+              <div key={slideIndex} className="gallery-slide">
+                {thumbnailExamples
+                  .slice(slideIndex * 3, (slideIndex + 1) * 3)
+                  .map(thumbnail => (
+                    <div key={thumbnail.id} className="thumbnail-card">
+                      <img
+                        src={thumbnail.src}
+                        alt={thumbnail.title}
+                        className="thumbnail-image"
+                        onError={e => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.background =
+                            'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)';
+                          target.style.display = 'flex';
+                          target.style.alignItems = 'center';
+                          target.style.justifyContent = 'center';
+                          target.style.color = 'white';
+                          target.style.fontSize = '14px';
+                          target.style.fontWeight = 'bold';
+                          target.alt = thumbnail.title;
+                          target.innerHTML = '🖼️ ' + thumbnail.title;
+                        }}
+                      />
+                      <div className="thumbnail-info">
+                        <h4 className="thumbnail-title">{thumbnail.title}</h4>
+                        <span className="thumbnail-views">
+                          {thumbnail.views} views
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="thumbnail-gradient-overlay"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        {/* Bottom Row - Scrolling Right */}
-        <div className="infinite-scroll-row">
-          <div className="scroll-track scroll-right">
-            {[...bottomRowThumbnails, ...bottomRowThumbnails, ...bottomRowThumbnails].map((thumbnail, index) => (
-              <div key={`bottom-${thumbnail.id}-${index}`} className="scroll-thumbnail-card">
-                <div className="thumbnail-container">
-                  <img
-                    src={thumbnail.src}
-                    alt={thumbnail.title}
-                    className="scroll-thumbnail-image"
-                    onError={e => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%)';
-                      target.style.display = 'flex';
-                      target.style.alignItems = 'center';
-                      target.style.justifyContent = 'center';
-                      target.style.color = 'white';
-                      target.style.fontSize = '12px';
-                      target.style.fontWeight = 'bold';
-                      target.textContent = '📺 ' + thumbnail.title.slice(0, 15) + '...';
-                    }}
-                  />
-                  <div className="thumbnail-text-overlay">
-                    <h3 className="thumbnail-overlay-title">{thumbnail.title}</h3>
-                    <div className="thumbnail-overlay-stats">
-                      <span className="views-badge">{thumbnail.views} views</span>
-                      <span className="category-badge">{thumbnail.category}</span>
-                    </div>
-                  </div>
-                  <div className="thumbnail-gradient-overlay"></div>
-                </div>
+                  ))}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section with shadcn Cards */}
+      {/* Pricing Cards Section */}
       <section className="pricing-section">
         <div className="pricing-header">
-          <h2 className="section-title">Start Creating with ThumbnailMaker Today</h2>
-          <p className="pricing-subtitle">No surprises or hidden fees. Cancel anytime.</p>
+          <h2 className="section-title">
+            Start Creating with ThumbnailMaker Today
+          </h2>
+          <p className="pricing-subtitle">
+            No surprises or hidden fees. Cancel anytime.
+          </p>
           <div className="billing-toggle">
-            <Button variant="ghost" size="sm" className="billing-pill active">Monthly</Button>
-            <Button variant="ghost" size="sm" className="billing-pill">Yearly</Button>
-            <span className="savings-badge">Save 30% with our annual plans</span>
+            <button className="billing-pill active">Monthly</button>
+            <button className="billing-pill">Yearly</button>
+            <span className="savings-badge">
+              Save 30% with our annual plans
+            </span>
           </div>
         </div>
 
         <div className="pricing-cards">
-          <Card variant="outlined" padding="lg" className="pricing-card glass-effect">
-            {/* Top Badge */}
-            <div className="pricing-card-header">
-              <div className="icon-circle">
-                <span style={{ fontSize: '14px' }}>🚀</span>
+          <Card className="pricing-card">
+            <CardBody>
+              <div className="pricing-header-content">
+                <h3 className="pricing-plan">Essential</h3>
+                <div className="pricing-discount">-30%</div>
               </div>
-              <h3 className="pricing-card-title">Essential</h3>
-            </div>
-            
-            {/* Price */}
-            <div className="pricing-price">
-              <span className="price-current">$14</span>
-              <span className="price-period">/month</span>
-            </div>
-            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>Perfect for individuals and small projects</p>
-            
-            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
-            
-            {/* Features */}
-            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>240 thumbnails/year</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>2400 AI credits</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Basic templates</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Email support</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
-                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
-                <span>No custom training</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
-                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
-                <span>No priority support</span>
-              </li>
-            </ul>
-            
-            {/* Stats */}
-            <div className="pricing-stats">
-              <div className="pricing-stat">
-                <div className="pricing-stat-value">99.5%</div>
-                <div className="pricing-stat-label">Uptime</div>
+              <div className="pricing-price">
+                <span className="price-old">$20</span>
+                <span className="price-current">$14</span>
+                <span className="price-period">/mo</span>
               </div>
-              <div className="pricing-stat">
-                <div className="pricing-stat-value">150ms</div>
-                <div className="pricing-stat-label">Response</div>
-              </div>
-            </div>
-            
-            {/* CTA */}
-            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
-              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Start Free Trial</Button>
-              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>No credit card required</p>
-            </div>
+              <p className="pricing-billing">Billed Annually</p>
+              <p className="pricing-description">
+                Generate up to <strong>240 thumbnails</strong> per year.
+              </p>
+              <ul className="pricing-features">
+                <li>✅ 2400 credits</li>
+                <li>✅ Works in Any Language</li>
+                <li>✅ Thumbnail Generator</li>
+                <li>✅ Edit Thumbnail</li>
+                <li>✅ Personas</li>
+                <li>✅ Styles</li>
+                <li>✅ FaceSwap</li>
+                <li>✅ Title Generator</li>
+                <li>✅ All Generations Remain Private</li>
+              </ul>
+              <Button className="pricing-btn" size="lg">
+                Subscribe
+              </Button>
+            </CardBody>
           </Card>
 
-          <Card variant="elevated" padding="lg" className="pricing-card featured glass-effect" interactive>
-            {/* Popular Badge */}
-            <div style={{ position: 'absolute', top: '-2px', right: '30px', padding: '4px 10px', background: 'rgba(37, 99, 235, 0.9)', color: 'white', fontSize: '12px', fontWeight: '500', borderRadius: '0 0 6px 6px', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)' }}>MOST POPULAR</div>
-            
-            {/* Top Badge */}
-            <div className="pricing-card-header">
-              <div className="icon-circle" style={{ background: 'rgba(37, 99, 235, 0.2)', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
-                <span style={{ fontSize: '14px', color: '#3b82f6' }}>⚡</span>
+          <Card className="pricing-card featured">
+            <div className="popular-badge">Most popular</div>
+            <CardBody>
+              <div className="pricing-header-content">
+                <h3 className="pricing-plan">Premium</h3>
+                <div className="pricing-discount">-30%</div>
               </div>
-              <h3 className="pricing-card-title">Professional</h3>
-            </div>
-            
-            {/* Price */}
-            <div className="pricing-price">
-              <span className="price-current">$28</span>
-              <span className="price-period">/month</span>
-            </div>
-            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>For teams with advanced AI needs</p>
-            
-            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
-            
-            {/* Features */}
-            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>1800 thumbnails/year</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>18000 AI credits</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Advanced templates</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Priority support</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Custom training</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)', fontSize: '14px' }}>
-                <span style={{ color: 'rgba(255, 255, 255, 0.3)', marginRight: '12px', width: '16px' }}>−</span>
-                <span>No dedicated resources</span>
-              </li>
-            </ul>
-            
-            {/* Stats */}
-            <div className="pricing-stats">
-              <div className="pricing-stat featured">
-                <div className="pricing-stat-value">99.95%</div>
-                <div className="pricing-stat-label">Uptime</div>
+              <div className="pricing-price">
+                <span className="price-old">$40</span>
+                <span className="price-current">$28</span>
+                <span className="price-period">/mo</span>
               </div>
-              <div className="pricing-stat featured">
-                <div className="pricing-stat-value">80ms</div>
-                <div className="pricing-stat-label">Response</div>
-              </div>
-            </div>
-            
-            {/* CTA */}
-            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
-              <Button variant="primary" size="lg" fullWidth className="pricing-btn">Get Started</Button>
-              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>14-day free trial included</p>
-            </div>
+              <p className="pricing-billing">Billed Annually</p>
+              <p className="pricing-description">
+                Generate up to <strong>1800 thumbnails</strong> per year.
+              </p>
+              <ul className="pricing-features">
+                <li>✅ 18000 credits</li>
+                <li>✅ Works in Any Language</li>
+                <li>✅ Thumbnail Generator</li>
+                <li>✅ Edit Thumbnail</li>
+                <li>✅ Personas</li>
+                <li>✅ Styles</li>
+                <li>✅ FaceSwap</li>
+                <li>✅ Title Generator</li>
+                <li>✅ All Generations Remain Private</li>
+                <li>✅ Early Access to New Features</li>
+              </ul>
+              <Button className="pricing-btn" size="lg" variant="primary">
+                Subscribe
+              </Button>
+            </CardBody>
           </Card>
 
-          <Card variant="outlined" padding="lg" className="pricing-card glass-effect">
-            {/* Top Badge */}
-            <div className="pricing-card-header">
-              <div className="icon-circle">
-                <span style={{ fontSize: '14px', color: '#8b5cf6' }}>🏢</span>
+          <Card className="pricing-card">
+            <CardBody>
+              <div className="pricing-header-content">
+                <h3 className="pricing-plan">Ultimate</h3>
+                <div className="pricing-discount">-30%</div>
               </div>
-              <h3 className="pricing-card-title">Enterprise</h3>
-            </div>
-            
-            {/* Price */}
-            <div className="pricing-price">
-              <span className="price-current">$56</span>
-              <span className="price-period">/month</span>
-            </div>
-            <p className="pricing-description" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>For organizations with advanced requirements</p>
-            
-            <div className="card-divider" style={{ margin: '1.5rem 0' }}></div>
-            
-            {/* Features */}
-            <ul className="pricing-features" style={{ marginBottom: '2rem' }}>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Unlimited thumbnails</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Unlimited AI models</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Full API ecosystem</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>24/7 dedicated support</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Advanced custom training</span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                <span style={{ color: '#3b82f6', marginRight: '12px', width: '16px' }}>✓</span>
-                <span>Dedicated resources</span>
-              </li>
-            </ul>
-            
-            {/* Stats */}
-            <div className="pricing-stats">
-              <div className="pricing-stat">
-                <div className="pricing-stat-value">99.99%</div>
-                <div className="pricing-stat-label">Uptime</div>
+              <div className="pricing-price">
+                <span className="price-old">$80</span>
+                <span className="price-current">$56</span>
+                <span className="price-period">/mo</span>
               </div>
-              <div className="pricing-stat">
-                <div className="pricing-stat-value">50ms</div>
-                <div className="pricing-stat-label">Response</div>
-              </div>
-            </div>
-            
-            {/* CTA */}
-            <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
-              <Button variant="secondary" size="lg" fullWidth className="pricing-btn">Contact Sales</Button>
-              <p style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>Custom pricing available</p>
-            </div>
+              <p className="pricing-billing">Billed Annually</p>
+              <p className="pricing-description">
+                Generate up to <strong>5400 thumbnails</strong> per year.
+              </p>
+              <ul className="pricing-features">
+                <li>✅ 54000 credits</li>
+                <li>✅ Works in Any Language</li>
+                <li>✅ Thumbnail Generator</li>
+                <li>✅ Edit Thumbnail</li>
+                <li>✅ Personas</li>
+                <li>✅ Styles</li>
+                <li>✅ FaceSwap</li>
+                <li>✅ Title Generator</li>
+                <li>✅ All Generations Remain Private</li>
+                <li>✅ Early Access to New Features</li>
+              </ul>
+              <Button className="pricing-btn" size="lg">
+                Subscribe
+              </Button>
+            </CardBody>
           </Card>
-        </div>
-        
-        {/* Bottom compliance text and badges */}
-        <div className="compliance-section">
-          <p className="compliance-text">
-            All plans include core features: Advanced AI models, REST API, 99.9% uptime SLA, Enterprise encryption, and Community access.
-          </p>
-          <div className="compliance-badges">
-            <span className="compliance-badge">GDPR COMPLIANT</span>
-            <span className="compliance-badge">SOC 2 CERTIFIED</span>
-            <span className="compliance-badge">HIPAA READY</span>
-            <span className="compliance-badge">ISO 27001</span>
-          </div>
         </div>
       </section>
 
-      {/* FAQ Section with shadcn Cards */}
+      {/* FAQ Section */}
       <section className="faq-section">
         <div className="faq-header">
           <h2 className="section-title">Got questions?</h2>
-          <p className="faq-subtitle">Everything you need to know about creating viral thumbnails</p>
+          <p className="faq-subtitle">
+            Everything you need to know about creating viral thumbnails
+          </p>
         </div>
 
         <div className="faq-container">
           {faqData.map((faq, index) => (
-            <Card 
-              key={index} 
-              variant="outlined" 
-              padding="md" 
-              interactive 
-              className="faq-item"
-            >
-              <Button
-                variant="ghost"
-                fullWidth
+            <div key={index} className="faq-item">
+              <button
                 className={`faq-question ${activeFAQ === index ? 'active' : ''}`}
                 onClick={() => setActiveFAQ(activeFAQ === index ? null : index)}
-                rightIcon={<span className={`faq-icon ${activeFAQ === index ? 'rotated' : ''}`}>▼</span>}
               >
                 <span>{faq.question}</span>
-              </Button>
-              <div className={`faq-answer ${activeFAQ === index ? 'open' : ''}`}>
+                <span
+                  className={`faq-icon ${activeFAQ === index ? 'rotated' : ''}`}
+                >
+                  ▼
+                </span>
+              </button>
+              <div
+                className={`faq-answer ${activeFAQ === index ? 'open' : ''}`}
+              >
                 <p>{faq.answer}</p>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </section>
@@ -561,9 +427,15 @@ const LandingPage: React.FC = () => {
           <div className="footer-main">
             <div className="footer-brand">
               <h3 className="footer-logo">ThumbnailMaker</h3>
-              <p className="footer-tagline">Say Goodbye to 10 of 10s Try ThumbnailMaker Today.</p>
-              <p className="footer-description">No headaches, no delays, no hidden costs.</p>
-              <Button variant="primary" size="lg" className="footer-cta">Try for Free</Button>
+              <p className="footer-tagline">
+                Say Goodbye to 10 of 10s Try ThumbnailMaker Today.
+              </p>
+              <p className="footer-description">
+                No headaches, no delays, no hidden costs.
+              </p>
+              <Button className="footer-cta" size="lg">
+                Try for Free
+              </Button>
             </div>
 
             <div className="footer-links">
@@ -572,13 +444,17 @@ const LandingPage: React.FC = () => {
                 <a href="#features">Features</a>
                 <a href="#pricing">Pricing</a>
                 <a href="#faq">FAQ</a>
+                <a href="/app">Web App</a>
               </div>
+
               <div className="footer-column">
                 <h4>Support</h4>
                 <a href="/feedback">Feedback</a>
                 <a href="/changelog">Changelog</a>
                 <a href="/subscription">Customer Portal</a>
+                <span>Contact</span>
               </div>
+
               <div className="footer-column">
                 <h4>Legal</h4>
                 <a href="/terms">Terms</a>
@@ -589,14 +465,23 @@ const LandingPage: React.FC = () => {
 
           <div className="footer-social">
             <div className="social-icons">
-              <Button variant="ghost" size="sm" className="social-icon" aria-label="Instagram">📷</Button>
-              <Button variant="ghost" size="sm" className="social-icon" aria-label="Twitter">🐦</Button>
-              <Button variant="ghost" size="sm" className="social-icon" aria-label="Discord">💬</Button>
+              <a href="#" className="social-icon" aria-label="Instagram">
+                📷
+              </a>
+              <a href="#" className="social-icon" aria-label="Twitter">
+                🐦
+              </a>
+              <a href="#" className="social-icon" aria-label="Discord">
+                💬
+              </a>
             </div>
           </div>
 
           <div className="footer-bottom">
-            <p>© {new Date().getFullYear()} ThumbnailMaker Studio. All rights reserved.</p>
+            <p>
+              © {new Date().getFullYear()} ThumbnailMaker Studio. All rights
+              reserved.
+            </p>
             <p>contact@thumbnailmaker.com</p>
           </div>
         </div>

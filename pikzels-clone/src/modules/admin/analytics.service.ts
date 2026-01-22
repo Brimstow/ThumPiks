@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { adminAuthService } from './admin-auth.service';
 
 const prisma = new PrismaClient();
 
@@ -132,7 +131,7 @@ export class AnalyticsService {
         totalUsers,
         activeUsers,
         newUsers,
-        previousNewUsers,
+        ,
         userGrowthData,
         topUsers
       ] = await Promise.all([
@@ -249,7 +248,7 @@ export class AnalyticsService {
           createdAt: { gte: startDate, lte: endDate }
         },
         include: {
-          user: {
+          User: {
             select: { email: true }
           }
         }
@@ -384,7 +383,7 @@ export class AnalyticsService {
       const logs = await prisma.auditLog.findMany({
         where,
         include: {
-          user: {
+          User_AuditLog_userIdToUser: {
             select: { email: true, name: true }
           }
         },
@@ -482,13 +481,13 @@ export class AnalyticsService {
         lastLoginAt: true,
         _count: {
           select: {
-            thumbnails: true,
-            projects: true
+            Thumbnail: true,
+            Project: true
           }
         }
       },
       orderBy: {
-        thumbnails: {
+        Thumbnail: {
           _count: 'desc'
         }
       },
@@ -498,8 +497,8 @@ export class AnalyticsService {
         id: user.id,
         email: user.email,
         name: user.name,
-        thumbnailCount: user._count.thumbnails,
-        projectCount: user._count.projects,
+        thumbnailCount: user._count.Thumbnail,
+        projectCount: user._count.Project,
         lastLoginAt: user.lastLoginAt
       }))
     );
@@ -512,9 +511,7 @@ export class AnalyticsService {
         name: true,
         downloads: true,
         likes: true,
-        creator: {
-          select: { name: true, email: true }
-        }
+        creatorId: true
       },
       orderBy: [
         { downloads: 'desc' },
@@ -527,7 +524,7 @@ export class AnalyticsService {
         name: template.name,
         downloads: template.downloads,
         likes: template.likes,
-        creator: template.creator.name || template.creator.email
+        creator: template.creatorId
       }))
     );
   }

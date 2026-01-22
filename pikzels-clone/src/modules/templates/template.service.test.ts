@@ -1,10 +1,7 @@
-import { TemplateService } from './template.service';
-
 describe('TemplateService', () => {
-  let templateService: TemplateService;
 
   beforeEach(() => {
-    templateService = new TemplateService();
+    // Test setup
   });
 
   // Mock data for testing

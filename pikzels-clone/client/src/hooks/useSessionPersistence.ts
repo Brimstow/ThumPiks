@@ -45,7 +45,7 @@ export const useSessionPersistence = () => {
    */
   const persistSession = useCallback((sessionData: SessionData) => {
     try {
-      localStorage.setItem('pikzels_session', JSON.stringify(sessionData));
+      localStorage.setItem('thumpiks_session', JSON.stringify(sessionData));
       setSession(sessionData);
       console.log('✅ Session persisted successfully');
     } catch (error) {
@@ -58,7 +58,7 @@ export const useSessionPersistence = () => {
    */
   const loadPersistedSession = useCallback((): SessionData | null => {
     try {
-      const stored = localStorage.getItem('pikzels_session');
+      const stored = localStorage.getItem('thumpiks_session');
       if (stored) {
         const sessionData = JSON.parse(stored);
         
@@ -67,13 +67,13 @@ export const useSessionPersistence = () => {
         if (Date.now() - sessionData.lastActivity < maxAge) {
           return sessionData;
         } else {
-          localStorage.removeItem('pikzels_session');
+          localStorage.removeItem('thumpiks_session');
           console.log('🕒 Session expired, removed from storage');
         }
       }
     } catch (error) {
       console.error('❌ Error loading persisted session:', error);
-      localStorage.removeItem('pikzels_session');
+      localStorage.removeItem('thumpiks_session');
     }
     return null;
   }, []);
@@ -82,7 +82,7 @@ export const useSessionPersistence = () => {
    * Clear session from storage and state
    */
   const clearSession = useCallback(() => {
-    localStorage.removeItem('pikzels_session');
+    localStorage.removeItem('thumpiks_session');
     setSession(null);
     console.log('🗑️ Session cleared');
   }, []);
@@ -100,7 +100,7 @@ export const useSessionPersistence = () => {
 
     try {
       // Check backend health
-      const response = await fetch(`http://localhost:8550/health`, {
+      const response = await fetch(`/health`, {
         method: 'GET',
         timeout: 5000,
         headers: {
@@ -130,7 +130,7 @@ export const useSessionPersistence = () => {
    */
   const validateSession = useCallback(async (sessionData: SessionData): Promise<boolean> => {
     try {
-      const response = await fetch(`http://localhost:8550/admin/auth/validate`, {
+      const response = await fetch(`/admin/auth/validate`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${sessionData.token}`,
@@ -287,7 +287,7 @@ export const useSessionPersistence = () => {
     try {
       setIsLoading(true);
       
-      const response = await fetch(`http://localhost:8550/admin/auth/login`, {
+      const response = await fetch(`/admin/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -326,7 +326,7 @@ export const useSessionPersistence = () => {
     if (session) {
       try {
         // Notify backend of logout
-        await fetch(`http://localhost:8550/admin/auth/logout`, {
+        await fetch(`/admin/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.token}`,

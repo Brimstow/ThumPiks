@@ -7,7 +7,7 @@ export class SystemMonitoringController {
   /**
    * Get system health status
    */
-  async getSystemHealth(req: Request, res: Response): Promise<void> {
+  async getSystemHealth(_req: Request, res: Response): Promise<void> {
     try {
       const health = await systemMonitoringService.getSystemHealth();
 
@@ -28,7 +28,7 @@ export class SystemMonitoringController {
   /**
    * Get performance metrics
    */
-  async getPerformanceMetrics(req: Request, res: Response): Promise<void> {
+  async getPerformanceMetrics(_req: Request, res: Response): Promise<void> {
     try {
       const metrics = await systemMonitoringService.collectSystemMetrics();
 
@@ -194,7 +194,7 @@ export class SystemMonitoringController {
   /**
    * Trigger cleanup of old monitoring data
    */
-  async cleanupOldData(req: Request, res: Response): Promise<void> {
+  async cleanupOldData(_req: Request, res: Response): Promise<void> {
     try {
       await systemMonitoringService.cleanupOldData();
 

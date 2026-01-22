@@ -8,7 +8,8 @@ module.exports = {
   ],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.test.json'
+      tsconfig: 'tsconfig.test.json',
+      useESM: false
     }]
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
@@ -24,9 +25,18 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(uuid|node-fetch|.*\\.mjs$))'
   ],
-  // Handle ES modules properly
-  extensionsToTreatAsEsm: ['.ts'],
   testTimeout: 10000,
-  // Force Jest to exit after tests complete (prevents hanging from open handles)
-  forceExit: true
+  // Detect open handles but don't force exit (Jest 29 handles this better)
+  detectOpenHandles: false,
+  // Modern globals injection (automatic in Jest 29)
+  injectGlobals: true,
+  // Coverage thresholds - enforced on pre-push
+  coverageThreshold: {
+    global: {
+      branches: 75,
+      functions: 75,
+      lines: 75,
+      statements: 75
+    }
+  }
 };

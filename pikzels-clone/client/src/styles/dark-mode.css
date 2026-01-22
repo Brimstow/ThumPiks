@@ -9,9 +9,10 @@
   color: #f9fafb;
 }
 
-.dark .bg-white {
+/* DISABLED: Interferes with landing page white buttons */
+/* .dark .bg-white {
   background-color: #1f2937;
-}
+} */
 
 .dark .text-gray-900 {
   color: #f9fafb;
@@ -29,13 +30,15 @@
   color: #6b7280;
 }
 
-.dark .text-gray-400 {
+/* DISABLED: Interferes with landing page paragraph text */
+/* .dark .text-gray-400 {
   color: #4b5563;
-}
+} */
 
-.dark .text-gray-300 {
+/* DISABLED: Interferes with landing page hover text colors */
+/* .dark .text-gray-300 {
   color: #d1d5db;
-}
+} */
 
 .dark .border-gray-200 {
   border-color: #374151;
@@ -57,9 +60,10 @@
   background-color: #111827;
 }
 
-.dark .bg-gray-100 {
+/* DISABLED: Interferes with landing page button hover states */
+/* .dark .bg-gray-100 {
   background-color: #1f2937;
-}
+} */
 
 .dark .bg-gray-200 {
   background-color: #374151;
@@ -77,9 +81,10 @@
   background-color: #1f2937;
 }
 
-.dark .bg-gray-900 {
+/* DISABLED: Interferes with landing page card backgrounds */
+/* .dark .bg-gray-900 {
   background-color: #111827;
-}
+} */
 
 .dark .bg-red-100 {
   background-color: #fee2e2;

@@ -3,6 +3,7 @@ import { CacheService } from '../../services/cache.service';
 import { createHash } from 'crypto';
 import { emitThumbnailCreated, emitAnalyticsEvent } from '../../events';
 import { eventEmitter } from '../../events/event-emitter';
+import { v4 as uuidv4 } from 'uuid';
 
 // Default instances for production use
 const defaultPrisma = new PrismaClient();
@@ -39,7 +40,10 @@ export class ThumbnailService {
     userId: string;
   }) {
     const thumbnail = await this.prisma.thumbnail.create({
-      data,
+      data: {
+        id: uuidv4(),
+        ...data,
+      },
     });
 
     // 🚀 EVENT-DRIVEN: Emit thumbnail created event
@@ -131,7 +135,7 @@ export class ThumbnailService {
         return this.prisma.thumbnail.findMany({
           where,
           include: {
-            project: true,
+            Project_Thumbnail_projectIdToProject: true,
           },
           orderBy,
         });
@@ -149,7 +153,7 @@ export class ThumbnailService {
         return this.prisma.thumbnail.findUnique({
           where: { id },
           include: {
-            project: true,
+            Project_Thumbnail_projectIdToProject: true,
           },
         });
       },

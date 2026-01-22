@@ -25,7 +25,8 @@ const SetFeaturedThumbnail: React.FC<SetFeaturedThumbnailProps> = ({
   const [selectedThumbnail, setSelectedThumbnail] = useState<string | null>(
     null
   );
-  const { theme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
 
   useEffect(() => {
     const fetchThumbnails = async () => {

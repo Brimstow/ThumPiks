@@ -1,0 +1,52 @@
+/* Pricing page specific styles extracted from 4APGJL1.html */
+
+.glass-effect {
+  backdrop-filter: blur(14px) brightness(0.91);
+  -webkit-backdrop-filter: blur(14px) brightness(0.91);
+}
+
+.gradient-text {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.card-divider {
+  height: 1px;
+  background-image: linear-gradient(90deg,
+    transparent,
+    rgba(255,255,255,0.09) 20%,
+    rgba(255,255,255,0.22) 50%,
+    rgba(255,255,255,0.09) 80%,
+    transparent
+  );
+}
+
+.icon-circle {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.pricing-badge {
+  position: absolute;
+  top: -2px;
+  right: 30px;
+  padding: 4px 10px;
+  background: rgba(37, 99, 235, 0.9);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+/* Ensure grid children don't overflow */
+.pricing-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}

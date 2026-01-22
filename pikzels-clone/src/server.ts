@@ -266,44 +266,41 @@ async function initializeServer() {
   }
 }
 
-// Initialize and start server
-const serverPromise = initializeServer();
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('📝 Received SIGTERM, shutting down gracefully');
-  const server = await serverPromise;
-  server.close(() => {
-    console.log('👋 Process terminated');
-  });
-  await cache.disconnect();
-});
-
-process.on('SIGINT', async () => {
-  console.log('📝 Received SIGINT, shutting down gracefully');
-  const server = await serverPromise;
-  server.close(() => {
-    console.log('👋 Process terminated');
-  });
-  await cache.disconnect();
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Promise Rejection', reason instanceof Error ? reason : new Error(String(reason)), {
-    promise: promise.toString(),
-  });
-  // For development, we don't exit the process
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception - shutting down', error);
-  // Always exit on uncaught exceptions
-  process.exit(1);
-});
-
+// Export the app for testing (without starting server)
 export default app;
+
+// Only start server if this file is run directly (not imported by tests)
+if (require.main === module) {
+  // Initialize and start server
+  const serverPromise = initializeServer();
+
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('📝 Received SIGTERM, shutting down gracefully');
+    const server = await serverPromise;
+    server.close(() => {
+      console.log('👋 Process terminated');
+    });
+    await cache.disconnect();
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('📝 Received SIGINT, shutting down gracefully');
+    const server = await serverPromise;
+    server.close(() => {
+      console.log('👋 Process terminated');
+    });
+    await cache.disconnect();
+  });
+
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Promise Rejection', reason instanceof Error ? reason : new Error(String(reason)), {
+      promise: promise.toString(),
+    });
+    // For development, we don't exit the process
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
+}

@@ -44,7 +44,7 @@ router.get(
 );
 
 // Health check for user management system
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     service: 'user-management',

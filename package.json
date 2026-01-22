@@ -1,10 +1,38 @@
 {
+  "name": "thumbnail-maker-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "cd pikzels-clone && npm test",
+    "test:ci": "cd pikzels-clone && npm run test:ci",
+    "lint": "cd pikzels-clone && npm run lint",
+    "format": "cd pikzels-clone && npm run format"
+  },
   "devDependencies": {
+    "@prisma/client": "^6.18.0",
+    "@secretlint/secretlint-rule-pattern": "^11.2.5",
+    "@secretlint/secretlint-rule-preset-recommend": "^11.2.5",
     "@types/cors": "^2.8.19",
     "@types/helmet": "^0.0.48",
+    "lint-staged": "^16.2.3",
+    "prettier": "^3.6.2",
+    "prisma": "^6.18.0",
+    "secretlint": "^11.2.5",
     "ts-node": "^10.9.2"
   },
   "dependencies": {
     "axios": "^1.11.0"
+  },
+  "lint-staged": {
+    "pikzels-clone/**/*.{ts,tsx,js,jsx}": [
+      "cd pikzels-clone && prettier --write",
+      "cd pikzels-clone && eslint --fix"
+    ],
+    "pikzels-clone/**/*.{json,md}": [
+      "cd pikzels-clone && prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }

@@ -224,7 +224,15 @@ export class MFAService {
       logger.security('warn', 'MFA disabled', { userId });
       return true;
     } catch (error) {
-      logger.error('MFA disable failed', error as Error, { userId });
+      const err = error as Error;
+      logger.error('MFA disable failed', err, { userId });
+      
+      // Preserve specific error messages
+      if (err.message === 'User not found' || 
+          err.message === 'Cannot disable MFA for OAuth users without admin action') {
+        throw err;
+      }
+      
       throw new Error('Failed to disable MFA');
     }
   }
@@ -315,7 +323,7 @@ export class MFAService {
   private static async storeMFASettings(userId: string, settings: MFASettings): Promise<void> {
     try {
       // Encrypt sensitive MFA data
-      const encryptedSettings = encryptData(JSON.stringify(settings));
+      const { encrypted, iv, authTag } = encryptData(JSON.stringify(settings));
       
       // Get current user settings
       const user = await prisma.user.findUnique({
@@ -331,7 +339,7 @@ export class MFAService {
         data: {
           settings: {
             ...currentSettings,
-            mfa: encryptedSettings,
+            mfa: { encrypted, iv, authTag },
           },
         },
       });
@@ -350,15 +358,16 @@ export class MFAService {
 
       const settings = (user?.settings as any);
       if (!settings?.mfa) {
-        return null;
+        return null; // MFA not set up - this is valid, not an error
       }
 
       // Decrypt MFA settings
-      const decryptedData = decryptData(settings.mfa.encrypted, settings.mfa.iv);
+      const decryptedData = decryptData(settings.mfa.encrypted, settings.mfa.iv, settings.mfa.authTag);
       return JSON.parse(decryptedData) as MFASettings;
     } catch (error) {
+      // SECURITY: Don't swallow errors - throw them so callers can handle appropriately
       logger.error('Failed to get MFA settings', error as Error, { userId });
-      return null;
+      throw error; // Let caller decide how to handle (fail-safe)
     }
   }
 

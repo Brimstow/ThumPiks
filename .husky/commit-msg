@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+
+# Check commit message format
+commit_message="$(cat "$1")"
+
+# Define the pattern for conventional commits
+pattern="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,50}"
+
+if ! echo "$commit_message" | grep -qE "$pattern"; then
+  echo ""
+  echo "❌ Invalid commit message format!"
+  echo ""
+  echo "Commit messages must follow the Conventional Commits standard:"
+  echo "  <type>[optional scope]: <description>"
+  echo ""
+  echo "Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+  echo ""
+  echo "Examples:"
+  echo "  feat: add user authentication"
+  echo "  fix(api): resolve thumbnail upload issue"
+  echo "  docs: update installation guide"
+  echo "  style: format code with prettier"
+  echo ""
+  echo "Your message: $commit_message"
+  echo ""
+  exit 1
+fi
+
+echo "✅ Commit message format is valid!"

@@ -461,7 +461,7 @@ export class UserManagementController {
   /**
    * Get user statistics
    */
-  async getUserStats(req: Request, res: Response): Promise<void> {
+  async getUserStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await userManagementService.getUserStats();
 

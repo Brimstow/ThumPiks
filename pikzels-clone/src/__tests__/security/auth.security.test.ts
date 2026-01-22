@@ -4,6 +4,7 @@ import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -35,10 +36,39 @@ jest.mock('../../modules/auth/email.service', () => ({
   },
 }));
 
+// Mock UsernameUtils to avoid Prisma instance issues
+jest.mock('../../utils/username.utils', () => ({
+  UsernameUtils: {
+    validateUsername: jest.fn(),
+    isUsernameAvailable: jest.fn(),
+  },
+}));
+
+// Mock PasswordUtils for controlled password validation testing
+jest.mock('../../utils/password.utils', () => ({
+  PasswordUtils: {
+    validate: jest.fn(),
+  },
+}));
+
+import { UsernameUtils } from '../../utils/username.utils';
+import { PasswordUtils } from '../../utils/password.utils';
+
 describe('Security - Authentication', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (PrismaClient as jest.Mock).mockImplementation(() => mockPrisma);
+    
+    // Default mock: username validation passes
+    (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+      valid: true,
+    });
+    
+    // Default mock: password validation passes
+    (PasswordUtils.validate as jest.Mock).mockReturnValue({
+      valid: true,
+      errors: [],
+    });
   });
 
   describe('JWT Security', () => {
@@ -88,32 +118,55 @@ describe('Security - Authentication', () => {
     test('should enforce minimum password length', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      
+      // Mock password validation to fail for short password
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: false,
+        errors: ['Password must be at least 8 characters long'],
+      });
 
       await expect(
-        authService.register('test@example.com', 'short')
+        authService.register('testuser', 'test@example.com', 'Test User', 'short')
       ).rejects.toThrow('Password must be at least 8 characters long');
     });
 
     test('should reject common passwords', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      
+      // Mock password validation to fail for common password
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: false,
+        errors: ['This password is too common. Please choose a more unique password'],
+      });
 
       await expect(
-        authService.register('test@example.com', 'password')
-      ).rejects.toThrow('Password is too common');
+        authService.register('testuser', 'test@example.com', 'Test User', 'password')
+      ).rejects.toThrow(/too common/i);
     });
 
     test('should accept strong passwords', async () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
         id: 'user123',
         email: 'test@example.com',
+        username: 'testuser',
         name: 'Test User',
         isVerified: true,
+        displayPreference: 'name',
+      });
+      
+      // Mock password validation to pass for strong password
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
       });
 
-      const result = await authService.register('test@example.com', 'SecurePass123!');
+      const result = await authService.register('testuser', 'test@example.com', 'Test User', 'S3cur3P@ssw0rd!');
       
       expect(result.user.email).toBe('test@example.com');
       expect(result.accessToken).toBeTruthy();
@@ -130,8 +183,8 @@ describe('Security - Authentication', () => {
       });
 
       await expect(
-        authService.register('test@example.com', 'SecurePass123!')
-      ).rejects.toThrow('User already exists');
+        authService.register('testuser', 'test@example.com', 'Test User', 'SecurePass123!')
+      ).rejects.toThrow('Email already exists');
     });
 
     test('should use generic error for invalid login', async () => {

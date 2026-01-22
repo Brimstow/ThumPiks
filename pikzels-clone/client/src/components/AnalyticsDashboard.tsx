@@ -56,7 +56,8 @@ interface AnalyticsData {
 }
 
 const AnalyticsDashboard: React.FC = () => {
-  const { theme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
   const navigate = useNavigate();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
     null

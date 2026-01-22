@@ -19,7 +19,6 @@ import {
   XCircle,
   Eye,
   EyeOff,
-  Toggle,
   Sliders,
   Code
 } from 'lucide-react';

@@ -3,6 +3,7 @@ import { adminAuthService, AdminUser, ADMIN_PERMISSIONS } from './admin-auth.ser
 
 // Extend Express Request interface to include admin user
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       adminUser?: AdminUser;
@@ -184,11 +185,10 @@ export const adminRateLimit = (maxRequests: number = 100, windowMs: number = 15 
 
     const key = `admin:${req.adminUser.id}:${req.originalUrl}`;
     const now = Date.now();
-    const windowStart = now - windowMs;
 
-    // Clean old entries
+    // Clean old entries - remove entries that have expired
     for (const [requestKey, data] of requests.entries()) {
-      if (data.resetTime < windowStart) {
+      if (now > data.resetTime) {
         requests.delete(requestKey);
       }
     }

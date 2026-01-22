@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -14,18 +15,21 @@ export class CollaborationService {
     // Create the team
     const team = await prisma.team.create({
       data: {
+        id: uuidv4(),
         ...data,
-        members: {
+        updatedAt: new Date(),
+        TeamMember: {
           create: {
+            id: uuidv4(),
             userId: data.ownerId,
             role: 'owner',
           },
         },
       },
       include: {
-        members: {
+        TeamMember: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -47,14 +51,14 @@ export class CollaborationService {
   async getUserTeams(userId: string) {
     return prisma.team.findMany({
       where: {
-        members: {
+        TeamMember: {
           some: {
             userId: userId,
           },
         },
       },
       include: {
-        owner: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -62,9 +66,9 @@ export class CollaborationService {
             avatarUrl: true,
           },
         },
-        members: {
+        TeamMember: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -75,7 +79,7 @@ export class CollaborationService {
           },
         },
         _count: {
-          select: { members: true },
+          select: { TeamMember: true },
         },
       },
     });
@@ -88,7 +92,7 @@ export class CollaborationService {
     return prisma.team.findUnique({
       where: { id: teamId },
       include: {
-        owner: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -96,9 +100,9 @@ export class CollaborationService {
             avatarUrl: true,
           },
         },
-        members: {
+        TeamMember: {
           include: {
-            user: {
+            User: {
               select: {
                 id: true,
                 name: true,
@@ -109,7 +113,7 @@ export class CollaborationService {
           },
         },
         _count: {
-          select: { members: true },
+          select: { TeamMember: true },
         },
       },
     });
@@ -216,21 +220,22 @@ export class CollaborationService {
     // Create the invitation
     return prisma.teamInvitation.create({
       data: {
+        id: uuidv4(),
         teamId: data.teamId,
         inviterId: data.inviterId,
         inviteeId: invitee.id,
         status: 'pending',
       },
       include: {
-        team: true,
-        inviter: {
+        Team: true,
+        User_TeamInvitation_inviterIdToUser: {
           select: {
             id: true,
             name: true,
             email: true,
           },
         },
-        invitee: {
+        User_TeamInvitation_inviteeIdToUser: {
           select: {
             id: true,
             name: true,
@@ -251,8 +256,8 @@ export class CollaborationService {
         status: 'pending',
       },
       include: {
-        team: true,
-        inviter: {
+        Team: true,
+        User_TeamInvitation_inviterIdToUser: {
           select: {
             id: true,
             name: true,
@@ -275,7 +280,7 @@ export class CollaborationService {
     // Check if invitation exists and belongs to user
     const invitation = await prisma.teamInvitation.findUnique({
       where: { id: invitationId },
-      include: { team: true },
+      include: { Team: true },
     });
 
     if (!invitation || invitation.inviteeId !== userId) {
@@ -299,6 +304,7 @@ export class CollaborationService {
     if (accept) {
       await prisma.teamMember.create({
         data: {
+          id: uuidv4(),
           teamId: invitation.teamId,
           userId: userId,
           role: 'member',
@@ -411,21 +417,21 @@ export class CollaborationService {
         teamId: teamId,
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             name: true,
             email: true,
           },
         },
-        thumbnails: {
+        Thumbnail_Thumbnail_projectIdToProject: {
           take: 5, // Limit to 5 thumbnails for preview
           orderBy: {
             createdAt: 'desc',
           },
         },
         _count: {
-          select: { thumbnails: true },
+          select: { Thumbnail_Thumbnail_projectIdToProject: true },
         },
       },
     });

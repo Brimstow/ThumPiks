@@ -55,7 +55,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    navigate('/login');
+    navigate('/login', { replace: true });
     return (
       <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
         <div className="text-gray-900 dark:text-white">

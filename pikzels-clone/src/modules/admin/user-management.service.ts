@@ -142,9 +142,9 @@ export class UserManagementService {
 
       if (filters.hasAdminRoles !== undefined) {
         if (filters.hasAdminRoles) {
-          where.adminRoles = { some: { isActive: true } };
+          where.AdminRole = { some: { isActive: true } };
         } else {
-          where.adminRoles = { none: { isActive: true } };
+          where.AdminRole = { none: { isActive: true } };
         }
       }
 
@@ -175,14 +175,14 @@ export class UserManagementService {
       const users = await prisma.user.findMany({
         where,
         include: {
-          adminRoles: {
+          AdminRole: {
             where: { isActive: true },
             select: { role: true, isActive: true }
           },
           _count: {
             select: {
-              projects: true,
-              thumbnails: true
+              Project: true,
+              Thumbnail: true
             }
           }
         },
@@ -192,7 +192,7 @@ export class UserManagementService {
       });
 
       return {
-        users: users as UserListItem[],
+        users: users as unknown as UserListItem[],
         pagination: {
           page,
           limit,
@@ -215,27 +215,27 @@ export class UserManagementService {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          adminRoles: {
+          AdminRole: {
             orderBy: { assignedAt: 'desc' }
           },
-          projects: {
+          Project: {
             select: { id: true, name: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 10
           },
-          thumbnails: {
+          Thumbnail: {
             select: { id: true, title: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
             take: 10
           },
-          subscriptions: {
+          Subscription: {
             orderBy: { createdAt: 'desc' },
             take: 5
           }
         }
       });
 
-      return user as UserDetailsResponse;
+      return user as unknown as UserDetailsResponse;
     } catch (error) {
       console.error('Error getting user by ID:', error);
       throw error;
@@ -263,7 +263,8 @@ export class UserManagementService {
       const newUser = await prisma.user.create({
         data: {
           email: userData.email.toLowerCase(),
-          name: userData.name || null,
+          name: userData.name || 'User',
+          username: userData.email.split('@')[0]?.toLowerCase() || 'user',
           passwordHash,
           isVerified: userData.isVerified || false,
           isActive: userData.isActive !== false, // Default to true
@@ -367,7 +368,7 @@ export class UserManagementService {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          adminRoles: { where: { isActive: true } }
+          AdminRole: { where: { isActive: true } }
         }
       });
 
@@ -376,7 +377,7 @@ export class UserManagementService {
       }
 
       // Prevent deletion of users with active admin roles
-      if (user.adminRoles.length > 0) {
+      if (user.AdminRole.length > 0) {
         throw new Error('Cannot delete user with active admin roles. Remove admin roles first.');
       }
 
@@ -561,7 +562,7 @@ export class UserManagementService {
         prisma.user.count({ where: { isVerified: true } }),
         prisma.user.count({ 
           where: { 
-            adminRoles: { some: { isActive: true } } 
+            AdminRole: { some: { isActive: true } } 
           } 
         }),
         prisma.user.count({ where: { createdAt: { gte: oneMonthAgo } } }),

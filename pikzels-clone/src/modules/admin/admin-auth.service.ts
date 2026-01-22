@@ -86,14 +86,14 @@ export class AdminAuthService {
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
-          adminRoles: {
+          AdminRole: {
             where: { isActive: true },
             orderBy: { assignedAt: 'desc' }
           }
         }
       });
 
-      if (!user || !user.isActive || user.adminRoles.length === 0) {
+      if (!user || !user.isActive || user.AdminRole.length === 0) {
         await this.logAdminAction(null, 'ADMIN_LOGIN_FAILED', 'auth', null, {
           email,
           reason: 'No admin access',
@@ -115,9 +115,9 @@ export class AdminAuthService {
       }
 
       // Get active roles and permissions
-      const roles = user.adminRoles
-        .filter(role => !role.expiresAt || role.expiresAt > new Date())
-        .map(role => role.role as AdminRoles);
+      const roles = user.AdminRole
+        .filter((role: any) => !role.expiresAt || role.expiresAt > new Date())
+        .map((role: any) => role.role as AdminRoles);
 
       const permissions = this.getPermissionsForRoles(roles);
 
@@ -183,21 +183,21 @@ export class AdminAuthService {
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         include: {
-          adminRoles: {
+          AdminRole: {
             where: { isActive: true },
             orderBy: { assignedAt: 'desc' }
           }
         }
       });
 
-      if (!user || !user.isActive || user.adminRoles.length === 0) {
+      if (!user || !user.isActive || user.AdminRole.length === 0) {
         return null;
       }
 
       // Check if roles have been updated since token was issued
-      const currentRoles = user.adminRoles
-        .filter(role => !role.expiresAt || role.expiresAt > new Date())
-        .map(role => role.role as AdminRoles);
+      const currentRoles = user.AdminRole
+        .filter((role: any) => !role.expiresAt || role.expiresAt > new Date())
+        .map((role: any) => role.role as AdminRoles);
 
       const currentPermissions = this.getPermissionsForRoles(currentRoles);
 
@@ -243,6 +243,7 @@ export class AdminAuthService {
       const permissions = customPermissions || ROLE_PERMISSIONS[role] || [];
 
       const createData: any = {
+        id: `admin-role-${userId}-${role}-${Date.now()}`,
         userId,
         role,
         permissions: JSON.stringify(permissions),
@@ -321,6 +322,7 @@ export class AdminAuthService {
   ): Promise<void> {
     try {
       const logData: any = {
+        id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         adminId,
         action,
         resource,
@@ -362,8 +364,11 @@ export class AdminAuthService {
     return prisma.auditLog.findMany({
       where,
       include: {
-        admin: {
-          select: { email: true, name: true }
+        User_AuditLog_adminIdToUser: {
+          select: {
+            email: true,
+            name: true
+          }
         }
       },
       orderBy: { timestamp: 'desc' },

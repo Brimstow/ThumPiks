@@ -1,71 +1,178 @@
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { logger } from '../../utils/logger';
+import {
+  ValidationError,
+  ConflictError,
+  UnauthorizedError,
+} from '../../utils/errors';
 
 const authService = new AuthService();
 
+/**
+ * Register a new user
+ * POST /api/auth/register
+ * Body: { username, email, name, password }
+ */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { username, email, name, password } = req.body;
 
-    if (!email || !password) {
+    // Validate required fields
+    if (!username || !email || !name || !password) {
       return res.status(400).json({
-        error: 'Email and password are required',
+        error: 'Username, email, name, and password are required',
       });
     }
 
-    const result = await authService.register(email, password, name);
+    const result = await authService.register(username, email, name, password);
 
     return res.status(201).json(result);
   } catch (error: any) {
     logger.error('Registration failed', error, {
+      username: req.body.username,
       email: req.body.email,
       userAgent: req.get('User-Agent'),
     });
-    
-    if (error.message === 'User already exists') {
+
+    // Handle typed errors with appropriate status codes
+    if (error instanceof ConflictError) {
       return res.status(409).json({
-        error: 'User already exists',
+        error: error.message,
       });
     }
 
+    if (error instanceof ValidationError) {
+      return res.status(400).json({
+        error: error.message,
+      });
+    }
+
+    // Generic error for unexpected failures
     return res.status(500).json({
-      error: 'Internal server error',
+      error: 'Registration failed. Please try again.',
     });
   }
 };
 
+/**
+ * Login with username or email
+ * POST /api/auth/login
+ * Body: { identifier, password } where identifier can be username or email
+ */
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, email, password } = req.body;
 
-    if (!email || !password) {
+    // Support both 'identifier' and 'email' fields for backward compatibility
+    const loginIdentifier = identifier || email;
+
+    if (!loginIdentifier || !password) {
       return res.status(400).json({
-        error: 'Email and password are required',
+        error: 'Username/email and password are required',
       });
     }
 
-    const result = await authService.login(email, password);
+    const result = await authService.login(loginIdentifier, password);
 
     return res.status(200).json(result);
   } catch (error: any) {
     logger.error('Login failed', error, {
-      email: req.body.email,
+      identifier: req.body.identifier || req.body.email,
       userAgent: req.get('User-Agent'),
     });
-    
-    if (error.message === 'Invalid credentials') {
+
+    // Handle typed errors with appropriate status codes
+    if (error instanceof UnauthorizedError) {
       return res.status(401).json({
-        error: 'Invalid credentials',
+        error: error.message,
       });
     }
 
+    // Generic error for unexpected failures
     return res.status(500).json({
-      error: 'Internal server error',
+      error: 'Login failed. Please try again.',
     });
   }
 };
 
+/**
+ * Verify email with token
+ * GET /api/auth/verify-email/:token
+ */
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Verification token is required',
+      });
+    }
+
+    const result = await authService.verifyEmail(token);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Email verification failed', error, {
+      token: req.params.token,
+    });
+
+    if (
+      error.message.includes('Invalid') ||
+      error.message.includes('expired')
+    ) {
+      return res.status(400).json({
+        error: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Email verification failed',
+    });
+  }
+};
+
+/**
+ * Resend verification email
+ * POST /api/auth/resend-verification
+ * Body: { email }
+ */
+export const resendVerification = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email is required',
+      });
+    }
+
+    const result = await authService.resendVerification(email);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Resend verification failed', error, {
+      email: req.body.email,
+    });
+
+    if (error.message === 'Email is already verified') {
+      return res.status(400).json({
+        error: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Failed to resend verification email',
+    });
+  }
+};
+
+/**
+ * Request password reset
+ * POST /api/auth/request-password-reset
+ * Body: { email }
+ */
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -78,19 +185,27 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 
     const result = await authService.requestPasswordReset(email);
 
-    // In a real application, we would send an email here with the reset link
-    // For now, we're just returning a success message
     return res.status(200).json(result);
   } catch (error: any) {
+    logger.error('Password reset request failed', error, {
+      email: req.body.email,
+    });
+
     return res.status(500).json({
-      error: 'Internal server error',
+      error: 'Password reset request failed',
     });
   }
 };
 
+/**
+ * Reset password with token
+ * POST /api/auth/reset-password
+ * Body: { token, newPassword }
+ */
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
+
     if (!token) {
       return res.status(400).json({ error: 'Token is required' });
     }
@@ -99,27 +214,150 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'New password is required' });
     }
 
-    // Reset password logic here
-    
-    return res.status(200).json({ message: 'Password reset successfully' });
-  } catch (error) {
-    console.error('Error resetting password:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    const result = await authService.resetPassword(token, newPassword);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Password reset failed', error);
+
+    if (error.message.includes('Password')) {
+      return res.status(400).json({
+        error: error.message,
+      });
+    }
+
+    if (
+      error.message.includes('Invalid') ||
+      error.message.includes('expired')
+    ) {
+      return res.status(400).json({
+        error: 'Invalid or expired reset token',
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Password reset failed',
+    });
   }
 };
 
-export const verifyEmail = async (req: Request, res: Response) => {
+/**
+ * Refresh access token
+ * POST /api/auth/refresh-token
+ * Body: { refreshToken }
+ */
+export const refreshToken = async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
-    if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        error: 'Refresh token is required',
+      });
     }
 
-    // Verify email logic here
-    
-    return res.status(200).json({ message: 'Email verified successfully' });
-  } catch (error) {
-    console.error('Error verifying email:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    const result = await authService.refreshToken(refreshToken);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Token refresh failed', error);
+
+    return res.status(401).json({
+      error: 'Invalid refresh token',
+    });
+  }
+};
+
+/**
+ * Generate username suggestions
+ * POST /api/auth/suggest-usernames
+ * Body: { fullName, email }
+ */
+export const suggestUsernames = async (req: Request, res: Response) => {
+  try {
+    const { fullName, email } = req.body;
+
+    if (!fullName || !email) {
+      return res.status(400).json({
+        error: 'Full name and email are required',
+      });
+    }
+
+    const result = await authService.generateUsernameSuggestions(
+      fullName,
+      email
+    );
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Username suggestion generation failed', error);
+
+    return res.status(500).json({
+      error: 'Failed to generate username suggestions',
+    });
+  }
+};
+
+/**
+ * Check username availability
+ * GET /api/auth/check-username/:username
+ */
+export const checkUsername = async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+
+    if (!username) {
+      return res.status(400).json({
+        error: 'Username is required',
+      });
+    }
+
+    const result = await authService.checkUsernameAvailability(username);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Username availability check failed', error);
+
+    return res.status(500).json({
+      error: 'Failed to check username availability',
+    });
+  }
+};
+
+/**
+ * Update display preference
+ * PUT /api/auth/display-preference
+ * Body: { preference } where preference is 'name' or 'username'
+ * Requires authentication
+ */
+export const updateDisplayPreference = async (req: Request, res: Response) => {
+  try {
+    const { preference } = req.body;
+    const userId = (req as any).user?.id; // Assumes auth middleware sets req.user
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+      });
+    }
+
+    if (!preference || !['name', 'username'].includes(preference)) {
+      return res.status(400).json({
+        error: 'Preference must be either "name" or "username"',
+      });
+    }
+
+    const result = await authService.updateDisplayPreference(
+      userId,
+      preference
+    );
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    logger.error('Display preference update failed', error);
+
+    return res.status(500).json({
+      error: 'Failed to update display preference',
+    });
   }
 };

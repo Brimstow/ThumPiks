@@ -23,24 +23,24 @@ export const authenticateToken = async (
         userAgent: req.get('User-Agent'),
         url: req.url,
       });
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Access token required',
-        code: 'TOKEN_MISSING'
+        code: 'TOKEN_MISSING',
       });
     }
 
     // Verify token using enhanced JWT service
     const decoded = EnhancedJWTService.verifyAccessToken(token);
-    
+
     if (!decoded) {
       logger.warn('Invalid token provided', {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         url: req.url,
       });
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Invalid or expired token',
-        code: 'TOKEN_INVALID'
+        code: 'TOKEN_INVALID',
       });
     }
 
@@ -60,17 +60,17 @@ export const authenticateToken = async (
         userId: decoded.userId,
         ip: req.ip,
       });
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'User not found',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
       });
     }
 
     // Check if user is verified (optional security measure)
     if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.isVerified) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Email verification required',
-        code: 'EMAIL_NOT_VERIFIED'
+        code: 'EMAIL_NOT_VERIFIED',
       });
     }
 
@@ -80,7 +80,12 @@ export const authenticateToken = async (
       email: user.email,
       name: user.name || undefined,
       role: 'user' as UserRole, // Default role
-      permissions: ['thumbnails:read', 'thumbnails:write', 'projects:read', 'projects:write'] as Permission[],
+      permissions: [
+        'thumbnails:read',
+        'thumbnails:write',
+        'projects:read',
+        'projects:write',
+      ] as Permission[],
       sessionId: decoded.sessionId || 'legacy-session',
       lastActivity: new Date(),
     } as SecureUser;
@@ -100,10 +105,10 @@ export const authenticateToken = async (
       userAgent: req.get('User-Agent'),
       url: req.url,
     });
-    
-    return res.status(403).json({ 
+
+    return res.status(403).json({
       error: 'Authentication failed',
-      code: 'AUTH_ERROR'
+      code: 'AUTH_ERROR',
     });
   }
 };
@@ -116,20 +121,20 @@ export const authenticateRefreshToken = async (
 ): Promise<any> => {
   try {
     const { refreshToken } = req.body;
-    
+
     if (!refreshToken) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Refresh token required',
-        code: 'REFRESH_TOKEN_MISSING'
+        code: 'REFRESH_TOKEN_MISSING',
       });
     }
 
     const decoded = EnhancedJWTService.verifyRefreshToken(refreshToken);
-    
+
     if (!decoded) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Invalid refresh token',
-        code: 'REFRESH_TOKEN_INVALID'
+        code: 'REFRESH_TOKEN_INVALID',
       });
     }
 
@@ -144,9 +149,9 @@ export const authenticateRefreshToken = async (
     });
 
     if (!user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'User not found',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
       });
     }
 
@@ -155,7 +160,12 @@ export const authenticateRefreshToken = async (
       email: user.email,
       name: user.name || undefined,
       role: 'user' as UserRole,
-      permissions: ['thumbnails:read', 'thumbnails:write', 'projects:read', 'projects:write'] as Permission[],
+      permissions: [
+        'thumbnails:read',
+        'thumbnails:write',
+        'projects:read',
+        'projects:write',
+      ] as Permission[],
       sessionId: decoded.sessionId || 'legacy-session',
       lastActivity: new Date(),
     } as SecureUser;
@@ -163,27 +173,34 @@ export const authenticateRefreshToken = async (
     next();
   } catch (error: any) {
     logger.error('Refresh token middleware error', error);
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Token refresh failed',
-      code: 'REFRESH_ERROR'
+      code: 'REFRESH_ERROR',
     });
   }
 };
 
 // Optional: Role-based access control middleware
 export const requireRole = (allowedRoles: UserRole[]) => {
-  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
+  return async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<any> => {
     if (!req.user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication required',
-        code: 'AUTH_REQUIRED'
+        code: 'AUTH_REQUIRED',
       });
     }
 
     // For now, we'll implement this when we add roles to the User model
     // This is a placeholder for future role-based access control
     console.log('Allowed roles:', allowedRoles); // Use the parameter
-    
+
     next();
   };
 };
+
+// Export alias for consistency with route imports
+export const authenticate = authenticateToken;

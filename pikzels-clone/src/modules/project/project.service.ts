@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { CacheService } from '../../services/cache.service';
+import { v4 as uuidv4 } from 'uuid';
 
 // Default instances for production use
 const defaultPrisma = new PrismaClient();
@@ -101,6 +102,7 @@ export class ProjectService {
     
     const project = await this.prisma.project.create({
       data: {
+        id: uuidv4(),
         name: data.name,
         description: data.description || null,
         userId: data.userId,
@@ -108,6 +110,7 @@ export class ProjectService {
         folderType,
         depth,
         projectPath,
+        updatedAt: new Date(),
       },
     });
 
@@ -133,7 +136,7 @@ export class ProjectService {
             createdAt: 'desc',
           },
           include: {
-            featuredThumbnail: true,
+            Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
           },
         });
       },
@@ -150,8 +153,8 @@ export class ProjectService {
         return this.prisma.project.findUnique({
           where: { id },
           include: {
-            featuredThumbnail: true,
-            thumbnails: {
+            Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
+            Thumbnail_Thumbnail_projectIdToProject: {
               take: 5, // Get the 5 most recent thumbnails
               orderBy: {
                 createdAt: 'desc',
@@ -265,11 +268,11 @@ export class ProjectService {
             { name: 'asc' }
           ],
           include: {
-            featuredThumbnail: true,
+            Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
             _count: {
               select: {
-                subProjects: true,
-                thumbnails: true
+                other_Project: true,
+                Thumbnail_Thumbnail_projectIdToProject: true
               }
             }
           },
@@ -321,11 +324,11 @@ export class ProjectService {
             { name: 'asc' }
           ],
           include: {
-            featuredThumbnail: true,
+            Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
             _count: {
               select: {
-                subProjects: true,
-                thumbnails: true
+                other_Project: true,
+                Thumbnail_Thumbnail_projectIdToProject: true
               }
             }
           }
