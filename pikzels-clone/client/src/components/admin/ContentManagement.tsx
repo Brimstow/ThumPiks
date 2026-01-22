@@ -58,6 +58,7 @@ const ContentManagement: React.FC = () => {
 
   useEffect(() => {
     // Generate mock content data
+    const statuses: ('published' | 'draft' | 'archived')[] = ['published', 'draft', 'archived'];
     const mockContent: ContentItem[] = [
       // Thumbnails
       ...Array.from({ length: 15 }, (_, i) => ({
@@ -69,7 +70,7 @@ const ContentManagement: React.FC = () => {
         authorId: `user_${Math.floor(Math.random() * 3) + 1}`,
         createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
         updatedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-        status: ['published', 'draft', 'archived'][Math.floor(Math.random() * 3)] as const,
+        status: statuses[Math.floor(Math.random() * 3)],
         tags: ['gaming', 'tutorial', 'lifestyle', 'tech', 'entertainment'].slice(0, Math.floor(Math.random() * 3) + 1),
         thumbnailUrl: `https://picsum.photos/400/300?random=${i + 1}`,
         downloads: Math.floor(Math.random() * 1000),
@@ -89,7 +90,7 @@ const ContentManagement: React.FC = () => {
         authorId: `user_${Math.floor(Math.random() * 3) + 1}`,
         createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
         updatedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-        status: ['published', 'draft', 'archived'][Math.floor(Math.random() * 3)] as const,
+        status: statuses[Math.floor(Math.random() * 3)],
         tags: ['modern', 'minimal', 'corporate', 'creative', 'colorful'].slice(0, Math.floor(Math.random() * 3) + 1),
         thumbnailUrl: `https://picsum.photos/400/300?random=${i + 16}`,
         downloads: Math.floor(Math.random() * 500),
@@ -109,7 +110,7 @@ const ContentManagement: React.FC = () => {
         authorId: `user_${Math.floor(Math.random() * 3) + 1}`,
         createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
         updatedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-        status: ['published', 'draft', 'archived'][Math.floor(Math.random() * 3)] as const,
+        status: statuses[Math.floor(Math.random() * 3)],
         tags: ['custom', 'personal', 'business', 'creative'].slice(0, Math.floor(Math.random() * 2) + 1),
         thumbnailUrl: `https://picsum.photos/400/300?random=${i + 26}`,
         downloads: Math.floor(Math.random() * 100),
