@@ -56,7 +56,8 @@ interface ComparativeAnalyticsData {
 }
 
 const AdvancedAnalyticsDashboard: React.FC = () => {
-  const { theme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>(
     'weekly'
   );
@@ -164,12 +165,12 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
   if (error) {
     return (
       <div
-        className={`rounded-md p-4 ${theme === 'dark' ? 'bg-red-900' : 'bg-red-50'}`}
+        className="rounded-md p-4 bg-red-50 dark:bg-red-900"
       >
         <div className="flex">
           <div className="flex-shrink-0">
             <svg
-              className={`h-5 w-5 ${theme === 'dark' ? 'text-red-200' : 'text-red-400'}`}
+              className="h-5 w-5 text-red-400 dark:text-red-200"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -184,12 +185,12 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
           </div>
           <div className="ml-3">
             <h3
-              className={`text-sm font-medium ${theme === 'dark' ? 'text-red-200' : 'text-red-800'}`}
+              className="text-sm font-medium text-red-800 dark:text-red-200"
             >
               Error
             </h3>
             <div
-              className={`mt-2 text-sm ${theme === 'dark' ? 'text-red-200' : 'text-red-700'}`}
+              className="mt-2 text-sm text-red-700 dark:text-red-200"
             >
               <p>{error}</p>
             </div>
@@ -202,12 +203,12 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
   if (!analyticsData) {
     return (
       <div
-        className={`rounded-md p-4 ${theme === 'dark' ? 'bg-yellow-900' : 'bg-yellow-50'}`}
+        className="rounded-md p-4 bg-yellow-50 dark:bg-yellow-900"
       >
         <div className="flex">
           <div className="flex-shrink-0">
             <svg
-              className={`h-5 w-5 ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-400'}`}
+              className="h-5 w-5 text-yellow-400 dark:text-yellow-200"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -222,12 +223,12 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
           </div>
           <div className="ml-3">
             <h3
-              className={`text-sm font-medium ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-800'}`}
+              className="text-sm font-medium text-yellow-800 dark:text-yellow-200"
             >
               No Data
             </h3>
             <div
-              className={`mt-2 text-sm ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-700'}`}
+              className="mt-2 text-sm text-yellow-700 dark:text-yellow-200"
             >
               <p>No advanced analytics data available.</p>
             </div>
@@ -243,12 +244,12 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
             <h2
-              className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}
+              className="text-2xl font-bold text-gray-900 dark:text-white"
             >
               Advanced Analytics
             </h2>
             <p
-              className={`mt-1 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+              className="mt-1 text-sm text-gray-500 dark:text-gray-400"
             >
               Detailed insights into your thumbnail creation activity and
               performance.

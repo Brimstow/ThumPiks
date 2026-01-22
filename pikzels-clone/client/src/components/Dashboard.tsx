@@ -71,7 +71,11 @@ const Dashboard: React.FC = () => {
     dateFrom: '',
     dateTo: ''
   });
-  const { theme, toggleTheme } = useTheme();
+  const isDark = document.documentElement.classList.contains('dark');
+  const theme = isDark ? 'dark' : 'light';
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle('dark');
+  };
   const [settingFeaturedForProject, setSettingFeaturedForProject] = useState<string | null>(null);
   const [socialShareModal, setSocialShareModal] = useState<{ thumbnailId: string; thumbnailTitle: string } | null>(null);
 
@@ -556,7 +560,7 @@ const Dashboard: React.FC = () => {
                   variant="default" 
                   className="dashboard__action-card"
                   interactive
-                  onClick={() => setActiveTab('projects')}
+                  onClick={() => navigate('/projects')}
                   tabIndex={0}
                   role="button"
                   aria-label="Manage projects"
@@ -578,7 +582,7 @@ const Dashboard: React.FC = () => {
                   variant="default" 
                   className="dashboard__action-card"
                   interactive
-                  onClick={() => setActiveTab('analytics')}
+                  onClick={() => navigate('/analytics')}
                   tabIndex={0}
                   role="button"
                   aria-label="View analytics"
