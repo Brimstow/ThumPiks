@@ -1,0 +1,11 @@
+node_modules
+.git
+*.log
+*.md
+!README.md
+tests
+__tests__
+coverage
+.env
+.env.local
+.env.*.local
