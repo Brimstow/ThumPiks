@@ -16,8 +16,21 @@ import ShadcnTest from './components/ShadcnTest';
 // User Components
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import DashboardLayout from './components/dashboard/DashboardLayout';
+import DashboardHome from './components/dashboard/DashboardHome';
+import HelpPage from './components/dashboard/HelpPage';
+import BrandPage from './components/dashboard/BrandPage';
+import ProjectsPage from './components/dashboard/ProjectsPage';
+import TemplatesPage from './components/dashboard/TemplatesPage';
+import AnalyticsPage from './components/dashboard/AnalyticsPage';
+import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
+import TrendingPage from './components/dashboard/TrendingPage';
+import PricingPage from './components/dashboard/PricingPage';
+import AIToolsPage from './components/dashboard/AIToolsPage';
 import ThumbnailEditor from './components/ThumbnailEditor';
 import BatchEditor from './components/BatchEditor';
+import CanvasEditorPage from './pages/CanvasEditorPage';
+import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
 import UserAnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
 import SocialShareAnalytics from './components/SocialShareAnalytics';
@@ -111,6 +124,10 @@ function App() {
                 element={<ResetPassword />}
               />
               <Route
+                path="/reset-password"
+                element={<ResetPassword />}
+              />
+              <Route
                 path="/verify-email/:token"
                 element={<VerifyEmailSuccess />}
               />
@@ -128,17 +145,32 @@ function App() {
                 element={<SharedThumbnailPage />}
               />
 
-              {/* User Dashboard Routes */}
+              {/* User Dashboard Routes - New Design */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <DashboardLayout />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<DashboardHome />} />
+                <Route path="thumbnails" element={<MyThumbnailsPage />} />
+                <Route path="create" element={<DashboardHome />} />
+                <Route path="templates" element={<TemplatesPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="projects" element={<ProjectsPage />} />
+                <Route path="editor" element={<ThumbnailStudioPage />} />
+                <Route path="editor/:id" element={<ThumbnailStudioPage />} />
+                <Route path="brand" element={<BrandPage />} />
+                <Route path="ai-tools" element={<AIToolsPage />} />
+                <Route path="trending" element={<TrendingPage />} />
+                <Route path="settings" element={<DashboardHome />} />
+                <Route path="help" element={<HelpPage />} />
+                <Route path="pricing" element={<PricingPage />} />
+              </Route>
 
-              {/* Thumbnail Management Routes */}
+              {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}
               <Route
                 path="/thumbnails"
                 element={
@@ -152,6 +184,42 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Canvas Editor Routes */}
+              <Route
+                path="/canvas-editor"
+                element={
+                  <ProtectedRoute>
+                    <CanvasEditorPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/canvas-editor/:id"
+                element={
+                  <ProtectedRoute>
+                    <CanvasEditorPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Thumbnail Studio - Professional Editor */}
+              <Route
+                path="/studio"
+                element={
+                  <ProtectedRoute>
+                    <ThumbnailStudioPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/studio/:id"
+                element={
+                  <ProtectedRoute>
+                    <ThumbnailStudioPage />
                   </ProtectedRoute>
                 }
               />
@@ -366,6 +434,7 @@ function App() {
               {/* Test pages */}
               <Route path="/test" element={<TestPage />} />
               <Route path="/shadcn-test" element={<ShadcnTest />} />
+              <Route path="/test-studio" element={<ThumbnailStudioPage />} />
 
               {/* Catch-all for testing */}
               <Route path="*" element={<TestPage />} />
