@@ -9,20 +9,23 @@ import compression from 'compression';
 dotenv.config();
 
 // Import security middleware
-import { 
-  securityHeaders, 
-  generalRateLimit, 
-  authRateLimit, 
-  sanitizeInput, 
-  httpsRedirect, 
-  securityLogger, 
+import {
+  securityHeaders,
+  generalRateLimit,
+  authRateLimit,
+  sanitizeInput,
+  httpsRedirect,
+  securityLogger,
   requestSizeLimit,
-  apiVersioning 
+  apiVersioning,
 } from './middleware/security.middleware';
 
 // Import services AFTER environment variables are loaded
 import { CacheService } from './services/cache.service';
-import { performanceMiddleware, responseTimeMiddleware } from './middleware/performance.middleware';
+import {
+  performanceMiddleware,
+  responseTimeMiddleware,
+} from './middleware/performance.middleware';
 import { logger } from './utils/logger';
 import { eventRegistry } from './events';
 
@@ -46,7 +49,7 @@ import systemMonitoringRoutes from './modules/admin/system-monitoring.routes';
 import sitemapRoutes from './modules/admin/sitemap.routes';
 
 const app = express();
-const PORT = process.env.PORT || 8550;
+const PORT = Number(process.env.PORT) || 8550;
 
 // Initialize cache service
 const cache = CacheService.getInstance();
@@ -91,10 +94,10 @@ if (process.env.ENABLE_COMPRESSION === 'true') {
 if (process.env.ENABLE_RATE_LIMITING === 'true') {
   // General API rate limiting
   app.use('/api/', generalRateLimit);
-  
+
   // Strict rate limiting for auth endpoints
   app.use('/api/auth/', authRateLimit);
-  
+
   console.log('🛡️  Enhanced rate limiting enabled');
 }
 
@@ -111,20 +114,24 @@ const corsOptions = {
 app.use(cors(corsOptions));
 console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
 // Enhanced JSON parsing with security limits
-app.use(express.json({ 
-  limit: process.env.MAX_FILE_SIZE || '10mb',
-  strict: true,
-  verify: (req: any, _res, buf) => {
-    // Store raw body for webhook verification if needed
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    limit: process.env.MAX_FILE_SIZE || '10mb',
+    strict: true,
+    verify: (req: any, _res, buf) => {
+      // Store raw body for webhook verification if needed
+      req.rawBody = buf;
+    },
+  })
+);
 
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: process.env.MAX_FILE_SIZE || '10mb',
-  parameterLimit: 20 // Prevent parameter pollution
-}));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: process.env.MAX_FILE_SIZE || '10mb',
+    parameterLimit: 20, // Prevent parameter pollution
+  })
+);
 
 // Serve static files for processed images
 app.use(
@@ -151,22 +158,16 @@ app.use('/api/admin/analytics', analyticsAdminRoutes);
 app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
 
-// Production static files serving
+// Production API-only mode (frontend deployed separately)
 if (process.env.NODE_ENV === 'production') {
-  // Serve admin static files
-  app.use('/admin', express.static(path.join(__dirname, '../client/dist')));
-  
-  // Serve main app static files
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  // Admin SPA fallback - serve index.html for admin routes
-  app.get('/admin/*', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-  });
-  
-  // Main app SPA fallback
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  app.get('/', (_req, res) => {
+    res.json({
+      message: 'Thumbnail Maker API',
+      version: '1.0.0',
+      environment: 'production',
+      health: '/health',
+      api: '/api',
+    });
   });
 } else {
   // Development mode - provide API info and redirect to frontend
@@ -175,57 +176,64 @@ if (process.env.NODE_ENV === 'production') {
       message: 'Admin panel is running in development mode',
       frontend: 'http://localhost:8556/admin',
       backend: `http://localhost:${PORT}/api`,
-      note: 'Please access the admin panel through the frontend URL above'
+      note: 'Please access the admin panel through the frontend URL above',
     });
   });
-  
+
   app.get('/', (_req, res) => {
     res.json({
       message: 'Thumbnail Maker API is running',
       environment: 'development',
       frontend: 'http://localhost:8556',
       backend: `http://localhost:${PORT}/api`,
-      documentation: `http://localhost:${PORT}/health`
+      documentation: `http://localhost:${PORT}/health`,
     });
   });
 }
 
 // Global error handler - MUST be after all routes
-app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('Unhandled API error', err, {
-    url: req.url,
-    method: req.method,
-    userId: (req as any).user?.id,
-    userAgent: req.get('User-Agent'),
-  });
-  
-  // Don't leak error details in production
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-  
-  res.status(500).json({
-    error: 'Internal server error',
-    ...(isDevelopment && { details: err.message, stack: err.stack })
-  });
-});
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    logger.error('Unhandled API error', err, {
+      url: req.url,
+      method: req.method,
+      userId: (req as any).user?.id,
+      userAgent: req.get('User-Agent'),
+    });
+
+    // Don't leak error details in production
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    res.status(500).json({
+      error: 'Internal server error',
+      ...(isDevelopment && { details: err.message, stack: err.stack }),
+    });
+  }
+);
 
 // Health check endpoint
 app.get('/health', async (_req, res) => {
   const cacheStatus = await cache.healthCheck();
   const eventStats = eventRegistry.getStats();
-  
+
   res.status(200).json({
     status: 'OK',
     message: 'Thumbnail Maker API is running',
     services: {
       cache: cacheStatus ? 'healthy' : 'unhealthy',
       database: 'healthy', // Will add Prisma health check later
-      events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy'
+      events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy',
     },
     events: {
       totalHandlers: eventStats.totalHandlers,
       eventTypes: eventStats.eventTypes,
       registeredEvents: eventStats.handlers,
-      emitterStats: eventStats.emitterStats
+      emitterStats: eventStats.emitterStats,
     },
     performance: {
       compression: process.env.ENABLE_COMPRESSION === 'true',
@@ -243,25 +251,30 @@ async function initializeServer() {
     // Initialize event handlers
     await eventRegistry.initialize();
     console.log('📡 Event system initialized');
-    
-    // Start server
-    const server = app.listen(PORT, () => {
+
+    // Start server - bind to 0.0.0.0 for Railway
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`🎯 Health check: http://localhost:${PORT}/health`);
-      
+
       // Log performance features
       if (process.env.ENABLE_CACHE === 'true') {
         console.log('⚡ Redis caching enabled');
       }
-      
+
       // Log event system stats
       const eventStats = eventRegistry.getStats();
-      console.log(`📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`);
+      console.log(
+        `📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`
+      );
     });
-    
+
     return server;
   } catch (error) {
-    logger.error('Failed to initialize server', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Failed to initialize server',
+      error instanceof Error ? error : new Error(String(error))
+    );
     process.exit(1);
   }
 }
@@ -295,9 +308,13 @@ if (require.main === module) {
 
   // Handle unhandled promise rejections
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Promise Rejection', reason instanceof Error ? reason : new Error(String(reason)), {
-      promise: promise.toString(),
-    });
+    logger.error(
+      'Unhandled Promise Rejection',
+      reason instanceof Error ? reason : new Error(String(reason)),
+      {
+        promise: promise.toString(),
+      }
+    );
     // For development, we don't exit the process
     if (process.env.NODE_ENV === 'production') {
       process.exit(1);
