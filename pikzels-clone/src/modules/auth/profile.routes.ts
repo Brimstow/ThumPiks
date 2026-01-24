@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { ProfileController } from './profile.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
-import { validateRequest, commonValidations } from '../../middleware/validation.middleware';
+import { validateRequest } from '../../middleware/validation.middleware';
 
 const router = Router();
 const profileController = new ProfileController();
