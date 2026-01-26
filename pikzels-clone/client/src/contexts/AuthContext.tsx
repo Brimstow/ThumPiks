@@ -23,7 +23,8 @@ interface AuthContextType {
   register: (
     email: string,
     password: string,
-    name: string
+    name: string,
+    username: string
   ) => Promise<{ success: boolean; error?: string }>;
   loading: boolean;
   isAuthenticated: boolean;
@@ -94,14 +95,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, username: string) => {
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ username, email, name, password }),
       });
 
       const data = await response.json();

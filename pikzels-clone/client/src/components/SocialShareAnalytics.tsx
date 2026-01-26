@@ -8,11 +8,11 @@ interface SocialShareStat {
 }
 
 interface SocialShareAnalyticsProps {
-  theme: 'light' | 'dark';
+  theme?: 'light' | 'dark';
 }
 
 const SocialShareAnalytics: React.FC<SocialShareAnalyticsProps> = ({
-  theme,
+  theme = 'light',
 }) => {
   const [stats, setStats] = useState<SocialShareStat[]>([]);
   const [loading, setLoading] = useState(true);

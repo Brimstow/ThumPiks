@@ -123,7 +123,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...state,
         layers: state.layers.map(layer =>
           layer.id === action.layerId
-            ? { ...layer, ...action.updates }
+            ? { ...layer, ...action.updates } as Layer
             : layer
         ),
         history: newHistory,

@@ -47,16 +47,33 @@ interface EditParameters {
 }
 
 interface BatchEditorProps {
-  thumbnails: Thumbnail[];
-  onClose: () => void;
-  onSave: (edits: EditParameters) => void;
+  thumbnails?: Thumbnail[];
+  onClose?: () => void;
+  onSave?: (edits: EditParameters) => void;
 }
 
 const BatchEditor: React.FC<BatchEditorProps> = ({
-  thumbnails,
-  onClose,
-  onSave,
+  thumbnails = [],
+  onClose = () => window.history.back(),
+  onSave = () => {},
 }) => {
+  // If no thumbnails provided, show message
+  if (thumbnails.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">No Thumbnails Selected</h2>
+          <p className="mb-4">Please select thumbnails to batch edit.</p>
+          <button
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
   const [edits, setEdits] = useState<EditParameters>({
     brightness: 100,
     contrast: 100,
@@ -163,7 +180,7 @@ const BatchEditor: React.FC<BatchEditorProps> = ({
   };
 
   const handleResizeChange = (
-    field: keyof EditParameters['resize'],
+    field: 'width' | 'height',
     value: number
   ) => {
     setEdits({
@@ -214,7 +231,7 @@ const BatchEditor: React.FC<BatchEditorProps> = ({
   };
 
   const handleWatermarkPositionChange = (
-    position: EditParameters['watermark']['position']
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
   ) => {
     setEdits({
       ...edits,

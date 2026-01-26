@@ -86,12 +86,12 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
     }
 
     try {
-      const result = await auth.register({
-        username: signupUsername,
-        email: signupEmail,
-        name: signupName,
-        password: signupPassword,
-      });
+      const result = await auth.register(
+        signupEmail,
+        signupPassword,
+        signupName,
+        signupUsername
+      );
 
       if (result.success) {
         setShowSignup(false);

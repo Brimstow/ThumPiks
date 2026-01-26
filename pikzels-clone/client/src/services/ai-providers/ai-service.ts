@@ -127,7 +127,7 @@ export class AIService {
   private async executeTask<T extends AITaskResult>(
     task: AITaskType,
     method: string,
-    request: Record<string, unknown>
+    request: any
   ): Promise<T> {
     const provider = this.getProviderForTask(task);
     
@@ -169,7 +169,7 @@ export class AIService {
   private trackTask(
     task: AITaskType,
     provider: AIProviderType,
-    request: Record<string, unknown>,
+    request: any,
     result: AITaskResult,
     processingTime: number
   ): void {

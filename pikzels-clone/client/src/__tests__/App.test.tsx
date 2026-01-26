@@ -287,7 +287,7 @@ describe('App Routing Tests', () => {
 
   describe('Protected Routes', () => {
     it('should render Dashboard on /dashboard route', async () => {
-      renderWithRouter(['/dashboard']);
+      testRoute('/dashboard');
       
       await waitFor(() => {
         expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
@@ -295,7 +295,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render User Settings on /settings route', async () => {
-      renderWithRouter(['/settings']);
+      testRoute('/settings');
       
       await waitFor(() => {
         expect(screen.getByTestId('user-settings-page')).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Projects List on /projects route', async () => {
-      renderWithRouter(['/projects']);
+      testRoute('/projects');
       
       await waitFor(() => {
         expect(screen.getByTestId('projects-list-page')).toBeInTheDocument();
@@ -311,7 +311,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Create Project on /projects/create route', async () => {
-      renderWithRouter(['/projects/create']);
+      testRoute('/projects/create');
       
       await waitFor(() => {
         expect(screen.getByTestId('project-create-page')).toBeInTheDocument();
@@ -320,7 +320,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Project Detail on /projects/:id route', async () => {
-      renderWithRouter(['/projects/project123']);
+      testRoute('/projects/project123');
       
       await waitFor(() => {
         expect(screen.getByTestId('project-detail-page')).toBeInTheDocument();
@@ -328,7 +328,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Edit Project on /projects/:id/edit route', async () => {
-      renderWithRouter(['/projects/project123/edit']);
+      testRoute('/projects/project123/edit');
       
       await waitFor(() => {
         expect(screen.getByTestId('project-edit-page')).toBeInTheDocument();
@@ -337,7 +337,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Template Marketplace on /templates route', async () => {
-      renderWithRouter(['/templates']);
+      testRoute('/templates');
       
       await waitFor(() => {
         expect(screen.getByTestId('template-marketplace-page')).toBeInTheDocument();
@@ -345,7 +345,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Analytics Dashboard on /analytics route', async () => {
-      renderWithRouter(['/analytics']);
+      testRoute('/analytics');
       
       await waitFor(() => {
         expect(screen.getByTestId('analytics-dashboard-page')).toBeInTheDocument();
@@ -353,7 +353,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render Advanced Analytics on /analytics/advanced route', async () => {
-      renderWithRouter(['/analytics/advanced']);
+      testRoute('/analytics/advanced');
       
       await waitFor(() => {
         expect(screen.getByTestId('advanced-analytics-page')).toBeInTheDocument();
@@ -363,7 +363,7 @@ describe('App Routing Tests', () => {
 
   describe('Error Handling', () => {
     it('should render 404 page for unknown routes', async () => {
-      renderWithRouter(['/unknown-route']);
+      testRoute('/unknown-route');
       
       await waitFor(() => {
         expect(screen.getByText('404')).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe('App Routing Tests', () => {
     });
 
     it('should render 404 page for deeply nested unknown routes', async () => {
-      renderWithRouter(['/projects/unknown/nested/route']);
+      testRoute('/projects/unknown/nested/route');
       
       await waitFor(() => {
         expect(screen.getByText('404')).toBeInTheDocument();
@@ -384,7 +384,7 @@ describe('App Routing Tests', () => {
 
   describe('Route Navigation', () => {
     it('should handle multiple route changes', async () => {
-      const { rerender } = renderWithRouter(['/']);
+      const { rerender } = renderApp();
       
       // Start at landing page
       expect(screen.getByTestId('landing-page')).toBeInTheDocument();
@@ -416,19 +416,19 @@ describe('App Routing Tests', () => {
   describe('Route Parameters', () => {
     it('should handle dynamic route parameters correctly', async () => {
       // Test different project IDs
-      renderWithRouter(['/projects/abc123']);
+      testRoute('/projects/abc123');
       await waitFor(() => {
         expect(screen.getByTestId('project-detail-page')).toBeInTheDocument();
       });
 
       // Test different share tokens
-      renderWithRouter(['/share/xyz789']);
+      testRoute('/share/xyz789');
       await waitFor(() => {
         expect(screen.getByTestId('shared-thumbnail-page')).toBeInTheDocument();
       });
 
       // Test different reset tokens
-      renderWithRouter(['/reset-password/reset123']);
+      testRoute('/reset-password/reset123');
       await waitFor(() => {
         expect(screen.getByTestId('reset-password-page')).toBeInTheDocument();
       });
@@ -436,7 +436,7 @@ describe('App Routing Tests', () => {
 
     it('should handle special characters in route parameters', async () => {
       // Test with special characters (should still work)
-      renderWithRouter(['/projects/project-with-special-chars_123']);
+      testRoute('/projects/project-with-special-chars_123');
       await waitFor(() => {
         expect(screen.getByTestId('project-detail-page')).toBeInTheDocument();
       });
@@ -447,7 +447,7 @@ describe('App Routing Tests', () => {
     it('should mount without crashing', () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       
-      renderWithRouter(['/']);
+      testRoute('/');
       
       expect(consoleSpy).toHaveBeenCalledWith('App component mounted');
       
@@ -455,19 +455,19 @@ describe('App Routing Tests', () => {
     });
 
     it('should render consistently across multiple mounts', () => {
-      const { unmount } = renderWithRouter(['/']);
+      const { unmount } = testRoute('/');
       expect(screen.getByTestId('landing-page')).toBeInTheDocument();
       
       unmount();
       
-      renderWithRouter(['/']);
+      testRoute('/');
       expect(screen.getByTestId('landing-page')).toBeInTheDocument();
     });
   });
 
   describe('Context Providers', () => {
     it('should wrap components with AuthProvider and ThemeProvider', () => {
-      renderWithRouter(['/']);
+      testRoute('/');
       
       // The app should render without context errors
       expect(screen.getByTestId('landing-page')).toBeInTheDocument();
@@ -476,7 +476,7 @@ describe('App Routing Tests', () => {
 
   describe('Performance', () => {
     it('should not re-render unnecessarily', () => {
-      const { rerender } = renderWithRouter(['/']);
+      const { rerender } = renderApp();
       
       expect(screen.getByTestId('landing-page')).toBeInTheDocument();
       

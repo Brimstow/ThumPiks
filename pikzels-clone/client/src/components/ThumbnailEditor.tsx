@@ -73,16 +73,32 @@ interface EditParameters {
 }
 
 interface ThumbnailEditorProps {
-  thumbnail: Thumbnail;
-  onClose: () => void;
-  onSave: (edits: EditParameters) => void;
+  thumbnail?: Thumbnail;
+  onClose?: () => void;
+  onSave?: (edits: EditParameters) => void;
 }
 
 const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({
   thumbnail,
-  onClose,
-  onSave,
+  onClose = () => window.history.back(),
+  onSave = () => {},
 }) => {
+  // If no thumbnail provided, redirect or show error
+  if (!thumbnail) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">No Thumbnail Selected</h2>
+          <button
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
   const [edits, setEdits] = useState<EditParameters>({
     brightness: 100,
     contrast: 100,
@@ -267,7 +283,7 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({
   };
 
   const handleResizeChange = (dimension: 'width' | 'height', value: number) => {
-    const newResize = { ...edits.resize, [dimension]: value };
+    const newResize = { ...(edits.resize || { width: 1280, height: 720 }), [dimension]: value };
     const newEdits = { ...edits, resize: newResize };
     setEdits(newEdits);
     addToHistory(newEdits);

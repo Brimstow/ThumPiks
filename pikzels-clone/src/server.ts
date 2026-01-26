@@ -51,6 +51,11 @@ import sitemapRoutes from './modules/admin/sitemap.routes';
 const app = express();
 const PORT = Number(process.env.PORT) || 8550;
 
+// Trust proxy for Railway/production deployment
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', true);
+}
+
 // Initialize cache service
 const cache = CacheService.getInstance();
 

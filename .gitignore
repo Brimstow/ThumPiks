@@ -304,3 +304,6 @@ pikzels-clone/scripts/playwright-landing-test.js
 
 # Site files (separate project)
 thumpiks-site-files/
+
+# Local Netlify folder
+.netlify
