@@ -36,11 +36,15 @@ import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard'
 import SocialShareAnalytics from './components/SocialShareAnalytics';
 import UserSettings from './components/UserSettings';
 import CreateThumbnail from './components/CreateThumbnail';
+import AccountPage from './components/account/AccountPage';
 import SharedThumbnailPage from './components/SharedThumbnailPage';
 import AboutPage from './components/AboutPage';
 import ContactPage from './components/ContactPage';
 import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
+import FeaturesPage from './pages/FeaturesPage';
+import ReviewsPage from './pages/ReviewsPage';
+import ChangelogPage from './pages/ChangelogPage';
 
 // Import custom styles
 import './styles/animations.css';
@@ -137,6 +141,9 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
+              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/reviews" element={<ReviewsPage />} />
+              <Route path="/changelog" element={<ChangelogPage />} />
 
               {/* Shared Content Routes (No Auth Required) */}
               <Route path="/shared/:token" element={<SharedThumbnailPage />} />
@@ -168,6 +175,8 @@ function App() {
                 <Route path="settings" element={<DashboardHome />} />
                 <Route path="help" element={<HelpPage />} />
                 <Route path="pricing" element={<PricingPage />} />
+                <Route path="account" element={<AccountPage />} />
+                <Route path="account/:section" element={<AccountPage />} />
               </Route>
 
               {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}

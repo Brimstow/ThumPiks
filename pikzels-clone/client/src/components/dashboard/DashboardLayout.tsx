@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu,
   Search,
-  User,
   History,
   ArrowUpCircle,
-  Bell,
   Zap,
   LayoutGrid,
   Home,
@@ -20,12 +18,30 @@ import {
   Settings,
   HelpCircle,
   ChevronRight,
+  X,
 } from 'lucide-react';
+import AccountDropdown from '../account/AccountDropdown';
+import NotificationsDropdown from '../notifications/NotificationsDropdown';
+import SearchModal from '../search/SearchModal';
 
 const DashboardLayout: React.FC = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Keyboard shortcut for search (Cmd/Ctrl + K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarExpanded(!sidebarExpanded);
@@ -39,13 +55,21 @@ const DashboardLayout: React.FC = () => {
 
   const handleNavClick = (path: string) => {
     // If clicking on the current active page, toggle sidebar
-    if (location.pathname === path) {
+    if (location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path))) {
       toggleSidebar();
     } else {
       // Otherwise, expand and navigate
       expandSidebar();
       navigate(path);
     }
+  };
+
+  // Check if a nav item is active (supports nested routes)
+  const isNavActive = (path: string) => {
+    if (path === '/dashboard') {
+      return location.pathname === '/dashboard';
+    }
+    return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
   const navItems = [
@@ -81,63 +105,75 @@ const DashboardLayout: React.FC = () => {
           <div className="flex h-16 items-center justify-between">
             {/* Mobile menu button */}
             <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 hover:text-slate-50 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-slate-700 lg:hidden"
               aria-label="Open menu"
             >
-              <Menu className="w-6 h-6" />
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
             {/* Brand */}
-            <a href="#" className="flex-1 lg:flex-none text-center">
+            <button onClick={() => navigate('/dashboard')} className="flex-1 lg:flex-none text-center">
               <span className="sm:text-3xl text-2xl font-semibold text-slate-50 tracking-tight">
                 ThumPiks
               </span>
-            </a>
+            </button>
 
             {/* Actions */}
             <div className="flex flex-1 sm:gap-3 gap-x-2 gap-y-2 items-center justify-end">
+              {/* Search Button */}
               <div className="relative group">
                 <div className="absolute inset-0 bg-blue-500/20 rounded-lg blur-lg group-hover:bg-blue-500/30 transition-all opacity-0 group-hover:opacity-100"></div>
                 <button
+                  onClick={() => setSearchOpen(true)}
                   className="relative p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
-                  aria-label="Search"
+                  aria-label="Search (⌘K)"
                 >
                   <Search className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Account Dropdown */}
+              <AccountDropdown />
+
+              {/* History Button */}
               <button
-                className="hidden sm:inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50"
-                aria-label="Account"
-              >
-                <User className="w-5 h-5" />
-              </button>
-              <button
-                className="hidden sm:inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50"
+                onClick={() => navigate('/dashboard/thumbnails')}
+                className="hidden sm:inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-colors"
                 aria-label="History"
+                title="View your thumbnails"
               >
                 <History className="w-5 h-5" />
               </button>
+
+              {/* Upgrade Button */}
               <button
-                className="inline-flex hover:bg-slate-800/80 hover:text-slate-50 text-slate-400 rounded-lg p-2"
+                onClick={() => navigate('/dashboard/pricing')}
+                className="inline-flex hover:bg-slate-800/80 hover:text-slate-50 text-slate-400 rounded-lg p-2 transition-colors"
                 aria-label="Upgrade"
+                title="Upgrade your plan"
               >
                 <ArrowUpCircle className="w-5 h-5" />
               </button>
 
-              {/* Notification */}
-              <button className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-slate-50">
-                <Bell className="w-5 h-5" />
-                <span className="absolute right-1 top-1 inline-flex h-2 w-2 rounded-full bg-rose-500 ring-2 ring-slate-900"></span>
-              </button>
+              {/* Notifications Dropdown */}
+              <NotificationsDropdown />
 
-              {/* Credits */}
-              <div className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+              {/* Credits Display - Clickable */}
+              <button
+                onClick={() => navigate('/dashboard/account/billing')}
+                className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 hover:bg-slate-800/80 hover:border-slate-700 transition-colors cursor-pointer"
+                title="View billing & usage"
+              >
                 <Zap className="w-4 h-4 text-yellow-400" />
                 <span className="text-sm font-medium text-slate-50">90</span>
-              </div>
+              </button>
 
               {/* Add more credits */}
-              <button className="hidden sm:inline-flex items-center justify-center rounded-xl bg-[#2563ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4fff] whitespace-nowrap">
+              <button
+                onClick={() => navigate('/dashboard/pricing')}
+                className="hidden sm:inline-flex items-center justify-center rounded-xl bg-[#2563ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4fff] whitespace-nowrap transition-colors"
+              >
                 Add more credits
               </button>
             </div>
@@ -153,7 +189,7 @@ const DashboardLayout: React.FC = () => {
                   <button
                     onClick={() => navigate(item.path)}
                     className={`hover:text-slate-50 whitespace-nowrap ${
-                      location.pathname === item.path ? 'text-slate-50' : ''
+                      isNavActive(item.path) ? 'text-slate-50' : ''
                     }`}
                   >
                     {item.label}
@@ -185,7 +221,7 @@ const DashboardLayout: React.FC = () => {
           {/* Main Navigation */}
           <div className="flex flex-col items-stretch gap-2 w-full">
             {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
+              const isActive = isNavActive(item.path);
               return (
               <button
                 key={item.id}
@@ -231,7 +267,7 @@ const DashboardLayout: React.FC = () => {
           <div className="w-full border-t border-slate-800 pt-3">
             <button
               className={`h-10 w-full rounded-xl flex items-center justify-start mb-2 px-2 group transition-colors ${
-                location.pathname === '/dashboard/settings'
+                isNavActive('/dashboard/settings')
                   ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
                   : 'hover:bg-[#202020] text-slate-100'
               }`}
@@ -254,7 +290,7 @@ const DashboardLayout: React.FC = () => {
             <div className="w-full">
               <button
                 className={`w-full h-10 rounded-xl flex items-center justify-start px-2 transition-colors ${
-                  location.pathname === '/dashboard/help'
+                  isNavActive('/dashboard/help')
                     ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
                     : 'hover:bg-[#202020] text-slate-100'
                 }`}
@@ -278,6 +314,74 @@ const DashboardLayout: React.FC = () => {
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <nav className="fixed top-16 left-0 bottom-0 w-64 bg-slate-900 border-r border-slate-800 z-50 lg:hidden overflow-y-auto animate-in slide-in-from-left duration-200">
+            <div className="p-4 space-y-2">
+              {navItems.map((item) => {
+                const isActive = isNavActive(item.path);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      navigate(item.path);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full h-10 rounded-xl flex items-center justify-start px-3 transition-colors ${
+                      isActive
+                        ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
+                        : 'hover:bg-slate-800 text-slate-100'
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5 mr-3" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+              
+              <div className="border-t border-slate-800 pt-4 mt-4">
+                <button
+                  onClick={() => {
+                    navigate('/dashboard/settings');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full h-10 rounded-xl flex items-center justify-start px-3 transition-colors ${
+                    isNavActive('/dashboard/settings')
+                      ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
+                      : 'hover:bg-slate-800 text-slate-100'
+                  }`}
+                >
+                  <Settings className="w-5 h-5 mr-3" />
+                  <span className="text-sm font-medium">Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/dashboard/help');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full h-10 rounded-xl flex items-center justify-start px-3 mt-2 transition-colors ${
+                    isNavActive('/dashboard/help')
+                      ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
+                      : 'hover:bg-slate-800 text-slate-100'
+                  }`}
+                >
+                  <HelpCircle className="w-5 h-5 mr-3" />
+                  <span className="text-sm font-medium">Help</span>
+                </button>
+              </div>
+            </div>
+          </nav>
+        </>
+      )}
+
+      {/* Search Modal */}
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 };

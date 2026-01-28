@@ -2,13 +2,53 @@
   publish = "dist"
   command = "npm run build"
 
+# ═══════════════════════════════════════════════════════════════════
+# REQUIRED ENVIRONMENT VARIABLES FOR PRODUCTION
+# Set these in Netlify Dashboard > Site Settings > Environment Variables
+# ═══════════════════════════════════════════════════════════════════
+# VITE_API_URL = "https://thumbnail-maker-studio-production.up.railway.app"
+# VITE_APP_URL = "https://your-netlify-site.netlify.app"
+
+[build.environment]
+  NODE_ENV = "production"
+
+# API proxy to Railway backend
 [[redirects]]
   from = "/api/*"
   to = "https://thumbnail-maker-studio-production.up.railway.app/api/:splat"
   status = 200
   force = true
 
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ═══════════════════════════════════════════════════════════════════
+# DEPLOY CONTEXT SETTINGS
+# ═══════════════════════════════════════════════════════════════════
+
+# Production context - strictest settings
+[context.production]
+  command = "npm run build"
+
+[context.production.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "production"
+
+# Deploy Preview context - for PR previews
+[context.deploy-preview]
+  command = "npm run build"
+
+[context.deploy-preview.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "preview"
+
+# Branch deploy context
+[context.branch-deploy]
+  command = "npm run build"
+
+[context.branch-deploy.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "staging"

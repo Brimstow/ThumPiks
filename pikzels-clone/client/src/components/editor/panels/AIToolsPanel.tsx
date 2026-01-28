@@ -81,7 +81,7 @@ const Icons = {
 // TYPES
 // ============================================
 
-type AIToolTab = 'generate' | 'inpaint' | 'remove-bg' | 'face-swap' | 'enhance' | 'analyze';
+type AIToolTab = 'generate' | 'inpaint' | 'remove-bg' | 'face-swap' | 'upscale' | 'enhance' | 'analyze';
 
 interface AIToolsPanelProps {
   selectedLayers: Layer[];
@@ -141,6 +141,10 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
   const [steps, setSteps] = useState(4);
   const [guidance, setGuidance] = useState(0);
   const [enhanceType, setEnhanceType] = useState<'auto' | 'sharpen' | 'denoise' | 'color'>('auto');
+  const [upscaleScale, setUpscaleScale] = useState<2 | 4>(2);
+  const [upscaleModel, setUpscaleModel] = useState<'general' | 'face' | 'anime'>('general');
+  const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
+  const [inpaintMask, setInpaintMask] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   
@@ -217,6 +221,63 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
     onAddImageLayer(imageUrl, 'AI Generated');
   }, [onAddImageLayer]);
   
+  const handleInpaint = useCallback(async () => {
+    if (!selectedImageLayer || !inpaintMask || !prompt.trim()) return;
+    
+    const result = await ai.inpaint({
+      image: selectedImageLayer.src,
+      mask: inpaintMask,
+      prompt,
+      negativePrompt: negativePrompt || undefined,
+      strength: 0.8,
+    });
+    
+    if (result.success && (result.imageUrl || result.imageBase64)) {
+      const imageUrl = result.imageUrl || `data:image/png;base64,${result.imageBase64}`;
+      onUpdateLayer(selectedImageLayer.id, { src: imageUrl } as Partial<ImageLayer>);
+    }
+  }, [selectedImageLayer, inpaintMask, prompt, negativePrompt, ai, onUpdateLayer]);
+  
+  const handleUpscale = useCallback(async () => {
+    if (!selectedImageLayer) return;
+    
+    const result = await ai.upscale({
+      image: selectedImageLayer.src,
+      scale: upscaleScale,
+      model: upscaleModel,
+    });
+    
+    if (result.success && (result.imageUrl || result.imageBase64)) {
+      const imageUrl = result.imageUrl || `data:image/png;base64,${result.imageBase64}`;
+      onUpdateLayer(selectedImageLayer.id, { src: imageUrl } as Partial<ImageLayer>);
+    }
+  }, [selectedImageLayer, upscaleScale, upscaleModel, ai, onUpdateLayer]);
+  
+  const handleFaceSwap = useCallback(async () => {
+    if (!selectedImageLayer || !faceSwapSource) return;
+    
+    const result = await ai.faceSwap({
+      sourceImage: faceSwapSource,
+      targetImage: selectedImageLayer.src,
+    });
+    
+    if (result.success && (result.imageUrl || result.imageBase64)) {
+      const imageUrl = result.imageUrl || `data:image/png;base64,${result.imageBase64}`;
+      onUpdateLayer(selectedImageLayer.id, { src: imageUrl } as Partial<ImageLayer>);
+    }
+  }, [selectedImageLayer, faceSwapSource, ai, onUpdateLayer]);
+  
+  const handleFaceSourceUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFaceSwapSource(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+  
   // ============================================
   // RENDER TABS
   // ============================================
@@ -226,7 +287,8 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
     { id: 'inpaint', label: 'Inpaint', icon: <Icons.Wand /> },
     { id: 'remove-bg', label: 'Remove BG', icon: <Icons.Eraser /> },
     { id: 'face-swap', label: 'Face Swap', icon: <Icons.User /> },
-    { id: 'enhance', label: 'Enhance', icon: <Icons.Maximize /> },
+    { id: 'upscale', label: 'Upscale', icon: <Icons.Maximize /> },
+    { id: 'enhance', label: 'Enhance', icon: <Icons.Palette /> },
     { id: 'analyze', label: 'Analyze', icon: <Icons.BarChart /> },
   ];
   
@@ -410,9 +472,13 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
                 <button
                   className="ai-action-btn primary"
                   disabled={ai.isLoading || !prompt.trim()}
-                  onClick={() => {/* Inpaint handler */}}
+                  onClick={handleInpaint}
                 >
-                  <Icons.Wand /> Apply Inpainting
+                  {ai.isLoading && ai.currentTask === 'inpaint' ? (
+                    <><Icons.Loader /> Inpainting...</>
+                  ) : (
+                    <><Icons.Wand /> Apply Inpainting</>
+                  )}
                 </button>
               </>
             )}
@@ -468,22 +534,128 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
               </div>
             </div>
             
-            <div className="ai-personas">
-              <h5>Your Personas</h5>
-              <button className="ai-add-persona-btn">
-                <span>+</span>
-                <span>Add Face</span>
-              </button>
-              <p className="ai-hint">Upload photos to create a persona for consistent face swaps</p>
-            </div>
+            {!selectedImageLayer ? (
+              <div className="ai-notice">
+                <Icons.AlertCircle />
+                <span>Select an image layer with a face first</span>
+              </div>
+            ) : (
+              <>
+                <div className="ai-option-group">
+                  <label>Source Face</label>
+                  {faceSwapSource ? (
+                    <div className="ai-preview-box" style={{ aspectRatio: '1/1', maxWidth: '120px' }}>
+                      <img src={faceSwapSource} alt="Source face" />
+                      <button 
+                        className="ai-remove-btn"
+                        onClick={() => setFaceSwapSource(null)}
+                        style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', color: 'white' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      className="ai-add-persona-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <span>+</span>
+                      <span>Upload Face Image</span>
+                    </button>
+                  )}
+                </div>
+                
+                <button
+                  className="ai-action-btn primary"
+                  onClick={handleFaceSwap}
+                  disabled={ai.isLoading || !faceSwapSource}
+                >
+                  {ai.isLoading && ai.currentTask === 'face-swap' ? (
+                    <><Icons.Loader /> Swapping...</>
+                  ) : (
+                    <><Icons.User /> Swap Face</>
+                  )}
+                </button>
+                <p className="ai-hint">Requires API key • ~$0.002 per swap</p>
+              </>
+            )}
             
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               style={{ display: 'none' }}
-              onChange={(e) => {/* Handle file upload */}}
+              onChange={handleFaceSourceUpload}
             />
+          </div>
+        )}
+        
+        {/* UPSCALE TAB */}
+        {activeTab === 'upscale' && (
+          <div className="ai-upscale-panel">
+            <div className="ai-tool-info">
+              <Icons.Maximize />
+              <div>
+                <h4>AI Upscaling</h4>
+                <p>Increase image resolution while maintaining quality using AI.</p>
+              </div>
+            </div>
+            
+            {!selectedImageLayer ? (
+              <div className="ai-notice">
+                <Icons.AlertCircle />
+                <span>Select an image layer first</span>
+              </div>
+            ) : (
+              <>
+                <div className="ai-preview-box">
+                  <img src={selectedImageLayer.src} alt="Selected" />
+                </div>
+                
+                <div className="ai-option-group">
+                  <label>Scale Factor</label>
+                  <div className="ai-enhance-options">
+                    <button
+                      className={`ai-enhance-btn ${upscaleScale === 2 ? 'active' : ''}`}
+                      onClick={() => setUpscaleScale(2)}
+                    >
+                      2x Upscale
+                    </button>
+                    <button
+                      className={`ai-enhance-btn ${upscaleScale === 4 ? 'active' : ''}`}
+                      onClick={() => setUpscaleScale(4)}
+                    >
+                      4x Upscale
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="ai-option-group">
+                  <label>Model Type</label>
+                  <select
+                    value={upscaleModel}
+                    onChange={(e) => setUpscaleModel(e.target.value as 'general' | 'face' | 'anime')}
+                  >
+                    <option value="general">General (Best for most images)</option>
+                    <option value="face">Face Enhanced (Better for portraits)</option>
+                    <option value="anime">Anime/Illustration</option>
+                  </select>
+                </div>
+                
+                <button
+                  className="ai-action-btn primary"
+                  onClick={handleUpscale}
+                  disabled={ai.isLoading}
+                >
+                  {ai.isLoading && ai.currentTask === 'upscale' ? (
+                    <><Icons.Loader /> Upscaling...</>
+                  ) : (
+                    <><Icons.Maximize /> Upscale Image</>
+                  )}
+                </button>
+                <p className="ai-hint">Requires API key • ~$0.0015 per upscale</p>
+              </>
+            )}
           </div>
         )}
         

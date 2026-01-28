@@ -250,8 +250,9 @@ const LandingPage: React.FC = () => {
                           target.style.color = 'white';
                           target.style.fontSize = '14px';
                           target.style.fontWeight = 'bold';
+                          // Use textContent instead of innerHTML to prevent XSS
                           target.alt = thumbnail.title;
-                          target.innerHTML = '🖼️ ' + thumbnail.title;
+                          target.textContent = '🖼️ ' + thumbnail.title;
                         }}
                       />
                       <div className="thumbnail-info">

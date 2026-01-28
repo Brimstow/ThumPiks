@@ -1,0 +1,630 @@
+/**
+ * Video Processing Service
+ * Browser-based video processing using FFmpeg.wasm
+ */
+
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL, fetchFile } from '@ffmpeg/util';
+import type {
+  IVideoService,
+  VideoSource,
+  VideoMetadata,
+  FrameExtractionOptions,
+  ExtractedFrame,
+  ClipExtractionOptions,
+  ExtractedClip,
+  VideoPreviewConfig,
+  TimelineFrame,
+  PlatformVideoInfo,
+  VideoProcessingState,
+} from './types';
+import { platformRegistry } from './platforms';
+
+// ============================================
+// API CONFIGURATION
+// ============================================
+
+import { API_BASE_URL } from '@/config/environment';
+
+// ============================================
+// VIDEO SERVICE IMPLEMENTATION
+// ============================================
+
+export class VideoService implements IVideoService {
+  private ffmpeg: FFmpeg;
+  private ready: boolean = false;
+  private currentVideo: Uint8Array | null = null;
+  private currentMetadata: VideoMetadata | null = null;
+  private videoElement: HTMLVideoElement | null = null;
+  
+  private onProgress?: (state: VideoProcessingState) => void;
+
+  constructor() {
+    this.ffmpeg = new FFmpeg();
+  }
+
+  setProgressCallback(callback: (state: VideoProcessingState) => void): void {
+    this.onProgress = callback;
+  }
+
+  private updateProgress(state: Partial<VideoProcessingState>): void {
+    if (this.onProgress) {
+      this.onProgress({
+        isLoading: false,
+        progress: 0,
+        stage: 'idle',
+        message: '',
+        ...state,
+      });
+    }
+  }
+
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+
+  async initialize(): Promise<void> {
+    if (this.ready) return;
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'loading',
+      message: 'Loading FFmpeg (~31MB)...',
+      progress: 0,
+    });
+
+    try {
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+
+      // Set up progress logging
+      this.ffmpeg.on('log', ({ message }) => {
+        console.log('[FFmpeg]', message);
+      });
+
+      this.ffmpeg.on('progress', ({ progress }) => {
+        this.updateProgress({
+          isLoading: true,
+          progress: Math.round(progress * 100),
+          stage: 'extracting',
+          message: `Processing... ${Math.round(progress * 100)}%`,
+        });
+      });
+
+      await this.ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+
+      this.ready = true;
+      this.updateProgress({
+        isLoading: false,
+        stage: 'complete',
+        message: 'FFmpeg ready',
+        progress: 100,
+      });
+    } catch (error) {
+      this.updateProgress({
+        isLoading: false,
+        stage: 'error',
+        message: 'Failed to load FFmpeg',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  isReady(): boolean {
+    return this.ready;
+  }
+
+  // ============================================
+  // VIDEO LOADING
+  // ============================================
+
+  async loadVideo(source: VideoSource): Promise<VideoMetadata> {
+    if (source.file) {
+      return this.loadFromFile(source.file);
+    } else if (source.url) {
+      return this.loadFromUrl(source.url);
+    }
+    throw new Error('No video source provided');
+  }
+
+  async loadFromUrl(url: string): Promise<VideoMetadata> {
+    await this.initialize();
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'loading',
+      message: 'Downloading video...',
+      progress: 0,
+    });
+
+    // Check if it's a social media URL that needs proxy
+    const platformInfo = this.detectPlatform(url);
+    let videoUrl = url;
+
+    if (platformInfo) {
+      const proxyEndpoint = platformRegistry.getProxyEndpoint(platformInfo.platform);
+      if (proxyEndpoint) {
+        // Fetch video through proxy endpoint on backend
+        const proxyUrl = `${API_BASE_URL}${proxyEndpoint}?url=${encodeURIComponent(url)}`;
+        
+        this.updateProgress({
+          isLoading: true,
+          stage: 'loading',
+          message: `Fetching from ${platformInfo.platform}...`,
+          progress: 10,
+        });
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || `Failed to fetch video from ${platformInfo.platform}`
+          );
+        }
+        
+        this.updateProgress({
+          isLoading: true,
+          stage: 'loading',
+          message: 'Downloading video data...',
+          progress: 50,
+        });
+        
+        const blob = await response.blob();
+        this.currentVideo = new Uint8Array(await blob.arrayBuffer());
+      }
+    } else {
+      // Direct URL
+      this.currentVideo = await fetchFile(url);
+    }
+
+    return this.analyzeVideo();
+  }
+
+  async loadFromFile(file: File): Promise<VideoMetadata> {
+    await this.initialize();
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'loading',
+      message: 'Loading video file...',
+      progress: 0,
+    });
+
+    const arrayBuffer = await file.arrayBuffer();
+    this.currentVideo = new Uint8Array(arrayBuffer);
+
+    const metadata = await this.analyzeVideo();
+    metadata.fileSize = file.size;
+    metadata.mimeType = file.type;
+
+    return metadata;
+  }
+
+  private async analyzeVideo(): Promise<VideoMetadata> {
+    if (!this.currentVideo) {
+      throw new Error('No video loaded');
+    }
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'analyzing',
+      message: 'Analyzing video...',
+      progress: 20,
+    });
+
+    // Write video to FFmpeg filesystem
+    await this.ffmpeg.writeFile('input.mp4', this.currentVideo);
+
+    // Use HTML5 video element for metadata extraction (faster than FFmpeg)
+    const blob = new Blob([this.currentVideo], { type: 'video/mp4' });
+    const videoUrl = URL.createObjectURL(blob);
+
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      video.onloadedmetadata = () => {
+        this.videoElement = video;
+        this.currentMetadata = {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+          fps: 30, // Default, can be detected with FFprobe
+          codec: 'h264',
+          fileSize: this.currentVideo!.length,
+          mimeType: 'video/mp4',
+        };
+
+        this.updateProgress({
+          isLoading: false,
+          stage: 'complete',
+          message: 'Video loaded',
+          progress: 100,
+        });
+
+        resolve(this.currentMetadata);
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(videoUrl);
+        reject(new Error('Failed to load video metadata'));
+      };
+
+      video.src = videoUrl;
+    });
+  }
+
+  // ============================================
+  // FRAME EXTRACTION
+  // ============================================
+
+  async extractFrame(
+    timestamp: number,
+    options: Partial<FrameExtractionOptions> = {}
+  ): Promise<ExtractedFrame> {
+    const frames = await this.extractFrames({
+      timestamps: [timestamp],
+      ...options,
+    });
+    return frames[0];
+  }
+
+  async extractFrames(options: FrameExtractionOptions): Promise<ExtractedFrame[]> {
+    if (!this.currentVideo || !this.currentMetadata) {
+      throw new Error('No video loaded');
+    }
+
+    await this.initialize();
+
+    const { timestamps, width, height, format = 'png', quality = 90 } = options;
+    const frames: ExtractedFrame[] = [];
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'extracting',
+      message: `Extracting ${timestamps.length} frames...`,
+      progress: 0,
+    });
+
+    // Calculate output dimensions
+    const outputWidth = width || this.currentMetadata.width;
+    const outputHeight = height || this.currentMetadata.height;
+
+    for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = timestamps[i];
+      const outputFile = `frame_${i}.${format}`;
+
+      // FFmpeg command to extract frame
+      const args = [
+        '-ss', timestamp.toFixed(3),
+        '-i', 'input.mp4',
+        '-vframes', '1',
+        '-vf', `scale=${outputWidth}:${outputHeight}`,
+      ];
+
+      if (format === 'jpeg' || format === 'webp') {
+        args.push('-q:v', String(Math.round((100 - quality) / 3.33))); // FFmpeg quality scale
+      }
+
+      args.push('-y', outputFile);
+
+      await this.ffmpeg.exec(args);
+
+      // Read the extracted frame
+      const frameData = await this.ffmpeg.readFile(outputFile);
+      const blob = new Blob([frameData], { type: `image/${format}` });
+      const dataUrl = await this.blobToDataUrl(blob);
+
+      frames.push({
+        timestamp,
+        dataUrl,
+        blob,
+        width: outputWidth,
+        height: outputHeight,
+      });
+
+      // Clean up
+      await this.ffmpeg.deleteFile(outputFile);
+
+      this.updateProgress({
+        isLoading: true,
+        stage: 'extracting',
+        message: `Extracted frame ${i + 1}/${timestamps.length}`,
+        progress: Math.round(((i + 1) / timestamps.length) * 100),
+      });
+    }
+
+    this.updateProgress({
+      isLoading: false,
+      stage: 'complete',
+      message: 'Frames extracted',
+      progress: 100,
+    });
+
+    return frames;
+  }
+
+  // ============================================
+  // FAST FRAME EXTRACTION (Canvas-based)
+  // ============================================
+
+  async extractFrameFast(timestamp: number): Promise<ExtractedFrame> {
+    if (!this.videoElement || !this.currentMetadata) {
+      throw new Error('No video loaded');
+    }
+
+    return new Promise((resolve, reject) => {
+      const video = this.videoElement!;
+      
+      const handleSeeked = () => {
+        video.removeEventListener('seeked', handleSeeked);
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Failed to create blob'));
+            return;
+          }
+
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve({
+            timestamp,
+            dataUrl,
+            blob,
+            width: canvas.width,
+            height: canvas.height,
+          });
+        }, 'image/png');
+      };
+
+      video.addEventListener('seeked', handleSeeked);
+      video.currentTime = timestamp;
+    });
+  }
+
+  // ============================================
+  // TIMELINE GENERATION
+  // ============================================
+
+  async generateTimeline(config: VideoPreviewConfig): Promise<TimelineFrame[]> {
+    if (!this.currentMetadata) {
+      throw new Error('No video loaded');
+    }
+
+    const { frameCount, thumbnailWidth, thumbnailHeight } = config;
+    const duration = this.currentMetadata.duration;
+    const interval = duration / frameCount;
+
+    const timestamps = Array.from(
+      { length: frameCount },
+      (_, i) => i * interval + interval / 2
+    );
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'extracting',
+      message: 'Generating timeline...',
+      progress: 0,
+    });
+
+    const frames: TimelineFrame[] = [];
+
+    // Use fast canvas-based extraction for timeline
+    for (let i = 0; i < timestamps.length; i++) {
+      try {
+        const frame = await this.extractFrameFast(timestamps[i]);
+        
+        // Resize to thumbnail size
+        const resizedDataUrl = await this.resizeImage(
+          frame.dataUrl,
+          thumbnailWidth,
+          thumbnailHeight
+        );
+
+        frames.push({
+          timestamp: timestamps[i],
+          thumbnail: resizedDataUrl,
+        });
+
+        this.updateProgress({
+          isLoading: true,
+          stage: 'extracting',
+          message: `Timeline ${i + 1}/${timestamps.length}`,
+          progress: Math.round(((i + 1) / timestamps.length) * 100),
+        });
+      } catch (error) {
+        console.warn(`Failed to extract frame at ${timestamps[i]}s`, error);
+      }
+    }
+
+    this.updateProgress({
+      isLoading: false,
+      stage: 'complete',
+      message: 'Timeline generated',
+      progress: 100,
+    });
+
+    return frames;
+  }
+
+  // ============================================
+  // CLIP EXTRACTION
+  // ============================================
+
+  async extractClip(options: ClipExtractionOptions): Promise<ExtractedClip> {
+    if (!this.currentVideo) {
+      throw new Error('No video loaded');
+    }
+
+    await this.initialize();
+
+    const {
+      startTime,
+      endTime,
+      outputFormat = 'mp4',
+      width,
+      height,
+      fps,
+    } = options;
+
+    const duration = endTime - startTime;
+    const outputFile = `clip.${outputFormat}`;
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'encoding',
+      message: 'Extracting clip...',
+      progress: 0,
+    });
+
+    const args = [
+      '-ss', startTime.toFixed(3),
+      '-i', 'input.mp4',
+      '-t', duration.toFixed(3),
+    ];
+
+    // Add scaling if specified
+    if (width || height) {
+      const scaleFilter = `scale=${width || -1}:${height || -1}`;
+      args.push('-vf', scaleFilter);
+    }
+
+    // Add FPS if specified
+    if (fps) {
+      args.push('-r', String(fps));
+    }
+
+    // Output format specific options
+    if (outputFormat === 'gif') {
+      args.push('-f', 'gif');
+    } else if (outputFormat === 'webm') {
+      args.push('-c:v', 'libvpx-vp9', '-c:a', 'libopus');
+    } else {
+      args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+    }
+
+    args.push('-y', outputFile);
+
+    await this.ffmpeg.exec(args);
+
+    const clipData = await this.ffmpeg.readFile(outputFile);
+    const mimeType = outputFormat === 'webm' ? 'video/webm' : 
+                     outputFormat === 'gif' ? 'image/gif' : 'video/mp4';
+    const blob = new Blob([clipData], { type: mimeType });
+
+    await this.ffmpeg.deleteFile(outputFile);
+
+    this.updateProgress({
+      isLoading: false,
+      stage: 'complete',
+      message: 'Clip extracted',
+      progress: 100,
+    });
+
+    return {
+      blob,
+      duration,
+      format: outputFormat,
+      size: blob.size,
+    };
+  }
+
+  // ============================================
+  // PLATFORM DETECTION
+  // ============================================
+
+  detectPlatform(url: string): PlatformVideoInfo | null {
+    return platformRegistry.detectPlatform(url);
+  }
+
+  // ============================================
+  // CLEANUP
+  // ============================================
+
+  dispose(): void {
+    if (this.videoElement) {
+      URL.revokeObjectURL(this.videoElement.src);
+      this.videoElement = null;
+    }
+    this.currentVideo = null;
+    this.currentMetadata = null;
+  }
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+
+  private async blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  private async resizeImage(
+    dataUrl: string,
+    width: number,
+    height: number
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  // ============================================
+  // GETTERS
+  // ============================================
+
+  getMetadata(): VideoMetadata | null {
+    return this.currentMetadata;
+  }
+
+  getVideoElement(): HTMLVideoElement | null {
+    return this.videoElement;
+  }
+}
+
+// ============================================
+// SINGLETON INSTANCE
+// ============================================
+
+let videoServiceInstance: VideoService | null = null;
+
+export function getVideoService(): VideoService {
+  if (!videoServiceInstance) {
+    videoServiceInstance = new VideoService();
+  }
+  return videoServiceInstance;
+}

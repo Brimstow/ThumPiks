@@ -40,6 +40,7 @@ import socialShareRoutes from './modules/social-share/social-share.routes';
 import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
 import performanceRoutes from './routes/performance.routes';
+import videoProxyRoutes from './modules/video-proxy/video-proxy.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -155,6 +156,7 @@ app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/video', videoProxyRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);

@@ -1,9 +1,122 @@
-import React from 'react';
-import { Sparkles, UploadCloud, Link2, Image, UserPlus } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGoogleDrive } from '@fortawesome/free-brands-svg-icons';
+import { API_BASE_URL, IS_DEVELOPMENT } from '../../config/environment';
+import { useNavigate } from 'react-router-dom';
+
+// Types for type safety
+interface GenerateThumbnailRequest {
+  videoUrl: string;
+  includeFace?: boolean;
+}
+
+interface GenerateThumbnailResponse {
+  success: boolean;
+  thumbnailId?: string;
+  thumbnailUrl?: string;
+  message?: string;
+}
 
 const DashboardHome: React.FC = () => {
+  const navigate = useNavigate();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State management
+  const [videoLink, setVideoLink] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [includeFace, setIncludeFace] = useState(false);
+  const [successData, setSuccessData] = useState<GenerateThumbnailResponse | null>(null);
+
+  // Check for pending video link from landing page
+  useEffect(() => {
+    const pendingVideoLink = localStorage.getItem('pendingVideoLink');
+    if (pendingVideoLink) {
+      console.log('Found pending video link in DashboardHome:', pendingVideoLink);
+      setVideoLink(pendingVideoLink);
+      localStorage.removeItem('pendingVideoLink');
+    }
+  }, []);
+
+  // YouTube URL validation
+  const isValidYouTubeUrl = useCallback((url: string): boolean => {
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
+    return youtubeRegex.test(url);
+  }, []);
+
+  // Generate thumbnail handler with error handling
+  const handleGenerateThumbnail = useCallback(async () => {
+    // Validation
+    if (!videoLink.trim()) {
+      setError('Please enter a YouTube video link');
+      return;
+    }
+
+    if (!isValidYouTubeUrl(videoLink)) {
+      setError('Please enter a valid YouTube URL');
+      return;
+    }
+
+    // Reset error state
+    setError(null);
+    setIsGenerating(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      // API call with proper error handling
+      // Use relative URL in development to leverage Vite proxy
+      const apiUrl = IS_DEVELOPMENT ? '/api/thumbnails/generate' : `${API_BASE_URL}/api/thumbnails/generate`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          videoUrl: videoLink,
+          includeFace,
+        } as GenerateThumbnailRequest),
+      });
+
+      if (!response.ok) {
+        // Handle HTTP errors
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || 
+          errorData.error ||
+          `Failed to generate thumbnail (${response.status})`
+        );
+      }
+
+      const data: GenerateThumbnailResponse = await response.json();
+
+      if (data.success) {
+        console.log('✅ Thumbnail generated successfully:', data);
+        setSuccessData(data);
+        setVideoLink(''); // Clear the input field
+        
+        // Navigate to My Thumbnails page after 3 seconds
+        navigationTimeoutRef.current = setTimeout(() => {
+          navigate('/dashboard/thumbnails');
+        }, 3000);
+      } else {
+        throw new Error(data.message || 'Failed to generate thumbnail');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('❌ Error generating thumbnail:', errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [videoLink, includeFace, isValidYouTubeUrl]);
+
   const projects = [
     {
       id: 1,
@@ -54,12 +167,35 @@ const DashboardHome: React.FC = () => {
               Generate Thumbnail
             </h2>
 
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/50 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-400 font-medium">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-300 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
             {/* Row 1: Upload Options */}
             <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
               {/* Left Button */}
-              <button className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-900 border border-slate-800 text-sm font-medium text-slate-100 hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center justify-center gap-2">
+              <button 
+                onClick={() => setIncludeFace(!includeFace)}
+                className={`w-full sm:w-auto px-6 py-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                  includeFace 
+                    ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-700' 
+                    : 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800 hover:border-slate-700'
+                }`}
+              >
                 <UserPlus className="w-5 h-5" />
-                Include Face
+                Include Face {includeFace && '✓'}
               </button>
 
               {/* Middle: Upload Buttons */}
@@ -114,6 +250,8 @@ const DashboardHome: React.FC = () => {
                   <input
                     type="text"
                     placeholder="Drop link to your YouTube video"
+                    value={videoLink}
+                    onChange={(e) => setVideoLink(e.target.value)}
                     className="placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base text-slate-100 bg-slate-900 w-full border-slate-800 border rounded-xl p-4 pl-12"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
@@ -125,9 +263,26 @@ const DashboardHome: React.FC = () => {
 
             {/* Row 3: Generate Button */}
             <div>
-              <button className="w-full px-6 py-4 rounded-xl bg-[#2563ff] hover:bg-[#1d4fff] text-base font-semibold text-white shadow-lg shadow-blue-900/50 transition-all flex items-center justify-center gap-2">
-                <Sparkles className="w-5 h-5" />
-                Generate Thumbnail
+              <button 
+                onClick={handleGenerateThumbnail}
+                disabled={isGenerating || !videoLink.trim()}
+                className={`w-full px-6 py-4 rounded-xl text-base font-semibold text-white shadow-lg shadow-blue-900/50 transition-all flex items-center justify-center gap-2 ${
+                  isGenerating || !videoLink.trim()
+                    ? 'bg-slate-700 cursor-not-allowed opacity-60'
+                    : 'bg-[#2563ff] hover:bg-[#1d4fff]'
+                }`}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    Generate Thumbnail
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -258,6 +413,82 @@ const DashboardHome: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {successData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-8 max-w-2xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300 relative">
+            {/* Close button */}
+            <button
+              onClick={() => {
+                if (navigationTimeoutRef.current) {
+                  clearTimeout(navigationTimeoutRef.current);
+                }
+                setSuccessData(null);
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-slate-50">Thumbnail Generated!</h3>
+                <p className="text-sm text-slate-400">Your thumbnail has been created successfully</p>
+              </div>
+            </div>
+
+            {/* Show the thumbnail */}
+            {successData.thumbnailUrl && (
+              <div className="mb-6">
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shadow-lg">
+                  <img
+                    src={successData.thumbnailUrl}
+                    alt="Generated Thumbnail"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/1280x720/1e293b/94a3b8?text=Thumbnail+Preview';
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  Redirecting to your thumbnails in 3 seconds...
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (navigationTimeoutRef.current) {
+                    clearTimeout(navigationTimeoutRef.current);
+                  }
+                  setSuccessData(null);
+                  navigate('/dashboard/thumbnails');
+                }}
+                className="flex-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+              >
+                View in My Thumbnails
+              </button>
+              <button
+                onClick={() => {
+                  if (navigationTimeoutRef.current) {
+                    clearTimeout(navigationTimeoutRef.current);
+                  }
+                  setSuccessData(null);
+                }}
+                className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium transition-colors"
+              >
+                Stay Here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

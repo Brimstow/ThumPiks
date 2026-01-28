@@ -110,6 +110,15 @@ const Dashboard: React.FC = () => {
 
         // Fetch projects
         await fetchProjects();
+
+        // Check for pending video link from landing page
+        const pendingVideoLink = localStorage.getItem('pendingVideoLink');
+        if (pendingVideoLink) {
+          console.log('Found pending video link:', pendingVideoLink);
+          // TODO: Auto-populate the video input field or auto-start generation
+          // For now, we'll just clear it to prevent re-processing
+          localStorage.removeItem('pendingVideoLink');
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         localStorage.removeItem('token');

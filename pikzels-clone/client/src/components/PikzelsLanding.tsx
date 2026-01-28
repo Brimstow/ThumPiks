@@ -17,14 +17,14 @@ import ForgotPasswordModal from './auth/ForgotPasswordModal';
 import UsernameInput from './auth/UsernameInput';
 type ThumPiksLandingProps = Record<string, never>;
 const thumbnailImages = [
-  'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1537432376769-00f5c2f4c8d2?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1550439062-609e1531270e?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1484417894907-623942c8ee29?w=400&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=400&h=225&fit=crop', // YouTube/video content
+  'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?w=400&h=225&fit=crop', // Gaming setup
+  'https://images.unsplash.com/photo-1493711662062-fa541f7f3d24?w=400&h=225&fit=crop', // Reaction/expression
+  'https://images.unsplash.com/photo-1560169897-fc0cdbdfa4d5?w=400&h=225&fit=crop', // Podcast/talking
+  'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400&h=225&fit=crop', // Tech review
+  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop', // Music/creative
+  'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=225&fit=crop', // Fitness/lifestyle
+  'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=225&fit=crop', // Cooking/food
 ];
 
 // @component: ThumPiksLanding
@@ -42,6 +42,22 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   const [bgOpacity, setBgOpacity] = React.useState(0.6);
   const [bgEnabled, setBgEnabled] = React.useState(true);
   const [videoLink, setVideoLink] = React.useState('');
+
+  // Platform typing animation state
+  const [currentPlatformIndex, setCurrentPlatformIndex] = React.useState(0);
+  const [displayedText, setDisplayedText] = React.useState('');
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [isPaused, setIsPaused] = React.useState(false);
+  const [showCursor, setShowCursor] = React.useState(true);
+  
+  const platforms = [
+    { name: 'YouTube', placeholder: 'Drop link to your YouTube video' },
+    { name: 'TikTok', placeholder: 'Drop link to your TikTok video' },
+    { name: 'Instagram', placeholder: 'Drop link to your Instagram Reel' },
+    { name: 'Twitter', placeholder: 'Drop link to your Twitter post' },
+  ];
+  
+  const currentPlatform = platforms[currentPlatformIndex];
 
   // Sign up fields
   const [signupName, setSignupName] = React.useState('');
@@ -157,6 +173,50 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
     }
   };
 
+  // Platform typing animation effect
+  React.useEffect(() => {
+    const typingSpeed = 150; // ms per character (slower for readability)
+    const deletingSpeed = 75; // faster deletion
+    const pauseAfterComplete = 2500; // pause at full word
+    const pauseBeforeTyping = 400; // brief pause before starting new word (cursor hidden)
+    
+    const targetText = currentPlatform.name;
+    
+    // Handle the brief pause state (cursor hidden)
+    if (isPaused) {
+      const pauseTimer = setTimeout(() => {
+        setIsPaused(false);
+        setShowCursor(true);
+      }, pauseBeforeTyping);
+      return () => clearTimeout(pauseTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      if (!isDeleting) {
+        // Typing forward
+        if (displayedText.length < targetText.length) {
+          setDisplayedText(targetText.slice(0, displayedText.length + 1));
+        } else {
+          // Finished typing, pause then start deleting
+          setTimeout(() => setIsDeleting(true), pauseAfterComplete);
+        }
+      } else {
+        // Deleting backward
+        if (displayedText.length > 0) {
+          setDisplayedText(displayedText.slice(0, -1));
+        } else {
+          // Finished deleting, hide cursor briefly, then move to next platform
+          setIsDeleting(false);
+          setShowCursor(false);
+          setIsPaused(true);
+          setCurrentPlatformIndex((prev) => (prev + 1) % platforms.length);
+        }
+      }
+    }, isDeleting ? deletingSpeed : typingSpeed);
+    
+    return () => clearTimeout(timer);
+  }, [displayedText, isDeleting, isPaused, currentPlatformIndex, currentPlatform.name, platforms.length]);
+
   // Handle ESC key to close modals
   React.useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -190,14 +250,17 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             </button>
 
             <div className="flex items-center gap-6 text-sm">
-              <button className="hover:text-gray-300 transition-colors">
+              <button 
+                onClick={() => navigate('/features')}
+                className="hover:text-gray-300 transition-colors"
+              >
                 Features
               </button>
-              <button className="hover:text-gray-300 transition-colors">
-                Extensions
-              </button>
-              <button className="hover:text-gray-300 transition-colors">
-                Docs
+              <button 
+                onClick={() => navigate('/reviews')}
+                className="hover:text-gray-300 transition-colors"
+              >
+                Reviews
               </button>
               <button
                 onClick={scrollToPricing}
@@ -257,19 +320,20 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               <span className="text-sm">ThumPiks v1.0 Preview</span>
             </div>
             <h1 className="text-7xl font-light mb-6">
-              Create Click-Worthy YouTube
+              Generate Stunning{' '}
               <br />
-              Thumbnails in
+              <span className="text-blue-500">
+                {displayedText}
+                {showCursor && <span className="animate-pulse">|</span>}
+              </span>
               <br />
-              <span className="text-blue-500">Seconds with AI</span>
+              Thumbnails with AI
             </h1>
 
             <p className="text-xl text-gray-400 mb-10 max-w-3xl mx-auto">
               Turn any video into a click magnet with thumbnails that grab
-              attention and drive views. Our AI
-              <br />
-              YouTube thumbnail maker creates professional designs instantly—no
-              design skills needed.
+              attention and drive views. Our AI creates professional designs instantly—no
+              design skills needed. Works for YouTube, TikTok, Instagram, Twitter, and more.
             </p>
 
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 max-w-2xl mx-auto mb-12">
@@ -289,7 +353,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   type="text"
                   value={videoLink}
                   onChange={e => setVideoLink(e.target.value)}
-                  placeholder="Drop link to your TikTok video"
+                  placeholder={currentPlatform.placeholder}
                   className="flex-1 bg-transparent border-none outline-none !outline-none !ring-0 !border-none !shadow-none focus:!outline-none focus:!ring-0 focus:!border-none focus:!shadow-none text-gray-400 min-w-0 appearance-none"
                 />
                 <button className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
@@ -453,7 +517,62 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              {/* FREE TIER */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
+                <div className="mb-6">
+                  <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Free
+                  </div>
+                  <div className="text-5xl font-light mb-2">
+                    $0
+                    <span className="text-lg text-gray-400">/month</span>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    Try before you subscribe
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>5 AI thumbnails/month</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Basic styles & templates</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>720p resolution</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    <span>Includes watermark</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    <span>No face swap</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    <span>Community support only</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowSignup(true)}
+                  className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
+                >
+                  Start Free
+                </button>
+                <div className="text-center text-xs text-gray-500 mt-3">
+                  No credit card required
+                </div>
+              </div>
+
+              {/* STARTER TIER */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
                 <div className="mb-6">
                   <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
@@ -461,49 +580,38 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                     Starter
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '15' : '12'}
+                    ${billingCycle === 'monthly' ? '9' : '7.50'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    Perfect for individuals and small projects
+                    Perfect for new creators
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>1 million tokens/month</span>
+                    <span>30 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>5 custom AI models</span>
+                    <span>All styles & templates</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Basic API access</span>
+                    <span>1080p HD resolution</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Email support</span>
+                    <span>No watermark</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Face swap (1 face)</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <X className="w-4 h-4 flex-shrink-0" />
-                    <span>Priority support</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>No dedicated resources</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Uptime</span>
-                    <span className="font-medium">99.9%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Latency</span>
-                    <span className="font-medium">120ms</span>
+                    <span>No A/B testing</span>
                   </div>
                 </div>
 
@@ -514,10 +622,12 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   Get Started
                 </button>
                 <div className="text-center text-xs text-gray-500 mt-3">
-                  No credit card required
+                  {billingCycle === 'annual' && 'Save 17% annually'}
+                  {billingCycle === 'monthly' && '7-day free trial'}
                 </div>
               </div>
 
+              {/* CREATOR PRO TIER - MOST POPULAR */}
               <div className="bg-gray-900/50 border-2 border-blue-600 rounded-2xl p-8 relative">
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                   <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
@@ -528,52 +638,41 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 <div className="mb-6 pt-6">
                   <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
-                    Professional
+                    Creator Pro
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '39' : '32'}
+                    ${billingCycle === 'monthly' ? '24' : '19'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    For teams with advanced AI needs
+                    For serious YouTubers
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>10 million tokens/month</span>
+                    <span>120 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>20 custom AI models</span>
+                    <span>All Starter features</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Advanced API access</span>
+                    <span>Face training (5 faces)</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Priority support</span>
+                    <span>A/B test variations</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Basic custom training</span>
+                    <span>2x faster generation</span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>No dedicated resources</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Uptime</span>
-                    <span className="font-medium">99.95%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Latency</span>
-                    <span className="font-medium">80ms</span>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Trending insights</span>
                   </div>
                 </div>
 
@@ -584,60 +683,50 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   Get Started
                 </button>
                 <div className="text-center text-xs text-gray-500 mt-3">
-                  14 day free trial included
+                  14-day free trial included
                 </div>
               </div>
 
+              {/* AGENCY TIER */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
                 <div className="mb-6">
                   <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
-                    Enterprise
+                    Agency
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '159' : '135'}
+                    ${billingCycle === 'monthly' ? '69' : '59'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    For organizations with advanced requirements
+                    For teams & agencies
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Unlimited tokens</span>
+                    <span>500 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Unlimited custom AI models</span>
+                    <span>All Creator Pro features</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Full API ecosystem</span>
+                    <span>Team collaboration (5 seats)</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>24/7 dedicated support</span>
+                    <span>Brand kit & templates</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Advanced custom training</span>
+                    <span>API access</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Dedicated resources</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Uptime</span>
-                    <span className="font-medium">99.99%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm bg-gray-800/50 rounded-lg p-3">
-                    <span className="text-gray-400">Latency</span>
-                    <span className="font-medium">50ms</span>
+                    <span>White-label option</span>
                   </div>
                 </div>
 
@@ -645,10 +734,10 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   onClick={() => setShowSignup(true)}
                   className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
                 >
-                  Get Started
+                  Contact Sales
                 </button>
                 <div className="text-center text-xs text-gray-500 mt-3">
-                  Custom pricing available
+                  Custom plans available
                 </div>
               </div>
             </div>
@@ -680,36 +769,41 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             <div className="space-y-4">
               {[
                 {
-                  question: 'What is ThumPiks?',
+                  question: 'What is ThumPiks and how does it work?',
                   answer:
-                    'ThumPiks is an AI-powered platform that helps you create professional thumbnails and designs in seconds.',
+                    'ThumPiks is an AI-powered thumbnail generator optimized for YouTube, with support for TikTok, Instagram, Twitter/X, Facebook, Twitch, and any other platform or general thumbnail needs. Simply paste your video link or describe what you want, choose your style preferences, and our AI instantly generates professional thumbnails optimized for maximum engagement. No design experience needed.',
                 },
                 {
-                  question: 'Why choose ThumPiks over MidJourney or DALLE?',
+                  question: 'What platforms and content types does ThumPiks support?',
                   answer:
-                    'ThumPiks offers faster processing, better quality, and more flexible pricing options compared to alternatives.',
+                    'ThumPiks works great for all social media platforms including YouTube, TikTok, Instagram Reels, Twitter/X, Facebook, Twitch streams, and more. You can also generate thumbnails for blogs, podcasts, websites, course materials, or any project that needs eye-catching visuals. Our AI adapts to your specific platform needs and automatically optimizes for the best results.',
+                },
+                {
+                  question: 'How is ThumPiks different from using Canva or Photoshop?',
+                  answer:
+                    'While Canva and Photoshop require manual design work, ThumPiks uses AI to instantly generate thumbnails tailored to your content. What takes 30-60 minutes manually takes just seconds with ThumPiks. Plus, our AI analyzes trending thumbnails across all major platforms to ensure your designs follow proven engagement patterns.',
                 },
                 {
                   question:
-                    'Can I purchase extra credits if I run out of the ones in my current plan?',
+                    'What happens when I run out of thumbnails in my plan?',
                   answer:
-                    'Yes, you can purchase additional credits at any time through your account dashboard.',
+                    'Your account will switch to the Free tier (5 thumbnails/month with watermark) until your next billing cycle. You can upgrade your plan anytime or purchase additional thumbnail credits if needed. All your previous creations remain accessible regardless of plan.',
                 },
                 {
                   question:
-                    'Do credits expire? Can they be rolled over to the future?',
+                    'Do my monthly thumbnails roll over to the next month?',
                   answer:
-                    'Credits do not expire and can be rolled over to future billing periods as long as your subscription is active.',
+                    'Unused thumbnails do not roll over to the next billing period. Each month, your thumbnail count resets to your plan limit. We recommend this approach to keep pricing simple and predictable. If you need more thumbnails, consider upgrading to a higher tier.',
                 },
                 {
-                  question: 'How do I cancel or manage my subscription?',
+                  question: 'Can I cancel my subscription anytime?',
                   answer:
-                    'You can manage your subscription from your account settings page at any time.',
+                    'Yes! You can cancel your ThumPiks subscription anytime from your account settings. There are no cancellation fees or penalties. You\'ll retain access to your plan features until the end of your current billing period, and all your created thumbnails remain accessible even after cancellation.',
                 },
                 {
-                  question: 'Can I ask you questions in private?',
+                  question: 'Do you offer refunds or free trials?',
                   answer:
-                    'Yes, you can reach out to our support team through the contact form or email for private inquiries.',
+                    'All paid plans include a 14-day free trial (no credit card required for Free tier). If you\'re not satisfied within 7 days of your first payment, contact our support team for a full refund. We want you to be 100% confident that ThumPiks is right for your content creation needs.',
                 },
               ].map((faq, i) => (
                 <div
@@ -739,21 +833,23 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-16 text-center">
               <div>
                 <h2 className="text-5xl font-light mb-6">
-                  Say Goodbye to 10 of 10s
+                  Thumbnails That
                   <br />
-                  Try ThumPiks Today.
+                  <span className="text-blue-500">Actually Get Clicks</span>
                 </h2>
                 <p className="text-gray-400 text-lg mb-8">
-                  No headaches, no delays, no hidden costs.
+                  Join 500+ creators using AI to grow their channels.
+                  <br />
+                  From YouTube to TikTok—professional thumbnails in 30 seconds.
                 </p>
                 <button
                   onClick={() => setShowSignup(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg transition-colors"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg transition-colors text-lg font-medium"
                 >
-                  Try for free
+                  Get My Free Thumbnails
                 </button>
-                <div className="mt-8 text-sm text-gray-500">
-                  14 days free trial
+                <div className="mt-6 text-sm text-gray-500">
+                  No credit card • 5 free thumbnails every month
                 </div>
               </div>
             </div>
@@ -774,25 +870,34 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               </div>
 
               <div>
-                <h3 className="font-medium mb-4">Features</h3>
+                <h3 className="font-medium mb-4">Product</h3>
                 <ul className="space-y-3 text-sm text-gray-400">
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
+                    <button 
+                      onClick={() => navigate('/features')}
+                      className="hover:text-white transition-colors"
+                    >
+                      Features
+                    </button>
+                  </li>
+                  <li>
+                    <button 
+                      onClick={() => navigate('/reviews')}
+                      className="hover:text-white transition-colors"
+                    >
                       Reviews
-                    </a>
+                    </button>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
+                    <button 
+                      onClick={scrollToPricing}
+                      className="hover:text-white transition-colors"
+                    >
                       Pricing
-                    </a>
+                    </button>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
-                      Affiliate
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" className="hover:text-white transition-colors">
+                    <a href="#faq" className="hover:text-white transition-colors">
                       FAQ
                     </a>
                   </li>
@@ -800,38 +905,53 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               </div>
 
               <div>
-                <h3 className="font-medium mb-4">Web App</h3>
+                <h3 className="font-medium mb-4">Resources</h3>
                 <ul className="space-y-3 text-sm text-gray-400">
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
-                      Customer Portal
-                    </a>
+                    <button 
+                      onClick={() => navigate('/dashboard')}
+                      className="hover:text-white transition-colors"
+                    >
+                      Dashboard
+                    </button>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
-                      Feedback
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" className="hover:text-white transition-colors">
+                    <button 
+                      onClick={() => navigate('/changelog')}
+                      className="hover:text-white transition-colors"
+                    >
                       Changelog
-                    </a>
+                    </button>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
+                    <button 
+                      onClick={() => navigate('/contact')}
+                      className="hover:text-white transition-colors"
+                    >
                       Contact
-                    </a>
+                    </button>
                   </li>
                 </ul>
               </div>
 
               <div>
-                <h3 className="font-medium mb-4">Terms</h3>
+                <h3 className="font-medium mb-4">Legal</h3>
                 <ul className="space-y-3 text-sm text-gray-400">
                   <li>
-                    <a href="#" className="hover:text-white transition-colors">
-                      Privacy
-                    </a>
+                    <button 
+                      onClick={() => navigate('/terms')}
+                      className="hover:text-white transition-colors"
+                    >
+                      Terms of Service
+                    </button>
+                  </li>
+                  <li>
+                    <button 
+                      onClick={() => navigate('/privacy')}
+                      className="hover:text-white transition-colors"
+                    >
+                      Privacy Policy
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -1304,25 +1424,28 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               <nav className="flex flex-col gap-6 flex-1">
                 <button
                   className="text-left py-3 text-xl hover:text-gray-300 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => {
+                    navigate('/features');
+                    setMobileMenuOpen(false);
+                  }}
                 >
                   Features
                 </button>
                 <button
                   className="text-left py-3 text-xl hover:text-gray-300 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => {
+                    navigate('/reviews');
+                    setMobileMenuOpen(false);
+                  }}
                 >
-                  Extensions
+                  Reviews
                 </button>
                 <button
                   className="text-left py-3 text-xl hover:text-gray-300 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Docs
-                </button>
-                <button
-                  className="text-left py-3 text-xl hover:text-gray-300 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => {
+                    scrollToPricing();
+                    setMobileMenuOpen(false);
+                  }}
                 >
                   Pricing
                 </button>

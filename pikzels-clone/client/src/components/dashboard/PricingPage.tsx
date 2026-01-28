@@ -60,7 +60,58 @@ const PricingPage = () => {
       </div>
 
       {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16 max-w-7xl mx-auto">
+        {/* Free Plan */}
+        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
+          <div className="mb-6">
+            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Free
+            </div>
+            <div className="text-5xl font-light mb-2 text-slate-50">
+              $0
+              <span className="text-lg text-slate-400">/month</span>
+            </div>
+            <div className="text-sm text-slate-400">
+              Try before you subscribe
+            </div>
+          </div>
+
+          <div className="space-y-4 mb-8">
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>5 AI thumbnails/month</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>Basic styles & templates</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>720p resolution</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-600">
+              <X className="w-4 h-4 flex-shrink-0" />
+              <span>Includes watermark</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-600">
+              <X className="w-4 h-4 flex-shrink-0" />
+              <span>No face swap</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-600">
+              <X className="w-4 h-4 flex-shrink-0" />
+              <span>Community support only</span>
+            </div>
+          </div>
+
+          <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg transition-colors font-medium">
+            Current Plan
+          </button>
+          <div className="text-center text-xs text-slate-500 mt-3">
+            No credit card required
+          </div>
+        </div>
+
         {/* Starter Plan */}
         <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
           <div className="mb-6">
@@ -69,50 +120,50 @@ const PricingPage = () => {
               Starter
             </div>
             <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '15' : '12'}
+              ${billingCycle === 'monthly' ? '9' : '7.50'}
               <span className="text-lg text-slate-400">/month</span>
             </div>
             <div className="text-sm text-slate-400">
-              Perfect for individuals and small projects
+              Perfect for new creators
             </div>
           </div>
 
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>100 thumbnail generations/month</span>
+              <span>30 AI thumbnails/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>5 custom templates</span>
+              <span>All styles & templates</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>HD export quality</span>
+              <span>1080p HD resolution</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Email support</span>
+              <span>No watermark</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>Face swap (1 face)</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-600">
               <X className="w-4 h-4 flex-shrink-0" />
-              <span>Priority support</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>Team collaboration</span>
+              <span>No A/B testing</span>
             </div>
           </div>
 
           <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Get Started
+            Upgrade
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
-            No credit card required
+            {billingCycle === 'annual' ? 'Save 17% annually' : '7-day free trial'}
           </div>
         </div>
 
-        {/* Professional Plan */}
+        {/* Creator Pro Plan */}
         <div className="bg-[#0F172A] border-2 border-blue-600 rounded-2xl p-8 relative">
           <div className="absolute -top-4 left-1/2 -translate-x-1/2">
             <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
@@ -123,92 +174,92 @@ const PricingPage = () => {
           <div className="mb-6 pt-6">
             <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
-              Professional
+              Creator Pro
             </div>
             <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '39' : '32'}
+              ${billingCycle === 'monthly' ? '24' : '19'}
               <span className="text-lg text-slate-400">/month</span>
             </div>
             <div className="text-sm text-slate-400">
-              For teams with advanced AI needs
+              For serious YouTubers
             </div>
           </div>
 
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>500 thumbnail generations/month</span>
+              <span>120 AI thumbnails/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>20 custom templates</span>
+              <span>All Starter features</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>4K export quality</span>
+              <span>Face training (5 faces)</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Priority support</span>
+              <span>A/B test variations</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>2x faster generation</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>Trending insights</span>
+            </div>
+          </div>
+
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors font-medium">
+            Upgrade
+          </button>
+          <div className="text-center text-xs text-slate-500 mt-3">
+            14-day free trial included
+          </div>
+        </div>
+
+        {/* Agency Plan */}
+        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
+          <div className="mb-6">
+            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Agency
+            </div>
+            <div className="text-5xl font-light mb-2 text-slate-50">
+              ${billingCycle === 'monthly' ? '69' : '59'}
+              <span className="text-lg text-slate-400">/month</span>
+            </div>
+            <div className="text-sm text-slate-400">
+              For teams & agencies
+            </div>
+          </div>
+
+          <div className="space-y-4 mb-8">
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>500 AI thumbnails/month</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>All Creator Pro features</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
               <span>Team collaboration (5 seats)</span>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>Dedicated account manager</span>
-            </div>
-          </div>
-
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Get Started
-          </button>
-          <div className="text-center text-xs text-slate-500 mt-3">
-            14 day free trial included
-          </div>
-        </div>
-
-        {/* Enterprise Plan */}
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
-          <div className="mb-6">
-            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Enterprise
-            </div>
-            <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '159' : '135'}
-              <span className="text-lg text-slate-400">/month</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              For organizations with advanced requirements
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Unlimited thumbnail generations</span>
+              <span>Brand kit & templates</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Unlimited custom templates</span>
+              <span>API access</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>8K export quality</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>24/7 dedicated support</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Unlimited team seats</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Dedicated account manager</span>
+              <span>White-label option</span>
             </div>
           </div>
 
@@ -216,7 +267,7 @@ const PricingPage = () => {
             Contact Sales
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
-            Custom pricing available
+            Custom plans available
           </div>
         </div>
       </div>
@@ -235,54 +286,59 @@ const PricingPage = () => {
         <div className="space-y-4">
           {[
             {
-              question: 'How does the credit system work?',
+              question: 'What is ThumPiks and how does it work?',
               answer:
-                'Each plan includes a monthly allocation of generation credits. One credit equals one thumbnail generation. Unused credits do not roll over to the next billing period, but you can purchase additional credits at any time if needed.',
+                'ThumPiks is an AI-powered thumbnail generator optimized for YouTube, with support for TikTok, Instagram, Twitter/X, Facebook, Twitch, and any other platform or general thumbnail needs. Simply paste your video link or describe what you want, choose your style preferences, and our AI instantly generates professional thumbnails optimized for maximum engagement.',
             },
             {
-              question: 'Can I purchase extra credits if I run out?',
+              question: 'What platforms and content types does ThumPiks support?',
               answer:
-                'Yes! You can purchase additional credit packs at any time through your account dashboard. Extra credits are available in bundles of 50, 100, or 200 at discounted rates and never expire as long as your subscription is active.',
+                'ThumPiks works great for all social media platforms including YouTube, TikTok, Instagram Reels, Twitter/X, Facebook, Twitch streams, and more. You can also generate thumbnails for blogs, podcasts, websites, course materials, or any project that needs eye-catching visuals. Our AI adapts to your specific platform needs.',
             },
             {
-              question: 'What happens if I exceed my monthly credit limit?',
+              question: 'How is ThumPiks different from manual design tools?',
               answer:
-                'If you reach your credit limit, you can either purchase additional credits or upgrade to a higher tier plan. Your account will remain active and you can still access all previously created thumbnails.',
+                'While tools like Canva and Photoshop require manual design work (30-60 minutes per thumbnail), ThumPiks uses AI to generate thumbnails in seconds. Our AI analyzes trending thumbnails across all major platforms to ensure your designs follow proven engagement patterns.',
             },
             {
-              question: 'Do you offer refunds?',
+              question: 'What happens when I run out of thumbnails in my plan?',
               answer:
-                'We offer a 14-day money-back guarantee for all new subscriptions. If you\'re not satisfied within the first 14 days, contact support for a full refund. After 14 days, all payments are non-refundable but you can cancel at any time to prevent future charges.',
+                'Your account will switch to the Free tier (5 thumbnails/month with watermark) until your next billing cycle. You can upgrade your plan anytime or purchase additional thumbnail credits if needed. All your previous creations remain accessible.',
             },
             {
-              question: 'How do I cancel or change my subscription?',
+              question: 'Do my monthly thumbnails roll over to the next month?',
               answer:
-                'You can upgrade, downgrade, or cancel your subscription at any time from your account settings. Changes take effect immediately for upgrades or at the end of your current billing period for downgrades and cancellations.',
+                'Unused thumbnails do not roll over to the next billing period. Each month, your thumbnail count resets to your plan limit. We recommend this approach to keep pricing simple and predictable.',
+            },
+            {
+              question: 'Can I cancel my subscription anytime?',
+              answer:
+                'Yes! You can cancel your ThumPiks subscription anytime from your account settings. There are no cancellation fees or penalties. You\'ll retain access to your plan features until the end of your current billing period.',
+            },
+            {
+              question: 'Do you offer refunds or free trials?',
+              answer:
+                'All paid plans include a 14-day free trial (no credit card required for Free tier). If you\'re not satisfied within 7 days of your first payment, contact our support team for a full refund.',
             },
             {
               question: 'What payment methods do you accept?',
               answer:
-                'We accept all major credit cards (Visa, Mastercard, American Express, Discover), PayPal, and for Enterprise plans, we can also arrange for wire transfers or custom invoicing.',
+                'We accept all major credit cards (Visa, Mastercard, American Express, Discover) and PayPal. For Agency plans, we can also arrange custom invoicing.',
             },
             {
               question: 'Is there a discount for annual billing?',
               answer:
-                'Yes! When you choose annual billing, you save 25% compared to paying monthly. This applies to all plan tiers and is automatically calculated when you select the annual option.',
+                'Yes! When you choose annual billing, you save 17-21% compared to paying monthly (varies by plan). This applies to all paid tiers and is automatically calculated when you select the annual option.',
             },
             {
-              question: 'Can I switch between monthly and annual billing?',
+              question: 'Can I upgrade or downgrade my plan?',
               answer:
-                'Absolutely! You can switch from monthly to annual billing at any time to start saving. If switching from annual to monthly, the change will take effect at the end of your current annual period.',
-            },
-            {
-              question: 'Do unused credits expire?',
-              answer:
-                'Monthly plan credits reset at the beginning of each billing cycle and do not carry over. However, any extra credits you purchase separately never expire as long as your subscription remains active.',
+                'Absolutely! You can upgrade your plan at any time and changes take effect immediately. For downgrades, changes take effect at the end of your current billing period to ensure you get full value.',
             },
             {
               question: 'Are there any hidden fees?',
               answer:
-                'No hidden fees whatsoever! The price you see is the price you pay. There are no setup fees, cancellation fees, or surprise charges. Additional credits and add-ons are always clearly priced and optional.',
+                'No hidden fees whatsoever! The price you see is the price you pay. There are no setup fees, cancellation fees, or surprise charges. Additional features and add-ons are always clearly priced and optional.',
             },
           ].map((faq, i) => (
             <div

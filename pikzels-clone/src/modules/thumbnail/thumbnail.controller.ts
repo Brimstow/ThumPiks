@@ -228,12 +228,92 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
 
 export const generateThumbnail = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('🎬 generateThumbnail called', { body: req.body, hasUser: !!req.user });
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { prompt, style, projectId } = req.body;
+    const { prompt, style, projectId, videoUrl, includeFace } = req.body;
 
+    // Handle YouTube video URL generation
+    if (videoUrl) {
+      try {
+        // Import video proxy service
+        const { videoProxyService } = await import('../video-proxy/video-proxy.service');
+        
+        // Get video info from YouTube
+        const videoInfo = await videoProxyService.getVideoInfo(videoUrl);
+        
+        // Find or create default project for this user
+        const prisma = getPrisma();
+        let defaultProject = await prisma.project.findFirst({
+          where: {
+            userId: req.user.id,
+            name: 'Default'
+          }
+        });
+        
+        if (!defaultProject) {
+          const { v4: uuidv4 } = await import('uuid');
+          defaultProject = await prisma.project.create({
+            data: {
+              id: uuidv4(),
+              name: 'Default',
+              description: 'Default project for quick generations',
+              userId: req.user.id,
+              updatedAt: new Date(),
+            }
+          });
+        }
+        
+        // Create thumbnail with video metadata
+        const thumbnail = await getThumbnailService().createThumbnail({
+          title: videoInfo.title,
+          imageUrl: videoInfo.thumbnail || '',
+          prompt: `YouTube video: ${videoInfo.title}`,
+          parameters: {
+            videoUrl: videoUrl,
+            videoId: videoInfo.videoId,
+            platform: videoInfo.platform,
+            includeFace: includeFace || false,
+            generatedFrom: 'video-url',
+          },
+          projectId: projectId || defaultProject.id,
+          userId: req.user.id,
+        });
+        
+        // Emit analytics event
+        emitAnalyticsEvent(
+          req.user.id,
+          'generate',
+          'thumbnail',
+          thumbnail.id,
+          {
+            source: 'video-url',
+            platform: videoInfo.platform,
+            videoUrl: videoUrl,
+            videoId: videoInfo.videoId,
+          }
+        );
+        
+        return res.status(201).json({
+          success: true,
+          thumbnailId: thumbnail.id,
+          thumbnailUrl: thumbnail.imageUrl,
+          message: 'Thumbnail generated successfully from video',
+          thumbnail
+        });
+      } catch (videoError) {
+        console.error('Error processing video URL:', videoError);
+        return res.status(400).json({
+          success: false,
+          error: 'Failed to process video URL',
+          message: videoError instanceof Error ? videoError.message : 'Invalid video URL'
+        });
+      }
+    }
+
+    // Original prompt-based generation
     // Validate required fields
     if (!prompt || !projectId) {
       return res.status(400).json({

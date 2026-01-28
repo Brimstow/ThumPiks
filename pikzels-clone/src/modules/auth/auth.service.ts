@@ -138,6 +138,56 @@ export class AuthService {
    */
   async login(identifier: string, password: string) {
     try {
+      // DEMO MODE: Test credential bypass for demos and staging environments
+      // Set DEMO_MODE=true in your environment to enable test accounts
+      // This is safer than checking NODE_ENV since it's explicit and intentional
+      const isDemoMode = process.env.DEMO_MODE === 'true';
+      if (isDemoMode && identifier === 'test@example.com' && password === 'Test123!') {
+        logger.info('🎭 Demo mode: Test credentials used (DEMO_MODE=true)');
+        
+        // Find or create test user
+        let testUser = await prisma.user.findUnique({
+          where: { email: 'test@example.com' },
+        });
+
+        if (!testUser) {
+          // Create test user if it doesn't exist
+          const hashedPassword = await bcrypt.hash(password, 12);
+          testUser = await prisma.user.create({
+            data: {
+              id: uuidv4(),
+              username: 'testuser',
+              email: 'test@example.com',
+              name: 'Test User',
+              passwordHash: hashedPassword,
+              isVerified: true, // Auto-verify test user
+              displayPreference: 'name',
+            },
+          });
+          logger.info('🧪 Test user created', { userId: testUser.id });
+        }
+
+        // Update last login
+        await prisma.user.update({
+          where: { id: testUser.id },
+          data: { lastLoginAt: new Date() },
+        });
+
+        const tokens = EnhancedJWTService.createTokens(testUser.id, testUser.email);
+        return {
+          user: {
+            id: testUser.id,
+            email: testUser.email,
+            username: testUser.username,
+            name: testUser.name,
+            isVerified: testUser.isVerified,
+            displayPreference: testUser.displayPreference,
+          },
+          ...tokens,
+          requiresVerification: false,
+        };
+      }
+
       // Determine if identifier is email or username
       const isEmail = identifier.includes('@');
 

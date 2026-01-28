@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -37,14 +38,14 @@ async function createTestUsers() {
       // Check if user already exists
       const existingUser = await prisma.user.findUnique({
         where: { email: testUser.email.toLowerCase() },
-        include: { projects: true },
+        include: { Project: true },
       });
 
       if (existingUser) {
         console.log(`✅ User already exists: ${testUser.email}`);
         console.log(`   - ID: ${existingUser.id}`);
         console.log(`   - Name: ${existingUser.name}`);
-        console.log(`   - Projects: ${existingUser.projects.length}`);
+        console.log(`   - Projects: ${existingUser.Project?.length || 0}`);
         continue;
       }
 
@@ -56,6 +57,7 @@ async function createTestUsers() {
         data: {
           email: testUser.email.toLowerCase(),
           name: testUser.name,
+          username: testUser.email.split('@')[0], // Use email prefix as username
           passwordHash,
           isVerified: true,
           isActive: true,
@@ -72,6 +74,7 @@ async function createTestUsers() {
       const projectName = `${testUser.name} Default Project`;
       const project = await prisma.project.create({
         data: {
+          id: crypto.randomUUID(), // Add required ID field
           name: projectName,
           description: `Default project for ${testUser.name}`,
           userId: newUser.id,

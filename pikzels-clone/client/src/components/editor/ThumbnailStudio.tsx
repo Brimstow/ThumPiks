@@ -3,6 +3,7 @@ import { useEditorState } from './hooks/useEditorState';
 import ToolsPanel from './panels/ToolsPanel';
 import LayersPanel from './panels/LayersPanel';
 import AIToolsPanel from './panels/AIToolsPanel';
+import VideoFrameExtractor from './panels/VideoFrameExtractor';
 import CanvasEngine from './canvas/CanvasEngine';
 import type { 
   ThumbnailStudioProps, 
@@ -11,6 +12,7 @@ import type {
   Layer,
   DrawingLayer,
 } from './types/editor.types';
+import type { ExtractedFrame } from '../../services/video';
 import './ThumbnailStudio.css';
 
 // Icons
@@ -20,6 +22,12 @@ const Icons = {
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
+    </svg>
+  ),
+  Video: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+      <rect x="2" y="6" width="14" height="12" rx="2" />
     </svg>
   ),
   Sparkles: () => (
@@ -87,7 +95,7 @@ const Icons = {
   ),
 };
 
-type PanelTab = 'layers' | 'ai' | 'properties';
+type PanelTab = 'layers' | 'video' | 'ai' | 'properties';
 
 const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   thumbnailId,
@@ -347,6 +355,19 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     link.click();
   }, []);
 
+  // Video frame handler
+  const handleVideoFrameSelect = useCallback((frame: ExtractedFrame) => {
+    // Add the extracted frame as an image layer
+    addImageLayer(frame.dataUrl, `Video Frame ${formatTimestamp(frame.timestamp)}`);
+  }, [addImageLayer]);
+
+  // Helper to format timestamp
+  const formatTimestamp = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className={`thumbnail-studio ${isFullCanvas ? 'thumbnail-studio--fullscreen' : ''}`}>
       {/* Top Toolbar */}
@@ -433,7 +454,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
 
         {/* Right Panels */}
         {!isFullCanvas && (
-          <aside className={`panels-container ${isPanelCollapsed ? 'panels-container--collapsed' : ''} ${activeTab === 'ai' ? 'panels-container--ai-mode' : ''}`}>
+          <aside className={`panels-container ${isPanelCollapsed ? 'panels-container--collapsed' : ''} ${activeTab === 'ai' || activeTab === 'video' ? 'panels-container--wide-mode' : ''}`}>
             {!isPanelCollapsed && (
               <>
                 {/* Panel tabs */}
@@ -444,6 +465,13 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                   >
                     <Icons.Layers />
                     Layers
+                  </button>
+                  <button
+                    className={`panels-tab ${activeTab === 'video' ? 'panels-tab--active' : ''}`}
+                    onClick={() => setActiveTab('video')}
+                  >
+                    <Icons.Video />
+                    Video
                   </button>
                   <button
                     className={`panels-tab ${activeTab === 'ai' ? 'panels-tab--active' : ''}`}
@@ -493,6 +521,12 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                       onAddLayer={handleAddLayer}
                       onGroupLayers={handleGroupLayers}
                       onMergeLayers={handleMergeLayers}
+                    />
+                  )}
+                  {activeTab === 'video' && (
+                    <VideoFrameExtractor
+                      onFrameSelect={handleVideoFrameSelect}
+                      onAddToCanvas={addImageLayer}
                     />
                   )}
                   {activeTab === 'ai' && (
