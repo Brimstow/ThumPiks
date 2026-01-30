@@ -45,6 +45,8 @@ import TermsPage from './components/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import ReviewsPage from './pages/ReviewsPage';
 import ChangelogPage from './pages/ChangelogPage';
+import VideoEditorPage from './pages/VideoEditorPage';
+import CreatePlusPage from './pages/CreatePlusPage';
 
 // Import custom styles
 import './styles/animations.css';
@@ -172,11 +174,13 @@ function App() {
                 <Route path="brand" element={<BrandPage />} />
                 <Route path="ai-tools" element={<AIToolsPage />} />
                 <Route path="trending" element={<TrendingPage />} />
-                <Route path="settings" element={<DashboardHome />} />
+                <Route path="settings" element={<UserSettings />} />
                 <Route path="help" element={<HelpPage />} />
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="account" element={<AccountPage />} />
                 <Route path="account/:section" element={<AccountPage />} />
+                <Route path="video-editor" element={<VideoEditorPage />} />
+                <Route path="create-plus" element={<CreatePlusPage />} />
               </Route>
 
               {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}

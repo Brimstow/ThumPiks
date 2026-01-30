@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../../types/auth';
 import { ThumbnailService } from './thumbnail.service';
 import { ImageProcessingService } from './image-processing.service';
+import { OpenRouterAIService } from './openrouter-ai.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -53,10 +54,25 @@ const getImageProcessingService = () => {
   return sharedImageProcessingService;
 };
 
-// Mock AI service for now
+// Initialize OpenRouter AI service for image generation
+const openRouterService = new OpenRouterAIService();
+
+// AI service wrapper with proper interface
 const aiService = {
-  isConfigured: () => false,
-  generateThumbnails: async (_options: any) => []
+  isConfigured: () => !!process.env.OPENROUTER_API_KEY,
+  generateThumbnails: async (options: { userId?: string; prompt: string; style?: string; count?: number }) => {
+    try {
+      const images = await openRouterService.generateImages(
+        options.prompt,
+        undefined, // use default model
+        options.style || 'thumbnail'
+      );
+      return images;
+    } catch (error) {
+      console.error('AI thumbnail generation error:', error);
+      return [];
+    }
+  }
 };
 
 // Export all the controller methods

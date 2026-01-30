@@ -3,6 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Timeout configuration (in milliseconds)
+const IMAGE_GENERATION_TIMEOUT = 120000; // 2 minutes for image generation
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 3000; // 3 seconds
+
 /**
  * OpenRouterAIService - AI Service using OpenRouter API
  *
@@ -24,16 +29,25 @@ export class OpenRouterAIService {
   private apiUrl: string;
   private defaultImageModel: string;
 
-  // Available image generation models on OpenRouter (verified working)
+  // Available image generation models on OpenRouter (updated Jan 2026)
   static readonly IMAGE_MODELS = {
-    // Gemini / Nano Banana models (verified working)
-    GEMINI_2_5_FLASH_IMAGE: 'google/gemini-2.5-flash-image',
-    GEMINI_3_PRO_IMAGE: 'google/gemini-3-pro-image-preview',
-    // OpenAI GPT-5 Image models (verified working)
-    GPT_5_IMAGE: 'openai/gpt-5-image',
-    GPT_5_IMAGE_MINI: 'openai/gpt-5-image-mini',
-    // FLUX.2 models from Black Forest Labs (verified working)
-    FLUX_2_PRO: 'black-forest-labs/flux.2-pro',
+    // Google Nano Banana models (Gemini-based, best for thumbnails)
+    NANO_BANANA: 'google/gemini-2.5-flash-image', // GA - Best value, fast
+    NANO_BANANA_PRO: 'google/gemini-3-pro-image-preview', // Highest quality, 2K/4K support
+    // OpenAI GPT-5 Image models
+    GPT_5_IMAGE: 'openai/gpt-5-image', // Premium OpenAI quality
+    GPT_5_IMAGE_MINI: 'openai/gpt-5-image-mini', // Cheaper, still great
+    // Black Forest Labs FLUX.2 family
+    FLUX_2_MAX: 'black-forest-labs/flux.2-max', // Top quality
+    FLUX_2_PRO: 'black-forest-labs/flux.2-pro', // Good balance
+    FLUX_2_FLEX: 'black-forest-labs/flux.2-flex', // Best for text/typography
+    FLUX_2_KLEIN: 'black-forest-labs/flux.2-klein-4b', // Fastest, cheapest
+    // ByteDance Seedream
+    SEEDREAM_4_5: 'bytedance-seed/seedream-4.5', // Good for portraits
+    // Sourceful Riverflow (unified text-to-image and image-to-image)
+    RIVERFLOW_V2_MAX: 'sourceful/riverflow-v2-max-preview',
+    RIVERFLOW_V2_STANDARD: 'sourceful/riverflow-v2-standard-preview',
+    RIVERFLOW_V2_FAST: 'sourceful/riverflow-v2-fast-preview',
   } as const;
 
   // Supported aspect ratios for Gemini models
@@ -57,7 +71,7 @@ export class OpenRouterAIService {
     // Default to Gemini 2.5 Flash Image for balance of speed and quality
     this.defaultImageModel =
       process.env.OPENROUTER_IMAGE_MODEL ||
-      OpenRouterAIService.IMAGE_MODELS.GEMINI_2_5_FLASH_IMAGE;
+      OpenRouterAIService.IMAGE_MODELS.NANO_BANANA;
 
     if (!this.apiKey) {
       console.warn(
@@ -154,6 +168,46 @@ export class OpenRouterAIService {
     aspectRatio: string = '16:9',
     imageSize?: '1K' | '2K' | '4K'
   ): Promise<string[]> {
+    let lastError: Error | null = null;
+
+    // Retry loop for resilience
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`OpenRouter: Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
+
+        return await this.executeImageRequest(prompt, model, aspectRatio, imageSize);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Don't retry on certain errors
+        const noRetryErrors = ['API key', 'credits', 'Invalid', '400', '401', '402'];
+        if (noRetryErrors.some(e => lastError!.message.includes(e))) {
+          throw lastError;
+        }
+
+        console.warn(`OpenRouter attempt ${attempt + 1} failed:`, lastError.message);
+      }
+    }
+
+    throw lastError || new Error('Image generation failed after retries');
+  }
+
+  /**
+   * Execute a single image generation request with timeout
+   */
+  private async executeImageRequest(
+    prompt: string,
+    model: string,
+    aspectRatio: string = '16:9',
+    imageSize?: '1K' | '2K' | '4K'
+  ): Promise<string[]> {
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+
     try {
       // Build request body
       const requestBody: any = {
@@ -188,7 +242,11 @@ export class OpenRouterAIService {
           'X-Title': 'ThumPiks Canvas Editor',
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal as any, // Cast for node-fetch compatibility
       });
+
+      // Clear timeout on successful response
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -241,6 +299,14 @@ export class OpenRouterAIService {
       // Extract images from OpenRouter response
       return this.extractImagesFromResponse(data);
     } catch (error) {
+      // Always clear timeout
+      clearTimeout(timeoutId);
+
+      // Handle abort/timeout specifically
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s. Image generation may take longer - please try again.`);
+      }
+
       if (error instanceof Error) {
         // Re-throw if already formatted
         if (error.message.startsWith('OpenRouter')) {

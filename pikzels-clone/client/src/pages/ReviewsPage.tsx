@@ -10,7 +10,7 @@ const ReviewsPage: React.FC = () => {
       name: 'Marcus Rivera',
       channel: '@TechExplained',
       subscribers: '245K',
-      avatar: 'MR',
+      avatar: '/images/testimonials/review1.png',
       rating: 5,
       quote: "ThumPiks transformed my channel overnight. My click-through rate jumped from 4% to 11% in just two weeks. The AI understands what makes tech thumbnails pop!",
       improvement: '+175% CTR',
@@ -20,7 +20,7 @@ const ReviewsPage: React.FC = () => {
       name: 'Sarah Chen',
       channel: '@SarahsGamingHub',
       subscribers: '892K',
-      avatar: 'SC',
+      avatar: '/images/testimonials/review2.png',
       rating: 5,
       quote: "As a full-time creator, time is everything. ThumPiks saves me 5+ hours every week. The face training feature is a game-changer—my thumbnails finally look consistent.",
       improvement: '5 hrs/week saved',
@@ -30,7 +30,7 @@ const ReviewsPage: React.FC = () => {
       name: 'David Kim',
       channel: '@FitnessWithDave',
       subscribers: '156K',
-      avatar: 'DK',
+      avatar: '/images/testimonials/review3.png',
       rating: 5,
       quote: "I tried Canva, Photoshop, even hired designers. Nothing comes close to ThumPiks' speed and quality. The A/B testing helped me figure out exactly what my audience clicks on.",
       improvement: '+89% engagement',
@@ -40,7 +40,7 @@ const ReviewsPage: React.FC = () => {
       name: 'Emily Rodriguez',
       channel: '@CookingWithEmily',
       subscribers: '423K',
-      avatar: 'ER',
+      avatar: '/images/testimonials/review4.png',
       rating: 5,
       quote: "The trending insights are incredible! ThumPiks showed me which styles perform best in the cooking niche. My videos are hitting the algorithm faster than ever before.",
       improvement: '+320K views',
@@ -50,7 +50,7 @@ const ReviewsPage: React.FC = () => {
       name: 'James Thompson',
       channel: '@AutoReviewsHQ',
       subscribers: '678K',
-      avatar: 'JT',
+      avatar: '/images/testimonials/review5.png',
       rating: 5,
       quote: "Professional quality without the designer price tag. I used to pay $30 per thumbnail. Now it's pennies. The ROI is insane—ThumPiks paid for itself in the first week.",
       improvement: '$1,200/mo saved',
@@ -60,7 +60,7 @@ const ReviewsPage: React.FC = () => {
       name: 'Olivia Martinez',
       channel: '@OliviasVlogs',
       subscribers: '1.2M',
-      avatar: 'OM',
+      avatar: '/images/testimonials/review6.png',
       rating: 5,
       quote: "The face swap feature is pure magic. I can keep my personal brand consistent across all thumbnails without spending hours in front of the camera. My team loves it too!",
       improvement: 'Agency-ready',
@@ -198,11 +198,11 @@ const ReviewsPage: React.FC = () => {
 
                   {/* Author */}
                   <div className="flex items-center gap-4 mb-4">
-                    <div
-                      className={`w-12 h-12 rounded-full bg-gradient-to-br ${testimonial.color} flex items-center justify-center font-bold text-sm`}
-                    >
-                      {testimonial.avatar}
-                    </div>
+                    <img
+                      src={testimonial.avatar}
+                      alt={testimonial.name}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
                     <div>
                       <div className="font-semibold">{testimonial.name}</div>
                       <div className="text-sm text-gray-400">
@@ -266,9 +266,11 @@ const ReviewsPage: React.FC = () => {
           <div className="space-y-6">
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center font-bold text-lg">
-                  MR
-                </div>
+                <img
+                  src="/images/testimonials/review1.png"
+                  alt="Marcus Rivera"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
                 <div>
                   <div className="font-semibold text-xl">Marcus Rivera</div>
                   <div className="text-gray-400">Tech Channel • 245K Subscribers</div>
@@ -297,9 +299,11 @@ const ReviewsPage: React.FC = () => {
 
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold text-lg">
-                  SC
-                </div>
+                <img
+                  src="/images/testimonials/review2.png"
+                  alt="Sarah Chen"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
                 <div>
                   <div className="font-semibold text-xl">Sarah Chen</div>
                   <div className="text-gray-400">Gaming Channel • 892K Subscribers</div>

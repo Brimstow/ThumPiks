@@ -16,15 +16,28 @@ import AnimatedBackground from './AnimatedBackground';
 import ForgotPasswordModal from './auth/ForgotPasswordModal';
 import UsernameInput from './auth/UsernameInput';
 type ThumPiksLandingProps = Record<string, never>;
-const thumbnailImages = [
-  'https://images.unsplash.com/photo-1611162616475-46b635cb6868?w=400&h=225&fit=crop', // YouTube/video content
-  'https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?w=400&h=225&fit=crop', // Gaming setup
-  'https://images.unsplash.com/photo-1493711662062-fa541f7f3d24?w=400&h=225&fit=crop', // Reaction/expression
-  'https://images.unsplash.com/photo-1560169897-fc0cdbdfa4d5?w=400&h=225&fit=crop', // Podcast/talking
-  'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400&h=225&fit=crop', // Tech review
-  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop', // Music/creative
-  'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=225&fit=crop', // Fitness/lifestyle
-  'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=225&fit=crop', // Cooking/food
+// Row 1: Top carousel thumbnails with bold text overlays
+const thumbnailImagesRow1 = [
+  '/images/thumbnails/thumbnail-gaming-1.png',
+  '/images/thumbnails/thumbnail-tech-1.png',
+  '/images/thumbnails/thumbnail-cooking-1.png',
+  '/images/thumbnails/thumbnail-fitness-1.png',
+  '/images/thumbnails/thumbnail-travel-1.png',
+  '/images/thumbnails/thumbnail-education-1.png',
+  '/images/thumbnails/thumbnail-music-1.png',
+  '/images/thumbnails/thumbnail-lifestyle-1.png',
+];
+
+// Row 2: Bottom carousel thumbnails - different designs
+const thumbnailImagesRow2 = [
+  '/images/thumbnails/thumbnail-gaming-2.png',
+  '/images/thumbnails/thumbnail-tech-2.png',
+  '/images/thumbnails/thumbnail-cooking.png', // fallback since cooking-2 failed
+  '/images/thumbnails/thumbnail-fitness-2.png',
+  '/images/thumbnails/thumbnail-travel-2.png',
+  '/images/thumbnails/thumbnail-education-2.png',
+  '/images/thumbnails/thumbnail-music-2.png',
+  '/images/thumbnails/thumbnail-lifestyle-2.png',
 ];
 
 // @component: ThumPiksLanding
@@ -42,6 +55,9 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   const [bgOpacity, setBgOpacity] = React.useState(0.6);
   const [bgEnabled, setBgEnabled] = React.useState(true);
   const [videoLink, setVideoLink] = React.useState('');
+  const [includeFace, setIncludeFace] = React.useState(false);
+  const [showFaceModal, setShowFaceModal] = React.useState(false);
+  const [faceImage, setFaceImage] = React.useState<string | null>(null);
 
   // Platform typing animation state
   const [currentPlatformIndex, setCurrentPlatformIndex] = React.useState(0);
@@ -150,6 +166,9 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   };
 
   const handleGenerateClick = () => {
+    // Always store includeFace preference
+    localStorage.setItem('pendingIncludeFace', includeFace.toString());
+    
     if (videoLink) {
       localStorage.setItem('pendingVideoLink', videoLink);
     }
@@ -166,10 +185,27 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Unified auth action: authenticated users bypass modals, others see signup
+  const handleAuthAction = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/dashboard');
+    } else {
+      setShowSignup(true);
+    }
+  };
+
   const scrollToPricing = () => {
     const pricingSection = document.getElementById('pricing');
     if (pricingSection) {
       pricingSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const scrollToFAQ = () => {
+    const faqSection = document.getElementById('faq');
+    if (faqSection) {
+      faqSection.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -275,7 +311,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 Sign in
               </button>
               <button
-                onClick={() => setShowSignup(true)}
+                onClick={handleAuthAction}
                 className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-full transition-colors text-white"
               >
                 Get Started →
@@ -338,9 +374,14 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 max-w-2xl mx-auto mb-12">
               <div className="flex gap-4 mb-6">
-                <button className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                <button 
+                  className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors ${
+                    includeFace ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                  onClick={() => setShowFaceModal(true)}
+                >
                   <Plus className="w-4 h-4" />
-                  Include face
+                  {faceImage ? 'Face added ✓' : 'Include face'}
                 </button>
                 <button className="flex-1 bg-gray-800 text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
                   See example
@@ -389,7 +430,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 },
               }}
             >
-              {[...thumbnailImages, ...thumbnailImages, ...thumbnailImages].map(
+              {[...thumbnailImagesRow1, ...thumbnailImagesRow1, ...thumbnailImagesRow1].map(
                 (img, i) => (
                   <div
                     key={i}
@@ -421,7 +462,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 },
               }}
             >
-              {[...thumbnailImages, ...thumbnailImages, ...thumbnailImages].map(
+              {[...thumbnailImagesRow2, ...thumbnailImagesRow2, ...thumbnailImagesRow2].map(
                 (img, i) => (
                   <div
                     key={i}
@@ -436,6 +477,127 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 )
               )}
             </motion.div>
+          </div>
+        </section>
+
+        {/* Testimonials/Reviews Section */}
+        <section id="reviews" className="py-24 px-6 bg-gradient-to-b from-gray-900/50 to-transparent">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-light mb-4">
+                Loved by <span className="text-blue-500">Creators</span>
+              </h2>
+              <p className="text-gray-400">
+                See what YouTubers are saying about ThumPiks
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {/* Testimonial 1 */}
+              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src="/images/testimonials/person1.png"
+                    alt="Creator testimonial"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="font-medium">Alex Chen</h4>
+                    <p className="text-sm text-gray-400">Gaming Channel • 250K subs</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  "My CTR went from 4% to 12% after switching to ThumPiks. The AI understands what makes gaming thumbnails pop. Absolute game changer!"
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
+                </div>
+              </div>
+
+              {/* Testimonial 2 */}
+              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src="/images/testimonials/person2.png"
+                    alt="Creator testimonial"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="font-medium">Sarah Mitchell</h4>
+                    <p className="text-sm text-gray-400">Lifestyle Vlogger • 180K subs</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  "I used to spend 2 hours on each thumbnail. Now it takes 30 seconds. ThumPiks literally gave me my weekends back. 10/10 recommend!"
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
+                </div>
+              </div>
+
+              {/* Testimonial 3 */}
+              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src="/images/testimonials/person3.png"
+                    alt="Creator testimonial"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="font-medium">Marcus Johnson</h4>
+                    <p className="text-sm text-gray-400">Tech Reviews • 500K subs</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  "The face swap feature is insane. I can test different expressions without reshooting. This is the future of thumbnail creation."
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
+                </div>
+              </div>
+
+              {/* Testimonial 4 */}
+              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src="/images/testimonials/person4.png"
+                    alt="Creator testimonial"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="font-medium">Emily Rodriguez</h4>
+                    <p className="text-sm text-gray-400">Cooking Channel • 320K subs</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  "Finally, thumbnails that make my food look as good as it tastes! The AI knows exactly how to make dishes look mouthwatering."
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
+                </div>
+              </div>
+
+              {/* Testimonial 5 */}
+              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6 md:col-span-2 lg:col-span-1">
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src="/images/testimonials/person5.png"
+                    alt="Creator testimonial"
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="font-medium">David Park</h4>
+                    <p className="text-sm text-gray-400">Education • 1.2M subs</p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  "As a solo creator, I can't afford a design team. ThumPiks is like having a professional designer on demand. Worth every penny."
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -562,7 +724,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </div>
 
                 <button
-                  onClick={() => setShowSignup(true)}
+                  onClick={handleAuthAction}
                   className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
                 >
                   Start Free
@@ -616,7 +778,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </div>
 
                 <button
-                  onClick={() => setShowSignup(true)}
+                  onClick={handleAuthAction}
                   className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
                 >
                   Get Started
@@ -677,7 +839,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </div>
 
                 <button
-                  onClick={() => setShowSignup(true)}
+                  onClick={handleAuthAction}
                   className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors"
                 >
                   Get Started
@@ -731,7 +893,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </div>
 
                 <button
-                  onClick={() => setShowSignup(true)}
+                  onClick={handleAuthAction}
                   className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
                 >
                   Contact Sales
@@ -748,7 +910,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
           </div>
         </section>
 
-        <section className="py-20 px-6">
+        <section id="faq" className="py-20 px-6">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-5xl font-light mb-4">
@@ -843,7 +1005,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   From YouTube to TikTok—professional thumbnails in 30 seconds.
                 </p>
                 <button
-                  onClick={() => setShowSignup(true)}
+                  onClick={handleAuthAction}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg transition-colors text-lg font-medium"
                 >
                   Get My Free Thumbnails
@@ -897,9 +1059,12 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                     </button>
                   </li>
                   <li>
-                    <a href="#faq" className="hover:text-white transition-colors">
+                    <button 
+                      onClick={scrollToFAQ}
+                      className="hover:text-white transition-colors"
+                    >
                       FAQ
-                    </a>
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -1463,7 +1628,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </button>
                 <button
                   onClick={() => {
-                    setShowSignup(true);
+                    handleAuthAction();
                     setMobileMenuOpen(false);
                   }}
                   className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg transition-colors"
@@ -1480,6 +1645,98 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
           isOpen={showForgotPassword}
           onClose={() => setShowForgotPassword(false)}
         />
+
+        {/* Face Selection Modal */}
+        {showFaceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={() => setShowFaceModal(false)}
+            />
+            <div className="relative bg-gray-900 rounded-2xl p-6 max-w-md w-full border border-gray-800">
+              <button
+                onClick={() => setShowFaceModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                aria-label="Close face modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <h3 className="text-xl font-semibold text-white mb-2">Include Your Face</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Upload a clear photo of your face to include in your thumbnail. AI will swap your face onto the generated design.
+              </p>
+
+              {faceImage ? (
+                <div className="relative mb-6">
+                  <img 
+                    src={faceImage} 
+                    alt="Selected face" 
+                    className="w-32 h-32 mx-auto rounded-full object-cover border-2 border-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      setFaceImage(null);
+                      setIncludeFace(false);
+                    }}
+                    className="absolute top-0 right-1/2 translate-x-16 -translate-y-2 bg-red-500 rounded-full p-1 hover:bg-red-600 transition-colors"
+                    aria-label="Remove face image"
+                  >
+                    <X className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              ) : (
+                <label className="block mb-6">
+                  <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-800 rounded-full flex items-center justify-center">
+                      <Plus className="w-8 h-8 text-gray-500" />
+                    </div>
+                    <p className="text-gray-400 mb-2">Click to upload your face</p>
+                    <p className="text-gray-600 text-xs">PNG, JPG up to 5MB</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          setFaceImage(event.target?.result as string);
+                          setIncludeFace(true);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowFaceModal(false)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFaceModal(false);
+                  }}
+                  disabled={!faceImage}
+                  className={`flex-1 px-4 py-3 rounded-lg transition-colors ${
+                    faceImage 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {faceImage ? 'Confirm' : 'Upload to continue'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

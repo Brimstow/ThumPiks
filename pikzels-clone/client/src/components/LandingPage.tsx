@@ -102,6 +102,9 @@ const LandingPage: React.FC = () => {
       alert('Please enter a video link');
       return;
     }
+    // Store video link and includeFace setting in localStorage for drop link protocol
+    localStorage.setItem('pendingVideoLink', videoLink);
+    localStorage.setItem('pendingIncludeFace', includeFace.toString());
     // Navigate to thumbnail editor or handle generation
     navigate('/dashboard');
   };
@@ -153,7 +156,16 @@ const LandingPage: React.FC = () => {
               <button
                 key={item}
                 className={`pill-nav-item ${activeNavItem === item ? 'active' : ''}`}
-                onClick={() => setActiveNavItem(item)}
+                onClick={() => {
+                  setActiveNavItem(item);
+                  if (item === 'faq') {
+                    // Smooth scroll to FAQ section
+                    const faqSection = document.querySelector('.faq-section');
+                    if (faqSection) {
+                      faqSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }
+                }}
               >
                 {item.charAt(0).toUpperCase() + item.slice(1)}
               </button>

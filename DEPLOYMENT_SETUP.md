@@ -65,11 +65,19 @@ npx prisma migrate deploy
 npx prisma generate
 ```
 
-### 6. Seed Initial Data (Optional)
+### 6. Seed Initial Data
 ```bash
-# Create admin user
+# Seed test users (recommended for development/testing)
+npm run prisma:seed
+
+# OR use the complete setup command (migrations + seed)
+npm run db:setup
+
+# Create admin user (if needed)
 node create-default-admin.ts
 ```
+
+**📖 For detailed test user setup, see:** `pikzels-clone/TEST_USER_SETUP_GUIDE.md`
 
 ### 7. Start the Application
 ```bash
@@ -96,7 +104,8 @@ npm start
 - [ ] Environment variables configured
 - [ ] Dependencies installed
 - [ ] Database migrations applied
-- [ ] Admin user created
+- [ ] Test users seeded (development/test only)
+- [ ] Admin user created (production)
 - [ ] Security configurations verified
 - [ ] SSL certificates configured (if applicable)
 - [ ] Backup strategy implemented
