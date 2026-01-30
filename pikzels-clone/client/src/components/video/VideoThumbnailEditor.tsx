@@ -150,7 +150,7 @@ const analyzeFrame = (canvas: HTMLCanvasElement): FrameAnalysis => {
 // Custom Hooks (Higher-Order Functions)
 // ============================================================================
 
-const useVideoState = (videoRef: React.RefObject<HTMLVideoElement>) => {
+const useVideoState = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -195,7 +195,7 @@ const useVideoState = (videoRef: React.RefObject<HTMLVideoElement>) => {
 };
 
 const useKeyboardControls = (
-  videoRef: React.RefObject<HTMLVideoElement>,
+  videoRef: React.RefObject<HTMLVideoElement | null>,
   handlers: {
     onExtract: () => void;
     onMarkIn: () => void;
