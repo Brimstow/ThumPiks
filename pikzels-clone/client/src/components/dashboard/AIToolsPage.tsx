@@ -196,18 +196,22 @@ const AIToolsPage: React.FC = () => {
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
     
-    const result = await ai.generate({
-      prompt,
-      style,
-      aspectRatio,
-      steps: 4,
-      guidance: 0,
-    });
-    
-    if (result.success && result.imageUrl) {
-      setResultImage(result.imageUrl);
+    try {
+      const result = await aiService.generate({
+        prompt,
+        style,
+        aspectRatio,
+        steps: 4,
+        guidance: 0,
+      });
+      
+      if (result.success && result.imageUrl) {
+        setResultImage(result.imageUrl);
+      }
+    } catch (error) {
+      console.error('Generate failed:', error);
     }
-  }, [prompt, style, aspectRatio, ai]);
+  }, [prompt, style, aspectRatio, aiService]);
 
   const handleRemoveBackground = useCallback(async () => {
     if (!uploadedImage) return;
@@ -264,28 +268,36 @@ const AIToolsPage: React.FC = () => {
   const handleUpscale = useCallback(async () => {
     if (!uploadedImage) return;
     
-    const result = await ai.upscale({
-      image: uploadedImage,
-      scale: upscaleScale,
-    });
-    
-    if (result.success && (result.imageUrl || result.imageBase64)) {
-      setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+    try {
+      const result = await aiService.upscale({
+        image: uploadedImage,
+        scale: upscaleScale,
+      });
+      
+      if (result.success && (result.imageUrl || result.imageBase64)) {
+        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      }
+    } catch (error) {
+      console.error('Upscale failed:', error);
     }
-  }, [uploadedImage, upscaleScale, ai]);
+  }, [uploadedImage, upscaleScale, aiService]);
 
   const handleFaceSwap = useCallback(async () => {
     if (!uploadedImage || !faceSwapSource) return;
     
-    const result = await ai.faceSwap({
-      sourceImage: faceSwapSource,
-      targetImage: uploadedImage,
-    });
-    
-    if (result.success && (result.imageUrl || result.imageBase64)) {
-      setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+    try {
+      const result = await aiService.faceSwap({
+        sourceImage: faceSwapSource,
+        targetImage: uploadedImage,
+      });
+      
+      if (result.success && (result.imageUrl || result.imageBase64)) {
+        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      }
+    } catch (error) {
+      console.error('Face swap failed:', error);
     }
-  }, [uploadedImage, faceSwapSource, ai]);
+  }, [uploadedImage, faceSwapSource, aiService]);
 
   const handleInpaint = useCallback(async () => {
     if (!uploadedImage || !prompt.trim()) return;
