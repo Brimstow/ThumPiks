@@ -30,6 +30,7 @@ interface UseAIServiceOptions {
 interface AIServiceState {
   isReady: boolean;
   isLoading: boolean;
+  isInitializing: boolean;
   error: string | null;
   currentTask: AITaskType | null;
   progress: number;
@@ -42,6 +43,7 @@ export function useAIService(options: UseAIServiceOptions = {}) {
   const [state, setState] = useState<AIServiceState>({
     isReady: false,
     isLoading: false,
+    isInitializing: false,
     error: null,
     currentTask: null,
     progress: 0,
@@ -56,19 +58,37 @@ export function useAIService(options: UseAIServiceOptions = {}) {
     }
     
     if (autoInitialize) {
-      setState(s => ({ ...s, isLoading: true }));
+      // Use separate isInitializing flag - NOT isLoading
+      setState(s => ({ ...s, isInitializing: true }));
+      
+      // Add timeout to prevent hanging
+      const timeoutId = setTimeout(() => {
+        setState(s => {
+          if (s.isInitializing && !s.isReady) {
+            return { ...s, isInitializing: false, isReady: true };
+          }
+          return s;
+        });
+      }, 3000);
       
       serviceRef.current.initialize()
         .then(() => {
-          setState(s => ({ ...s, isReady: true, isLoading: false }));
+          clearTimeout(timeoutId);
+          setState(s => ({ ...s, isReady: true, isInitializing: false }));
         })
         .catch(err => {
+          clearTimeout(timeoutId);
+          // Still set isReady to true so UI is usable (will fail on actual tasks)
           setState(s => ({ 
             ...s, 
-            isLoading: false, 
+            isInitializing: false,
+            isReady: true,
             error: err instanceof Error ? err.message : String(err) 
           }));
         });
+    } else {
+      // If not auto-initializing, mark as ready immediately
+      setState(s => ({ ...s, isReady: true }));
     }
   }, [config, autoInitialize]);
   

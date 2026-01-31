@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useAIService } from '../../hooks/useAIService';
+import { useAIWorker } from '../../hooks/useAIWorker';
 import { config } from '../../config/environment';
 import type { AIGenerateRequest } from '../../services/ai-providers';
 
@@ -66,8 +67,11 @@ const aspectRatios: { value: AIGenerateRequest['aspectRatio']; label: string }[]
 // ============================================
 
 const AIToolsPage: React.FC = () => {
-  // AI Service
-  const ai = useAIService({
+  // Use Web Worker if available, fallback to main thread
+  const worker = useAIWorker();
+  
+  // Fallback AI Service (main thread) for browsers without worker support
+  const aiService = useAIService({
     config: {
       providers: {
         tensorflow: {},
@@ -76,7 +80,16 @@ const AIToolsPage: React.FC = () => {
         },
       },
     },
+    autoInitialize: !worker.isReady, // Only initialize if worker not available
   });
+  
+  // Use worker if available, otherwise fallback to aiService
+  const ai = worker.isReady ? {
+    isLoading: worker.isProcessing,
+    error: null,
+    isInitializing: false,
+    isReady: worker.isReady,
+  } : aiService;
   
   // State
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
@@ -199,26 +212,54 @@ const AIToolsPage: React.FC = () => {
   const handleRemoveBackground = useCallback(async () => {
     if (!uploadedImage) return;
     
-    const result = await ai.removeBackground({ image: uploadedImage });
-    
-    if (result.success && result.imageBase64) {
-      setResultImage(`data:image/png;base64,${result.imageBase64}`);
+    try {
+      if (worker.isReady) {
+        // Use Web Worker (non-blocking)
+        const result = await worker.execute('removeBackground', { image: uploadedImage });
+        if (result.imageBase64) {
+          setResultImage(`data:image/png;base64,${result.imageBase64}`);
+        }
+      } else {
+        // Fallback to main thread
+        const result = await aiService.removeBackground({ image: uploadedImage });
+        if (result.success && result.imageBase64) {
+          setResultImage(`data:image/png;base64,${result.imageBase64}`);
+        }
+      }
+    } catch (error) {
+      console.error('Remove background failed:', error);
     }
-  }, [uploadedImage, ai]);
+  }, [uploadedImage, worker, aiService]);
 
   const handleEnhance = useCallback(async () => {
     if (!uploadedImage) return;
     
-    const result = await ai.enhance({
-      image: uploadedImage,
-      type: enhanceType,
-      strength: 0.7,
-    });
-    
-    if (result.success && result.imageBase64) {
-      setResultImage(`data:image/png;base64,${result.imageBase64}`);
+    try {
+      if (worker.isReady) {
+        // Use Web Worker (non-blocking)
+        const result = await worker.execute('enhance', {
+          image: uploadedImage,
+          type: enhanceType,
+          strength: 0.7,
+        });
+        if (result.imageBase64) {
+          setResultImage(`data:image/png;base64,${result.imageBase64}`);
+        }
+      } else {
+        // Fallback to main thread
+        const result = await aiService.enhance({
+          image: uploadedImage,
+          type: enhanceType,
+          strength: 0.7,
+        });
+        if (result.success && result.imageBase64) {
+          setResultImage(`data:image/png;base64,${result.imageBase64}`);
+        }
+      }
+    } catch (error) {
+      console.error('Enhance failed:', error);
     }
-  }, [uploadedImage, enhanceType, ai]);
+  }, [uploadedImage, enhanceType, worker, aiService]);
 
   const handleUpscale = useCallback(async () => {
     if (!uploadedImage) return;
@@ -246,6 +287,27 @@ const AIToolsPage: React.FC = () => {
     }
   }, [uploadedImage, faceSwapSource, ai]);
 
+  const handleInpaint = useCallback(async () => {
+    if (!uploadedImage || !prompt.trim()) return;
+    
+    try {
+      // Inpaint uses the prompt to describe what to add/change in the image
+      // For now, we'll use a simple mask approach (full image context)
+      const result = await aiService.inpaint({
+        image: uploadedImage,
+        mask: uploadedImage, // In a full implementation, this would be a user-drawn mask
+        prompt: prompt,
+        strength: 0.8,
+      });
+      
+      if (result.success && (result.imageUrl || result.imageBase64)) {
+        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      }
+    } catch (error) {
+      console.error('Inpaint failed:', error);
+    }
+  }, [uploadedImage, prompt, aiService]);
+
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
     
@@ -259,6 +321,9 @@ const AIToolsPage: React.FC = () => {
     switch (selectedTool) {
       case 'generate':
         handleGenerate();
+        break;
+      case 'inpaint':
+        handleInpaint();
         break;
       case 'remove-bg':
         handleRemoveBackground();
@@ -275,7 +340,7 @@ const AIToolsPage: React.FC = () => {
       default:
         break;
     }
-  }, [selectedTool, handleGenerate, handleRemoveBackground, handleEnhance, handleUpscale, handleFaceSwap]);
+  }, [selectedTool, handleGenerate, handleInpaint, handleRemoveBackground, handleEnhance, handleUpscale, handleFaceSwap]);
 
   const currentTool = aiTools.find(t => t.id === selectedTool);
 
@@ -293,6 +358,12 @@ const AIToolsPage: React.FC = () => {
         <p className="text-slate-400 text-lg">
           Powerful AI-driven tools to enhance and transform your thumbnails
         </p>
+        {ai.isInitializing && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Initializing AI models...</span>
+          </div>
+        )}
       </div>
 
       {/* Tool Selection Grid */}
@@ -561,12 +632,42 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Inpaint Tool Options */}
+              {selectedTool === 'inpaint' && uploadedImage && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <Wand2 className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-blue-300 mb-1">How to use Inpainting</h4>
+                        <p className="text-xs text-slate-400">
+                          Describe what you want to add, change, or modify in your image. 
+                          The AI will intelligently edit the image based on your description.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      Describe Your Edit
+                    </label>
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="e.g., Add a sunset sky in the background, Replace the text with 'AMAZING', Make the person smile..."
+                      className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Process Button */}
               <button
                 onClick={handleProcessTool}
                 disabled={
                   ai.isLoading || 
                   (selectedTool === 'generate' && !prompt.trim()) ||
+                  (selectedTool === 'inpaint' && !prompt.trim()) ||
                   (currentTool.requiresImage && !uploadedImage) ||
                   (selectedTool === 'face-swap' && !faceSwapSource)
                 }

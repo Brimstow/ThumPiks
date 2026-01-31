@@ -41,18 +41,32 @@ export class TensorFlowProvider extends BaseAIProvider {
   }
   
   protected async _initialize(): Promise<void> {
+    // Don't load models on initialization - load them lazily when needed
+    // This significantly reduces initial page load time
+    console.log('TensorFlow provider initialized (models will load on-demand)');
+  }
+  
+  /**
+   * Lazy load segmentation model only when needed
+   */
+  private async ensureSegmentationModel(): Promise<void> {
+    if (this.segmentationModel) return;
+    
     try {
-      // Dynamically import TensorFlow.js models for code splitting
-      const [bodySegModule, cocoModule] = await Promise.all([
-        import('@tensorflow-models/body-segmentation'),
-        import('@tensorflow-models/coco-ssd'),
-      ]);
+      console.log('Loading segmentation model...');
       
-      bodySegmentation = bodySegModule;
-      cocoSsd = cocoModule;
+      // Import modules
+      if (!bodySegmentation) {
+        const bodySegModule = await import('@tensorflow-models/body-segmentation');
+        bodySegmentation = bodySegModule;
+      }
       
-      // Load segmentation model
-      this.segmentationModel = await bodySegmentation.createSegmenter(
+      // Load model with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Model load timeout')), 15000)
+      );
+      
+      const loadPromise = bodySegmentation.createSegmenter(
         bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
         {
           runtime: 'mediapipe',
@@ -61,10 +75,11 @@ export class TensorFlowProvider extends BaseAIProvider {
         }
       );
       
-      console.log('TensorFlow.js segmentation model loaded');
+      this.segmentationModel = await Promise.race([loadPromise, timeoutPromise]);
+      console.log('Segmentation model loaded successfully');
     } catch (error) {
-      console.warn('Failed to load TensorFlow models:', error);
-      // Provider can still partially work without all models
+      console.error('Failed to load segmentation model:', error);
+      throw error;
     }
   }
   
@@ -80,8 +95,10 @@ export class TensorFlowProvider extends BaseAIProvider {
     const taskId = this.generateTaskId();
     const startTime = Date.now();
     
-    if (!this.segmentationModel) {
-      return this.createErrorResult(taskId, 'Segmentation model not loaded');
+    try {
+      await this.ensureSegmentationModel();
+    } catch (error) {
+      return this.createErrorResult(taskId, 'Failed to load segmentation model');
     }
     
     try {
@@ -174,9 +191,11 @@ export class TensorFlowProvider extends BaseAIProvider {
     const taskId = this.generateTaskId();
     const startTime = Date.now();
     
-    if (!this.segmentationModel) {
+    try {
+      await this.ensureSegmentationModel();
+    } catch (error) {
       return {
-        ...this.createErrorResult(taskId, 'Segmentation model not loaded'),
+        ...this.createErrorResult(taskId, 'Failed to load segmentation model'),
         masks: [],
       };
     }
