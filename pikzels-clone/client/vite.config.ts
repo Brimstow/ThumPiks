@@ -11,6 +11,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   },
+  worker: {
+    format: 'es',
+    plugins: () => []
+  },
   server: {
     port: 8556,
     strictPort: true,
