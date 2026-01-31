@@ -30,7 +30,7 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, loading } = useAuth();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -99,6 +99,20 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
     },
   ];
 
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <button
+        disabled
+        className={`p-2 rounded-lg text-slate-600 cursor-not-allowed ${className}`}
+        aria-label="Loading..."
+      >
+        <User className="w-5 h-5" />
+      </button>
+    );
+  }
+
+  // Only show login button if NOT loading and NOT authenticated
   if (!isAuthenticated) {
     return (
       <button
