@@ -85,7 +85,7 @@ export class OpenRouterAIService {
    *
    * @param prompt Text prompt for image generation
    * @param model Specific model to use (must support image output)
-   * @param style Style of the image (bold, minimalist, dramatic)
+   * @param style Style of the image (bold, minimalist, dramatic, cinematic, professional, creative, gaming)
    * @returns Array of image URLs (base64 data URLs)
    */
   async generateImages(
@@ -136,7 +136,7 @@ export class OpenRouterAIService {
   }
 
   /**
-   * Apply style modifications to prompt
+   * Apply style modifications to prompt for OpenRouter image models
    */
   private applyStyle(prompt: string, style: string): string {
     switch (style.toLowerCase()) {
@@ -146,6 +146,14 @@ export class OpenRouterAIService {
         return `Generate an image: Minimalist design with clean lines and simple elements. ${prompt}. Keep it elegant and uncluttered.`;
       case 'dramatic':
         return `Generate an image: Dramatic style with strong lighting and high contrast. ${prompt}. Give it a cinematic, impactful feel.`;
+      case 'cinematic':
+        return `Generate an image: Cinematic style with movie poster quality, professional photography, dramatic composition and lighting. ${prompt}. Make it look like a high-budget film frame.`;
+      case 'professional':
+        return `Generate an image: Professional, corporate style with clean design, business-like aesthetic, trustworthy and polished look. ${prompt}. Keep it sophisticated and credible.`;
+      case 'creative':
+        return `Generate an image: Creative, artistic style with unique perspective, artistic flair and imaginative design. ${prompt}. Make it eye-catching with creative visual elements.`;
+      case 'gaming':
+        return `Generate an image: Gaming-style with energetic, action-packed visuals, vibrant neon colors and gaming aesthetic. ${prompt}. Make it exciting and dynamic like a game thumbnail.`;
       case 'thumbnail':
         return `Generate a YouTube thumbnail image: ${prompt}. Make it eye-catching with bold colors, high contrast, clear text, suitable for a video thumbnail.`;
       default:
