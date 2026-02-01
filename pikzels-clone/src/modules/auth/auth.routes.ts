@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   register,
   login,
+  logout,
   verifyEmail,
   resendVerification,
   requestPasswordReset,
@@ -72,6 +73,12 @@ router.post(
   }),
   login
 );
+
+/**
+ * POST /api/auth/logout
+ * Logout user by clearing cookies
+ */
+router.post('/logout', logout);
 
 /**
  * GET /api/auth/verify-email/:token

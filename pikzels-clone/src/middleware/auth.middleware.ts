@@ -5,7 +5,6 @@ import { EnhancedJWTService } from '../services/jwt.enhanced.service';
 import { AuthRequest, SecureUser, UserRole, Permission } from '../types/auth';
 
 const prisma = new PrismaClient();
-// const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // TODO: Use for verification
 
 // Enhanced authentication middleware with better security
 export const authenticateToken = async (
@@ -14,8 +13,14 @@ export const authenticateToken = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader?.split(' ')[1];
+    // Try to get token from cookie first (secure HttpOnly), then fallback to Authorization header
+    let token = (req as any).cookies?.token;
+    
+    // Fallback to Authorization header for backwards compatibility
+    if (!token) {
+      const authHeader = req.headers['authorization'];
+      token = authHeader?.split(' ')[1];
+    }
 
     if (!token) {
       logger.warn('Authentication attempt without token', {
@@ -120,7 +125,13 @@ export const authenticateRefreshToken = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const { refreshToken } = req.body;
+    // Try to get refresh token from cookie first, then fallback to request body
+    let refreshToken = (req as any).cookies?.refreshToken;
+    
+    // Fallback to request body for backwards compatibility
+    if (!refreshToken) {
+      refreshToken = req.body.refreshToken;
+    }
 
     if (!refreshToken) {
       return res.status(401).json({

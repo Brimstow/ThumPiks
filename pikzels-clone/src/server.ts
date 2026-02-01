@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 // import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
 // Load environment variables FIRST
@@ -110,7 +111,7 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
 // Enhanced CORS configuration
 const corsOptions = {
   origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:8556'],
-  credentials: process.env.CORS_CREDENTIALS === 'true',
+  credentials: true, // Always enable credentials for HttpOnly cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['X-API-Version'],
@@ -119,6 +120,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
+
+// Cookie parser for HttpOnly authentication cookies
+app.use(cookieParser());
+console.log('🍪 Cookie parser enabled');
+
 // Enhanced JSON parsing with security limits
 app.use(
   express.json({

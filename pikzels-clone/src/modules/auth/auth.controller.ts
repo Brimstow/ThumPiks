@@ -27,7 +27,28 @@ export const register = async (req: Request, res: Response) => {
 
     const result = await authService.register(username, email, name, password);
 
-    return res.status(201).json(result);
+    // Set HttpOnly cookie for access token
+    res.cookie('token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    // Set HttpOnly cookie for refresh token
+    if (result.refreshToken) {
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+    }
+
+    // Return user info without tokens in response body
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { accessToken, refreshToken, ...userResponse } = result;
+    return res.status(201).json(userResponse);
   } catch (error: any) {
     logger.error('Registration failed', error, {
       username: req.body.username,
@@ -75,7 +96,28 @@ export const login = async (req: Request, res: Response) => {
 
     const result = await authService.login(loginIdentifier, password);
 
-    return res.status(200).json(result);
+    // Set HttpOnly cookie for access token
+    res.cookie('token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    // Set HttpOnly cookie for refresh token
+    if (result.refreshToken) {
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+    }
+
+    // Return user info without tokens in response body
+    // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { accessToken, refreshToken, ...userResponse } = result;
+    return res.status(200).json(userResponse);
   } catch (error: any) {
     logger.error('Login failed', error, {
       identifier: req.body.identifier || req.body.email,
@@ -92,6 +134,37 @@ export const login = async (req: Request, res: Response) => {
     // Generic error for unexpected failures
     return res.status(500).json({
       error: 'Login failed. Please try again.',
+    });
+  }
+};
+
+/**
+ * Logout user by clearing authentication cookies
+ * POST /api/auth/logout
+ */
+export const logout = async (_req: Request, res: Response) => {
+  try {
+    // Clear authentication cookies
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error: any) {
+    logger.error('Logout failed', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Logout failed. Please try again.'
     });
   }
 };
