@@ -122,6 +122,17 @@ export const login = async (req: Request, res: Response) => {
     logger.error('Login failed', error, {
       identifier: req.body.identifier || req.body.email,
       userAgent: req.get('User-Agent'),
+      errorMessage: error?.message,
+      errorStack: error?.stack,
+      errorName: error?.name,
+    });
+
+    // Log to console for Railway logs
+    console.error('🔴 LOGIN ERROR DETAILS:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      identifier: req.body.identifier || req.body.email,
     });
 
     // Handle typed errors with appropriate status codes
@@ -131,9 +142,10 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // Generic error for unexpected failures
+    // Generic error for unexpected failures - include error message in development
     return res.status(500).json({
       error: 'Login failed. Please try again.',
+      debug: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
     });
   }
 };
