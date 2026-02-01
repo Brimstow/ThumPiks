@@ -197,21 +197,35 @@ const AIToolsPage: React.FC = () => {
     if (!prompt.trim()) return;
     
     try {
-      const result = await aiService.generate({
-        prompt,
-        style,
-        aspectRatio,
-        steps: 4,
-        guidance: 0,
+      // Call backend API endpoint instead of using OpenRouter directly
+      const response = await fetch('/api/thumbnails/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for authentication
+        body: JSON.stringify({
+          prompt,
+          style,
+          projectId: 'temp-project-id', // TODO: Get actual project ID from context
+        }),
       });
       
-      if (result.success && result.imageUrl) {
-        setResultImage(result.imageUrl);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate image');
+      }
+      
+      const data = await response.json();
+      
+      // Backend returns array of thumbnails, use the first one
+      if (data.thumbnails && data.thumbnails.length > 0) {
+        setResultImage(data.thumbnails[0].imageUrl);
       }
     } catch (error) {
       console.error('Generate failed:', error);
     }
-  }, [prompt, style, aspectRatio, aiService]);
+  }, [prompt, style]);
 
   const handleRemoveBackground = useCallback(async () => {
     if (!uploadedImage) return;

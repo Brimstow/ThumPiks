@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Worker Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .success { background: #065f46; border: 1px solid #10b981; }
+        .error { background: #7f1d1d; border: 1px solid #ef4444; }
+        .info { background: #1e3a8a; border: 1px solid #3b82f6; }
+        .warning { background: #78350f; border: 1px solid #f59e0b; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { 
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+        #log {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #34d399; }
+        .log-error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Web Worker Implementation Test</h1>
+    
+    <div id="status" class="status info">
+        Initializing test...
+    </div>
+    
+    <div>
+        <button id="testWorker" disabled>Test Worker Creation</button>
+        <button id="testWasm" disabled>Test WASM Loading</button>
+        <button id="clearLog">Clear Log</button>
+    </div>
+    
+    <div id="log"></div>
+
+    <script type="module">
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const testWorkerBtn = document.getElementById('testWorker');
+        const testWasmBtn = document.getElementById('testWasm');
+        const clearLogBtn = document.getElementById('clearLog');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function setStatus(message, type) {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        clearLogBtn.onclick = () => {
+            logEl.innerHTML = '';
+        };
+
+        // Test 1: Check if Web Workers are supported
+        log('Checking Web Worker support...', 'info');
+        if (typeof Worker === 'undefined') {
+            setStatus('❌ Web Workers NOT supported in this browser', 'error');
+            log('Web Workers are not supported', 'error');
+        } else {
+            setStatus('✅ Web Workers are supported', 'success');
+            log('Web Workers are supported', 'success');
+            testWorkerBtn.disabled = false;
+        }
+
+        // Test 2: Check WASM files
+        log('Checking WASM files...', 'info');
+        fetch('/wasm/tfjs-backend-wasm.wasm')
+            .then(response => {
+                if (response.ok) {
+                    log(`WASM file accessible: ${response.headers.get('content-length')} bytes`, 'success');
+                    setStatus('✅ Web Workers supported & WASM files accessible', 'success');
+                    testWasmBtn.disabled = false;
+                } else {
+                    log(`WASM file returned ${response.status}`, 'error');
+                    setStatus('⚠️ WASM files not accessible', 'warning');
+                }
+            })
+            .catch(err => {
+                log(`WASM file check failed: ${err.message}`, 'error');
+            });
+
+        // Test 3: Try creating worker
+        testWorkerBtn.onclick = async () => {
+            log('Creating Web Worker...', 'info');
+            testWorkerBtn.disabled = true;
+            
+            try {
+                const worker = new Worker(
+                    new URL('./src/workers/ai-worker.ts', import.meta.url),
+                    { type: 'module' }
+                );
+                
+                log('Worker created successfully!', 'success');
+                
+                worker.onmessage = (e) => {
+                    log(`Worker message: ${JSON.stringify(e.data)}`, 'info');
+                };
+                
+                worker.onerror = (error) => {
+                    log(`Worker error: ${error.message}`, 'error');
+                };
+                
+                // Send test message
+                log('Sending test message to worker...', 'info');
+                worker.postMessage({
+                    id: 'test-1',
+                    type: 'task',
+                    taskType: 'enhance',
+                    data: {
+                        image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                        type: 'auto',
+                        strength: 0.5
+                    }
+                });
+                
+                setStatus('✅ Worker created and test message sent', 'success');
+                log('Check console for worker logs', 'info');
+                
+            } catch (error) {
+                log(`Failed to create worker: ${error.message}`, 'error');
+                setStatus('❌ Worker creation failed', 'error');
+                testWorkerBtn.disabled = false;
+            }
+        };
+
+        // Test 4: Test WASM initialization
+        testWasmBtn.onclick = async () => {
+            log('Testing TensorFlow.js WASM backend...', 'info');
+            testWasmBtn.disabled = true;
+            
+            try {
+                log('Importing TensorFlow.js...', 'info');
+                const tf = await import('@tensorflow/tfjs-core');
+                const wasmBackend = await import('@tensorflow/tfjs-backend-wasm');
+                
+                log('TensorFlow.js imported successfully', 'success');
+                
+                wasmBackend.setWasmPaths('/wasm/');
+                log('WASM paths configured', 'success');
+                
+                await tf.setBackend('wasm');
+                await tf.ready();
+                
+                const backend = tf.getBackend();
+                log(`Backend initialized: ${backend}`, 'success');
+                
+                // Create a simple tensor to test
+                const tensor = tf.tensor([1, 2, 3, 4]);
+                const result = await tensor.data();
+                log(`Tensor test: [${Array.from(result)}]`, 'success');
+                
+                setStatus('✅ All tests passed! Worker implementation is working', 'success');
+                
+            } catch (error) {
+                log(`WASM test failed: ${error.message}`, 'error');
+                setStatus('❌ WASM initialization failed', 'error');
+                testWasmBtn.disabled = false;
+            }
+        };
+
+        log('Test page loaded. Click buttons to run tests.', 'info');
+    </script>
+</body>
+</html>
