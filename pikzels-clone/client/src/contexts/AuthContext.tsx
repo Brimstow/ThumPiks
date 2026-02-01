@@ -41,28 +41,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       try {
+        // Cookies are sent automatically with credentials: 'include'
         const response = await fetch('/api/user/profile', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: 'include',
         });
 
         if (response.ok) {
           const data = await response.json();
           setUser(data.user);
-        } else {
-          localStorage.removeItem('token');
         }
       } catch (error) {
-        localStorage.removeItem('token');
+        // User not authenticated, ignore error
       } finally {
         setLoading(false);
       }
@@ -75,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -84,7 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.accessToken || data.token);
+        // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
         return { success: true };
       } else {
@@ -99,6 +90,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -108,7 +100,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('token', data.accessToken || data.token);
+        // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
         return { success: true };
       } else {
@@ -119,8 +111,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    try {
+      // Call backend logout to clear HttpOnly cookies
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      // Ignore error, clear local state anyway
+    }
     setUser(null);
     navigate('/', { replace: true });
   };

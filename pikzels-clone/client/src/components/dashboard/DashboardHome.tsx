@@ -198,18 +198,12 @@ const DashboardHome: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
       const apiUrl = IS_DEVELOPMENT ? '/api/thumbnails/generate' : `${API_BASE_URL}/api/thumbnails/generate`;
       const response = await fetch(apiUrl, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           videoUrl: videoLink,

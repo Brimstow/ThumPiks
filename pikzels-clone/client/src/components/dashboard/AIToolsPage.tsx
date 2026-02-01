@@ -197,13 +197,13 @@ const AIToolsPage: React.FC = () => {
     if (!prompt.trim()) return;
     
     try {
-      // Call backend API endpoint instead of using OpenRouter directly
+      // Call backend API endpoint with cookies for authentication
       const response = await fetch('/api/thumbnails/generate', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies for authentication
         body: JSON.stringify({
           prompt,
           style,
