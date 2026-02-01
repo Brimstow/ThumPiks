@@ -14,15 +14,15 @@ let sharedImageProcessingService: ImageProcessingService;
 
 // Initialize services (can be overridden in tests)
 export const initializeServices = (
-  prismaClient?: PrismaClient,
+  prismaClient?: PrismaClient, 
   cacheService?: any,
   eventDependencies?: any
 ) => {
   sharedPrisma = prismaClient || new PrismaClient();
-  sharedThumbnailService = new ThumbnailService({
+  sharedThumbnailService = new ThumbnailService({ 
     prisma: sharedPrisma,
     cache: cacheService,
-    ...eventDependencies,
+    ...eventDependencies
   });
   sharedImageProcessingService = new ImageProcessingService();
 };
@@ -60,12 +60,7 @@ const openRouterService = new OpenRouterAIService();
 // AI service wrapper with proper interface
 const aiService = {
   isConfigured: () => !!process.env.OPENROUTER_API_KEY,
-  generateThumbnails: async (options: {
-    userId?: string;
-    prompt: string;
-    style?: string;
-    count?: number;
-  }) => {
+  generateThumbnails: async (options: { userId?: string; prompt: string; style?: string; count?: number }) => {
     try {
       const images = await openRouterService.generateImages(
         options.prompt,
@@ -77,7 +72,7 @@ const aiService = {
       console.error('AI thumbnail generation error:', error);
       return [];
     }
-  },
+  }
 };
 
 // Export all the controller methods
@@ -134,34 +129,19 @@ export const getThumbnails = async (req: AuthRequest, res: Response) => {
     if (search) filters.search = String(search);
     if (projectId) filters.projectId = String(projectId);
     if (sortBy) filters.sortBy = String(sortBy);
-    if (sortOrder === 'asc' || sortOrder === 'desc')
-      filters.sortOrder = sortOrder;
+    if (sortOrder === 'asc' || sortOrder === 'desc') filters.sortOrder = sortOrder;
     if (style) filters.style = String(style);
     if (dateFrom) filters.dateFrom = new Date(String(dateFrom));
     if (dateTo) filters.dateTo = new Date(String(dateTo));
 
-    const thumbnails = await getThumbnailService().getThumbnailsByUser(
-      req.user.id,
-      filters
-    );
+    const thumbnails = await getThumbnailService().getThumbnailsByUser(req.user.id, filters);
 
     return res.status(200).json({ thumbnails });
   } catch (error) {
     console.error('Error fetching thumbnails:', error);
-    console.error(
-      'Error stack:',
-      error instanceof Error ? error.stack : 'No stack trace'
-    );
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : String(error),
-      userId: req.user?.id,
-    });
-    return res
-      .status(500)
-      .json({
-        error: 'Internal server error',
-        debug: process.env.NODE_ENV === 'test' ? String(error) : undefined,
-      });
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', { message: error instanceof Error ? error.message : String(error), userId: req.user?.id });
+    return res.status(500).json({ error: 'Internal server error', debug: process.env.NODE_ENV === 'test' ? String(error) : undefined });
   }
 };
 
@@ -204,7 +184,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
-
+    
     const { title, imageUrl, prompt, parameters } = req.body;
 
     const thumbnail = await getThumbnailService().getThumbnailById(id);
@@ -264,10 +244,7 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
 
 export const generateThumbnail = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('🎬 generateThumbnail called', {
-      body: req.body,
-      hasUser: !!req.user,
-    });
+    console.log('🎬 generateThumbnail called', { body: req.body, hasUser: !!req.user });
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -278,22 +255,20 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     if (videoUrl) {
       try {
         // Import video proxy service
-        const { videoProxyService } = await import(
-          '../video-proxy/video-proxy.service'
-        );
-
+        const { videoProxyService } = await import('../video-proxy/video-proxy.service');
+        
         // Get video info from YouTube
         const videoInfo = await videoProxyService.getVideoInfo(videoUrl);
-
+        
         // Find or create default project for this user
         const prisma = getPrisma();
         let defaultProject = await prisma.project.findFirst({
           where: {
             userId: req.user.id,
-            name: 'Default',
-          },
+            name: 'Default'
+          }
         });
-
+        
         if (!defaultProject) {
           const { v4: uuidv4 } = await import('uuid');
           defaultProject = await prisma.project.create({
@@ -303,10 +278,10 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               description: 'Default project for quick generations',
               userId: req.user.id,
               updatedAt: new Date(),
-            },
+            }
           });
         }
-
+        
         // Create thumbnail with video metadata
         const thumbnail = await getThumbnailService().createThumbnail({
           title: videoInfo.title,
@@ -322,86 +297,52 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           projectId: projectId || defaultProject.id,
           userId: req.user.id,
         });
-
+        
         // Emit analytics event
-        emitAnalyticsEvent(req.user.id, 'generate', 'thumbnail', thumbnail.id, {
-          source: 'video-url',
-          platform: videoInfo.platform,
-          videoUrl: videoUrl,
-          videoId: videoInfo.videoId,
-        });
-
+        emitAnalyticsEvent(
+          req.user.id,
+          'generate',
+          'thumbnail',
+          thumbnail.id,
+          {
+            source: 'video-url',
+            platform: videoInfo.platform,
+            videoUrl: videoUrl,
+            videoId: videoInfo.videoId,
+          }
+        );
+        
         return res.status(201).json({
           success: true,
           thumbnailId: thumbnail.id,
           thumbnailUrl: thumbnail.imageUrl,
           message: 'Thumbnail generated successfully from video',
-          thumbnail,
+          thumbnail
         });
       } catch (videoError) {
         console.error('Error processing video URL:', videoError);
         return res.status(400).json({
           success: false,
           error: 'Failed to process video URL',
-          message:
-            videoError instanceof Error
-              ? videoError.message
-              : 'Invalid video URL',
+          message: videoError instanceof Error ? videoError.message : 'Invalid video URL'
         });
       }
     }
 
     // Original prompt-based generation
     // Validate required fields
-    if (!prompt) {
+    if (!prompt || !projectId) {
       return res.status(400).json({
-        error: 'Prompt is required',
+        error: 'Prompt and projectId are required',
       });
     }
 
     // Validate style if provided
-    const validStyles = [
-      'bold',
-      'minimalist',
-      'dramatic',
-      'cinematic',
-      'professional',
-      'creative',
-      'gaming',
-    ];
+    const validStyles = ['bold', 'minimalist', 'dramatic', 'cinematic', 'professional', 'creative', 'gaming'];
     if (style && !validStyles.includes(style.toLowerCase())) {
       return res.status(400).json({
-        error:
-          'Invalid style. Must be one of: bold, minimalist, dramatic, cinematic, professional, creative, gaming',
+        error: 'Invalid style. Must be one of: bold, minimalist, dramatic, cinematic, professional, creative, gaming',
       });
-    }
-
-    // Find or create default project if projectId is not provided or invalid
-    const prisma = getPrisma();
-    let targetProjectId = projectId;
-
-    if (!targetProjectId || targetProjectId === 'temp-project-id') {
-      let defaultProject = await prisma.project.findFirst({
-        where: {
-          userId: req.user.id,
-          name: 'Default',
-        },
-      });
-
-      if (!defaultProject) {
-        const { v4: uuidv4 } = await import('uuid');
-        defaultProject = await prisma.project.create({
-          data: {
-            id: uuidv4(),
-            name: 'Default',
-            description: 'Default project for quick generations',
-            userId: req.user.id,
-            updatedAt: new Date(),
-          },
-        });
-      }
-
-      targetProjectId = defaultProject.id;
     }
 
     // Check if AI service is configured
@@ -412,7 +353,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           userId: req.user.id,
           prompt,
           style: style || 'bold',
-          count: 3,
+          count: 3
         });
 
         // Generate 3 variations
@@ -427,7 +368,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               variation: i + 1,
               aiGenerated: true,
             },
-            projectId: targetProjectId,
+            projectId,
             userId: req.user.id,
           });
           thumbnails.push(thumbnail);
@@ -460,7 +401,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               aiError:
                 aiError instanceof Error ? aiError.message : String(aiError),
             },
-            projectId: targetProjectId,
+            projectId,
             userId: req.user.id,
           });
           thumbnails.push(thumbnail);
@@ -489,7 +430,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             aiGenerated: false,
             aiNotConfigured: true,
           },
-          projectId: targetProjectId,
+          projectId,
           userId: req.user.id,
         });
         thumbnails.push(thumbnail);
@@ -532,14 +473,18 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
     }
 
     // Create the analytics event with proper object structure
-    emitAnalyticsEvent(req.user.id, 'download', 'thumbnail', id, {
-      downloadType: 'direct',
-    });
+    emitAnalyticsEvent(
+      req.user.id,
+      'download',
+      'thumbnail',
+      id,
+      { downloadType: 'direct' }
+    );
 
     // Download logic here - normally would serve file
-    return res.status(200).json({
+    return res.status(200).json({ 
       downloadUrl: `/api/thumbnails/${id}/file`,
-      message: 'Download started',
+      message: 'Download started' 
     });
   } catch (error) {
     console.error('Error downloading thumbnail:', error);
@@ -638,9 +583,10 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
     }
 
     // Style transfer logic here
-    const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
-      parameters: { styleTransfer: true },
-    });
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(
+      id,
+      { parameters: { styleTransfer: true } }
+    );
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
   } catch (error) {
@@ -676,9 +622,10 @@ export const applyImageEnhancement = async (
     }
 
     // Image enhancement logic here
-    const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
-      parameters: { imageEnhancement: true },
-    });
+    const updatedThumbnail = await getThumbnailService().updateThumbnail(
+      id,
+      { parameters: { imageEnhancement: true } }
+    );
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
   } catch (error) {
@@ -698,7 +645,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
-
+    
     const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
@@ -805,7 +752,7 @@ export const revokeShareLink = async (req: AuthRequest, res: Response) => {
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
-
+    
     const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
@@ -849,7 +796,7 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
-
+    
     const thumbnail = await getThumbnailService().getThumbnailById(id);
 
     if (!thumbnail) {
@@ -887,19 +834,11 @@ export const getAvailableStyles = async (_req: Request, res: Response) => {
     // Mock available styles - replace with real AI service
     const styles = [
       { id: 'bold', name: 'Bold', description: 'Bold and impactful style' },
-      {
-        id: 'minimal',
-        name: 'Minimal',
-        description: 'Clean and minimal design',
-      },
+      { id: 'minimal', name: 'Minimal', description: 'Clean and minimal design' },
       { id: 'colorful', name: 'Colorful', description: 'Vibrant and colorful' },
-      {
-        id: 'professional',
-        name: 'Professional',
-        description: 'Business-ready style',
-      },
+      { id: 'professional', name: 'Professional', description: 'Business-ready style' },
     ];
-
+    
     return res.status(200).json({ styles });
   } catch (error) {
     console.error('Error fetching available styles:', error);
@@ -915,16 +854,12 @@ export const getAvailableEnhancements = async (
   try {
     // Mock available enhancements - replace with real AI service
     const enhancements = [
-      {
-        id: 'upscale',
-        name: 'Upscale',
-        description: 'Increase image resolution',
-      },
+      { id: 'upscale', name: 'Upscale', description: 'Increase image resolution' },
       { id: 'enhance', name: 'Enhance', description: 'Improve image quality' },
       { id: 'colorize', name: 'Colorize', description: 'Add vibrant colors' },
       { id: 'stylize', name: 'Stylize', description: 'Apply artistic styles' },
     ];
-
+    
     return res.status(200).json({ enhancements });
   } catch (error) {
     console.error('Error fetching available enhancements:', error);
