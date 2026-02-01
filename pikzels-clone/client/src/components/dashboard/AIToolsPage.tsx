@@ -47,12 +47,9 @@ interface AITool {
 // ============================================
 
 const stylePresets = [
-  { id: 'cinematic', label: 'Cinematic', icon: '🎬' },
-  { id: 'minimalist', label: 'Minimalist', icon: '⬜' },
   { id: 'bold', label: 'Bold & Vibrant', icon: '🔥' },
-  { id: 'professional', label: 'Professional', icon: '💼' },
-  { id: 'creative', label: 'Creative', icon: '🎨' },
-  { id: 'gaming', label: 'Gaming', icon: '🎮' },
+  { id: 'minimalist', label: 'Minimalist', icon: '⬜' },
+  { id: 'dramatic', label: 'Dramatic', icon: '🎬' },
 ];
 
 const aspectRatios: { value: AIGenerateRequest['aspectRatio']; label: string }[] = [
@@ -99,7 +96,7 @@ const AIToolsPage: React.FC = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [style, setStyle] = useState('cinematic');
+  const [style, setStyle] = useState('bold');
   const [aspectRatio, setAspectRatio] = useState<AIGenerateRequest['aspectRatio']>('16:9');
   const [enhanceType, setEnhanceType] = useState<'auto' | 'sharpen' | 'denoise' | 'color'>('auto');
   const [upscaleScale, setUpscaleScale] = useState<2 | 4>(2);
