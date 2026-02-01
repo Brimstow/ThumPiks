@@ -197,7 +197,7 @@ const AIToolsPage: React.FC = () => {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || ai.isLoading) return;
     
     try {
       // Call backend API endpoint with cookies for authentication
@@ -228,10 +228,10 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Generate failed:', error);
     }
-  }, [prompt, style]);
+  }, [prompt, style, ai.isLoading]);
 
   const handleRemoveBackground = useCallback(async () => {
-    if (!uploadedImage) return;
+    if (!uploadedImage || ai.isLoading) return;
     
     try {
       if (worker.isReady) {
@@ -250,10 +250,10 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Remove background failed:', error);
     }
-  }, [uploadedImage, worker, aiService]);
+  }, [uploadedImage, worker, aiService, ai.isLoading]);
 
   const handleEnhance = useCallback(async () => {
-    if (!uploadedImage) return;
+    if (!uploadedImage || ai.isLoading) return;
     
     try {
       if (worker.isReady) {
@@ -280,10 +280,10 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Enhance failed:', error);
     }
-  }, [uploadedImage, enhanceType, worker, aiService]);
+  }, [uploadedImage, enhanceType, worker, aiService, ai.isLoading]);
 
   const handleUpscale = useCallback(async () => {
-    if (!uploadedImage) return;
+    if (!uploadedImage || ai.isLoading) return;
     
     try {
       const result = await aiService.upscale({
@@ -297,10 +297,10 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Upscale failed:', error);
     }
-  }, [uploadedImage, upscaleScale, aiService]);
+  }, [uploadedImage, upscaleScale, aiService, ai.isLoading]);
 
   const handleFaceSwap = useCallback(async () => {
-    if (!uploadedImage || !faceSwapSource) return;
+    if (!uploadedImage || !faceSwapSource || ai.isLoading) return;
     
     try {
       const result = await aiService.faceSwap({
@@ -314,10 +314,10 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Face swap failed:', error);
     }
-  }, [uploadedImage, faceSwapSource, aiService]);
+  }, [uploadedImage, faceSwapSource, aiService, ai.isLoading]);
 
   const handleInpaint = useCallback(async () => {
-    if (!uploadedImage || !prompt.trim()) return;
+    if (!uploadedImage || !prompt.trim() || ai.isLoading) return;
     
     try {
       // Inpaint uses the prompt to describe what to add/change in the image
@@ -335,7 +335,7 @@ const AIToolsPage: React.FC = () => {
     } catch (error) {
       console.error('Inpaint failed:', error);
     }
-  }, [uploadedImage, prompt, aiService]);
+  }, [uploadedImage, prompt, aiService, ai.isLoading]);
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
