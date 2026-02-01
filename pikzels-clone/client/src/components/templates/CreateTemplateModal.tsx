@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authGet, authPost } from '../../utils/api';
 
 interface CreateTemplateModalProps {
   thumbnailId: string;
@@ -26,17 +27,8 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
       // Get the thumbnail details to extract parameters
-      const thumbnailResponse = await fetch(`/api/thumbnails/${thumbnailId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const thumbnailResponse = await authGet(`/api/thumbnails/${thumbnailId}`);
 
       if (!thumbnailResponse.ok) {
         throw new Error('Failed to fetch thumbnail details');
@@ -44,23 +36,16 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({
 
       const thumbnailData = await thumbnailResponse.json();
 
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          thumbnailId,
-          parameters: thumbnailData.thumbnail.parameters,
-          tags: tags
-            .split(',')
-            .map(tag => tag.trim())
-            .filter(tag => tag),
-          isPublic,
-        }),
+      const response = await authPost('/api/templates', {
+        name,
+        description,
+        thumbnailId,
+        parameters: thumbnailData.thumbnail.parameters,
+        tags: tags
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(tag => tag),
+        isPublic,
       });
 
       if (!response.ok) {

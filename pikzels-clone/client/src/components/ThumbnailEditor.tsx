@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SocialShareModal from './SocialShareModal'; // Add this import
 import CreateTemplateModal from './templates/CreateTemplateModal'; // Add this import
+import { authPost } from '../utils/api';
 
 interface Thumbnail {
   id: string;
@@ -425,23 +426,11 @@ const ThumbnailEditor: React.FC<ThumbnailEditorProps> = ({
 
   // Add this function for performing the actual share
   const performSocialShare = async (platforms: string[], message: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
     try {
-      const response = await fetch('/api/social-share/share', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          thumbnailId: thumbnail.id,
-          platforms,
-          message,
-        }),
+      const response = await authPost('/api/social-share/share', {
+        thumbnailId: thumbnail.id,
+        platforms,
+        message,
       });
 
       if (response.ok) {

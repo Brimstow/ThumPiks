@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { authGet, authFetch } from '../utils/api';
 
 interface UserSettings {
   theme?: 'light' | 'dark';
@@ -38,16 +39,8 @@ const UserSettings: React.FC = () => {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
 
-      const response = await fetch('/api/user/settings', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authGet('/api/user/settings');
 
       if (!response.ok) {
         throw new Error('Failed to fetch settings');
@@ -69,17 +62,8 @@ const UserSettings: React.FC = () => {
       setError('');
       setSuccess(false);
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      const response = await fetch('/api/user/settings', {
+      const response = await authFetch('/api/user/settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ settings }),
       });
 

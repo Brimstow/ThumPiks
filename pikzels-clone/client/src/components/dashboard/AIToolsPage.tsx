@@ -104,6 +104,8 @@ const AIToolsPage: React.FC = () => {
   const [enhanceType, setEnhanceType] = useState<'auto' | 'sharpen' | 'denoise' | 'color'>('auto');
   const [upscaleScale, setUpscaleScale] = useState<2 | 4>(2);
   const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
@@ -197,7 +199,10 @@ const AIToolsPage: React.FC = () => {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim() || ai.isLoading) return;
+    if (!prompt.trim() || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
       // Call backend API endpoint with cookies for authentication
@@ -227,115 +232,197 @@ const AIToolsPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Generate failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Failed to generate image');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [prompt, style, ai.isLoading]);
+  }, [prompt, style, ai.isLoading, isGenerating]);
 
   const handleRemoveBackground = useCallback(async () => {
-    if (!uploadedImage || ai.isLoading) return;
+    if (!uploadedImage || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
-      if (worker.isReady) {
-        // Use Web Worker (non-blocking)
-        const result = await worker.execute('removeBackground', { image: uploadedImage });
-        if (result.imageBase64) {
-          setResultImage(`data:image/png;base64,${result.imageBase64}`);
-        }
-      } else {
-        // Fallback to main thread
-        const result = await aiService.removeBackground({ image: uploadedImage });
-        if (result.success && result.imageBase64) {
-          setResultImage(`data:image/png;base64,${result.imageBase64}`);
-        }
+      // Call backend OpenRouter API (auth via HttpOnly cookie)
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/remove-background`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Send HttpOnly cookies for auth
+        body: JSON.stringify({
+          image: uploadedImage,
+          backgroundColor: 'transparent',
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove background');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Remove background failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Remove background failed');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [uploadedImage, worker, aiService, ai.isLoading]);
+  }, [uploadedImage, ai.isLoading, isGenerating]);
 
   const handleEnhance = useCallback(async () => {
-    if (!uploadedImage || ai.isLoading) return;
+    if (!uploadedImage || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
-      if (worker.isReady) {
-        // Use Web Worker (non-blocking)
-        const result = await worker.execute('enhance', {
+      // Call backend OpenRouter API (auth via HttpOnly cookie)
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/enhance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Send HttpOnly cookies for auth
+        body: JSON.stringify({
           image: uploadedImage,
-          type: enhanceType,
-          strength: 0.7,
-        });
-        if (result.imageBase64) {
-          setResultImage(`data:image/png;base64,${result.imageBase64}`);
-        }
-      } else {
-        // Fallback to main thread
-        const result = await aiService.enhance({
-          image: uploadedImage,
-          type: enhanceType,
-          strength: 0.7,
-        });
-        if (result.success && result.imageBase64) {
-          setResultImage(`data:image/png;base64,${result.imageBase64}`);
-        }
+          enhancementType: enhanceType,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to enhance image');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Enhance failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Enhance failed');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [uploadedImage, enhanceType, worker, aiService, ai.isLoading]);
+  }, [uploadedImage, enhanceType, ai.isLoading, isGenerating]);
 
   const handleUpscale = useCallback(async () => {
-    if (!uploadedImage || ai.isLoading) return;
+    if (!uploadedImage || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
-      const result = await aiService.upscale({
-        image: uploadedImage,
-        scale: upscaleScale,
+      // Call backend OpenRouter API (FLUX.2 Max model, auth via HttpOnly cookie)
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/upscale`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Send HttpOnly cookies for auth
+        body: JSON.stringify({
+          image: uploadedImage,
+          scale: upscaleScale === 2 ? '2x' : '4x',
+        }),
       });
       
-      if (result.success && (result.imageUrl || result.imageBase64)) {
-        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upscale image');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Upscale failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Upscale failed');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [uploadedImage, upscaleScale, aiService, ai.isLoading]);
+  }, [uploadedImage, upscaleScale, ai.isLoading, isGenerating]);
 
   const handleFaceSwap = useCallback(async () => {
-    if (!uploadedImage || !faceSwapSource || ai.isLoading) return;
+    if (!uploadedImage || !faceSwapSource || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
-      const result = await aiService.faceSwap({
-        sourceImage: faceSwapSource,
-        targetImage: uploadedImage,
+      // Call backend OpenRouter API (ByteDance Seedream 4.5 model, auth via HttpOnly cookie)
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/face-swap`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Send HttpOnly cookies for auth
+        body: JSON.stringify({
+          sourceImage: faceSwapSource,
+          targetImage: uploadedImage,
+        }),
       });
       
-      if (result.success && (result.imageUrl || result.imageBase64)) {
-        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to swap faces');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Face swap failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Face swap failed');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [uploadedImage, faceSwapSource, aiService, ai.isLoading]);
+  }, [uploadedImage, faceSwapSource, ai.isLoading, isGenerating]);
 
   const handleInpaint = useCallback(async () => {
-    if (!uploadedImage || !prompt.trim() || ai.isLoading) return;
+    if (!uploadedImage || !prompt.trim() || ai.isLoading || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
     
     try {
-      // Inpaint uses the prompt to describe what to add/change in the image
-      // For now, we'll use a simple mask approach (full image context)
-      const result = await aiService.inpaint({
-        image: uploadedImage,
-        mask: uploadedImage, // In a full implementation, this would be a user-drawn mask
-        prompt: prompt,
-        strength: 0.8,
+      // Call backend OpenRouter API (Gemini 3 Pro model, auth via HttpOnly cookie)
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/inpaint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Send HttpOnly cookies for auth
+        body: JSON.stringify({
+          image: uploadedImage,
+          mask: '', // For now, we use prompt-only inpainting
+          prompt: prompt,
+        }),
       });
       
-      if (result.success && (result.imageUrl || result.imageBase64)) {
-        setResultImage(result.imageUrl || `data:image/png;base64,${result.imageBase64}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to inpaint image');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Inpaint failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Inpaint failed');
+    } finally {
+      setIsGenerating(false);
     }
-  }, [uploadedImage, prompt, aiService, ai.isLoading]);
+  }, [uploadedImage, prompt, ai.isLoading, isGenerating]);
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
@@ -403,25 +490,28 @@ const AIToolsPage: React.FC = () => {
               key={tool.id}
               className="group relative bg-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 cursor-pointer overflow-hidden"
               onClick={() => setSelectedTool(tool.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setSelectedTool(tool.id)}
             >
-              {/* Gradient background effect */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${tool.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
+              {/* Gradient background effect - z-0 keeps it behind content */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${tool.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300 pointer-events-none z-0`} />
               
-              {/* Icon */}
-              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} p-3 mb-4 shadow-lg shadow-black/20 flex items-center justify-center text-white`}>
+              {/* Icon - z-10 ensures it's above the overlay */}
+              <div className={`relative z-10 w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} p-3 mb-4 shadow-lg shadow-black/20 flex items-center justify-center text-white`}>
                 {tool.icon}
               </div>
 
               {/* Content */}
-              <h3 className="text-xl font-semibold mb-2 text-slate-100 group-hover:text-white transition-colors">
+              <h3 className="relative z-10 text-xl font-semibold mb-2 text-slate-100 group-hover:text-white transition-colors">
                 {tool.name}
               </h3>
-              <p className="text-slate-400 text-sm mb-4 line-clamp-2">
+              <p className="relative z-10 text-slate-400 text-sm mb-4 line-clamp-2">
                 {tool.description}
               </p>
 
               {/* Features */}
-              <div className="space-y-2 mb-4">
+              <div className="relative z-10 space-y-2 mb-4">
                 {tool.features.slice(0, 3).map((feature, idx) => (
                   <div key={idx} className="flex items-center text-xs text-slate-500">
                     <div className={`w-1 h-1 rounded-full bg-gradient-to-r ${tool.color} mr-2`} />
@@ -431,12 +521,12 @@ const AIToolsPage: React.FC = () => {
               </div>
 
               {/* Cost & Action */}
-              <div className="flex items-center justify-between">
+              <div className="relative z-10 flex items-center justify-between">
                 <span className="text-xs text-slate-500">{tool.apiCost}</span>
-                <button className="flex items-center gap-1 text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
+                <span className="flex items-center gap-1 text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
                   <span>Use Tool</span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
+                </span>
               </div>
             </div>
           ))}
@@ -695,6 +785,7 @@ const AIToolsPage: React.FC = () => {
                 onClick={handleProcessTool}
                 disabled={
                   ai.isLoading || 
+                  isGenerating ||
                   (selectedTool === 'generate' && !prompt.trim()) ||
                   (selectedTool === 'inpaint' && !prompt.trim()) ||
                   (currentTool.requiresImage && !uploadedImage) ||
@@ -702,7 +793,7 @@ const AIToolsPage: React.FC = () => {
                 }
                 className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
               >
-                {ai.isLoading ? (
+                {(ai.isLoading || isGenerating) ? (
                   <>
                     <RefreshCw className="w-5 h-5 animate-spin" />
                     Processing...
@@ -716,10 +807,10 @@ const AIToolsPage: React.FC = () => {
               </button>
 
               {/* Error Display */}
-              {ai.error && (
+              {(ai.error || generateError) && (
                 <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span>{ai.error}</span>
+                  <span>{ai.error || generateError}</span>
                 </div>
               )}
             </div>
@@ -744,7 +835,7 @@ const AIToolsPage: React.FC = () => {
               <div className="aspect-video bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden flex items-center justify-center">
                 {resultImage ? (
                   <img src={resultImage} alt="Result" className="w-full h-full object-contain" />
-                ) : ai.isLoading ? (
+                ) : (ai.isLoading || isGenerating) ? (
                   <div className="flex flex-col items-center gap-3 text-slate-500">
                     <RefreshCw className="w-10 h-10 animate-spin" />
                     <span className="text-sm">Processing your image...</span>
@@ -758,7 +849,7 @@ const AIToolsPage: React.FC = () => {
               </div>
 
               {/* Success message */}
-              {resultImage && !ai.isLoading && (
+              {resultImage && !ai.isLoading && !isGenerating && (
                 <div className="flex items-center gap-2 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 text-sm">
                   <Check className="w-5 h-5" />
                   <span>Image processed successfully!</span>

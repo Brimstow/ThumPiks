@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw } from 'lucide-react';
 import { IS_DEVELOPMENT, API_BASE_URL } from '../../config/environment';
+import { authGet } from '../../utils/api';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -141,14 +142,6 @@ const MyThumbnailsPage: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════
 
   const fetchThumbnails = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      setError('Authentication required. Please log in.');
-      setLoading(false);
-      return;
-    }
-
     try {
       setError(null);
       
@@ -162,12 +155,7 @@ const MyThumbnailsPage: React.FC = () => {
         ? `/api/thumbnails?${queryParams.toString()}`
         : `${API_BASE_URL}/api/thumbnails?${queryParams.toString()}`;
 
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await authGet(apiUrl);
 
       if (!response.ok) {
         if (response.status === 401) {

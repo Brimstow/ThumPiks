@@ -9,3 +9,8 @@ coverage
 .env
 .env.local
 .env.*.local
+client
+docs
+*.test.ts
+*.spec.ts
+nul

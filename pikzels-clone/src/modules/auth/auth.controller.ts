@@ -27,25 +27,30 @@ export const register = async (req: Request, res: Response) => {
 
     const result = await authService.register(username, email, name, password);
 
+    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction, // Required for sameSite: 'none'
+      sameSite: isProduction ? 'none' as const : 'strict' as const, // 'none' required for cross-origin cookies
+    };
+
     // Set HttpOnly cookie for access token
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     // Set HttpOnly cookie for refresh token
     if (result.refreshToken) {
       res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOptions,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
     }
 
     // Return user info without tokens in response body
+    // Tokens are stored securely in HttpOnly cookies (set above)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, refreshToken, ...userResponse } = result;
     return res.status(201).json(userResponse);
@@ -96,26 +101,31 @@ export const login = async (req: Request, res: Response) => {
 
     const result = await authService.login(loginIdentifier, password);
 
+    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction, // Required for sameSite: 'none'
+      sameSite: isProduction ? 'none' as const : 'strict' as const, // 'none' required for cross-origin cookies
+    };
+
     // Set HttpOnly cookie for access token
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     // Set HttpOnly cookie for refresh token
     if (result.refreshToken) {
       res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOptions,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
     }
 
     // Return user info without tokens in response body
-    // eslint-disable-line @typescript-eslint/no-unused-vars
+    // Tokens are stored securely in HttpOnly cookies (set above)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, refreshToken, ...userResponse } = result;
     return res.status(200).json(userResponse);
   } catch (error: any) {
@@ -156,17 +166,17 @@ export const login = async (req: Request, res: Response) => {
  */
 export const logout = async (_req: Request, res: Response) => {
   try {
+    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' as const : 'strict' as const,
+    };
+
     // Clear authentication cookies
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    });
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    });
+    res.clearCookie('token', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
 
     return res.status(200).json({
       success: true,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authGet, authFetch } from '../../utils/api';
 
 interface Project {
   id: string;
@@ -25,17 +26,7 @@ const ProjectsList: React.FC = () => {
 
   const fetchProjects = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch('/api/projects', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authGet('/api/projects');
 
       if (response.ok) {
         const data = await response.json();
@@ -57,17 +48,8 @@ const ProjectsList: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await authFetch(`/api/projects/${projectId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (response.ok) {

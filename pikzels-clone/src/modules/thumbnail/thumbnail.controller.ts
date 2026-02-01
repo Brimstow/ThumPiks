@@ -331,9 +331,9 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
 
     // Original prompt-based generation
     // Validate required fields
-    if (!prompt || !projectId) {
+    if (!prompt) {
       return res.status(400).json({
-        error: 'Prompt and projectId are required',
+        error: 'Prompt is required',
       });
     }
 
@@ -343,6 +343,69 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         error: 'Invalid style. Must be one of: bold, minimalist, dramatic, cinematic, professional, creative, gaming',
       });
+    }
+
+    // Get or create a valid project ID
+    let validProjectId = projectId;
+    
+    // If projectId is missing, invalid, or a placeholder, create/find default project
+    if (!projectId || projectId === 'temp-project-id' || projectId.startsWith('temp-')) {
+      const prisma = getPrisma();
+      let defaultProject = await prisma.project.findFirst({
+        where: {
+          userId: req.user.id,
+          name: 'AI Generated'
+        }
+      });
+      
+      if (!defaultProject) {
+        const { v4: uuidv4 } = await import('uuid');
+        defaultProject = await prisma.project.create({
+          data: {
+            id: uuidv4(),
+            name: 'AI Generated',
+            description: 'Auto-created project for AI-generated thumbnails',
+            userId: req.user.id,
+            updatedAt: new Date(),
+          }
+        });
+        console.log('Created default AI project:', defaultProject.id);
+      }
+      validProjectId = defaultProject.id;
+    } else {
+      // Verify the provided projectId exists and belongs to user
+      const prisma = getPrisma();
+      const existingProject = await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          userId: req.user.id
+        }
+      });
+      
+      if (!existingProject) {
+        // Project doesn't exist or doesn't belong to user, create default
+        let defaultProject = await prisma.project.findFirst({
+          where: {
+            userId: req.user.id,
+            name: 'AI Generated'
+          }
+        });
+        
+        if (!defaultProject) {
+          const { v4: uuidv4 } = await import('uuid');
+          defaultProject = await prisma.project.create({
+            data: {
+              id: uuidv4(),
+              name: 'AI Generated',
+              description: 'Auto-created project for AI-generated thumbnails',
+              userId: req.user.id,
+              updatedAt: new Date(),
+            }
+          });
+        }
+        validProjectId = defaultProject.id;
+        console.log('Using default project instead of invalid projectId:', projectId);
+      }
     }
 
     // Check if AI service is configured
@@ -368,7 +431,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               variation: i + 1,
               aiGenerated: true,
             },
-            projectId,
+            projectId: validProjectId,
             userId: req.user.id,
           });
           thumbnails.push(thumbnail);
@@ -401,7 +464,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               aiError:
                 aiError instanceof Error ? aiError.message : String(aiError),
             },
-            projectId,
+            projectId: validProjectId,
             userId: req.user.id,
           });
           thumbnails.push(thumbnail);
@@ -430,7 +493,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             aiGenerated: false,
             aiNotConfigured: true,
           },
-          projectId,
+          projectId: validProjectId,
           userId: req.user.id,
         });
         thumbnails.push(thumbnail);
@@ -863,6 +926,320 @@ export const getAvailableEnhancements = async (
     return res.status(200).json({ enhancements });
   } catch (error) {
     console.error('Error fetching available enhancements:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// =============================================================================
+// AI TOOL ENDPOINTS - Using OpenRouter with tool-specific models
+// =============================================================================
+
+/**
+ * Inpaint (edit) an image - modify specific areas while preserving the rest
+ * Model: google/gemini-3-pro-image-preview (configurable via OPENROUTER_MODEL_INPAINT)
+ */
+export const aiInpaint = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, mask, prompt } = req.body;
+
+    if (!image || !prompt) {
+      return res.status(400).json({
+        error: 'Image and prompt are required',
+      });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    const model = openRouterService.getModelForTool('inpaint');
+    console.log(`[AI Inpaint] Using model: ${model}`);
+
+    const imageUrls = await openRouterService.inpaintImage(image, mask || '', prompt);
+
+    // Emit analytics event
+    emitAnalyticsEvent(
+      req.user.id,
+      'ai-tool',
+      'inpaint',
+      'ai-inpaint',
+      { model, promptLength: prompt.length }
+    );
+
+    return res.status(200).json({
+      success: true,
+      images: imageUrls,
+      model,
+    });
+  } catch (error) {
+    console.error('Error in AI inpaint:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI inpaint failed',
+    });
+  }
+};
+
+/**
+ * Face swap - replace face in target image with face from source image
+ * Model: bytedance-seed/seedream-4.5 (configurable via OPENROUTER_MODEL_FACESWAP)
+ */
+export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { sourceImage, targetImage, prompt } = req.body;
+
+    if (!sourceImage || !targetImage) {
+      return res.status(400).json({
+        error: 'Source image and target image are required',
+      });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    const model = openRouterService.getModelForTool('faceSwap');
+    console.log(`[AI Face Swap] Using model: ${model}`);
+
+    const imageUrls = await openRouterService.faceSwapImage(
+      sourceImage,
+      targetImage,
+      prompt || ''
+    );
+
+    // Emit analytics event
+    emitAnalyticsEvent(
+      req.user.id,
+      'ai-tool',
+      'face-swap',
+      'ai-face-swap',
+      { model }
+    );
+
+    return res.status(200).json({
+      success: true,
+      images: imageUrls,
+      model,
+    });
+  } catch (error) {
+    console.error('Error in AI face swap:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI face swap failed',
+    });
+  }
+};
+
+/**
+ * Upscale - increase image resolution with AI enhancement
+ * Model: black-forest-labs/flux.2-max (configurable via OPENROUTER_MODEL_UPSCALE)
+ */
+export const aiUpscale = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, scale = '2x' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    // Validate scale
+    if (scale !== '2x' && scale !== '4x') {
+      return res.status(400).json({
+        error: 'Scale must be "2x" or "4x"',
+      });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    const model = openRouterService.getModelForTool('upscale');
+    console.log(`[AI Upscale] Using model: ${model}, scale: ${scale}`);
+
+    const imageUrls = await openRouterService.upscaleImage(image, scale);
+
+    // Emit analytics event
+    emitAnalyticsEvent(
+      req.user.id,
+      'ai-tool',
+      'upscale',
+      'ai-upscale',
+      { model, scale }
+    );
+
+    return res.status(200).json({
+      success: true,
+      images: imageUrls,
+      model,
+      scale,
+    });
+  } catch (error) {
+    console.error('Error in AI upscale:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI upscale failed',
+    });
+  }
+};
+
+/**
+ * Remove background - extract subject from background
+ * Model: google/gemini-3-pro-image-preview (uses inpaint model)
+ */
+export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, backgroundColor = 'transparent' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    const model = openRouterService.getModelForTool('inpaint');
+    console.log(`[AI Remove Background] Using model: ${model}`);
+
+    const imageUrls = await openRouterService.removeBackground(image, backgroundColor);
+
+    // Emit analytics event
+    emitAnalyticsEvent(
+      req.user.id,
+      'ai-tool',
+      'remove-background',
+      'ai-remove-background',
+      { model, backgroundColor }
+    );
+
+    return res.status(200).json({
+      success: true,
+      images: imageUrls,
+      model,
+    });
+  } catch (error) {
+    console.error('Error in AI remove background:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI remove background failed',
+    });
+  }
+};
+
+/**
+ * Enhance - improve image quality (color, sharpness, noise reduction)
+ * Model: google/gemini-3-pro-image-preview (uses inpaint model for quality)
+ */
+export const aiEnhance = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, enhancementType = 'auto' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    // Validate enhancement type
+    const validTypes = ['auto', 'color', 'sharpen', 'denoise', 'hdr'];
+    if (!validTypes.includes(enhancementType)) {
+      return res.status(400).json({
+        error: `Enhancement type must be one of: ${validTypes.join(', ')}`,
+      });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    const model = openRouterService.getModelForTool('inpaint');
+    console.log(`[AI Enhance] Using model: ${model}, type: ${enhancementType}`);
+
+    const imageUrls = await openRouterService.enhanceImage(image, enhancementType);
+
+    // Emit analytics event
+    emitAnalyticsEvent(
+      req.user.id,
+      'ai-tool',
+      'enhance',
+      'ai-enhance',
+      { model, enhancementType }
+    );
+
+    return res.status(200).json({
+      success: true,
+      images: imageUrls,
+      model,
+      enhancementType,
+    });
+  } catch (error) {
+    console.error('Error in AI enhance:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI enhance failed',
+    });
+  }
+};
+
+/**
+ * Get AI tool model configurations - shows which models are assigned to each tool
+ */
+export const getAIToolModels = async (_req: Request, res: Response) => {
+  try {
+    const toolModels = {
+      generate: {
+        model: openRouterService.getModelForTool('generate'),
+        description: 'Text-to-image generation',
+      },
+      inpaint: {
+        model: openRouterService.getModelForTool('inpaint'),
+        description: 'Image editing/inpainting',
+      },
+      faceSwap: {
+        model: openRouterService.getModelForTool('faceSwap'),
+        description: 'Face swap with portrait optimization',
+      },
+      upscale: {
+        model: openRouterService.getModelForTool('upscale'),
+        description: 'Image upscaling with detail preservation',
+      },
+    };
+
+    return res.status(200).json({
+      toolModels,
+      configured: openRouterService.isConfigured(),
+    });
+  } catch (error) {
+    console.error('Error fetching AI tool models:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

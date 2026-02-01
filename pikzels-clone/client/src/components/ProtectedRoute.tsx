@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authGet } from '../utils/api';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,29 +13,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        setIsLoading(false);
-        setIsAuthenticated(false);
-        return;
-      }
-
       try {
-        const response = await fetch('/api/user/profile', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // Check auth via HttpOnly cookie
+        const response = await authGet('/api/user/profile');
 
         if (response.ok) {
           setIsAuthenticated(true);
         } else {
-          localStorage.removeItem('token');
           setIsAuthenticated(false);
         }
       } catch (error) {
-        localStorage.removeItem('token');
         setIsAuthenticated(false);
       } finally {
         setIsLoading(false);

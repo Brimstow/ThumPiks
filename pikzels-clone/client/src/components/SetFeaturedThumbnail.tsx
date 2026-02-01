@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { authGet } from '../utils/api';
 
 interface Thumbnail {
   id: string;
@@ -30,15 +31,8 @@ const SetFeaturedThumbnail: React.FC<SetFeaturedThumbnailProps> = ({
 
   useEffect(() => {
     const fetchThumbnails = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
       try {
-        const response = await fetch(`/api/thumbnails?projectId=${projectId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await authGet(`/api/thumbnails?projectId=${projectId}`);
 
         if (response.ok) {
           const data = await response.json();

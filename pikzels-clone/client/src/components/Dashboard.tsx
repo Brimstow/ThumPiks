@@ -9,6 +9,7 @@ import SetFeaturedThumbnail from './SetFeaturedThumbnail';
 import SocialShareModal from './SocialShareModal';
 import { Navigation, StatCard, Button, Card, CardBody } from './ui';
 import { useTheme } from '../contexts/ThemeContext';
+import { authFetch, authGet, authPost } from '../utils/api';
 import './Dashboard.css';
 
 interface User {
@@ -81,26 +82,15 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        navigate('/login', { replace: true });
-        return;
-      }
-
       try {
-        // Fetch user profile
-        const profileResponse = await fetch('/api/user/profile', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        // Fetch user profile (auth via HttpOnly cookie)
+        const profileResponse = await authGet('/api/user/profile');
 
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
           setUser(profileData.user);
         } else {
-          localStorage.removeItem('token');
+          // Not authenticated, redirect to login
           navigate('/login', { replace: true });
           return;
         }
@@ -121,7 +111,6 @@ const Dashboard: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching data:', error);
-        localStorage.removeItem('token');
         navigate('/login', { replace: true });
       } finally {
         setLoading(false);
@@ -132,15 +121,8 @@ const Dashboard: React.FC = () => {
   }, [navigate]);
 
   const fetchProjects = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const projectsResponse = await fetch('/api/projects', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const projectsResponse = await authGet('/api/projects');
 
       if (projectsResponse.ok) {
         const projectsData = await projectsResponse.json();
@@ -152,9 +134,6 @@ const Dashboard: React.FC = () => {
   };
 
   const fetchThumbnails = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
       // Build query string from filters
       const queryParams = new URLSearchParams();
@@ -164,11 +143,7 @@ const Dashboard: React.FC = () => {
         }
       });
 
-      const thumbnailsResponse = await fetch(`/api/thumbnails?${queryParams.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const thumbnailsResponse = await authGet(`/api/thumbnails?${queryParams.toString()}`);
 
       if (thumbnailsResponse.ok) {
         const thumbnailsData = await thumbnailsResponse.json();
@@ -190,26 +165,21 @@ const Dashboard: React.FC = () => {
     setFilters(newFilters);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    try {
+      // Call logout endpoint to clear HttpOnly cookies on server
+      await authPost('/api/auth/logout', {});
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
     navigate('/', { replace: true });
   };
 
   const handleSaveEdits = async (edits: any) => {
     if (!editingThumbnail) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch(`/api/thumbnails/${editingThumbnail.id}/edit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ edits })
-      });
+      const response = await authPost(`/api/thumbnails/${editingThumbnail.id}/edit`, { edits });
 
       if (response.ok) {
         const data = await response.json();
@@ -239,18 +209,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCreateThumbnail = async (prompt: string, style: string, projectId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch('/api/thumbnails/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ prompt, style, projectId })
-      });
+      const response = await authPost('/api/thumbnails/generate', { prompt, style, projectId });
 
       if (response.ok) {
         const data = await response.json();
@@ -285,17 +245,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleGenerateShareLink = async (thumbnailId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch(`/api/thumbnails/${thumbnailId}/share`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authPost(`/api/thumbnails/${thumbnailId}/share`, {});
 
       if (response.ok) {
         const data = await response.json();
@@ -322,17 +273,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleRevokeShareLink = async (thumbnailId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch(`/api/thumbnails/${thumbnailId}/share`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authFetch(`/api/thumbnails/${thumbnailId}/share`, { method: 'DELETE' });
 
       if (response.ok) {
         // Remove the share link from our state
@@ -354,17 +296,10 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSetFeaturedThumbnail = async (projectId: string, thumbnailId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch(`/api/projects/${projectId}/featured-thumbnail`, {
+      const response = await authFetch(`/api/projects/${projectId}/featured-thumbnail`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ thumbnailId })
+        body: JSON.stringify({ thumbnailId }),
       });
 
       if (response.ok) {
@@ -389,21 +324,11 @@ const Dashboard: React.FC = () => {
   const performSocialShare = async (platforms: string[], message: string) => {
     if (!socialShareModal) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     try {
-      const response = await fetch('/api/social-share/share', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          thumbnailId: socialShareModal.thumbnailId,
-          platforms,
-          message
-        })
+      const response = await authPost('/api/social-share/share', {
+        thumbnailId: socialShareModal.thumbnailId,
+        platforms,
+        message
       });
 
       if (response.ok) {

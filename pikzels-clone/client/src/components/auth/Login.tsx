@@ -25,23 +25,17 @@ const Login: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Required for HttpOnly cookies
         body: JSON.stringify({ identifier, password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store token in localStorage (API returns accessToken)
-        localStorage.setItem('token', data.accessToken || data.token);
-
-        // Store user info
+        // Token is stored in HttpOnly cookie by the server (secure)
+        // We only store non-sensitive user info in localStorage for UI purposes
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
-        }
-
-        // Handle remember me
-        if (rememberMe && data.refreshToken) {
-          localStorage.setItem('refreshToken', data.refreshToken);
         }
 
         // Redirect to dashboard

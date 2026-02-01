@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import SocialShareAnalytics from './SocialShareAnalytics';
 import { useNavigate } from 'react-router-dom';
+import { authGet } from '../utils/api';
 
 interface AnalyticsData {
   userAnalytics: {
@@ -68,18 +69,7 @@ const AnalyticsDashboard: React.FC = () => {
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setError('Not authenticated');
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch('/api/analytics/dashboard', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await authGet('/api/analytics/dashboard');
 
         if (response.ok) {
           const data = await response.json();

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { authGet } from '../utils/api';
 
 interface DetailedAdvancedAnalyticsData {
   productivity: {
@@ -72,18 +73,8 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-
-        const response = await fetch(
-          `/api/analytics/comparative?timeframe=${timeframe}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        const response = await authGet(
+          `/api/analytics/comparative?timeframe=${timeframe}`
         );
 
         if (!response.ok) {

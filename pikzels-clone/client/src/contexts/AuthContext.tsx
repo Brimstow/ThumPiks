@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
+import config from '../config/environment';
 
 interface User {
   id: string;
@@ -43,7 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const checkAuth = async () => {
       try {
         // Cookies are sent automatically with credentials: 'include'
-        const response = await fetch('/api/user/profile', {
+        const response = await fetch(`${config.apiBaseUrl}/api/user/profile`, {
           credentials: 'include',
         });
 
@@ -63,7 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -88,7 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const register = async (email: string, password: string, name: string, username: string) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/register`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -114,7 +115,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const logout = async () => {
     try {
       // Call backend logout to clear HttpOnly cookies
-      await fetch('/api/auth/logout', {
+      await fetch(`${config.apiBaseUrl}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

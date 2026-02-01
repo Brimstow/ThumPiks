@@ -6,6 +6,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { authFetch } from '../../utils/api';
 import {
   User,
   CreditCard,
@@ -127,13 +128,8 @@ const AccountPage: React.FC = () => {
     setProfileMessage(null);
     
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/user/profile', {
+      const response = await authFetch('/api/user/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify(profileData),
       });
       
@@ -158,13 +154,8 @@ const AccountPage: React.FC = () => {
     setIsPasswordSaving(true);
     
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/user/password', {
+      const response = await authFetch('/api/user/password', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword,
@@ -189,12 +180,8 @@ const AccountPage: React.FC = () => {
     if (deleteConfirmText !== 'DELETE') return;
     
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/user/account', {
+      const response = await authFetch('/api/user/account', {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
       });
       
       if (response.ok) {

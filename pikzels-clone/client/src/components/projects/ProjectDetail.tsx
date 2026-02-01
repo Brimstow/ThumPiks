@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { authGet } from '../../utils/api';
 
 interface Project {
   id: string;
@@ -28,17 +29,7 @@ const ProjectDetail: React.FC = () => {
 
   const fetchProject = async (projectId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch(`/api/projects/${projectId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authGet(`/api/projects/${projectId}`);
 
       if (response.ok) {
         const data = await response.json();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authGet } from '../utils/api';
 
 interface SocialShareStat {
   platform: string;
@@ -22,16 +23,8 @@ const SocialShareAnalytics: React.FC<SocialShareAnalyticsProps> = ({
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
 
-        const response = await fetch('/api/social-share/stats', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await authGet('/api/social-share/stats');
 
         if (!response.ok) {
           throw new Error('Failed to fetch social share stats');

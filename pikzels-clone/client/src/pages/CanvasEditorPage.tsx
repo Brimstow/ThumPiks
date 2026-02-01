@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CanvasEditor from '../components/CanvasEditor';
+import { authPost } from '../utils/api';
 
 interface CanvasData {
   imageData: string;
@@ -21,24 +22,15 @@ const CanvasEditorPage: React.FC = () => {
 
   const handleSave = async (canvasData: CanvasData) => {
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('/api/thumbnails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const response = await authPost('/api/thumbnails', {
+        title: 'Canvas Thumbnail',
+        imageUrl: canvasData.imageData,
+        prompt: 'Created with Canvas Editor',
+        parameters: {
+          width: canvasData.metadata.width,
+          height: canvasData.metadata.height,
+          tool: canvasData.metadata.tool,
         },
-        body: JSON.stringify({
-          title: 'Canvas Thumbnail',
-          imageUrl: canvasData.imageData,
-          prompt: 'Created with Canvas Editor',
-          parameters: {
-            width: canvasData.metadata.width,
-            height: canvasData.metadata.height,
-            tool: canvasData.metadata.tool,
-          },
-        }),
       });
 
       if (response.ok) {

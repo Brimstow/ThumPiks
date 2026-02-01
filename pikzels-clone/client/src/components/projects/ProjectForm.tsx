@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { authGet, authFetch } from '../../utils/api';
 
 interface ProjectFormData {
   name: string;
@@ -35,17 +36,7 @@ const ProjectForm: React.FC<{ isEdit?: boolean }> = ({ isEdit = false }) => {
 
   const fetchProject = async (projectId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch(`/api/projects/${projectId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await authGet(`/api/projects/${projectId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -75,21 +66,11 @@ const ProjectForm: React.FC<{ isEdit?: boolean }> = ({ isEdit = false }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
       const url = isEdit ? `/api/projects/${id}` : '/api/projects';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(formData),
       });
 

@@ -50,6 +50,35 @@ export class OpenRouterAIService {
     RIVERFLOW_V2_FAST: 'sourceful/riverflow-v2-fast-preview',
   } as const;
 
+  // Recommended models for each AI tool type
+  // These can be overridden via environment variables
+  static readonly TOOL_MODELS = {
+    // Text-to-image generation - fast, good for thumbnails
+    generate: {
+      primary: 'google/gemini-2.5-flash-image',
+      fallback: 'black-forest-labs/flux.2-pro',
+      envVar: 'OPENROUTER_MODEL_GENERATE',
+    },
+    // Inpainting - needs contextual understanding
+    inpaint: {
+      primary: 'google/gemini-3-pro-image-preview',
+      fallback: 'black-forest-labs/flux.2-flex',
+      envVar: 'OPENROUTER_MODEL_INPAINT',
+    },
+    // Face swap - needs identity preservation
+    faceSwap: {
+      primary: 'bytedance-seed/seedream-4.5',
+      fallback: 'google/gemini-3-pro-image-preview',
+      envVar: 'OPENROUTER_MODEL_FACESWAP',
+    },
+    // Upscaling - needs detail preservation
+    upscale: {
+      primary: 'black-forest-labs/flux.2-max',
+      fallback: 'sourceful/riverflow-v2-max-preview',
+      envVar: 'OPENROUTER_MODEL_UPSCALE',
+    },
+  } as const;
+
   // Supported aspect ratios for Gemini models
   static readonly ASPECT_RATIOS = {
     SQUARE: '1:1', // 1024×1024 (default)
@@ -491,6 +520,335 @@ export class OpenRouterAIService {
    */
   getAvailableImageModels(): string[] {
     return Object.values(OpenRouterAIService.IMAGE_MODELS);
+  }
+
+  /**
+   * Get the best model for a specific AI tool type
+   * Checks environment variables first, then uses recommended defaults
+   * 
+   * @param toolType The type of AI tool (generate, inpaint, faceSwap, upscale)
+   * @param useFallback Whether to use the fallback model instead of primary
+   * @returns The model ID to use
+   */
+  getModelForTool(
+    toolType: keyof typeof OpenRouterAIService.TOOL_MODELS,
+    useFallback: boolean = false
+  ): string {
+    const toolConfig = OpenRouterAIService.TOOL_MODELS[toolType];
+    if (!toolConfig) {
+      // Unknown tool type, return default image model
+      return this.defaultImageModel;
+    }
+
+    // Check for environment variable override
+    const envModel = process.env[toolConfig.envVar];
+    if (envModel) {
+      return envModel;
+    }
+
+    // Return primary or fallback based on preference
+    return useFallback ? toolConfig.fallback : toolConfig.primary;
+  }
+
+  /**
+   * Get all tool model configurations
+   * @returns Object with model configs for each tool type
+   */
+  getToolModelConfigs(): typeof OpenRouterAIService.TOOL_MODELS {
+    return OpenRouterAIService.TOOL_MODELS;
+  }
+
+  /**
+   * Inpaint (edit) an image by providing a mask and prompt
+   * Uses the inpaint-optimized model
+   *
+   * @param imageBase64 Base64-encoded source image
+   * @param maskBase64 Base64-encoded mask (white = edit area)
+   * @param prompt Description of what to fill in the masked area
+   * @returns Array of image URLs
+   */
+  async inpaintImage(
+    imageBase64: string,
+    _maskBase64: string, // Reserved for future mask-based inpainting
+    prompt: string
+  ): Promise<string[]> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const model = this.getModelForTool('inpaint');
+    const fullPrompt = `Edit this image. Apply a mask and modify the masked region as follows: ${prompt}. Preserve the unmasked areas exactly as they are.`;
+
+    // Send image with prompt for inpainting
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+  }
+
+  /**
+   * Face swap - replace a face in an image with another face
+   * Uses ByteDance Seedream for best portrait results
+   *
+   * @param sourceImageBase64 Base64-encoded source image (contains the face to keep)
+   * @param targetImageBase64 Base64-encoded target image (where face will be placed)
+   * @param prompt Additional instructions for the swap
+   * @returns Array of image URLs
+   */
+  async faceSwapImage(
+    sourceImageBase64: string,
+    targetImageBase64: string,
+    prompt: string = ''
+  ): Promise<string[]> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const model = this.getModelForTool('faceSwap');
+    const fullPrompt = `Perform a face swap. Take the face from the first image and seamlessly blend it onto the person in the second image. Maintain natural lighting, skin tone matching, and preserve the expression. ${prompt}`.trim();
+
+    // Send both images for face swap
+    return await this.callImageAPIWithMultipleImages(
+      [sourceImageBase64, targetImageBase64],
+      fullPrompt,
+      model
+    );
+  }
+
+  /**
+   * Upscale an image to higher resolution
+   * Uses FLUX.2 Max for best detail preservation
+   *
+   * @param imageBase64 Base64-encoded source image
+   * @param scale Scale factor (2x, 4x)
+   * @returns Array of image URLs
+   */
+  async upscaleImage(
+    imageBase64: string,
+    scale: '2x' | '4x' = '2x'
+  ): Promise<string[]> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const model = this.getModelForTool('upscale');
+    const imageSize = scale === '4x' ? '4K' : '2K';
+    const fullPrompt = `Upscale this image to ${scale} resolution. Enhance details, sharpen edges, reduce artifacts, and improve overall quality while maintaining the original composition and style.`;
+
+    // For Gemini models, we can specify image_size
+    if (model.includes('gemini') || model.includes('google/')) {
+      return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', imageSize);
+    }
+
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+  }
+
+  /**
+   * Remove background from an image
+   * Creates a transparent or solid color background
+   *
+   * @param imageBase64 Base64-encoded source image
+   * @param backgroundColor Background to apply ('transparent', 'white', 'black', or hex color)
+   * @returns Array of image URLs
+   */
+  async removeBackground(
+    imageBase64: string,
+    backgroundColor: string = 'transparent'
+  ): Promise<string[]> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const model = this.getModelForTool('inpaint'); // Inpaint model works well for this
+    const bgDesc = backgroundColor === 'transparent' 
+      ? 'a completely transparent background (PNG with alpha channel)' 
+      : `a solid ${backgroundColor} background`;
+    const fullPrompt = `Remove the background from this image. Keep only the main subject(s) in the foreground with ${bgDesc}. Preserve fine details like hair edges and semi-transparent elements.`;
+
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+  }
+
+  /**
+   * Enhance image quality (color correction, sharpening, noise reduction)
+   *
+   * @param imageBase64 Base64-encoded source image
+   * @param enhancementType Type of enhancement to apply
+   * @returns Array of image URLs
+   */
+  async enhanceImage(
+    imageBase64: string,
+    enhancementType: 'auto' | 'color' | 'sharpen' | 'denoise' | 'hdr' = 'auto'
+  ): Promise<string[]> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const model = this.getModelForTool('inpaint'); // Pro model for quality
+    
+    let enhancementDesc: string;
+    switch (enhancementType) {
+      case 'color':
+        enhancementDesc = 'Enhance the colors: improve saturation, correct white balance, and make colors more vibrant while keeping them natural.';
+        break;
+      case 'sharpen':
+        enhancementDesc = 'Sharpen the image: enhance edges and fine details without introducing artifacts or halos.';
+        break;
+      case 'denoise':
+        enhancementDesc = 'Remove noise and grain from the image while preserving important details and textures.';
+        break;
+      case 'hdr':
+        enhancementDesc = 'Apply HDR-style enhancement: expand dynamic range, bring out shadow details, and control highlights.';
+        break;
+      default:
+        enhancementDesc = 'Automatically enhance this image: improve colors, sharpness, reduce noise, and optimize overall quality.';
+    }
+
+    const fullPrompt = `${enhancementDesc} Maintain the original composition and style.`;
+
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+  }
+
+  /**
+   * Call OpenRouter API with an input image for editing tasks
+   *
+   * @param imageBase64 Base64-encoded image
+   * @param prompt The editing prompt
+   * @param model Model to use
+   * @param aspectRatio Aspect ratio for output
+   * @param imageSize Image size for Gemini models
+   * @returns Array of image URLs
+   */
+  private async callImageAPIWithImage(
+    imageBase64: string,
+    prompt: string,
+    model: string,
+    aspectRatio: string = '16:9',
+    imageSize?: '1K' | '2K' | '4K'
+  ): Promise<string[]> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+
+    try {
+      // Ensure base64 has proper data URL prefix
+      const imageUrl = imageBase64.startsWith('data:image') 
+        ? imageBase64 
+        : `data:image/png;base64,${imageBase64}`;
+
+      const requestBody: any = {
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: imageUrl }
+              },
+              {
+                type: 'text',
+                text: prompt
+              }
+            ],
+          },
+        ],
+        modalities: ['image', 'text'],
+        stream: false,
+      };
+
+      // Add image_config for Gemini models
+      if (model.includes('gemini') || model.includes('google/')) {
+        requestBody.image_config = { aspect_ratio: aspectRatio };
+        if (imageSize) {
+          requestBody.image_config.image_size = imageSize;
+        }
+      }
+
+      const response = await fetch(`${this.apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'X-Title': 'ThumPiks Canvas Editor',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal as any,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+      }
+
+      const data: any = await response.json();
+      return this.extractImagesFromResponse(data);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Call OpenRouter API with multiple input images (for face swap, etc.)
+   */
+  private async callImageAPIWithMultipleImages(
+    imagesBase64: string[],
+    prompt: string,
+    model: string
+  ): Promise<string[]> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+
+    try {
+      // Build content array with all images then the prompt
+      const content: any[] = imagesBase64.map((img) => {
+        const imageUrl = img.startsWith('data:image') 
+          ? img 
+          : `data:image/png;base64,${img}`;
+        return {
+          type: 'image_url',
+          image_url: { url: imageUrl }
+        };
+      });
+      content.push({ type: 'text', text: prompt });
+
+      const requestBody: any = {
+        model: model,
+        messages: [{ role: 'user', content }],
+        modalities: ['image', 'text'],
+        stream: false,
+      };
+
+      const response = await fetch(`${this.apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'X-Title': 'ThumPiks Canvas Editor',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal as any,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+      }
+
+      const data: any = await response.json();
+      return this.extractImagesFromResponse(data);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`);
+      }
+      throw error;
+    }
   }
 
   /**
