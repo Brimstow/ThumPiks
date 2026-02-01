@@ -338,10 +338,10 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     }
 
     // Validate style if provided
-    const validStyles = ['bold', 'minimalist', 'dramatic'];
+    const validStyles = ['bold', 'minimalist', 'dramatic', 'cinematic', 'professional', 'creative', 'gaming'];
     if (style && !validStyles.includes(style.toLowerCase())) {
       return res.status(400).json({
-        error: 'Invalid style. Must be one of: bold, minimalist, dramatic',
+        error: 'Invalid style. Must be one of: bold, minimalist, dramatic, cinematic, professional, creative, gaming',
       });
     }
 

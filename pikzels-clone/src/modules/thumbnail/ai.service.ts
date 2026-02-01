@@ -21,7 +21,7 @@ export class AIService {
   /**
    * Generate thumbnails using OpenAI's DALL-E 3 API
    * @param prompt Text prompt for image generation
-   * @param style Style of the thumbnail (bold, minimalist, dramatic)
+   * @param style Style of the thumbnail (bold, minimalist, dramatic, cinematic, professional, creative, gaming)
    * @param count Number of thumbnails to generate (1-10)
    * @returns Array of image URLs
    */
@@ -58,6 +58,18 @@ export class AIService {
         break;
       case 'dramatic':
         styledPrompt = `Dramatic thumbnail: ${prompt}. Strong lighting, high contrast, cinematic feel, emotional impact.`;
+        break;
+      case 'cinematic':
+        styledPrompt = `Cinematic thumbnail: ${prompt}. Movie poster quality, professional photography, dramatic composition, cinematic lighting.`;
+        break;
+      case 'professional':
+        styledPrompt = `Professional thumbnail: ${prompt}. Corporate, clean design, business-like, trustworthy, polished aesthetic.`;
+        break;
+      case 'creative':
+        styledPrompt = `Creative artistic thumbnail: ${prompt}. Unique perspective, artistic flair, imaginative design, eye-catching creativity.`;
+        break;
+      case 'gaming':
+        styledPrompt = `Gaming thumbnail: ${prompt}. Energetic, action-packed, vibrant neon colors, gaming aesthetic, exciting visuals.`;
         break;
       default:
         styledPrompt = prompt;
