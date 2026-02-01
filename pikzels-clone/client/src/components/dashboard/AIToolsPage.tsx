@@ -70,8 +70,8 @@ const AIToolsPage: React.FC = () => {
   // Use Web Worker if available, fallback to main thread
   const worker = useAIWorker();
   
-  // Fallback AI Service (main thread) for browsers without worker support
-  const aiService = useAIService({
+  // Memoize config to prevent infinite re-render loop in useAIService
+  const aiServiceConfig = useMemo(() => ({
     config: {
       providers: {
         tensorflow: {},
@@ -81,18 +81,18 @@ const AIToolsPage: React.FC = () => {
       },
     },
     autoInitialize: !worker.isReady, // Only initialize if worker not available
-  });
+  }), [worker.isReady]);
+  
+  // Fallback AI Service (main thread) for browsers without worker support
+  const aiService = useAIService(aiServiceConfig);
   
   // Use worker if available, otherwise fallback to aiService
-  // useMemo to prevent infinite re-render loop when worker.isReady changes
-  const ai = useMemo(() => {
-    return worker.isReady ? {
-      isLoading: worker.isProcessing,
-      error: null,
-      isInitializing: false,
-      isReady: worker.isReady,
-    } : aiService;
-  }, [worker.isReady, worker.isProcessing, aiService]);
+  const ai = worker.isReady ? {
+    isLoading: worker.isProcessing,
+    error: null,
+    isInitializing: false,
+    isReady: worker.isReady,
+  } : aiService;
   
   // State
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
