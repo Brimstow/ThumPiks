@@ -3,7 +3,7 @@
  * Standalone AI tools for image manipulation without the full editor
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { 
   Sparkles, 
   Wand2, 
@@ -84,12 +84,15 @@ const AIToolsPage: React.FC = () => {
   });
   
   // Use worker if available, otherwise fallback to aiService
-  const ai = worker.isReady ? {
-    isLoading: worker.isProcessing,
-    error: null,
-    isInitializing: false,
-    isReady: worker.isReady,
-  } : aiService;
+  // useMemo to prevent infinite re-render loop when worker.isReady changes
+  const ai = useMemo(() => {
+    return worker.isReady ? {
+      isLoading: worker.isProcessing,
+      error: null,
+      isInitializing: false,
+      isReady: worker.isReady,
+    } : aiService;
+  }, [worker.isReady, worker.isProcessing, aiService]);
   
   // State
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
