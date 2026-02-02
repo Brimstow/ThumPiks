@@ -93,7 +93,7 @@ export class SystemMonitoringController {
         return;
       }
 
-      const { alertId } = req.params;
+      const alertId = req.params.alertId as string;
       const adminUser = req.adminUser!;
 
       const success = await systemMonitoringService.acknowledgeAlert(alertId!, adminUser.id);

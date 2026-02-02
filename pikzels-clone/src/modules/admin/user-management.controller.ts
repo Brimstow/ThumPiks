@@ -90,7 +90,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       if (!userId) {
         res.status(400).json({
           error: 'User ID is required',
@@ -182,7 +182,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       const adminUser = req.adminUser!;
       const updateData = req.body;
 
@@ -236,7 +236,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       if (!userId) {
         res.status(400).json({
           error: 'User ID is required',
@@ -298,7 +298,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       if (!userId) {
         res.status(400).json({
           error: 'User ID is required',
@@ -341,7 +341,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       if (!userId) {
         res.status(400).json({
           error: 'User ID is required',
@@ -405,7 +405,7 @@ export class UserManagementController {
         return;
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
       if (!userId) {
         res.status(400).json({
           error: 'User ID is required',

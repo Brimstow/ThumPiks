@@ -102,7 +102,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -131,7 +131,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -167,7 +167,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -196,7 +196,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { projectId } = req.params;
+      const projectId = req.params.projectId as string;
       if (!projectId) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -263,7 +263,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -292,7 +292,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
@@ -319,7 +319,7 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }

@@ -139,7 +139,7 @@ export const CacheMiddlewares = {
   socialShares: cacheMiddleware({
     ttl: CacheTTL.MEDIUM * 2,
     keyGenerator: (req) => {
-      const thumbnailId = req.params.id;
+      const thumbnailId = req.params.id as string;
       if (!thumbnailId) {
         throw new Error('Thumbnail ID is required for cache key');
       }

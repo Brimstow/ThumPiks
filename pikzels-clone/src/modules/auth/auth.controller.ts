@@ -197,7 +197,7 @@ export const logout = async (_req: Request, res: Response) => {
  */
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     if (!token) {
       return res.status(400).json({
@@ -399,7 +399,7 @@ export const suggestUsernames = async (req: Request, res: Response) => {
  */
 export const checkUsername = async (req: Request, res: Response) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
 
     if (!username) {
       return res.status(400).json({

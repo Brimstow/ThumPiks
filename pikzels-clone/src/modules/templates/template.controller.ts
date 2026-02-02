@@ -75,7 +75,7 @@ export const getTemplateById = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Template ID is required' });
     }
@@ -99,7 +99,7 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Template ID is required' });
     }
@@ -125,7 +125,7 @@ export const deleteTemplate = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Template ID is required' });
     }
@@ -145,7 +145,7 @@ export const downloadTemplate = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Template ID is required' });
     }
@@ -164,7 +164,7 @@ export const toggleLikeTemplate = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Template ID is required' });
     }

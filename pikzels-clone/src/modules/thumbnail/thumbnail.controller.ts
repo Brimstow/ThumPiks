@@ -151,7 +151,7 @@ export const getThumbnailById = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -180,7 +180,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -218,7 +218,7 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -519,7 +519,7 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -562,7 +562,7 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { edits } = req.body;
 
     if (!id) {
@@ -629,7 +629,7 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -668,7 +668,7 @@ export const applyImageEnhancement = async (
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -704,7 +704,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -752,7 +752,7 @@ export const generateShareLink = async (req: AuthRequest, res: Response) => {
 // Access shared thumbnail
 export const accessSharedThumbnail = async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     if (!token) {
       return res.status(400).json({ error: 'Share token is required' });
@@ -811,7 +811,7 @@ export const revokeShareLink = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
@@ -855,7 +855,7 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }

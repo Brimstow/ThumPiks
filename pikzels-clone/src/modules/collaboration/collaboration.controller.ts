@@ -46,7 +46,7 @@ export const getUserTeams = async (req: Request, res: Response) => {
  */
 export const getTeamById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Team ID is required' });
     }
@@ -68,7 +68,7 @@ export const getTeamById = async (req: Request, res: Response) => {
  */
 export const updateTeam = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Team ID is required' });
     }
@@ -90,7 +90,7 @@ export const updateTeam = async (req: Request, res: Response) => {
  */
 export const deleteTeam = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Team ID is required' });
     }
@@ -109,7 +109,7 @@ export const deleteTeam = async (req: Request, res: Response) => {
  */
 export const inviteUserToTeam = async (req: Request, res: Response) => {
   try {
-    const { teamId } = req.params;
+    const teamId = req.params.teamId as string;
     if (!teamId) {
       return res.status(400).json({ error: 'Team ID is required' });
     }
@@ -152,7 +152,7 @@ export const getUserInvitations = async (req: Request, res: Response) => {
  */
 export const respondToInvitation = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Invitation ID is required' });
     }
@@ -239,7 +239,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
  */
 export const getTeamProjects = async (req: Request, res: Response) => {
   try {
-    const { teamId } = req.params;
+    const teamId = req.params.teamId as string;
     if (!teamId) {
       return res.status(400).json({ error: 'Team ID is required' });
     }

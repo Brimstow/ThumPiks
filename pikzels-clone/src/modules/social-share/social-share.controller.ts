@@ -200,7 +200,7 @@ export class SocialShareController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { thumbnailId } = req.params;
+      const thumbnailId = req.params.thumbnailId as string;
       if (!thumbnailId) {
         return res.status(400).json({ error: 'Thumbnail ID is required' });
       }
@@ -253,7 +253,7 @@ export class SocialShareController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Verify the social share belongs to the user
       const userShares = await socialShareService.getSocialSharesByUser(
