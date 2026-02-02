@@ -184,7 +184,8 @@ export const respondToInvitation = async (req: Request, res: Response) => {
  */
 export const removeTeamMember = async (req: Request, res: Response) => {
   try {
-    const { teamId, memberId } = req.params;
+    const teamId = req.params.teamId as string;
+    const memberId = req.params.memberId as string;
     if (!teamId || !memberId) {
       return res.status(400).json({ error: 'Team ID and Member ID are required' });
     }
@@ -206,7 +207,8 @@ export const removeTeamMember = async (req: Request, res: Response) => {
  */
 export const updateMemberRole = async (req: Request, res: Response) => {
   try {
-    const { teamId, memberId } = req.params;
+    const teamId = req.params.teamId as string;
+    const memberId = req.params.memberId as string;
     if (!teamId || !memberId) {
       return res.status(400).json({ error: 'Team ID and Member ID are required' });
     }
