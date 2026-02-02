@@ -66,15 +66,17 @@ export class OpenRouterAIService {
       envVar: 'OPENROUTER_MODEL_INPAINT',
     },
     // Face swap - needs identity preservation
+    // Using Gemini which supports image input+output via modalities
     faceSwap: {
-      primary: 'bytedance-seed/seedream-4.5',
+      primary: 'google/gemini-2.5-flash-image',
       fallback: 'google/gemini-3-pro-image-preview',
       envVar: 'OPENROUTER_MODEL_FACESWAP',
     },
     // Upscaling - needs detail preservation
+    // Using Gemini which supports 2K/4K output via image_size
     upscale: {
-      primary: 'black-forest-labs/flux.2-max',
-      fallback: 'sourceful/riverflow-v2-max-preview',
+      primary: 'google/gemini-2.5-flash-image',
+      fallback: 'google/gemini-3-pro-image-preview',
       envVar: 'OPENROUTER_MODEL_UPSCALE',
     },
   } as const;
@@ -632,12 +634,8 @@ export class OpenRouterAIService {
     const imageSize = scale === '4x' ? '4K' : '2K';
     const fullPrompt = `Upscale this image to ${scale} resolution. Enhance details, sharpen edges, reduce artifacts, and improve overall quality while maintaining the original composition and style.`;
 
-    // For Gemini models, we can specify image_size
-    if (model.includes('gemini') || model.includes('google/')) {
-      return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', imageSize);
-    }
-
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+    // Gemini models support image_size for higher resolution output
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', imageSize);
   }
 
   /**

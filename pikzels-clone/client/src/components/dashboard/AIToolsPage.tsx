@@ -98,7 +98,8 @@ const AIToolsPage: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState('');
+  const [generatePrompt, setGeneratePrompt] = useState('');
+  const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [style, setStyle] = useState('cinematic');
   const [aspectRatio, setAspectRatio] = useState<AIGenerateRequest['aspectRatio']>('16:9');
   const [enhanceType, setEnhanceType] = useState<'auto' | 'sharpen' | 'denoise' | 'color'>('auto');
@@ -106,6 +107,8 @@ const AIToolsPage: React.FC = () => {
   const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isFaceDragging, setIsFaceDragging] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
@@ -198,22 +201,79 @@ const AIToolsPage: React.FC = () => {
     reader.readAsDataURL(file);
   }, []);
 
+  // Drag and drop handlers for main image upload
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUploadedImage(event.target?.result as string);
+      setResultImage(null);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  // Drag and drop handlers for face swap source
+  const handleFaceDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFaceDragging(true);
+  }, []);
+
+  const handleFaceDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFaceDragging(false);
+  }, []);
+
+  const handleFaceDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFaceDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFaceSwapSource(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim() || ai.isLoading || isGenerating) return;
+    if (!generatePrompt.trim() || ai.isLoading || isGenerating) return;
     
     setIsGenerating(true);
     setGenerateError(null);
     
     try {
       // Call backend API endpoint with cookies for authentication
-      const response = await fetch('/api/thumbnails/generate', {
+      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/generate`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
+          prompt: generatePrompt,
           style,
           projectId: 'temp-project-id', // TODO: Get actual project ID from context
         }),
@@ -236,7 +296,7 @@ const AIToolsPage: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, style, ai.isLoading, isGenerating]);
+  }, [generatePrompt, style, ai.isLoading, isGenerating]);
 
   const handleRemoveBackground = useCallback(async () => {
     if (!uploadedImage || ai.isLoading || isGenerating) return;
@@ -387,7 +447,7 @@ const AIToolsPage: React.FC = () => {
   }, [uploadedImage, faceSwapSource, ai.isLoading, isGenerating]);
 
   const handleInpaint = useCallback(async () => {
-    if (!uploadedImage || !prompt.trim() || ai.isLoading || isGenerating) return;
+    if (!uploadedImage || !inpaintPrompt.trim() || ai.isLoading || isGenerating) return;
     
     setIsGenerating(true);
     setGenerateError(null);
@@ -403,7 +463,7 @@ const AIToolsPage: React.FC = () => {
         body: JSON.stringify({
           image: uploadedImage,
           mask: '', // For now, we use prompt-only inpainting
-          prompt: prompt,
+          prompt: inpaintPrompt,
         }),
       });
       
@@ -422,7 +482,7 @@ const AIToolsPage: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [uploadedImage, prompt, ai.isLoading, isGenerating]);
+  }, [uploadedImage, inpaintPrompt, ai.isLoading, isGenerating]);
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
@@ -553,6 +613,9 @@ const AIToolsPage: React.FC = () => {
                 setUploadedImage(null);
                 setResultImage(null);
                 setFaceSwapSource(null);
+                setGeneratePrompt('');
+                setInpaintPrompt('');
+                setGenerateError(null);
               }}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
@@ -583,14 +646,23 @@ const AIToolsPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
+                    <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full aspect-video bg-slate-800/50 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-slate-600 hover:bg-slate-800/70 transition-all cursor-pointer"
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`w-full aspect-video bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
+                        isDragging 
+                          ? 'border-blue-500 bg-blue-500/10' 
+                          : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/70'
+                      }`}
                     >
-                      <Upload className="w-10 h-10 text-slate-500" />
-                      <span className="text-sm text-slate-400">Click to upload or drag and drop</span>
-                      <span className="text-xs text-slate-500">PNG, JPG up to 10MB</span>
-                    </button>
+                      <Upload className={`w-10 h-10 pointer-events-none ${isDragging ? 'text-blue-400' : 'text-slate-500'}`} />
+                      <span className={`text-sm pointer-events-none ${isDragging ? 'text-blue-300' : 'text-slate-400'}`}>
+                        {isDragging ? 'Drop your image here' : 'Click to upload or drag and drop'}
+                      </span>
+                      <span className="text-xs text-slate-500 pointer-events-none">PNG, JPG up to 10MB</span>
+                    </div>
                   )}
                   <input
                     ref={fileInputRef}
@@ -610,8 +682,8 @@ const AIToolsPage: React.FC = () => {
                       Describe Your Image
                     </label>
                     <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
+                      value={generatePrompt}
+                      onChange={(e) => setGeneratePrompt(e.target.value)}
                       placeholder="A futuristic cityscape at sunset with flying cars..."
                       className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
                     />
@@ -733,13 +805,22 @@ const AIToolsPage: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
+                    <div
                       onClick={() => faceInputRef.current?.click()}
-                      className="w-32 h-32 bg-slate-800/50 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-slate-600 transition-all cursor-pointer"
+                      onDragOver={handleFaceDragOver}
+                      onDragLeave={handleFaceDragLeave}
+                      onDrop={handleFaceDrop}
+                      className={`w-32 h-32 bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isFaceDragging 
+                          ? 'border-orange-500 bg-orange-500/10' 
+                          : 'border-slate-700 hover:border-slate-600'
+                      }`}
                     >
-                      <Users className="w-6 h-6 text-slate-500" />
-                      <span className="text-xs text-slate-400">Upload face</span>
-                    </button>
+                      <Users className={`w-6 h-6 ${isFaceDragging ? 'text-orange-400' : 'text-slate-500'}`} />
+                      <span className={`text-xs ${isFaceDragging ? 'text-orange-300' : 'text-slate-400'}`}>
+                        {isFaceDragging ? 'Drop here' : 'Upload face'}
+                      </span>
+                    </div>
                   )}
                   <input
                     ref={faceInputRef}
@@ -771,8 +852,8 @@ const AIToolsPage: React.FC = () => {
                       Describe Your Edit
                     </label>
                     <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
+                      value={inpaintPrompt}
+                      onChange={(e) => setInpaintPrompt(e.target.value)}
                       placeholder="e.g., Add a sunset sky in the background, Replace the text with 'AMAZING', Make the person smile..."
                       className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
                     />
@@ -786,8 +867,8 @@ const AIToolsPage: React.FC = () => {
                 disabled={
                   ai.isLoading || 
                   isGenerating ||
-                  (selectedTool === 'generate' && !prompt.trim()) ||
-                  (selectedTool === 'inpaint' && !prompt.trim()) ||
+                  (selectedTool === 'generate' && !generatePrompt.trim()) ||
+                  (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
                   (currentTool.requiresImage && !uploadedImage) ||
                   (selectedTool === 'face-swap' && !faceSwapSource)
                 }
@@ -859,15 +940,6 @@ const AIToolsPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Hidden file inputs */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleImageUpload}
-      />
     </div>
   );
 };
