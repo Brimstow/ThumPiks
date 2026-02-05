@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { adminAuthService, AdminRoles, ROLE_PERMISSIONS } from '../modules/admin/admin-auth.service';
+import {
+  adminAuthService,
+  AdminRoles,
+  ROLE_PERMISSIONS,
+} from '../modules/admin/admin-auth.service';
 import readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -8,7 +12,7 @@ const prisma = new PrismaClient();
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 async function question(query: string): Promise<string> {
@@ -24,10 +28,12 @@ async function createSuperAdmin() {
     // Get user input
     const email = await question('Enter super admin email: ');
     const name = await question('Enter super admin name: ');
-    const password = await question('Enter super admin password (min 8 chars): ');
+    const password = await question(
+      'Enter super admin password (min 8 chars): '
+    );
 
     // Validate input
-    if (!email || !email.includes('@')) {
+    if (!email?.includes('@')) {
       throw new Error('Valid email is required');
     }
 
@@ -42,11 +48,15 @@ async function createSuperAdmin() {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { AdminRole: true }
+      include: { AdminRole: true },
     });
 
     if (existingUser) {
-      if (existingUser.AdminRole.some((role: any) => role.role === AdminRoles.SUPER_ADMIN && role.isActive)) {
+      if (
+        existingUser.AdminRole.some(
+          (role: any) => role.role === AdminRoles.SUPER_ADMIN && role.isActive
+        )
+      ) {
         console.log('❌ User already has super admin role');
         return;
       }
@@ -84,8 +94,8 @@ async function createSuperAdmin() {
         isVerified: true, // Super admin is automatically verified
         isActive: true,
         createdAt: new Date(),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
 
     // Assign super admin role
@@ -102,14 +112,17 @@ async function createSuperAdmin() {
       console.log(`📧 Email: ${email}`);
       console.log(`👤 Name: ${name}`);
       console.log(`🔑 Role: ${AdminRoles.SUPER_ADMIN}`);
-      console.log(`📊 Permissions: ${ROLE_PERMISSIONS[AdminRoles.SUPER_ADMIN].length} permissions`);
-      console.log('\n🚀 You can now log in to the admin panel with these credentials');
+      console.log(
+        `📊 Permissions: ${ROLE_PERMISSIONS[AdminRoles.SUPER_ADMIN].length} permissions`
+      );
+      console.log(
+        '\n🚀 You can now log in to the admin panel with these credentials'
+      );
     } else {
       console.log('❌ Failed to assign super admin role');
       // Clean up created user
       await prisma.user.delete({ where: { id: newUser.id } });
     }
-
   } catch (error) {
     console.error('❌ Error creating super admin:', error);
   } finally {
@@ -125,16 +138,16 @@ async function listAdmins() {
     const admins = await prisma.user.findMany({
       where: {
         AdminRole: {
-          some: { isActive: true }
-        }
+          some: { isActive: true },
+        },
       },
       include: {
         AdminRole: {
           where: { isActive: true },
-          orderBy: { assignedAt: 'desc' }
-        }
+          orderBy: { assignedAt: 'desc' },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     if (admins.length === 0) {
@@ -147,10 +160,11 @@ async function listAdmins() {
       console.log(`${index + 1}. ${admin.name || 'Unnamed'} (${admin.email})`);
       console.log(`   Roles: ${roles}`);
       console.log(`   Created: ${admin.createdAt.toISOString()}`);
-      console.log(`   Last Login: ${admin.lastLoginAt?.toISOString() || 'Never'}`);
+      console.log(
+        `   Last Login: ${admin.lastLoginAt?.toISOString() || 'Never'}`
+      );
       console.log(`   Active: ${admin.isActive ? '✅' : '❌'}\n`);
     });
-
   } catch (error) {
     console.error('❌ Error listing admins:', error);
   } finally {

@@ -34,6 +34,11 @@ describe('ProjectService', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.clearAllTimers();
+  });
+
   describe('setFeaturedThumbnail', () => {
     it('should set a thumbnail as featured for a project', async () => {
       // Arrange

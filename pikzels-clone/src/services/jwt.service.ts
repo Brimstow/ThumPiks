@@ -1,13 +1,13 @@
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
+import { getPrisma } from '../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // Enhanced JWT configuration with proper error handling
 const getJWTSecret = (): string => {
-  const secret = process.env.JWT_SECRET;
+  const secret = process.env.JWT_SECRET; // secretlint-disable-line
   if (!secret || secret === 'your-secret-key') {
     if (process.env.NODE_ENV === 'production') {
       logger.error('JWT_SECRET not set in environment variables');
@@ -20,7 +20,7 @@ const getJWTSecret = (): string => {
 };
 
 const getRefreshSecret = (): string => {
-  const secret = process.env.REFRESH_TOKEN_SECRET;
+  const secret = process.env.REFRESH_TOKEN_SECRET; // secretlint-disable-line
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
       logger.error('REFRESH_TOKEN_SECRET not set in environment variables');
@@ -34,15 +34,15 @@ const getRefreshSecret = (): string => {
 
 const JWT_CONFIG = {
   access: {
-    secret: getJWTSecret(),
+    secret: getJWTSecret(), // secretlint-disable-line
     expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
   },
   refresh: {
-    secret: getRefreshSecret(),
+    secret: getRefreshSecret(), // secretlint-disable-line
     expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
   },
   reset: {
-    secret: getJWTSecret(),
+    secret: getJWTSecret(), // secretlint-disable-line
     expiresIn: process.env.JWT_RESET_EXPIRY || '1h',
   },
 };
@@ -73,7 +73,11 @@ export class JWTService {
   /**
    * Create access token
    */
-  static createAccessToken(userId: string, email: string, sessionId?: string): string {
+  static createAccessToken(
+    userId: string,
+    email: string,
+    sessionId?: string
+  ): string {
     const payload: TokenPayload = {
       userId,
       email,
@@ -91,7 +95,11 @@ export class JWTService {
   /**
    * Create refresh token
    */
-  static createRefreshToken(userId: string, email: string, sessionId: string): string {
+  static createRefreshToken(
+    userId: string,
+    email: string,
+    sessionId: string
+  ): string {
     const payload: TokenPayload = {
       userId,
       email,
@@ -127,9 +135,12 @@ export class JWTService {
   /**
    * Create complete token pair (access + refresh)
    */
-  static async createTokenPair(userId: string, email: string): Promise<TokenPair> {
+  static async createTokenPair(
+    userId: string,
+    email: string
+  ): Promise<TokenPair> {
     const sessionId = this.generateSessionId();
-    
+
     const accessToken = this.createAccessToken(userId, email, sessionId);
     const refreshToken = this.createRefreshToken(userId, email, sessionId);
 
@@ -137,8 +148,12 @@ export class JWTService {
     await this.storeRefreshToken(userId, sessionId, refreshToken);
 
     // Calculate expiration times in seconds
-    const accessExpiresIn = this.parseExpiryToSeconds(JWT_CONFIG.access.expiresIn);
-    const refreshExpiresIn = this.parseExpiryToSeconds(JWT_CONFIG.refresh.expiresIn);
+    const accessExpiresIn = this.parseExpiryToSeconds(
+      JWT_CONFIG.access.expiresIn
+    );
+    const refreshExpiresIn = this.parseExpiryToSeconds(
+      JWT_CONFIG.refresh.expiresIn
+    );
 
     return {
       accessToken,
@@ -151,19 +166,22 @@ export class JWTService {
   /**
    * Verify and decode any token type
    */
-  static verifyToken(token: string, tokenType: 'access' | 'refresh' | 'reset'): TokenPayload {
+  static verifyToken(
+    token: string,
+    tokenType: 'access' | 'refresh' | 'reset'
+  ): TokenPayload {
     try {
       let secret: string;
-      
+
       switch (tokenType) {
         case 'access':
-          secret = JWT_CONFIG.access.secret;
+          secret = JWT_CONFIG.access.secret; // secretlint-disable-line
           break;
         case 'refresh':
-          secret = JWT_CONFIG.refresh.secret;
+          secret = JWT_CONFIG.refresh.secret; // secretlint-disable-line
           break;
         case 'reset':
-          secret = JWT_CONFIG.reset.secret;
+          secret = JWT_CONFIG.reset.secret; // secretlint-disable-line
           break;
         default:
           throw new Error('Invalid token type');
@@ -192,19 +210,29 @@ export class JWTService {
   /**
    * Refresh access token using refresh token
    */
-  static async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number }> {
+  static async refreshAccessToken(
+    refreshToken: string
+  ): Promise<{ accessToken: string; expiresIn: number }> {
     try {
       const decoded = this.verifyToken(refreshToken, 'refresh');
-      
+
       // Verify refresh token exists in database and is valid
-      const isValidRefreshToken = await this.verifyRefreshTokenInDB(decoded.userId, decoded.sessionId!, refreshToken);
-      
+      const isValidRefreshToken = await this.verifyRefreshTokenInDB(
+        decoded.userId,
+        decoded.sessionId!,
+        refreshToken
+      );
+
       if (!isValidRefreshToken) {
         throw new Error('Invalid refresh token');
       }
 
       // Create new access token with same session ID
-      const accessToken = this.createAccessToken(decoded.userId, decoded.email, decoded.sessionId);
+      const accessToken = this.createAccessToken(
+        decoded.userId,
+        decoded.email,
+        decoded.sessionId
+      );
       const expiresIn = this.parseExpiryToSeconds(JWT_CONFIG.access.expiresIn);
 
       logger.info('Access token refreshed', {
@@ -283,21 +311,33 @@ export class JWTService {
     const unit = match[2];
 
     switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 60 * 60;
-      case 'd': return value * 60 * 60 * 24;
-      default: return 900;
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 60 * 60;
+      case 'd':
+        return value * 60 * 60 * 24;
+      default:
+        return 900;
     }
   }
 
   /**
    * Store refresh token in database (hashed)
    */
-  private static async storeRefreshToken(userId: string, sessionId: string, refreshToken: string): Promise<void> {
+  private static async storeRefreshToken(
+    userId: string,
+    sessionId: string,
+    refreshToken: string
+  ): Promise<void> {
     try {
-      const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-      
+      const hash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+
       // Get current refresh tokens
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -305,7 +345,7 @@ export class JWTService {
       });
 
       const currentTokens = (user?.settings as any)?.refreshTokens || {};
-      
+
       // Add new refresh token
       const updatedTokens = {
         ...currentTokens,
@@ -338,7 +378,11 @@ export class JWTService {
   /**
    * Verify refresh token in database
    */
-  private static async verifyRefreshTokenInDB(userId: string, sessionId: string, refreshToken: string): Promise<boolean> {
+  private static async verifyRefreshTokenInDB(
+    userId: string,
+    sessionId: string,
+    refreshToken: string
+  ): Promise<boolean> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -352,8 +396,11 @@ export class JWTService {
         return false;
       }
 
-      const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-      
+      const hash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+
       if (tokenData.hash !== hash) {
         return false;
       }
@@ -374,7 +421,10 @@ export class JWTService {
   /**
    * Remove refresh token from database
    */
-  private static async removeRefreshToken(userId: string, sessionId: string): Promise<void> {
+  private static async removeRefreshToken(
+    userId: string,
+    sessionId: string
+  ): Promise<void> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -405,7 +455,10 @@ export class JWTService {
   /**
    * Update refresh token last used timestamp
    */
-  private static async updateRefreshTokenLastUsed(userId: string, sessionId: string): Promise<void> {
+  private static async updateRefreshTokenLastUsed(
+    userId: string,
+    sessionId: string
+  ): Promise<void> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -413,7 +466,7 @@ export class JWTService {
       });
 
       const refreshTokens = (user?.settings as any)?.refreshTokens || {};
-      
+
       if (refreshTokens[sessionId]) {
         refreshTokens[sessionId].lastUsed = new Date().toISOString();
 
@@ -447,13 +500,14 @@ export class JWTService {
       for (const user of users) {
         const refreshTokens = (user.settings as any)?.refreshTokens || {};
         const now = new Date();
-        const expiryMs = this.parseExpiryToSeconds(JWT_CONFIG.refresh.expiresIn) * 1000;
-        
+        const expiryMs =
+          this.parseExpiryToSeconds(JWT_CONFIG.refresh.expiresIn) * 1000;
+
         let hasExpiredTokens = false;
-        
+
         for (const [sessionId, tokenData] of Object.entries(refreshTokens)) {
           const createdAt = new Date((tokenData as any).createdAt);
-          
+
           if (now.getTime() - createdAt.getTime() > expiryMs) {
             delete refreshTokens[sessionId];
             hasExpiredTokens = true;

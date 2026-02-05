@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, User } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
@@ -10,6 +11,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
+  const auth = useAuth();
 
   // Detect if input is email or username
   const isEmail = identifier.includes('@');
@@ -20,32 +22,15 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Required for HttpOnly cookies
-        body: JSON.stringify({ identifier, password }),
-      });
+      // Use AuthContext for proper state management
+      const result = await auth.login(identifier, password);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Token is stored in HttpOnly cookie by the server (secure)
-        // We only store non-sensitive user info in localStorage for UI purposes
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
-
-        // Redirect to dashboard
-        navigate('/dashboard', {
-          state: {
-            requiresVerification: data.requiresVerification,
-          },
-        });
+      if (result.success) {
+        // AuthContext handles token storage and user state
+        // Navigate to dashboard
+        navigate('/dashboard');
       } else {
-        setError(data.error || 'Login failed');
+        setError(result.error || 'Login failed');
       }
     } catch (err) {
       setError('Network error. Please try again.');

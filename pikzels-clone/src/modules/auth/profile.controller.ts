@@ -1,9 +1,9 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../../types/auth';
+import { getPrisma } from '../../utils/prisma-factory';
 
 // Initialize Prisma client for database operations
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export class ProfileController {
   async getProfile(req: AuthRequest, res: Response) {
@@ -26,10 +26,10 @@ export class ProfileController {
       }
 
       const { name, email } = req.body;
-      
+
       // Update user profile logic here
       const updatedUser = { ...req.user, name, email };
-      
+
       return res.status(200).json({ user: updatedUser });
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -39,11 +39,11 @@ export class ProfileController {
 
   /**
    * Get user settings from database
-   * 
+   *
    * @param {AuthRequest} req - Express request with authenticated user
    * @param {Response} res - Express response object
    * @returns {Promise<void>} JSON response with user settings
-   * 
+   *
    * @example Success response
    * ```json
    * {
@@ -69,7 +69,7 @@ export class ProfileController {
 
       // Return settings or empty object if no settings found
       const settings = user?.settings || {};
-      
+
       res.status(200).json({ settings });
     } catch (error) {
       console.error('Error getting user settings:', error);
@@ -79,11 +79,11 @@ export class ProfileController {
 
   /**
    * Update user settings in database
-   * 
+   *
    * @param {AuthRequest} req - Express request with settings data
    * @param {Response} res - Express response object
    * @returns {Promise<void>} JSON response with updated settings
-   * 
+   *
    * @example Request body
    * ```json
    * {
@@ -102,14 +102,14 @@ export class ProfileController {
       }
 
       const { settings } = req.body;
-      
+
       // Update user settings in database
       const updatedUser = await prisma.user.update({
         where: { id: req.user.id },
         data: { settings },
         select: { settings: true },
       });
-      
+
       res.status(200).json({ settings: updatedUser.settings });
     } catch (error) {
       console.error('Error updating user settings:', error);

@@ -1,12 +1,12 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { v4 as uuidv4 } from 'uuid';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface PassportProfile {
@@ -36,29 +36,42 @@ interface OAuthUser {
 }
 
 export class OAuthService {
-  
   static initializePassport() {
     // Google OAuth Strategy
     if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      passport.use(new GoogleStrategy({
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: "/api/auth/google/callback"
-      }, this.handleOAuthCallback as any)); // OAuth library types are complex
-      
+      // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
+      passport.use(
+        new GoogleStrategy(
+          {
+            clientID: process.env.GOOGLE_CLIENT_ID,
+            // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            callbackURL: '/api/auth/google/callback',
+          },
+          this.handleOAuthCallback as any
+        )
+      ); // OAuth library types are complex
+
       logger.info('Google OAuth strategy initialized');
     }
 
-    // GitHub OAuth Strategy  
+    // GitHub OAuth Strategy
     if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      passport.use(new GitHubStrategy({
-        clientID: process.env.GITHUB_CLIENT_ID,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        callbackURL: "/api/auth/github/callback"
-      }, this.handleOAuthCallback as any)); // OAuth library types are complex
-      
+      // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
+      passport.use(
+        new GitHubStrategy(
+          {
+            clientID: process.env.GITHUB_CLIENT_ID,
+            // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
+            clientSecret: process.env.GITHUB_CLIENT_SECRET,
+            callbackURL: '/api/auth/github/callback',
+          },
+          this.handleOAuthCallback as any
+        )
+      ); // OAuth library types are complex
+
       logger.info('GitHub OAuth strategy initialized');
     }
 
@@ -104,7 +117,10 @@ export class OAuthService {
       };
 
       if (!oauthProfile.email) {
-        return done(new Error('No email address provided by OAuth provider'), null);
+        return done(
+          new Error('No email address provided by OAuth provider'),
+          null
+        );
       }
 
       // Check if user exists
@@ -169,7 +185,7 @@ export class OAuthService {
   static async generateTokensForOAuthUser(user: OAuthUser) {
     try {
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
-      
+
       logger.info('OAuth tokens generated', {
         userId: user.id,
         email: user.email,

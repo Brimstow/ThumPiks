@@ -1,16 +1,16 @@
-import { PrismaClient } from '@prisma/client';
 import {
   ThumbnailCreatedEvent,
   SocialShareCompletedEvent,
 } from './event-types'; // TODO: Use for analytics tracking
 import { CacheService } from '../services/cache.service';
+import { getPrisma } from '../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 const cache = CacheService.getInstance();
 
 /**
  * Advanced Analytics Event Handlers
- * 
+ *
  * These handlers process analytics events in real-time and provide:
  * - Real-time analytics data processing
  * - Smart data aggregation and caching
@@ -34,7 +34,7 @@ export class AnalyticsEventHandlers {
     try {
       // Add to batch queue for efficient processing
       this.eventQueue.push(event);
-      
+
       // Process immediately if queue is full, otherwise wait for timer
       if (this.eventQueue.length >= this.batchSize) {
         await this.flushEventQueue();
@@ -42,8 +42,10 @@ export class AnalyticsEventHandlers {
 
       // Update real-time cache for instant dashboard updates
       await this.updateRealTimeCache(event);
-      
-      console.log(`📊 Analytics event queued: ${event.data.action} on ${event.data.resource}`);
+
+      console.log(
+        `📊 Analytics event queued: ${event.data.action} on ${event.data.resource}`
+      );
     } catch (error) {
       console.error('❌ Error handling analytics event:', error);
     }
@@ -65,22 +67,28 @@ export class AnalyticsEventHandlers {
           hasProject: !!event.data.projectId,
           fileSize: event.data.size,
           parameters: event.data.parameters,
-          parameterCount: Object.keys(event.data.parameters || {}).length
-        }
+          parameterCount: Object.keys(event.data.parameters || {}).length,
+        },
       };
 
       // Store in analytics table
       await this.createAnalyticsRecord(analyticsData);
-      
+
       // Update user statistics cache
       await this.updateUserStatsCache(event.userId, 'thumbnails_created', 1);
-      
+
       // Update project statistics if applicable
       if (event.data.projectId) {
-        await this.updateProjectStatsCache(event.data.projectId, 'thumbnails_count', 1);
+        await this.updateProjectStatsCache(
+          event.data.projectId,
+          'thumbnails_count',
+          1
+        );
       }
 
-      console.log(`📈 Thumbnail creation analytics processed: ${event.data.thumbnailId}`);
+      console.log(
+        `📈 Thumbnail creation analytics processed: ${event.data.thumbnailId}`
+      );
     } catch (error) {
       console.error('❌ Error processing thumbnail creation analytics:', error);
     }
@@ -89,11 +97,15 @@ export class AnalyticsEventHandlers {
   /**
    * Handle social share completion events
    */
-  async handleSocialShareCompleted(event: SocialShareCompletedEvent): Promise<void> {
+  async handleSocialShareCompleted(
+    event: SocialShareCompletedEvent
+  ): Promise<void> {
     try {
       const analyticsData = {
         userId: event.userId,
-        action: event.data.success ? 'social_share_success' : 'social_share_failed',
+        action: event.data.success
+          ? 'social_share_success'
+          : 'social_share_failed',
         resource: 'social_share',
         resourceId: event.data.shareId,
         timestamp: event.timestamp,
@@ -101,20 +113,22 @@ export class AnalyticsEventHandlers {
           platform: event.data.platform,
           thumbnailId: event.data.thumbnailId,
           shareUrl: event.data.shareUrl,
-          error: event.data.error
-        }
+          error: event.data.error,
+        },
       };
 
       await this.createAnalyticsRecord(analyticsData);
-      
+
       // Update platform-specific statistics
       await this.updatePlatformStatsCache(
-        event.userId, 
-        event.data.platform, 
+        event.userId,
+        event.data.platform,
         event.data.success ? 'success' : 'failed'
       );
 
-      console.log(`📱 Social share analytics processed: ${event.data.platform} - ${event.data.success ? 'Success' : 'Failed'}`);
+      console.log(
+        `📱 Social share analytics processed: ${event.data.platform} - ${event.data.success ? 'Success' : 'Failed'}`
+      );
     } catch (error) {
       console.error('❌ Error processing social share analytics:', error);
     }
@@ -146,7 +160,7 @@ export class AnalyticsEventHandlers {
         action: data.action,
         resource: data.resource,
         resourceId: data.resourceId,
-        metadata: data.metadata
+        metadata: data.metadata,
       });
     }
   }
@@ -156,17 +170,17 @@ export class AnalyticsEventHandlers {
    */
   private async updateRealTimeCache(event: any): Promise<void> {
     const cacheKey = `analytics:realtime:${event.userId}`;
-    
+
     try {
       // Get current real-time data
       const currentData: {
         lastActivity: Date;
         recentActions: any[];
         counters: Record<string, number>;
-      } = await cache.get(cacheKey) || {
+      } = (await cache.get(cacheKey)) || {
         lastActivity: new Date(),
         recentActions: [],
-        counters: {}
+        counters: {},
       };
 
       // Add this action to recent actions (keep last 10)
@@ -175,14 +189,15 @@ export class AnalyticsEventHandlers {
           action: event.data.action,
           resource: event.data.resource,
           timestamp: event.timestamp,
-          properties: event.data.properties
+          properties: event.data.properties,
         },
-        ...currentData.recentActions.slice(0, 9)
+        ...currentData.recentActions.slice(0, 9),
       ];
 
       // Update counters
       const counterKey = `${event.data.action}_${event.data.resource}`;
-      currentData.counters[counterKey] = (currentData.counters[counterKey] || 0) + 1;
+      currentData.counters[counterKey] =
+        (currentData.counters[counterKey] || 0) + 1;
       currentData.lastActivity = event.timestamp;
 
       // Store back in cache for 1 hour
@@ -195,14 +210,19 @@ export class AnalyticsEventHandlers {
   /**
    * Update user statistics cache
    */
-  private async updateUserStatsCache(userId: string, stat: string, increment: number): Promise<void> {
+  private async updateUserStatsCache(
+    userId: string,
+    stat: string,
+    increment: number
+  ): Promise<void> {
     const cacheKey = `analytics:user_stats:${userId}`;
-    
+
     try {
-      const currentStats: Record<string, any> = await cache.get(cacheKey) || {};
+      const currentStats: Record<string, any> =
+        (await cache.get(cacheKey)) || {};
       currentStats[stat] = (currentStats[stat] || 0) + increment;
       currentStats.lastUpdated = new Date();
-      
+
       // Cache for 30 minutes
       await cache.set(cacheKey, currentStats, 1800);
     } catch (error) {
@@ -213,14 +233,19 @@ export class AnalyticsEventHandlers {
   /**
    * Update project statistics cache
    */
-  private async updateProjectStatsCache(projectId: string, stat: string, increment: number): Promise<void> {
+  private async updateProjectStatsCache(
+    projectId: string,
+    stat: string,
+    increment: number
+  ): Promise<void> {
     const cacheKey = `analytics:project_stats:${projectId}`;
-    
+
     try {
-      const currentStats: Record<string, any> = await cache.get(cacheKey) || {};
+      const currentStats: Record<string, any> =
+        (await cache.get(cacheKey)) || {};
       currentStats[stat] = (currentStats[stat] || 0) + increment;
       currentStats.lastUpdated = new Date();
-      
+
       // Cache for 30 minutes
       await cache.set(cacheKey, currentStats, 1800);
     } catch (error) {
@@ -231,19 +256,25 @@ export class AnalyticsEventHandlers {
   /**
    * Update platform-specific statistics cache
    */
-  private async updatePlatformStatsCache(userId: string, platform: string, result: 'success' | 'failed'): Promise<void> {
+  private async updatePlatformStatsCache(
+    userId: string,
+    platform: string,
+    result: 'success' | 'failed'
+  ): Promise<void> {
     const cacheKey = `analytics:platform_stats:${userId}`;
-    
+
     try {
-      const currentStats: Record<string, any> = await cache.get(cacheKey) || {};
-      
+      const currentStats: Record<string, any> =
+        (await cache.get(cacheKey)) || {};
+
       if (!currentStats[platform]) {
         currentStats[platform] = { success: 0, failed: 0 };
       }
-      
-      currentStats[platform][result] = (currentStats[platform][result] || 0) + 1;
+
+      currentStats[platform][result] =
+        (currentStats[platform][result] || 0) + 1;
       currentStats.lastUpdated = new Date();
-      
+
       // Cache for 1 hour
       await cache.set(cacheKey, currentStats, 3600);
     } catch (error) {
@@ -280,14 +311,16 @@ export class AnalyticsEventHandlers {
           resource: event.data.resource,
           resourceId: event.data.resourceId,
           timestamp: event.timestamp,
-          metadata: event.data.properties || {}
+          metadata: event.data.properties || {},
         });
       }
 
-      console.log(`📊 Batch processed ${eventsToProcess.length} analytics events`);
+      console.log(
+        `📊 Batch processed ${eventsToProcess.length} analytics events`
+      );
     } catch (error) {
       console.error('❌ Error flushing analytics event queue:', error);
-      
+
       // Put events back in queue for retry
       this.eventQueue.unshift(...eventsToProcess);
     }
@@ -305,14 +338,14 @@ export class AnalyticsEventHandlers {
       const [realTimeData, userStats, platformStats] = await Promise.all([
         cache.get(cacheKey),
         cache.get(userStatsKey),
-        cache.get(platformStatsKey)
+        cache.get(platformStatsKey),
       ]);
 
       return {
         realTime: realTimeData || { recentActions: [], counters: {} },
         userStats: userStats || {},
         platformStats: platformStats || {},
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     } catch (error) {
       console.error('❌ Error getting real-time analytics:', error);
@@ -320,7 +353,7 @@ export class AnalyticsEventHandlers {
         realTime: { recentActions: [], counters: {} },
         userStats: {},
         platformStats: {},
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     }
   }
@@ -332,10 +365,10 @@ export class AnalyticsEventHandlers {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
     }
-    
+
     // Flush any remaining events
     await this.flushEventQueue();
-    
+
     console.log('🧹 Analytics handlers cleaned up');
   }
 }

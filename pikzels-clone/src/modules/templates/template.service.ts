@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { getPrisma } from '../../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export class TemplateService {
   /**

@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from './prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 /**
  * Username Generation and Validation Utilities
@@ -98,7 +98,7 @@ export class UsernameUtils {
 
     // Filter valid suggestions and check availability
     const validSuggestions = suggestions.filter(
-      (s) => this.isValidFormat(s) && !this.isReserved(s)
+      s => this.isValidFormat(s) && !this.isReserved(s)
     );
 
     // Check which suggestions are available
@@ -325,7 +325,8 @@ export class UsernameUtils {
       minLength: this.MIN_LENGTH,
       maxLength: this.MAX_LENGTH,
       pattern: this.USERNAME_REGEX.source,
-      allowedCharacters: 'letters, numbers, dots (.), underscores (_), dashes (-)',
+      allowedCharacters:
+        'letters, numbers, dots (.), underscores (_), dashes (-)',
       rules: [
         `Must be ${this.MIN_LENGTH}-${this.MAX_LENGTH} characters`,
         'Can only contain letters, numbers, dots, underscores, and dashes',

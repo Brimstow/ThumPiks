@@ -94,7 +94,7 @@ export class VideoProxyController {
       stream.pipe(res);
 
       // Handle stream errors
-      stream.on('error', (error) => {
+      stream.on('error', error => {
         logger.error('Stream error', error);
         if (!res.headersSent) {
           res.status(500).json({
@@ -138,7 +138,7 @@ export class VideoProxyController {
       }
 
       const detected = videoProxyService.detectPlatform(videoUrl);
-      if (!detected || detected.platform !== 'youtube') {
+      if (detected?.platform !== 'youtube') {
         res.status(400).json({
           success: false,
           error: 'Invalid YouTube URL',
@@ -159,8 +159,7 @@ export class VideoProxyController {
       logger.error('YouTube proxy failed', error as Error);
       res.status(500).json({
         success: false,
-        error:
-          error instanceof Error ? error.message : 'YouTube proxy failed',
+        error: error instanceof Error ? error.message : 'YouTube proxy failed',
       });
     }
   }
@@ -182,7 +181,7 @@ export class VideoProxyController {
       }
 
       const detected = videoProxyService.detectPlatform(url);
-      if (!detected || detected.platform !== 'tiktok') {
+      if (detected?.platform !== 'tiktok') {
         res.status(400).json({
           success: false,
           error: 'Invalid TikTok URL',
@@ -203,8 +202,7 @@ export class VideoProxyController {
       logger.error('TikTok proxy failed', error as Error);
       res.status(500).json({
         success: false,
-        error:
-          error instanceof Error ? error.message : 'TikTok proxy failed',
+        error: error instanceof Error ? error.message : 'TikTok proxy failed',
       });
     }
   }
@@ -226,7 +224,7 @@ export class VideoProxyController {
       }
 
       const detected = videoProxyService.detectPlatform(url);
-      if (!detected || detected.platform !== 'instagram') {
+      if (detected?.platform !== 'instagram') {
         res.status(400).json({
           success: false,
           error: 'Invalid Instagram URL',

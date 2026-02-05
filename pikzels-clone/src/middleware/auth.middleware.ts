@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { EnhancedJWTService } from '../services/jwt.enhanced.service';
 import { AuthRequest, SecureUser, UserRole, Permission } from '../types/auth';
+import { getPrisma } from '../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // Enhanced authentication middleware with better security
 export const authenticateToken = async (
@@ -15,7 +15,7 @@ export const authenticateToken = async (
   try {
     // Try to get token from cookie first (secure HttpOnly), then fallback to Authorization header
     let token = (req as any).cookies?.token;
-    
+
     // Fallback to Authorization header for backwards compatibility
     if (!token) {
       const authHeader = req.headers['authorization'];
@@ -127,7 +127,7 @@ export const authenticateRefreshToken = async (
   try {
     // Try to get refresh token from cookie first, then fallback to request body
     let refreshToken = (req as any).cookies?.refreshToken;
-    
+
     // Fallback to request body for backwards compatibility
     if (!refreshToken) {
       refreshToken = req.body.refreshToken;

@@ -130,7 +130,7 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
       {/* Trigger Button - matches original header icon style */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="hidden sm:inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
+        className="inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
         aria-label="Account menu"
         aria-expanded={isOpen}
       >

@@ -2,15 +2,22 @@ import { Response } from 'express';
 import { ProjectService } from './project.service';
 import { AuthRequest } from '../../types/auth';
 import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../utils/prisma-factory';
 
 // Create shared instances that can be overridden for testing
 let sharedPrisma: PrismaClient;
 let sharedProjectService: ProjectService;
 
 // Initialize services (can be overridden in tests)
-export const initializeProjectServices = (prismaClient?: PrismaClient, cacheService?: any) => {
-  sharedPrisma = prismaClient || new PrismaClient();
-  sharedProjectService = new ProjectService({ prisma: sharedPrisma, cache: cacheService });
+export const initializeProjectServices = (
+  prismaClient?: PrismaClient,
+  cacheService?: any
+) => {
+  sharedPrisma = prismaClient || getPrisma();
+  sharedProjectService = new ProjectService({
+    prisma: sharedPrisma,
+    cache: cacheService,
+  });
 };
 
 // Initialize with default instances for production
@@ -51,7 +58,8 @@ export class ProjectController {
 
       // If parentProjectId is provided, verify it belongs to the user
       if (parentProjectId) {
-        const parentProject = await getProjectService().getProjectById(parentProjectId);
+        const parentProject =
+          await getProjectService().getProjectById(parentProjectId);
         if (!parentProject || parentProject.userId !== req.user.id) {
           return res.status(400).json({
             error: 'Invalid parent project or access denied',
@@ -70,14 +78,16 @@ export class ProjectController {
       return res.status(201).json({ project });
     } catch (error: any) {
       console.error('Error creating project:', error);
-      
+
       // Handle hierarchy validation errors
-      if (error.message.includes('Maximum nesting depth') || 
-          error.message.includes('Folders cannot contain') ||
-          error.message.includes('Parent project not found')) {
+      if (
+        error.message.includes('Maximum nesting depth') ||
+        error.message.includes('Folders cannot contain') ||
+        error.message.includes('Parent project not found')
+      ) {
         return res.status(400).json({ error: error.message });
       }
-      
+
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -232,9 +242,9 @@ export class ProjectController {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
-  
+
   // 🏗️ HIERARCHY-SPECIFIC ENDPOINTS
-  
+
   /**
    * Get projects in hierarchical tree structure
    * GET /api/projects/tree
@@ -245,14 +255,16 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const projectsTree = await getProjectService().getProjectsTree(req.user.id);
+      const projectsTree = await getProjectService().getProjectsTree(
+        req.user.id
+      );
       return res.status(200).json({ projectsTree });
     } catch (error) {
       console.error('Error fetching projects tree:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
-  
+
   /**
    * Get direct children of a project
    * GET /api/projects/:id/children
@@ -267,7 +279,7 @@ export class ProjectController {
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
-      
+
       // Verify the parent project belongs to the user
       const parentProject = await getProjectService().getProjectById(id);
       if (!parentProject || parentProject.userId !== req.user.id) {
@@ -281,7 +293,7 @@ export class ProjectController {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
-  
+
   /**
    * Get project breadcrumb path
    * GET /api/projects/:id/breadcrumb
@@ -308,7 +320,7 @@ export class ProjectController {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
-  
+
   /**
    * Move project to different parent
    * PUT /api/projects/:id/move
@@ -324,13 +336,13 @@ export class ProjectController {
         return res.status(400).json({ error: 'Project ID is required' });
       }
       const { newParentId } = req.body;
-      
+
       // Verify the project belongs to the user
       const project = await getProjectService().getProjectById(id);
       if (!project || project.userId !== req.user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
-      
+
       // If new parent is specified, verify it belongs to the user
       if (newParentId) {
         const newParent = await getProjectService().getProjectById(newParentId);
@@ -339,17 +351,22 @@ export class ProjectController {
         }
       }
 
-      const movedProject = await getProjectService().moveProject(id, newParentId);
+      const movedProject = await getProjectService().moveProject(
+        id,
+        newParentId
+      );
       return res.status(200).json({ project: movedProject });
     } catch (error: any) {
       console.error('Error moving project:', error);
-      
+
       // Handle specific move validation errors
-      if (error.message.includes('circular reference') || 
-          error.message.includes('Maximum nesting depth')) {
+      if (
+        error.message.includes('circular reference') ||
+        error.message.includes('Maximum nesting depth')
+      ) {
         return res.status(400).json({ error: error.message });
       }
-      
+
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

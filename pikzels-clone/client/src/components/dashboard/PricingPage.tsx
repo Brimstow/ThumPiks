@@ -1,10 +1,208 @@
-import React, { useState } from 'react';
-import { Sparkles, Check, X, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Check, X, ChevronRight, Loader2, CreditCard, Shield, Clock, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { authPost, authGet } from '../../utils/api';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface Subscription {
+  id: string;
+  planType: string;
+  creditsBalance: number;
+  status: string;
+  periodEnd: string;
+}
+
+interface PlanDetails {
+  id: string;
+  name: string;
+  price: number;
+  features: string[];
+  thumbnails: number;
+}
 
 const PricingPage = () => {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [upgrading, setUpgrading] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanDetails | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<'confirm' | 'processing' | 'redirecting'>('confirm');
+
+  useEffect(() => {
+    fetchCurrentSubscription();
+  }, []);
+
+  const fetchCurrentSubscription = async () => {
+    try {
+      const response = await authGet('/api/subscription/current');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentSubscription(data);
+      } else if (response.status === 401 || response.status === 403) {
+        // User is not authenticated, redirect to login
+        console.warn('User not authenticated, redirecting to login...');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPlanDetails = (planId: string): PlanDetails => {
+    const plans: Record<string, PlanDetails> = {
+      starter: {
+        id: 'starter',
+        name: 'Starter',
+        price: billingCycle === 'monthly' ? 9 : 7.50,
+        thumbnails: 30,
+        features: [
+          '30 AI thumbnails/month',
+          'All styles & templates',
+          '1080p HD resolution',
+          'No watermark',
+          'Face swap (1 face)'
+        ]
+      },
+      pro: {
+        id: 'pro',
+        name: 'Creator Pro',
+        price: billingCycle === 'monthly' ? 24 : 19,
+        thumbnails: 120,
+        features: [
+          '120 AI thumbnails/month',
+          'All Starter features',
+          'Face training (5 faces)',
+          'A/B test variations',
+          '2x faster generation',
+          'Trending insights'
+        ]
+      },
+      business: {
+        id: 'business',
+        name: 'Agency',
+        price: billingCycle === 'monthly' ? 69 : 59,
+        thumbnails: 500,
+        features: [
+          '500 AI thumbnails/month',
+          'All Creator Pro features',
+          'Team collaboration (5 seats)',
+          'Brand kit & templates',
+          'API access',
+          'White-label option'
+        ]
+      }
+    };
+    return plans[planId] || plans.starter;
+  };
+
+  const handleUpgradeClick = (planId: string) => {
+    if (planId === 'free' || upgrading) return;
+    
+    // Check if user is authenticated
+    if (!isAuthenticated || !user) {
+      alert('🔐 Please Log In\n\nYou need to be logged in to upgrade your subscription.\n\nClick OK to go to the login page.');
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 500);
+      return;
+    }
+    
+    const plan = getPlanDetails(planId);
+    setSelectedPlan(plan);
+    setShowConfirmModal(true);
+    setCheckoutStep('confirm');
+  };
+
+  const handleConfirmUpgrade = async () => {
+    if (!selectedPlan || upgrading) return;
+
+    setCheckoutStep('processing');
+    setUpgrading(selectedPlan.id);
+    
+    try {
+      const response = await authPost('/api/subscription/create-checkout', {
+        planId: selectedPlan.id,
+        billingCycle,
+      });
+
+      if (response.ok) {
+        const { url } = await response.json();
+        console.log('🎭 Demo checkout URL:', url);
+        
+        // Show redirecting state
+        setCheckoutStep('redirecting');
+        
+        // Wait a moment so user can see the redirecting message
+        setTimeout(() => {
+          window.location.href = url;
+        }, 800);
+      } else {
+        const error = await response.json();
+        console.error('Checkout error:', error);
+        
+        // Reset states
+        setShowConfirmModal(false);
+        setUpgrading(null);
+        
+        // Handle specific error cases
+        if (response.status === 401 || response.status === 403) {
+          alert('🔐 Authentication Error\n\nYour session has expired. Please log in again to continue.');
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else if (error.error?.includes('Stripe is not configured')) {
+          alert('⚠️ Stripe is not configured in development.\n\nTo test payments:\n1. Add STRIPE_SECRET_KEY to your .env file\n2. Restart the backend server\n\nThe app works without Stripe for other features.');
+        } else if (error.error?.includes('Access token required') || error.error?.includes('token')) {
+          alert('🔐 Authentication Required\n\nPlease log in to upgrade your subscription.');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else {
+          alert(`❌ Checkout Failed
+
+${error.error || 'Failed to create checkout session'}
+
+Please try again or contact support if the issue persists.`);
+        }
+      }
+    } catch (error) {
+      console.error('Upgrade failed:', error);
+      setShowConfirmModal(false);
+      setUpgrading(null);
+      alert('❌ Network Error\n\nCould not connect to the server. Please check:\n1. Backend server is running\n2. You have an active internet connection\n3. Try refreshing the page');
+    }
+  };
+
+  const handleCancelConfirm = () => {
+    setShowConfirmModal(false);
+    setSelectedPlan(null);
+    setUpgrading(null);
+    setCheckoutStep('confirm');
+  };
+
+  const isCurrentPlan = (planId: string) => {
+    if (!currentSubscription) return planId === 'free';
+    return currentSubscription.planType === planId;
+  };
+
+  const getButtonText = (planId: string) => {
+    if (upgrading === planId) return 'Processing...';
+    if (isCurrentPlan(planId)) return 'Current Plan';
+    if (planId === 'free') return 'Current Plan';
+    return 'Upgrade';
+  };
+
+  const getButtonDisabled = (planId: string) => {
+    return isCurrentPlan(planId) || upgrading !== null || planId === 'free';
+  };
 
   return (
     <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
@@ -104,8 +302,13 @@ const PricingPage = () => {
             </div>
           </div>
 
-          <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Current Plan
+          <button 
+            onClick={() => handleUpgradeClick('free')}
+            disabled={getButtonDisabled('free')}
+            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+          >
+            {upgrading === 'free' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {getButtonText('free')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
             No credit card required
@@ -155,8 +358,13 @@ const PricingPage = () => {
             </div>
           </div>
 
-          <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Upgrade
+          <button 
+            onClick={() => handleUpgradeClick('starter')}
+            disabled={getButtonDisabled('starter')}
+            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+          >
+            {upgrading === 'starter' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {getButtonText('starter')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
             {billingCycle === 'annual' ? 'Save 17% annually' : '7-day free trial'}
@@ -164,7 +372,7 @@ const PricingPage = () => {
         </div>
 
         {/* Creator Pro Plan */}
-        <div className="bg-[#0F172A] border-2 border-blue-600 rounded-2xl p-8 relative">
+        <div className="bg-[#0F172A] border-2 border-blue-600 rounded-2xl p-8 relative" data-testid="pro-plan-card">
           <div className="absolute -top-4 left-1/2 -translate-x-1/2">
             <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
               MOST POPULAR
@@ -212,8 +420,13 @@ const PricingPage = () => {
             </div>
           </div>
 
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Upgrade
+          <button 
+            onClick={() => handleUpgradeClick('pro')}
+            disabled={getButtonDisabled('pro')}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+          >
+            {upgrading === 'pro' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {getButtonText('pro')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
             14-day free trial included
@@ -263,8 +476,13 @@ const PricingPage = () => {
             </div>
           </div>
 
-          <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-lg transition-colors font-medium">
-            Contact Sales
+          <button 
+            onClick={() => handleUpgradeClick('business')}
+            disabled={getButtonDisabled('business')}
+            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+          >
+            {upgrading === 'business' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {getButtonText('business')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
             Custom plans available
@@ -363,6 +581,161 @@ const PricingPage = () => {
           ))}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmModal && selectedPlan && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="checkout-modal-overlay">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={checkoutStep === 'confirm' ? handleCancelConfirm : undefined}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="relative bg-[#0F172A] border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+              data-testid="checkout-confirmation-modal"
+              role="dialog"
+              aria-labelledby="modal-title"
+            >
+              {checkoutStep === 'confirm' && (
+                <>
+                  {/* Authentication Warning (if somehow modal opened without auth) */}
+                  {(!isAuthenticated || !user) && (
+                    <div className="mb-6 bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-yellow-500 font-medium mb-1">Authentication Required</h4>
+                          <p className="text-slate-300 text-sm">
+                            You must be logged in to complete the checkout. Please log in and try again.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-center mb-6">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/10 rounded-full mb-4">
+                      <CreditCard className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <h3 id="modal-title" className="text-2xl font-semibold text-slate-50 mb-2">
+                      Confirm Your Upgrade
+                    </h3>
+                    <p className="text-slate-400 text-sm">
+                      You're about to upgrade to {selectedPlan.name}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/50 rounded-xl p-6 mb-6 border border-slate-800" data-testid="order-summary">
+                    <div className="flex items-baseline justify-between mb-4">
+                      <span className="text-slate-300 font-medium">{selectedPlan.name} Plan</span>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold text-slate-50" data-testid="modal-price">
+                          ${selectedPlan.price}
+                        </div>
+                        <div className="text-sm text-slate-400">/{billingCycle === 'monthly' ? 'month' : 'year'}</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {selectedPlan.features.slice(0, 3).map((feature, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-300">
+                          <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span>{feature}</span>
+                        </div>
+                      ))}
+                      {selectedPlan.features.length > 3 && (
+                        <div className="text-sm text-slate-400 pl-6">
+                          + {selectedPlan.features.length - 3} more features
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-800 space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <Shield className="w-4 h-4" />
+                        <span>Secure payment via Stripe</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <Clock className="w-4 h-4" />
+                        <span>Cancel anytime, no hidden fees</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleConfirmUpgrade}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+                    >
+                      Continue to Payment
+                    </button>
+                    <button
+                      onClick={handleCancelConfirm}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-lg transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {checkoutStep === 'processing' && (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/10 rounded-full mb-4">
+                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                  </div>
+                  <h3 className="text-2xl font-semibold text-slate-50 mb-2">
+                    Preparing Your Checkout
+                  </h3>
+                  <p className="text-slate-400 text-sm">
+                    Setting up your secure payment session...
+                  </p>
+                  <div className="mt-6 space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      <span>Verifying account details</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                      <span>Creating secure session</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {checkoutStep === 'redirecting' && (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600/10 rounded-full mb-4">
+                    <Check className="w-8 h-8 text-green-500" />
+                  </div>
+                  <h3 className="text-2xl font-semibold text-slate-50 mb-2">
+                    Redirecting to Checkout
+                  </h3>
+                  <p className="text-slate-400 text-sm">
+                    Taking you to our secure payment page...
+                  </p>
+                  <div className="mt-6">
+                    <div className="flex items-center justify-center gap-2 text-sm text-green-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Please wait...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </main>
   );
 };

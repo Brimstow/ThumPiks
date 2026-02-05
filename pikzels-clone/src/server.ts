@@ -42,6 +42,10 @@ import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
 import performanceRoutes from './routes/performance.routes';
 import videoProxyRoutes from './modules/video-proxy/video-proxy.routes';
+import subscriptionRoutes from './modules/subscription/subscription.routes';
+import creditRoutes from './modules/credit/credit.routes';
+import billingRoutes from './modules/billing/billing.routes';
+import userSettingsRoutes from './modules/user/user-settings.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -109,8 +113,14 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
 }
 
 // Enhanced CORS configuration
+// Development: Always include localhost for local testing
+// Production: Only use CORS_ORIGIN env var (no localhost exposure)
+const isDev = process.env.NODE_ENV !== 'production';
+const devOrigins = ['http://localhost:8556', 'http://127.0.0.1:8556'];
+const prodOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:8556'],
+  origin: isDev ? [...devOrigins, ...prodOrigins] : prodOrigins,
   credentials: true, // Always enable credentials for HttpOnly cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -154,6 +164,7 @@ app.use(
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', profileRoutes);
+app.use('/api/user', userSettingsRoutes);
 app.use('/api/thumbnails', thumbnailRoutes);
 app.use('/api/thumbnails', thumbnailPublicRoutes);
 app.use('/api/projects', projectRoutes);
@@ -163,6 +174,9 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/video', videoProxyRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/credits', creditRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);

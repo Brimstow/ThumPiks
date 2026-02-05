@@ -1,15 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import { sign, verify, SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { getPrisma } from '../../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // Admin role hierarchy
 export enum AdminRoles {
   SUPER_ADMIN = 'super_admin',
-  ADMIN = 'admin', 
+  ADMIN = 'admin',
   MODERATOR = 'moderator',
-  ANALYST = 'analyst'
+  ANALYST = 'analyst',
 }
 
 // Permission system
@@ -20,24 +20,24 @@ export const ADMIN_PERMISSIONS = {
   USERS_UPDATE: 'users.update',
   USERS_DELETE: 'users.delete',
   USERS_BAN: 'users.ban',
-  
+
   // Content Management
   CONTENT_VIEW: 'content.view',
   CONTENT_MODERATE: 'content.moderate',
   CONTENT_DELETE: 'content.delete',
-  
+
   // System Management
   SYSTEM_CONFIG: 'system.config',
   SYSTEM_HEALTH: 'system.health',
   SYSTEM_LOGS: 'system.logs',
-  
+
   // Analytics
   ANALYTICS_VIEW: 'analytics.view',
   ANALYTICS_EXPORT: 'analytics.export',
-  
+
   // Admin Management
   ADMIN_ROLES: 'admin.roles',
-  ADMIN_PERMISSIONS: 'admin.permissions'
+  ADMIN_PERMISSIONS: 'admin.permissions',
 } as const;
 
 // Default role permissions
@@ -51,19 +51,19 @@ export const ROLE_PERMISSIONS = {
     ADMIN_PERMISSIONS.CONTENT_MODERATE,
     ADMIN_PERMISSIONS.CONTENT_DELETE,
     ADMIN_PERMISSIONS.ANALYTICS_VIEW,
-    ADMIN_PERMISSIONS.SYSTEM_HEALTH
+    ADMIN_PERMISSIONS.SYSTEM_HEALTH,
   ],
   [AdminRoles.MODERATOR]: [
     ADMIN_PERMISSIONS.USERS_VIEW,
     ADMIN_PERMISSIONS.CONTENT_VIEW,
     ADMIN_PERMISSIONS.CONTENT_MODERATE,
-    ADMIN_PERMISSIONS.ANALYTICS_VIEW
+    ADMIN_PERMISSIONS.ANALYTICS_VIEW,
   ],
   [AdminRoles.ANALYST]: [
     ADMIN_PERMISSIONS.ANALYTICS_VIEW,
     ADMIN_PERMISSIONS.ANALYTICS_EXPORT,
-    ADMIN_PERMISSIONS.SYSTEM_HEALTH
-  ]
+    ADMIN_PERMISSIONS.SYSTEM_HEALTH,
+  ],
 };
 
 export interface AdminUser {
@@ -76,11 +76,15 @@ export interface AdminUser {
 }
 
 export class AdminAuthService {
-  
   /**
    * Authenticate admin user with email and password
    */
-  async authenticateAdmin(email: string, password: string, ipAddress?: string, userAgent?: string): Promise<{ user: AdminUser; token: string } | null> {
+  async authenticateAdmin(
+    email: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<{ user: AdminUser; token: string } | null> {
     try {
       // Find user with admin roles
       const user = await prisma.user.findUnique({
@@ -88,9 +92,9 @@ export class AdminAuthService {
         include: {
           AdminRole: {
             where: { isActive: true },
-            orderBy: { assignedAt: 'desc' }
-          }
-        }
+            orderBy: { assignedAt: 'desc' },
+          },
+        },
       });
 
       if (!user || !user.isActive || user.AdminRole.length === 0) {
@@ -98,7 +102,7 @@ export class AdminAuthService {
           email,
           reason: 'No admin access',
           ipAddress,
-          userAgent
+          userAgent,
         });
         return null;
       }
@@ -109,22 +113,22 @@ export class AdminAuthService {
         await this.logAdminAction(user.id, 'ADMIN_LOGIN_FAILED', 'auth', null, {
           reason: 'Invalid password',
           ipAddress,
-          userAgent
+          userAgent,
         });
         return null;
       }
 
       // Get active roles and permissions
-      const roles = user.AdminRole
-        .filter((role: any) => !role.expiresAt || role.expiresAt > new Date())
-        .map((role: any) => role.role as AdminRoles);
+      const roles = user.AdminRole.filter(
+        (role: any) => !role.expiresAt || role.expiresAt > new Date()
+      ).map((role: any) => role.role as AdminRoles);
 
       const permissions = this.getPermissionsForRoles(roles);
 
       // Update last login
       await prisma.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date() }
+        data: { lastLoginAt: new Date() },
       });
 
       // Generate JWT token
@@ -133,22 +137,23 @@ export class AdminAuthService {
         email: user.email,
         roles,
         permissions,
-        type: 'admin'
+        type: 'admin',
       };
-      
+
+      // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
       const secret = process.env.JWT_SECRET;
       if (!secret) {
         throw new Error('JWT_SECRET environment variable is required');
       }
-      
+
       const token = sign(tokenPayload, secret, {
-        expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m'
+        expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
       } as SignOptions);
 
       // Log successful login
       await this.logAdminAction(user.id, 'ADMIN_LOGIN_SUCCESS', 'auth', null, {
         ipAddress,
-        userAgent
+        userAgent,
       });
 
       const adminUser: AdminUser = {
@@ -157,11 +162,10 @@ export class AdminAuthService {
         name: user.name || 'Admin User',
         roles,
         permissions,
-        ...(user.lastLoginAt && { lastLoginAt: user.lastLoginAt })
+        ...(user.lastLoginAt && { lastLoginAt: user.lastLoginAt }),
       };
 
       return { user: adminUser, token };
-
     } catch (error) {
       console.error('Admin authentication error:', error);
       throw error;
@@ -174,7 +178,7 @@ export class AdminAuthService {
   async verifyAdminToken(token: string): Promise<AdminUser | null> {
     try {
       const decoded = verify(token, process.env.JWT_SECRET!) as any;
-      
+
       if (decoded.type !== 'admin') {
         return null;
       }
@@ -185,9 +189,9 @@ export class AdminAuthService {
         include: {
           AdminRole: {
             where: { isActive: true },
-            orderBy: { assignedAt: 'desc' }
-          }
-        }
+            orderBy: { assignedAt: 'desc' },
+          },
+        },
       });
 
       if (!user || !user.isActive || user.AdminRole.length === 0) {
@@ -195,9 +199,9 @@ export class AdminAuthService {
       }
 
       // Check if roles have been updated since token was issued
-      const currentRoles = user.AdminRole
-        .filter((role: any) => !role.expiresAt || role.expiresAt > new Date())
-        .map((role: any) => role.role as AdminRoles);
+      const currentRoles = user.AdminRole.filter(
+        (role: any) => !role.expiresAt || role.expiresAt > new Date()
+      ).map((role: any) => role.role as AdminRoles);
 
       const currentPermissions = this.getPermissionsForRoles(currentRoles);
 
@@ -207,9 +211,8 @@ export class AdminAuthService {
         name: user.name || 'Admin User',
         roles: currentRoles,
         permissions: currentPermissions,
-        ...(user.lastLoginAt && { lastLoginAt: user.lastLoginAt })
+        ...(user.lastLoginAt && { lastLoginAt: user.lastLoginAt }),
       };
-
     } catch (error) {
       return null;
     }
@@ -233,8 +236,8 @@ export class AdminAuthService {
    * Assign admin role to user
    */
   async assignAdminRole(
-    userId: string, 
-    role: AdminRoles, 
+    userId: string,
+    role: AdminRoles,
     assignedBy: string,
     expiresAt?: Date,
     customPermissions?: string[]
@@ -248,23 +251,29 @@ export class AdminAuthService {
         role,
         permissions: JSON.stringify(permissions),
         assignedBy,
-        isActive: true
+        isActive: true,
       };
-      
+
       if (expiresAt) {
         createData.expiresAt = expiresAt;
       }
 
       await prisma.adminRole.create({
-        data: createData
+        data: createData,
       });
 
       // Log the role assignment
-      await this.logAdminAction(assignedBy, 'ADMIN_ROLE_ASSIGNED', 'admin_role', userId, {
-        role,
-        permissions: permissions.length,
-        expiresAt
-      });
+      await this.logAdminAction(
+        assignedBy,
+        'ADMIN_ROLE_ASSIGNED',
+        'admin_role',
+        userId,
+        {
+          role,
+          permissions: permissions.length,
+          expiresAt,
+        }
+      );
 
       return true;
     } catch (error) {
@@ -276,17 +285,27 @@ export class AdminAuthService {
   /**
    * Remove admin role from user
    */
-  async removeAdminRole(userId: string, role: AdminRoles, removedBy: string): Promise<boolean> {
+  async removeAdminRole(
+    userId: string,
+    role: AdminRoles,
+    removedBy: string
+  ): Promise<boolean> {
     try {
       await prisma.adminRole.updateMany({
         where: { userId, role, isActive: true },
-        data: { isActive: false }
+        data: { isActive: false },
       });
 
       // Log the role removal
-      await this.logAdminAction(removedBy, 'ADMIN_ROLE_REMOVED', 'admin_role', userId, {
-        role
-      });
+      await this.logAdminAction(
+        removedBy,
+        'ADMIN_ROLE_REMOVED',
+        'admin_role',
+        userId,
+        {
+          role,
+        }
+      );
 
       return true;
     } catch (error) {
@@ -300,7 +319,7 @@ export class AdminAuthService {
    */
   private getPermissionsForRoles(roles: AdminRoles[]): string[] {
     const permissionSet = new Set<string>();
-    
+
     roles.forEach(role => {
       const rolePermissions = ROLE_PERMISSIONS[role] || [];
       rolePermissions.forEach(permission => permissionSet.add(permission));
@@ -328,15 +347,15 @@ export class AdminAuthService {
         resource,
         resourceId,
         severity,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
+
       if (details) {
         logData.details = JSON.stringify(details);
       }
 
       await prisma.auditLog.create({
-        data: logData
+        data: logData,
       });
     } catch (error) {
       console.error('Error logging admin action:', error);
@@ -355,7 +374,7 @@ export class AdminAuthService {
     severity?: string
   ) {
     const where: any = {};
-    
+
     if (adminId) where.adminId = adminId;
     if (action) where.action = action;
     if (resource) where.resource = resource;
@@ -367,13 +386,13 @@ export class AdminAuthService {
         User_AuditLog_adminIdToUser: {
           select: {
             email: true,
-            name: true
-          }
-        }
+            name: true,
+          },
+        },
       },
       orderBy: { timestamp: 'desc' },
       take: limit,
-      skip: offset
+      skip: offset,
     });
   }
 }

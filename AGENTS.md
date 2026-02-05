@@ -11,6 +11,7 @@
 ### CRITICAL: When to Use Cipher
 
 #### 1. ALWAYS Check Cipher FIRST When:
+
 - ✅ User asks about **past conversations** ("what did we discuss?", "remember when...")
 - ✅ User mentions **codewords** or stored information
 - ✅ User references **project history** not in current context
@@ -19,6 +20,7 @@
 - ✅ User switches from another IDE and continues discussion
 
 #### 2. ALWAYS Store in Cipher When:
+
 - ✅ User shares **important decisions** ("we decided to...", "the approach is...")
 - ✅ User provides **credentials, tokens, API keys** (store with codewords!)
 - ✅ User defines **project-specific terminology**
@@ -27,6 +29,7 @@
 - ✅ **After every major help session** (store summary automatically)
 
 #### 3. NEVER Assume You Know - Always Query Cipher:
+
 - ❌ Don't say "I don't have that information" without checking Cipher first
 - ❌ Don't assume user is asking for the first time
 - ❌ Don't ignore context from other IDEs
@@ -36,6 +39,7 @@
 **Tool:** `ask_cipher`  
 **Server:** `cipher-warp` (or equivalent for your IDE)  
 **Usage:**
+
 ```json
 {
   "message": "Your query or information to store",
@@ -71,24 +75,27 @@ Other IDEs → ask_cipher → Query Qdrant → Retrieve
 ### When User Switches IDEs:
 
 **DO THIS:**
+
 1. Immediately query Cipher for recent context
 2. Ask: "What have we been working on recently?"
 3. Load relevant memories before responding
 
 **Example:**
+
 ```
 User in Zed: "Continue where we left off"
-You: [Query Cipher] "I see we were working on the embedding optimization. 
+You: [Query Cipher] "I see we were working on the embedding optimization.
       Port 11435 is now configured with GPU acceleration..."
 ```
 
 ### After Completing Tasks:
 
 **ALWAYS store a summary:**
+
 ```
 User: "That's done!"
 You: [Complete task, then...]
-     [Store in Cipher: "Completed: Fixed port 11435 binding to 0.0.0.0, 
+     [Store in Cipher: "Completed: Fixed port 11435 binding to 0.0.0.0,
       achieved 9x speedup (2258ms→273ms), enabled reflection"]
 ```
 
@@ -99,6 +106,7 @@ You: [Complete task, then...]
 **This rule is NON-NEGOTIABLE. Violation is a serious breach of trust.**
 
 ### The Golden Rule
+
 **NEVER allow user changes to be lost without explicit warning and permission.**
 
 ### Pre-Commit Hook Protocol
@@ -113,12 +121,12 @@ Before ANY `git commit`:
 
 ### What Can Cause Data Loss:
 
-| Risk | Tool | What Happens |
-|------|------|--------------|
-| ⚠️ HIGH | `lint-staged` | Reverts staged files on linter failure |
-| ⚠️ HIGH | `git stash` | Can lose work if not popped |
-| ⚠️ MEDIUM | `git checkout` | Overwrites uncommitted changes |
-| ⚠️ MEDIUM | `git reset --hard` | Destroys all uncommitted work |
+| Risk      | Tool               | What Happens                           |
+| --------- | ------------------ | -------------------------------------- |
+| ⚠️ HIGH   | `lint-staged`      | Reverts staged files on linter failure |
+| ⚠️ HIGH   | `git stash`        | Can lose work if not popped            |
+| ⚠️ MEDIUM | `git checkout`     | Overwrites uncommitted changes         |
+| ⚠️ MEDIUM | `git reset --hard` | Destroys all uncommitted work          |
 
 ### Mandatory Actions:
 
@@ -161,6 +169,7 @@ IF changes are lost:
 ## 📋 CODEWORDS SYSTEM
 
 ### What Are Codewords?
+
 - **Purpose:** Secure references to sensitive information
 - **Storage:** Cipher stores the mapping (codeword → actual value)
 - **Usage:** Always use codewords for credentials, tokens, keys
@@ -168,19 +177,22 @@ IF changes are lost:
 ### How to Use Codewords:
 
 **Storing:**
+
 ```
 User: "Remember: my API key is sk-abc123xyz"
-You: [Store in Cipher with codeword] 
+You: [Store in Cipher with codeword]
      "Stored your API key as codeword TITANIUM"
 ```
 
 **Retrieving:**
+
 ```
 User: "What's my API key?"
 You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 ```
 
 ### Current Codewords:
+
 1. **TITANIUM** - Port 11435 configuration
 2. **ELITE** - Codeword #2
 3. **VIRGINIA** - Codeword #3
@@ -192,6 +204,7 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 ## ⚡ PERFORMANCE EXPECTATIONS
 
 ### Cipher Query Speed:
+
 - **Embeddings:** ~35ms (GPU-accelerated)
 - **Semantic Search:** ~50-100ms
 - **LLM Response:** 1-3 seconds (API latency)
@@ -204,9 +217,11 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 ## 🔧 TROUBLESHOOTING
 
 ### If Cipher Times Out (⚠️ IMPORTANT - Fixed Dec 16, 2025):
+
 **Problem:** Multiple IDEs competing for resources causes 10-30s timeouts
 
 **Solution Applied:** Parallelism configuration added to `~/cipher-workspace/.env`
+
 - ✅ QDRANT_MAX_CONNECTIONS=200 (increased from 100)
 - ✅ CIPHER_TIMEOUT=30000 (30 seconds)
 - ✅ ENABLE_REQUEST_QUEUE=true (queue requests during high load)
@@ -215,17 +230,20 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 **Fix Details:** See `CIPHER_PARALLELISM_FIX.md` and `test_zed_cipher.md`
 
 **Expected Performance:**
+
 - Single IDE: 2-4 seconds ✅
 - 2-3 IDEs active: 3-6 seconds ✅
 - 5+ IDEs active: 5-10 seconds ⚠️ (close unused IDEs)
 
 **If Still Timing Out:**
+
 1. Restart your IDE to pick up new .env settings
 2. Check active Cipher processes: `ps aux | grep "[c]ipher --mode mcp"`
 3. Kill competing processes: `pkill -f "cipher --mode mcp"`
 4. For Zed-specific issues: See `test_zed_cipher.md` troubleshooting
 
 ### If Cipher Seems Slow:
+
 1. ✅ Check port 11435 is running: `ss -tlnp | grep 11435`
 2. ✅ Verify GPU is active: Embeddings should be <50ms
 3. ⚠️ API latency (DeepSeek + Kimi) is expected: 1-3 seconds
@@ -233,12 +251,14 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 5. ✅ Check if multiple IDEs open (see parallelism section above)
 
 ### If Cipher Doesn't Respond:
+
 1. Check Qdrant: `curl http://localhost:9095/collections`
 2. Check Ollama: `wsl -e bash -c 'ss -tlnp | grep 11435'`
 3. Verify MCP connection in your IDE settings
 4. Check Qdrant connections: `ss -tn | grep 9095 | wc -l` (should be < 200)
 
 ### If Other IDEs Don't See Info:
+
 - **Expected Behavior:** Memory is pull-based
 - **Solution:** Explicitly query Cipher in the new IDE
 - **Not a Bug:** Real-time sync doesn't exist (yet)
@@ -248,6 +268,7 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 ## 💡 BEST PRACTICES
 
 ### DO:
+
 - ✅ Query Cipher at the **start of conversations**
 - ✅ Store **summaries** after completing tasks
 - ✅ Use **codewords** for sensitive data
@@ -255,6 +276,7 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 - ✅ Be **proactive** - don't wait for explicit requests
 
 ### DON'T:
+
 - ❌ Forget to check Cipher before saying "I don't know"
 - ❌ Store trivial information (clutters memory)
 - ❌ Assume other IDEs are magically updated
@@ -267,21 +289,25 @@ You: [Query Cipher] "Your API key is codeword TITANIUM (sk-abc123xyz)"
 ### Essential Commands:
 
 **Check if Cipher is available:**
+
 ```
 list_relevant_mcp_context(server_names=["cipher-warp"])
 ```
 
 **Query Cipher:**
+
 ```
 ask_cipher(message="What do we know about X?", stream=false)
 ```
 
 **Store in Cipher:**
+
 ```
 ask_cipher(message="Remember: [important info]", stream=false)
 ```
 
 **List codewords:**
+
 ```
 ask_cipher(message="List all my codewords", stream=false)
 ```
@@ -291,21 +317,24 @@ ask_cipher(message="List all my codewords", stream=false)
 ## 🚀 FUTURE: REAL-TIME SYNC OPTIONS
 
 ### Current Limitation:
+
 - Cipher MCP is **pull-based** (query to retrieve)
 - No automatic push notifications to other IDEs
 
 ### Potential Solutions:
 
 #### Option 1: Periodic Background Queries (NOT RECOMMENDED)
+
 - **How:** IDE polls Cipher every N seconds
 - **Pros:** Semi-automatic updates
-- **Cons:** 
+- **Cons:**
   - Expensive (constant API calls)
   - Battery drain
   - Still not "real-time"
   - Would slow down IDE
 
 #### Option 2: Webhook System (POSSIBLE - Needs Development)
+
 - **How:** Cipher notifies all connected IDEs when memory updates
 - **Pros:** True real-time sync
 - **Cons:**
@@ -314,6 +343,7 @@ ask_cipher(message="List all my codewords", stream=false)
   - Complex implementation
 
 #### Option 3: Shared Memory File Watch (EXPERIMENTAL)
+
 - **How:** All IDEs watch a shared file for changes
 - **Pros:** Simple, OS-level notifications
 - **Cons:**
@@ -322,6 +352,7 @@ ask_cipher(message="List all my codewords", stream=false)
   - Not integrated with Qdrant
 
 #### Option 4: Session Context Broadcast (BEST FOR NOW)
+
 - **How:** Start each session by querying Cipher
 - **Pros:** Simple, works with current setup
 - **Cons:** Manual trigger needed
@@ -329,6 +360,7 @@ ask_cipher(message="List all my codewords", stream=false)
 ### Recommended Approach (What We Can Do Now):
 
 **IDE Startup Script:**
+
 ```javascript
 // On IDE start or new conversation
 if (user_starts_conversation) {
@@ -338,6 +370,7 @@ if (user_starts_conversation) {
 ```
 
 **User Alias:**
+
 ```bash
 # Add to your shell
 alias sync-cipher='wsl ~/cipher-workspace/run-cipher.sh "Summarize recent context for all IDEs"'
@@ -348,6 +381,7 @@ alias sync-cipher='wsl ~/cipher-workspace/run-cipher.sh "Summarize recent contex
 ## 📊 MEMORY STATS
 
 **Current Setup:**
+
 - Total Codewords: 5
 - Reflection: ✅ Enabled
 - GPU Acceleration: ✅ Active (35ms)
@@ -355,6 +389,7 @@ alias sync-cipher='wsl ~/cipher-workspace/run-cipher.sh "Summarize recent contex
 - IDE Source Tracking: ✅ ENABLED (as of Dec 16, 2025)
 
 **IDE Tags:**
+
 - Warp: `IDE_SOURCE=warp`
 - Windsurf: `IDE_SOURCE=windsurf`
 - Qoder: `IDE_SOURCE=qoder`
@@ -362,6 +397,7 @@ alias sync-cipher='wsl ~/cipher-workspace/run-cipher.sh "Summarize recent contex
 - Trae: `IDE_SOURCE=trae`
 
 **How to Query by IDE:**
+
 ```
 ask_cipher("Show memories from Warp")
 ask_cipher("What did we do in Qoder yesterday?")
@@ -373,24 +409,27 @@ ask_cipher("List all decisions made in Windsurf")
 ## 🎓 TRAINING EXAMPLES
 
 ### Example 1: User Switches IDEs
+
 ```
 User (in Windsurf): "What were we working on?"
 You: [Query Cipher first]
-     "We completed the port 11435 optimization, achieving 9x speedup. 
+     "We completed the port 11435 optimization, achieving 9x speedup.
       Also enabled reflection and tested 11 embedding models."
 ```
 
 ### Example 2: Storing Decisions
+
 ```
 User: "Let's use mxbai-embed-large for production"
-You: "Got it. [Stores in Cipher] I've recorded that decision. 
+You: "Got it. [Stores in Cipher] I've recorded that decision.
      mxbai-embed-large chosen for production (37.7/100 quality, 0.063s speed)."
 ```
 
 ### Example 3: Retrieving Credentials
+
 ```
 User: "What's codeword TITANIUM?"
-You: [Query Cipher] "TITANIUM refers to port 11435 configuration 
+You: [Query Cipher] "TITANIUM refers to port 11435 configuration
      (WSL Ollama embedding server)."
 ```
 
@@ -407,9 +446,567 @@ For every conversation session:
 - [ ] Summarize and store before conversation ends
 - [ ] Verify information before saying "I don't know"
 
+## Thumbnail Maker – Paradigm and Modular Design Policy
+
+### Agent Role & Priorities
+
+You are a **polyglot JS/TS coding assistant** for the Thumbnail Maker project.
+
+**Priorities (in order):**
+
+1. Respect subsystem-specific programming paradigms and modular architecture boundaries.
+2. Preserve and improve code clarity, type safety, tests, and existing behavior.
+3. Optimize for performance only after 1 and 2 are satisfied.
+
+### Paradigms by Subsystem
+
+- **Frontend React (dashboard, AI tools, editor) – Declarative + Functional**
+  - Use **function components + hooks** only (no new class components).
+  - Derive UI from props/state; avoid imperative DOM manipulation.
+  - Update state **immutably** (`setX(prev => [...prev, item])`, never `state.push(...)`).
+
+- **Canvas / Image Editing**
+  - Canvas drawing and 2D context usage may be **imperative**, but must stay in **dedicated canvas modules/hooks**.
+  - React components orchestrate _when_ to draw; canvas helpers/services decide _how_ to draw.
+
+- **Backend API (auth, thumbnails, analytics, subscriptions) – Layered + Event-Driven**
+  - Follow layering: **routes → controllers → services → Prisma**.
+  - Keep controllers thin; put business logic in **service classes or well-scoped functions**.
+  - Use async/await and non-blocking patterns; do not introduce blocking I/O in request handlers.
+
+- **Database (Prisma + PostgreSQL) – Declarative**
+  - All DB access goes through the **Prisma client**.
+  - Prefer Prisma's typed query API; raw SQL is allowed only in clearly justified helpers, not in controllers or React code.
+
+- **Workers / Heavy AI Processing**
+  - Heavy or long-running AI/image work should run in **Web Workers or backend jobs**, not in the React render path.
+  - Communication with workers is **message-based**; React components consume results, not internal worker state.
+
+### Explicit Modular Design Policy
+
+- Backend feature modules live under `src/modules/<feature>/` and may contain:
+  - `*.routes.ts` – Express routers (HTTP wiring only)
+  - `*.controller.ts` – HTTP request/response handling; thin
+  - `*.service.ts` – business logic
+  - `*.repository.ts` (optional) – data access over Prisma
+  - `types.ts` – feature-specific types/interfaces
+  - `index.ts` – module public API
+
+- Frontend feature code lives under `client/src/features/<feature>/` and may contain:
+  - `components/` – feature-specific components
+  - `hooks/` – feature-specific hooks
+  - `services/` – feature-specific API clients/adapters
+  - `types.ts` – feature-specific types
+  - `index.ts` – feature public API
+
+- Shared, reusable UI primitives live under `client/src/components/ui/` and **must not** contain feature-specific business logic or direct backend calls.
+
+- Cross-cutting utilities (logging, error types, config) live in shared infra modules (e.g. `src/utils`, `src/services`) and are depended on by features, not the other way around.
+
+### Dependency Rules
+
+- **Backend allowed direction:** `routes` → `controller` → `service` → `repository` → Prisma client.
+- **Backend must not:**
+  - Call Prisma directly from controllers or routes.
+  - Import deep internals of another feature module (use that module's `index.ts` public API instead).
+
+- **Frontend allowed direction:**
+  - Features may depend on `client/src/components/ui/`, `client/src/contexts/`, and shared `client/src/services/`.
+  - UI primitives must not depend on specific features.
+  - Components should use services/clients for HTTP calls, not hard-code backend URLs everywhere.
+
+### Modular & Paradigm Boundaries
+
+**✅ Always**
+
+- Place new backend logic inside an existing or new `src/modules/<feature>/` folder and respect the `routes → controller → service → repository → Prisma` layering.
+- Place new frontend feature code under `client/src/features/<feature>/` and reuse `client/src/components/ui/` for generic UI.
+- Export a small, intentional surface from each module via its `index.ts` and import other modules only through their public API.
+- Keep reusable UI components and cross-cutting utilities free of feature-specific business logic.
+- Use React functional components + hooks and immutable state updates.
+- Use Prisma for all DB access.
+
+**⚠️ Ask / Be Deliberate**
+
+- When moving code between modules or splitting an existing module.
+- When creating new shared modules under `src/utils`, `src/services`, or `client/src/services`.
+- When introducing new paradigm libraries (e.g., RxJS, new state managers) or imperative performance hacks in React.
+
+**🚫 Never**
+
+- Access Prisma or the database directly from controllers, routes, or React code.
+- Import deep internals of another feature module from outside that module; use its `index.ts` instead.
+- Put business logic into `client/src/components/ui/` or other generic shared UI primitives.
+- Directly manipulate the DOM in React components except in tightly scoped, pre-existing escape hatches.
+- Disable TypeScript checks (`// @ts-ignore`) or rely on `any` without strong justification.
+
 ---
+
+## 🧪 TEST-DRIVEN DEVELOPMENT & TEST FAILURE RESOLUTION POLICY
+
+**This policy is MANDATORY for all AI assistants working on Thumbnail Maker.**
+
+### Core Philosophy: Tests Are Contracts, Not Obstacles
+
+Tests define the **expected behavior** of the system. When a test fails, it signals one of three things:
+
+1. **The implementation is broken** ← Fix this 95% of the time
+2. **The requirements genuinely changed** ← Update tests only with justification
+3. **The test itself has a bug** ← Rare, but possible
+
+**Default Action:** Fix the implementation to match the test's expectations.
+
+---
+
+### The Red-Green-Refactor Cycle (TDD)
+
+When writing new features using Test-Driven Development:
+
+1. **🔴 RED** – Write a failing test that describes the desired behavior
+2. **🟢 GREEN** – Write the minimal code to make the test pass
+3. **🔵 REFACTOR** – Improve code quality without changing behavior (tests still pass)
+
+**Key Insight:** If you skip to "green" without "red," you may be testing the wrong thing or not testing at all.
+
+---
+
+### Test Failure Resolution Protocol
+
+When test failures occur, follow this decision tree:
+
+#### Step 1: Investigate Root Cause
+
+Before touching ANY code, understand:
+
+- What is the test expecting? (Read the test assertions)
+- What is the implementation actually doing? (Debug or trace execution)
+- Why is there a mismatch? (Logic error? Incorrect assumption? Typing issue?)
+
+#### Step 2: Classify the Failure
+
+**Category A: Implementation Bug (FIX IMPLEMENTATION)**
+
+- Test expectations are correct
+- Implementation logic is wrong
+- **Action:** Fix the implementation code, not the test
+
+**Examples:**
+
+- Function returns wrong calculation
+- API returns wrong status code
+- State update uses mutation instead of immutability
+- Missing error handling
+- Race condition or async issue
+
+**Category B: Legitimate Requirement Change (UPDATE TEST)**
+
+- Product requirements have evolved
+- API contract has intentionally changed
+- Business logic rules have been updated
+- **Action:** Update test AND document why in commit message
+
+**Examples:**
+
+- "Changed password min length from 8 to 12 per security audit"
+- "API now returns 204 instead of 200 for DELETE (REST best practice)"
+- "Renamed field `userName` to `username` for consistency"
+
+**Category C: Test Bug (FIX TEST)**
+
+- Test has incorrect assertions
+- Test setup/mocking is wrong
+- Test is flaky or timing-dependent
+- **Action:** Fix the test AND add comment explaining the fix
+
+**Examples:**
+
+- Mock doesn't match actual API contract
+- Test expects sync behavior but implementation is async
+- Test hardcodes timestamp instead of using relative time
+- Test uses brittle CSS selectors
+
+#### Step 3: Apply Fix and Verify
+
+1. Apply the appropriate fix (implementation, test, or both)
+2. Run the full test suite to ensure no regressions
+3. Document the change in commit message with category justification
+
+---
+
+### Always/Ask/Never Boundaries
+
+**✅ ALWAYS**
+
+- Run test suite before starting work (`npm test` or equivalent)
+- Investigate root cause before modifying any code
+- Fix implementation bugs, not tests (Category A)
+- Run full test suite after fixes to check for regressions
+- Ensure 100% passing tests before commits (per pre-push hook requirement)
+- Maintain minimum 80% code coverage (enforced by pre-push hooks)
+- Document requirement changes when updating tests (Category B)
+
+**⚠️ ASK / BE DELIBERATE**
+
+- When requirement changes necessitate test updates (Category B) – always explain the "why"
+- When adding new tests for untested code paths
+- When refactoring test structure for better maintainability
+- When test suite is slow and optimization is needed
+- When choosing between unit vs integration vs E2E test coverage
+
+**🚫 NEVER**
+
+- Modify tests to make them pass without understanding root cause
+- Delete failing tests to "fix" the build
+- Use `skip` or `only` in committed test code (local debugging only)
+- Adjust test expectations just because implementation is "different"
+- Bypass test suite with `--no-verify` without explicit user permission
+- Lower coverage thresholds to pass CI without justification
+- Add `any` types or `@ts-ignore` to silence test-related TypeScript errors
+
+---
+
+### Test Design Best Practices
+
+#### What to Test: Behavior, Not Implementation
+
+**✅ DO:**
+
+- Test public APIs and interfaces
+- Test expected outputs for given inputs
+- Test error conditions and edge cases
+- Test user-facing behavior and workflows
+
+**❌ DON'T:**
+
+- Test internal/private methods directly
+- Test implementation details (e.g., specific variable names)
+- Couple tests to internal class structure
+- Test framework internals (e.g., React lifecycle methods)
+
+**Example:**
+
+```typescript
+// ❌ BAD: Testing implementation details
+test("uses useState internally", () => {
+  const { result } = renderHook(() => useCounter());
+  expect(result.current._internalState).toBe(0); // Brittle!
+});
+
+// ✅ GOOD: Testing behavior
+test("counter increments when increment is called", () => {
+  const { result } = renderHook(() => useCounter());
+  act(() => result.current.increment());
+  expect(result.current.count).toBe(1); // Public API
+});
+```
+
+#### Test Independence
+
+- Each test must run independently (no shared mutable state)
+- Tests must not depend on execution order
+- Use proper setup (`beforeEach`) and teardown (`afterEach`)
+- Mock external dependencies (APIs, databases, time, randomness)
+
+### Test Cleanup and Resource Management
+
+**Why:** Improper cleanup causes worker process failures, memory leaks, and flaky tests. Jest runs tests in parallel workers; leaked resources prevent graceful exit.
+
+**✅ ALWAYS Cleanup:**
+
+- Close database connections in `afterAll` (e.g., `await prisma.$disconnect()`)
+- Stop HTTP servers in `afterAll` (e.g., `await server.close()`)
+- Clear timers/intervals before test ends
+- Remove event listeners in `afterEach` or `afterAll`
+- Clear all mocks in `afterEach` (e.g., `jest.clearAllMocks()`)
+- Close file handles and streams
+
+**Pattern:**
+
+```typescript
+describe("Feature Tests", () => {
+  let server: Server;
+  let prisma: PrismaClient;
+
+  beforeAll(async () => {
+    // Setup - create resources
+    server = app.listen(3001);
+    prisma = new PrismaClient();
+  });
+
+  afterAll(async () => {
+    // Teardown - ALWAYS close resources
+    await prisma.$disconnect();
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  afterEach(() => {
+    // Reset mocks between tests
+    jest.clearAllMocks();
+    jest.clearAllTimers();
+  });
+
+  test("example", () => {
+    /* ... */
+  });
+});
+```
+
+**Debugging Leaks:**
+
+- Run `npm test -- --detectOpenHandles` to identify unclosed resources
+- Jest will report specific handles (timers, connections, etc.)
+- Fix the root cause; do NOT use `--forceExit` to mask issues
+
+**Common Leak Sources:**
+
+1. **Prisma** - Missing `await prisma.$disconnect()`
+2. **Express/HTTP** - Missing `await server.close()`
+3. **Timers** - `setTimeout`/`setInterval` not cleared
+4. **Redis/Cache** - Missing `await redis.quit()`
+5. **Event Emitters** - Listeners not removed
+
+**Warning Message:**
+If you see: `"A worker process has failed to exit gracefully..."` → Tests have resource leaks. Use `--detectOpenHandles` to diagnose.
+
+#### Test Naming Convention
+
+Use descriptive names that explain WHAT and WHEN:
+
+```typescript
+// ❌ BAD
+test('test1', () => { ... });
+test('works', () => { ... });
+
+// ✅ GOOD
+test('returns 404 when thumbnail not found', () => { ... });
+test('creates user with hashed password when valid data provided', () => { ... });
+```
+
+---
+
+### Pre-Push Hook Integration
+
+Thumbnail Maker enforces quality gates via pre-push hooks:
+
+1. **Full test suite execution** – All tests must pass
+2. **Coverage reporting** – Minimum 80% coverage required
+3. **Strict TypeScript checking** – No type drift allowed
+4. **Integration test validation** – E2E flows must work
+
+**If pre-push fails:**
+
+- Do NOT use `--no-verify` without investigating
+- Fix the failing tests using the protocol above
+- If legitimate requirement change, update tests with documentation
+- Only bypass hooks with explicit user permission (and document why)
+
+---
+
+### Common Anti-Patterns to Avoid
+
+| Anti-Pattern                    | Why It's Wrong                                  | Correct Approach                |
+| ------------------------------- | ----------------------------------------------- | ------------------------------- |
+| "Test is wrong, let me fix it"  | Assumes implementation is correct without proof | Investigate root cause first    |
+| `test.skip()` in committed code | Hides failures, creates false confidence        | Fix or delete the test          |
+| Lowering coverage threshold     | Masks untested code                             | Write tests for uncovered paths |
+| Mocking everything              | Tests become meaningless                        | Mock only external dependencies |
+| Testing after coding            | Miss design issues early                        | Write tests first (TDD)         |
+| Flaky tests tolerated           | Erodes trust in test suite                      | Fix flakiness or delete test    |
+
+---
+
+### Real-World Examples from Thumbnail Maker
+
+#### Example 1: Password Validation
+
+**Scenario:** Test fails after implementing OWASP password requirements
+
+```typescript
+// Test expectation (correct)
+test("rejects password shorter than 12 characters", () => {
+  expect(validatePassword("Short1!")).toBe(false);
+});
+
+// Old implementation (wrong)
+function validatePassword(pwd) {
+  return pwd.length >= 8; // ❌ Doesn't meet new OWASP requirement
+}
+
+// Fixed implementation (correct)
+function validatePassword(pwd) {
+  return pwd.length >= 12; // ✅ Matches test and OWASP requirement
+}
+```
+
+**Resolution:** Fix implementation (Category A)
+
+#### Example 2: API Contract Change
+
+**Scenario:** REST API changed DELETE response from 200 to 204
+
+```typescript
+// Old test (outdated)
+test("DELETE /thumbnails/:id returns 200", async () => {
+  const res = await request(app).delete("/thumbnails/123");
+  expect(res.status).toBe(200); // ❌ Old expectation
+});
+
+// Updated test (correct) - Category B: Legitimate requirement change
+test("DELETE /thumbnails/:id returns 204 No Content per REST convention", async () => {
+  const res = await request(app).delete("/thumbnails/123");
+  expect(res.status).toBe(204); // ✅ Updated to match new API contract
+});
+```
+
+**Resolution:** Update test with justification (Category B)  
+**Commit Message:** "test: update DELETE response expectation to 204 per REST best practices"
+
+#### Example 3: Flaky Test
+
+**Scenario:** Test fails intermittently due to timing
+
+```typescript
+// Flaky test (bug in test)
+test("shows success message after save", () => {
+  fireEvent.click(screen.getByText("Save"));
+  expect(screen.getByText("Saved!")).toBeInTheDocument(); // ❌ Race condition
+});
+
+// Fixed test (correct)
+test("shows success message after save", async () => {
+  fireEvent.click(screen.getByText("Save"));
+  await waitFor(() => {
+    expect(screen.getByText("Saved!")).toBeInTheDocument(); // ✅ Waits for async
+  });
+});
+```
+
+**Resolution:** Fix test (Category C)
+
+---
+
+### Enforcement & Consequences
+
+**For AI Assistants:**
+
+- Violations of this policy (adjusting tests without investigation) are considered **serious errors**
+- Always explain your reasoning when modifying tests
+- If uncertain whether to modify test or implementation, **always ask the user**
+
+**For Developers:**
+
+- Pre-push hooks enforce 80% coverage and passing tests
+- CI/CD pipelines will block merges if tests fail
+- Test modifications require code review justification
+
+---
+
+### Quick Decision Flowchart
+
+```
+Test fails
+    ↓
+Investigate root cause
+    ↓
+Is implementation wrong? → YES → Fix implementation (Category A)
+    ↓
+    NO
+    ↓
+Did requirements change? → YES → Update test + document (Category B)
+    ↓
+    NO
+    ↓
+Is test itself buggy? → YES → Fix test + document (Category C)
+    ↓
+    NO
+    ↓
+Ask user for clarification
+```
+
+---
+
+### Resources & References
+
+**Research Sources:**
+
+- [The Art of Unit Testing](https://www.manning.com/books/the-art-of-unit-testing-third-edition) – Roy Osherove
+- [Test-Driven Development: By Example](https://www.oreilly.com/library/view/test-driven-development/0321146530/) – Kent Beck
+- [Clean Code](https://www.oreilly.com/library/view/clean-code-a/9780136083238/) – Robert C. Martin
+- [Testing Best Practices](https://testingjavascript.com/) – Kent C. Dodds
+
+**Thumbnail Maker Specific:**
+
+- Pre-push hook configuration: `/.husky/pre-push`
+- Test suite: `npm test` (frontend), `npm run test:backend` (backend)
+- Coverage reports: `coverage/lcov-report/index.html`
+- E2E tests: `/tests/e2e/` (Playwright)
+
+---
+
+## 🏭 SERVICE FACTORY PATTERN (MANDATORY)
+
+**This pattern reduces singleton complexity and ensures proper cleanup.**
+
+### Core Principle
+
+**Always** use service factory functions instead of direct singleton access.
+
+### Pattern Usage
+
+**✅ CORRECT:**
+
+```typescript
+import { getService } from "../utils/service-factory";
+
+// Type-safe service access
+const cache = getService("cache");
+await cache.set("user:123", userData, 300);
+```
+
+**❌ INCORRECT:**
+
+```typescript
+import { CacheService } from "../services/cache.service";
+
+// Direct singleton access (discouraged)
+const cache = CacheService.getInstance();
+await cache.set("user:123", userData, 300);
+```
+
+### Why Factory Pattern
+
+**Problems with Direct Singleton Access:**
+
+1. **Global State Coupling** - Hard to track who's using the singleton
+2. **Manual Cleanup** - Developers must remember to update `setup.ts`
+3. **Testing Complexity** - Difficult to mock or reset state
+
+**Benefits of Factory Pattern:**
+
+1. **Centralized Control** - Single point of service access
+2. **Automatic Cleanup** - Factory handles lifecycle management
+3. **Type Safety** - TypeScript ensures valid service names
+4. **Extensibility** - Easy to add new services to registry
+
+### Auto-Cleanup Registry
+
+Services using the factory are automatically cleaned up:
+
+```typescript
+import { getServiceWithAutoCleanup } from "../utils/auto-cleanup";
+
+// Service automatically registered for cleanup
+const cache = getServiceWithAutoCleanup("cache");
+// cleanup() called automatically after test suite!
+```
+
+**Benefits:**
+
+- No manual `setup.ts` updates needed
+- Services cleaned up automatically after tests
+- Graceful error handling (non-fatal)
 
 **This file ensures consistent behavior across all AI assistants in all IDEs.**
 
-**Last Updated:** December 16, 2025  
+**Last Updated:** February 4, 2026  
 **Configuration:** Port 11435 (GPU), Qdrant 9095, Reflection Enabled

@@ -4,9 +4,10 @@ import { createHash } from 'crypto';
 import { emitThumbnailCreated, emitAnalyticsEvent } from '../../events';
 import { eventEmitter } from '../../events/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
+import { getPrisma } from '../../utils/prisma-factory';
 
 // Default instances for production use
-const defaultPrisma = new PrismaClient();
+const defaultPrisma = getPrisma();
 const defaultCache = CacheService.getInstance();
 
 export interface ThumbnailServiceDependencies {
@@ -28,8 +29,10 @@ export class ThumbnailService {
     this.prisma = dependencies.prisma || defaultPrisma;
     this.cache = dependencies.cache || defaultCache;
     this.eventEmitter = dependencies.eventEmitter || eventEmitter;
-    this.emitThumbnailCreated = dependencies.emitThumbnailCreated || emitThumbnailCreated;
-    this.emitAnalyticsEvent = dependencies.emitAnalyticsEvent || emitAnalyticsEvent;
+    this.emitThumbnailCreated =
+      dependencies.emitThumbnailCreated || emitThumbnailCreated;
+    this.emitAnalyticsEvent =
+      dependencies.emitAnalyticsEvent || emitAnalyticsEvent;
   }
   async createThumbnail(data: {
     title: string;
@@ -60,7 +63,9 @@ export class ThumbnailService {
     await this.invalidateUserThumbnailsCache(data.userId);
     await this.invalidateProjectCache(data.projectId);
 
-    console.log(`🎨 Thumbnail created: ${thumbnail.id} for user ${data.userId}`);
+    console.log(
+      `🎨 Thumbnail created: ${thumbnail.id} for user ${data.userId}`
+    );
     return thumbnail;
   }
 
@@ -146,7 +151,7 @@ export class ThumbnailService {
 
   async getThumbnailById(id: string) {
     const cacheKey = `thumbnail:${id}`;
-    
+
     return this.cache.getOrSet(
       cacheKey,
       async () => {
@@ -189,7 +194,7 @@ export class ThumbnailService {
         {
           thumbnailId: id,
           changes: data,
-          previousVersion: JSON.stringify(existingThumbnail)
+          previousVersion: JSON.stringify(existingThumbnail),
         }
       );
 
@@ -202,7 +207,7 @@ export class ThumbnailService {
         {
           fieldsChanged: Object.keys(data),
           hasTitle: !!data.title,
-          hasParameters: !!data.parameters
+          hasParameters: !!data.parameters,
         }
       );
     }
@@ -236,7 +241,7 @@ export class ThumbnailService {
         existingThumbnail.userId,
         {
           thumbnailId: id,
-          filePath: existingThumbnail.imageUrl
+          filePath: existingThumbnail.imageUrl,
         }
       );
 
@@ -247,7 +252,7 @@ export class ThumbnailService {
         'thumbnail',
         id,
         {
-          projectId: existingThumbnail.projectId
+          projectId: existingThumbnail.projectId,
         }
       );
     }
@@ -267,10 +272,10 @@ export class ThumbnailService {
     // First verify that the thumbnail belongs to this project
     const thumbnail = await this.prisma.thumbnail.findUnique({
       where: { id: thumbnailId },
-      select: { id: true, projectId: true, userId: true }
+      select: { id: true, projectId: true, userId: true },
     });
 
-    if (!thumbnail || thumbnail.projectId !== projectId) {
+    if (thumbnail?.projectId !== projectId) {
       throw new Error('Thumbnail does not belong to this project');
     }
 
@@ -289,11 +294,13 @@ export class ThumbnailService {
       'thumbnail',
       thumbnailId,
       {
-        projectId: projectId
+        projectId: projectId,
       }
     );
 
-    console.log(`⭐ Thumbnail set as featured: ${thumbnailId} in project ${projectId}`);
+    console.log(
+      `⭐ Thumbnail set as featured: ${thumbnailId} in project ${projectId}`
+    );
     return thumbnail;
   }
 

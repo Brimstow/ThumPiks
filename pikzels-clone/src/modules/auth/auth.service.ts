@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../utils/prisma-factory';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { EmailService } from './email.service';
@@ -13,7 +13,7 @@ import {
   UnauthorizedError,
 } from '../../utils/errors';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export class AuthService {
   /**
@@ -31,7 +31,10 @@ export class AuthService {
       if (!usernameValidation.valid) {
         const error = usernameValidation.error || 'Invalid username';
         // Username already exists is a conflict, not a validation error
-        if (error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already exists')) {
+        if (
+          error.toLowerCase().includes('already taken') ||
+          error.toLowerCase().includes('already exists')
+        ) {
           throw new ConflictError(error);
         }
         throw new ValidationError(error);
@@ -58,7 +61,9 @@ export class AuthService {
       });
 
       if (existingUsername) {
-        logger.warn('Registration attempt with existing username', { username });
+        logger.warn('Registration attempt with existing username', {
+          username,
+        });
         throw new ConflictError('Username already taken');
       }
 
@@ -125,7 +130,8 @@ export class AuthService {
           displayPreference: user.displayPreference,
         },
         ...tokens,
-        message: 'Registration successful. Please verify your email to unlock all features.',
+        message:
+          'Registration successful. Please verify your email to unlock all features.',
       };
     } catch (error: any) {
       logger.error('Registration failed', error, { email, username });
@@ -142,9 +148,13 @@ export class AuthService {
       // Set DEMO_MODE=true in your environment to enable test accounts
       // This is safer than checking NODE_ENV since it's explicit and intentional
       const isDemoMode = process.env.DEMO_MODE === 'true';
-      if (isDemoMode && identifier === 'test@example.com' && password === 'Test123!') {
+      if (
+        isDemoMode &&
+        identifier === 'test@example.com' &&
+        password === 'Test123!'
+      ) {
         logger.info('🎭 Demo mode: Test credentials used (DEMO_MODE=true)');
-        
+
         // Find or create test user
         let testUser = await prisma.user.findUnique({
           where: { email: 'test@example.com' },
@@ -173,7 +183,10 @@ export class AuthService {
           data: { lastLoginAt: new Date() },
         });
 
-        const tokens = EnhancedJWTService.createTokens(testUser.id, testUser.email);
+        const tokens = EnhancedJWTService.createTokens(
+          testUser.id,
+          testUser.email
+        );
         return {
           user: {
             id: testUser.id,
@@ -321,7 +334,8 @@ export class AuthService {
       if (!user) {
         // Don't reveal if email exists
         return {
-          message: 'If your email is registered, you will receive a verification email.',
+          message:
+            'If your email is registered, you will receive a verification email.',
         };
       }
 
@@ -353,7 +367,9 @@ export class AuthService {
       } catch (emailError) {
         logger.error(
           'Failed to resend verification email',
-          emailError instanceof Error ? emailError : new Error(String(emailError)),
+          emailError instanceof Error
+            ? emailError
+            : new Error(String(emailError)),
           {
             userId: user.id,
           }
@@ -412,7 +428,9 @@ export class AuthService {
       } catch (emailError) {
         logger.error(
           'Failed to send password reset email',
-          emailError instanceof Error ? emailError : new Error(String(emailError)),
+          emailError instanceof Error
+            ? emailError
+            : new Error(String(emailError)),
           {
             userId: user.id,
           }

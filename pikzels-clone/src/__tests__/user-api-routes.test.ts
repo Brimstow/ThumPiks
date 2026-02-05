@@ -111,13 +111,11 @@ jest.mock('../modules/social-share/social-media-factory', () => ({
   SocialMediaFactory: {
     createClient: jest.fn().mockReturnValue({
       uploadMedia: jest.fn().mockResolvedValue({ mediaId: 'mock-media-id' }),
-      createPost: jest
-        .fn()
-        .mockResolvedValue({
-          success: true,
-          postUrl: 'https://mock-url',
-          postId: 'mock-post-id',
-        }),
+      createPost: jest.fn().mockResolvedValue({
+        success: true,
+        postUrl: 'https://mock-url',
+        postId: 'mock-post-id',
+      }),
     }),
   },
 }));
@@ -263,7 +261,7 @@ describe('User App API Routes Tests', () => {
 
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('user');
-        expect(response.body).toHaveProperty('accessToken');
+        expect(response.body).toHaveProperty('sessionId'); // HttpOnly cookie auth
         expect(response.body.user.email).toBe(newUser.email);
       });
 
@@ -323,7 +321,7 @@ describe('User App API Routes Tests', () => {
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('user');
-        expect(response.body).toHaveProperty('accessToken');
+        expect(response.body).toHaveProperty('sessionId'); // HttpOnly cookie auth
         expect(response.body.user.email).toBe('user@test.com');
       });
 
