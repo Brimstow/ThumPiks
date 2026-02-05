@@ -26,6 +26,7 @@ import AnalyticsPage from './components/dashboard/AnalyticsPage';
 import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
 import TrendingPage from './components/dashboard/TrendingPage';
 import PricingPage from './components/dashboard/PricingPage';
+import CreditsPage from './components/dashboard/CreditsPage';
 import AIToolsPage from './components/dashboard/AIToolsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import ThumbnailEditor from './components/ThumbnailEditor';
@@ -48,6 +49,7 @@ import ReviewsPage from './pages/ReviewsPage';
 import ChangelogPage from './pages/ChangelogPage';
 import VideoEditorPage from './pages/VideoEditorPage';
 import CreatePlusPage from './pages/CreatePlusPage';
+import DemoCheckout from './components/dashboard/DemoCheckout';
 
 // Import custom styles
 import './styles/animations.css';
@@ -147,6 +149,13 @@ function App() {
               <Route path="/features" element={<FeaturesPage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/changelog" element={<ChangelogPage />} />
+              
+              {/* Demo Checkout (Development Only) */}
+              <Route path="/demo-checkout" element={
+                <ProtectedRoute>
+                  <DemoCheckout />
+                </ProtectedRoute>
+              } />
 
               {/* Shared Content Routes (No Auth Required) */}
               <Route path="/shared/:token" element={<SharedThumbnailPage />} />
@@ -178,6 +187,7 @@ function App() {
                 <Route path="settings" element={<UserSettings />} />
                 <Route path="help" element={<HelpPage />} />
                 <Route path="pricing" element={<PricingPage />} />
+                <Route path="credits" element={<CreditsPage />} />
                 <Route path="account" element={<AccountPage />} />
                 <Route path="account/:section" element={<AccountPage />} />
                 <Route path="video-editor" element={<VideoEditorPage />} />

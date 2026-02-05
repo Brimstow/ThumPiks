@@ -23,13 +23,36 @@ import {
 import AccountDropdown from '../account/AccountDropdown';
 import NotificationsDropdown from '../notifications/NotificationsDropdown';
 import SearchModal from '../search/SearchModal';
+import { authGet } from '../../utils/api';
+
+interface Subscription {
+  creditsBalance: number;
+  planType: string;
+}
 
 const DashboardLayout: React.FC = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Fetch subscription data
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const response = await authGet('/api/subscription/current');
+        if (response.ok) {
+          const data = await response.json();
+          setSubscription(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch subscription:', error);
+      }
+    };
+    fetchSubscription();
+  }, []);
 
   // Keyboard shortcut for search (Cmd/Ctrl + K)
   useEffect(() => {
@@ -162,17 +185,19 @@ const DashboardLayout: React.FC = () => {
 
               {/* Credits Display - Clickable */}
               <button
-                onClick={() => navigate('/dashboard/account/billing')}
+                onClick={() => navigate('/dashboard/credits')}
                 className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 hover:bg-slate-800/80 hover:border-slate-700 transition-colors cursor-pointer"
                 title="View billing & usage"
               >
                 <Zap className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm font-medium text-slate-50">90</span>
+                <span className="text-sm font-medium text-slate-50">
+                  {subscription?.creditsBalance ?? '...'}
+                </span>
               </button>
 
               {/* Add more credits */}
               <button
-                onClick={() => navigate('/dashboard/pricing')}
+                onClick={() => navigate('/dashboard/credits')}
                 className="hidden sm:inline-flex items-center justify-center rounded-xl bg-[#2563ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4fff] whitespace-nowrap transition-colors"
               >
                 Add more credits

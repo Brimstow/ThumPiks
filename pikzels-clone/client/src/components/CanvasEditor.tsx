@@ -1,4 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
+import {
+  initializeCanvas,
+  clearCanvas as clearCanvasHelper,
+  beginDrawPath,
+  drawToPoint,
+  getCanvasCoordinates,
+  captureCanvasState,
+  restoreCanvasState,
+  exportCanvasAsDataURL,
+  type Point,
+  type DrawingConfig,
+} from './editor/canvas/canvasDrawingHelpers';
 
 interface CanvasEditorProps {
   thumbnailId?: string;
@@ -34,9 +46,8 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Initialize canvas with white background (using helper)
+    initializeCanvas(ctx, canvas.width, canvas.height);
 
     // Save initial state
     saveToHistory();
@@ -49,7 +60,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const imageData = captureCanvasState(ctx, canvas.width, canvas.height);
     const newHistory = history.slice(0, historyStep + 1);
     newHistory.push(imageData);
     setHistory(newHistory);
@@ -62,7 +73,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
       const ctx = canvas?.getContext('2d');
       if (canvas && ctx) {
         const prevStep = historyStep - 1;
-        ctx.putImageData(history[prevStep], 0, 0);
+        restoreCanvasState(ctx, history[prevStep]);
         setHistoryStep(prevStep);
       }
     }
@@ -74,7 +85,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
       const ctx = canvas?.getContext('2d');
       if (canvas && ctx) {
         const nextStep = historyStep + 1;
-        ctx.putImageData(history[nextStep], 0, 0);
+        restoreCanvasState(ctx, history[nextStep]);
         setHistoryStep(nextStep);
       }
     }
@@ -87,8 +98,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    clearCanvasHelper(ctx, canvas.width, canvas.height);
     saveToHistory();
   };
 
@@ -96,7 +106,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const imageData = canvas.toDataURL('image/png');
+    const imageData = exportCanvasAsDataURL(canvas);
     const canvasData: CanvasData = {
       imageData,
       metadata: {
@@ -113,20 +123,20 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
+    const point = getCanvasCoordinates(canvas, e.clientX, e.clientY);
     setIsDrawing(true);
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = selectedTool === 'eraser' ? '#ffffff' : color;
+    const config: DrawingConfig = {
+      color,
+      lineWidth: brushSize,
+      lineCap: 'round',
+      strokeStyle: selectedTool === 'eraser' ? '#ffffff' : color,
+    };
+
+    beginDrawPath(ctx, point, config);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -135,15 +145,12 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const point = getCanvasCoordinates(canvas, e.clientX, e.clientY);
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    drawToPoint(ctx, point);
   };
 
   const stopDrawing = () => {

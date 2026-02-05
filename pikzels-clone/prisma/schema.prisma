@@ -121,19 +121,44 @@ model SocialShare {
 }
 
 model Subscription {
-  id             String   @id
-  planType       String
-  creditsBalance Int
-  creditsUsed    Int      @default(0)
-  periodStart    DateTime
-  periodEnd      DateTime
-  userId         String
-  createdAt      DateTime @default(now())
-  User           User     @relation(fields: [userId], references: [id])
+  id                   String   @id
+  planType             String
+  creditsBalance       Int
+  creditsUsed          Int      @default(0)
+  periodStart          DateTime
+  periodEnd            DateTime
+  userId               String
+  createdAt            DateTime @default(now())
+  billingCycle         String   @default("monthly")
+  cancelAtPeriodEnd    Boolean  @default(false)
+  status               String   @default("active")
+  stripePriceId        String?
+  stripeSubscriptionId String?  @unique
+  User                 User     @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([stripeSubscriptionId])
+  @@index([userId])
+}
+
+model CreditTransaction {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String   // 'purchase', 'usage', 'refund', 'bonus'
+  amount          Int      // Credits added/removed
+  description     String
+  stripePaymentId String?  // For purchases via Stripe
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  User            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model SystemHealth {
-  id        String   @id @default(uuid())
+  id        String   @id
   service   String
   status    String
   response  Float?
@@ -147,7 +172,7 @@ model SystemHealth {
 }
 
 model SystemMetrics {
-  id             String   @id @default(uuid())
+  id             String   @id
   metricType     String
   metricValue    Float
   metricDate     DateTime
@@ -259,9 +284,21 @@ model User {
   updatedAt                                     DateTime         @updatedAt
   lastLoginAt                                   DateTime?
   isActive                                      Boolean          @default(true)
+  stripeCustomerId                              String?          @unique
+  stripeSubscriptionId                          String?
+  
+  // Email preferences for marketing & notifications
+  emailVerified                                 Boolean          @default(false)
+  marketingEmails                               Boolean          @default(true)
+  productUpdates                                Boolean          @default(true)
+  weeklyDigest                                  Boolean          @default(false)
+  securityAlerts                                Boolean          @default(true)
+  emailUnsubscribedAt                           DateTime?
+  
   AdminRole                                     AdminRole[]
   AuditLog_AuditLog_adminIdToUser               AuditLog[]       @relation("AuditLog_adminIdToUser")
   AuditLog_AuditLog_userIdToUser                AuditLog[]       @relation("AuditLog_userIdToUser")
+  CreditTransaction                             CreditTransaction[]
   Project                                       Project[]
   SocialShare                                   SocialShare[]
   Subscription                                  Subscription[]

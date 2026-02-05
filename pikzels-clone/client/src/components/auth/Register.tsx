@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import UsernameInput from './UsernameInput';
 import PasswordStrengthMeter from './PasswordStrengthMeter';
 
@@ -15,6 +16,7 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const auth = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,34 +50,15 @@ const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, name, password }),
-      });
+      // Use AuthContext for proper state management
+      const result = await auth.register(email, password, name, username);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem('token', data.token);
-
-        // Store user info
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
-
-        // Redirect to dashboard with verification notice
-        navigate('/dashboard', {
-          state: {
-            message: data.message,
-            requiresVerification: !data.user?.isVerified
-          }
-        });
+      if (result.success) {
+        // AuthContext handles token storage and user state
+        // Navigate to dashboard
+        navigate('/dashboard');
       } else {
-        setError(data.error || 'Registration failed');
+        setError(result.error || 'Registration failed');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -193,7 +176,11 @@ const Register: React.FC = () => {
               {/* Password Strength Meter */}
               {password && (
                 <div className="mt-3">
-                  <PasswordStrengthMeter password={password} showRequirements={true} />
+                  <PasswordStrengthMeter
+                    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern
+                    password={password}
+                    showRequirements={true}
+                  />
                 </div>
               )}
             </div>

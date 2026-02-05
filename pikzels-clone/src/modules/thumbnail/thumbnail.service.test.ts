@@ -1,10 +1,10 @@
 import { ThumbnailService } from './thumbnail.service';
-import { 
-  createMockPrismaClient, 
-  createMockCacheService, 
-  createMockEventEmitter, 
+import {
+  createMockPrismaClient,
+  createMockCacheService,
+  createMockEventEmitter,
   createMockEventFunctions,
-  setupServiceTest
+  setupServiceTest,
 } from '../../__tests__/test-utils';
 
 // No global mocks - everything handled through dependency injection
@@ -18,13 +18,13 @@ describe('ThumbnailService', () => {
 
   beforeEach(() => {
     setupServiceTest();
-    
+
     // Create fresh mocks for each test
     mockPrisma = createMockPrismaClient();
     mockCache = createMockCacheService();
     mockEventEmitter = createMockEventEmitter();
     mockEventFunctions = createMockEventFunctions();
-    
+
     // Create service with injected dependencies
     thumbnailService = new ThumbnailService({
       prisma: mockPrisma as any,
@@ -33,6 +33,11 @@ describe('ThumbnailService', () => {
       emitThumbnailCreated: mockEventFunctions.emitThumbnailCreated,
       emitAnalyticsEvent: mockEventFunctions.emitAnalyticsEvent,
     });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.clearAllTimers();
   });
 
   describe('setThumbnailAsFeatured', () => {
@@ -63,7 +68,7 @@ describe('ThumbnailService', () => {
       // Assert
       expect(mockPrisma.thumbnail.findUnique).toHaveBeenCalledWith({
         where: { id: thumbnailId },
-        select: { id: true, projectId: true, userId: true }
+        select: { id: true, projectId: true, userId: true },
       });
 
       expect(mockPrisma.project.update).toHaveBeenCalledWith({

@@ -12,6 +12,7 @@
  */
 
 import { getService, cleanupAllServices } from './service-factory';
+import { disconnectPrisma } from './prisma-factory';
 
 // Global registry to track services needing cleanup
 interface CleanupableService {
@@ -112,6 +113,9 @@ export async function jestGlobalTeardown(): Promise<void> {
 
     // Cleanup via registry (handles dynamically registered services)
     await cleanupRegistry.cleanupAll();
+
+    // Cleanup Prisma connection
+    await disconnectPrisma();
 
     console.log('✅ Auto-cleanup: All services cleaned up');
   } catch (error) {
