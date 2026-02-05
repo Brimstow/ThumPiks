@@ -5,15 +5,15 @@
  */
 
 import Stripe from 'stripe';
-import { PrismaClient } from '@prisma/client';
 import {
   STRIPE_CONFIG,
   getStripePriceId,
   getPlanById,
 } from './subscription.config';
+import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 // Initialize Stripe only if secret key is provided
 const stripe = STRIPE_CONFIG.secretKey
