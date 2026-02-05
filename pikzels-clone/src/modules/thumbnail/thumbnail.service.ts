@@ -4,9 +4,10 @@ import { createHash } from 'crypto';
 import { emitThumbnailCreated, emitAnalyticsEvent } from '../../events';
 import { eventEmitter } from '../../events/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
+import { getPrisma } from '../../utils/prisma-factory';
 
 // Default instances for production use
-const defaultPrisma = new PrismaClient();
+const defaultPrisma = getPrisma();
 const defaultCache = CacheService.getInstance();
 
 export interface ThumbnailServiceDependencies {

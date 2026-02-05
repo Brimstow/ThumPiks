@@ -1,9 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { CacheService } from '../../services/cache.service';
 import { v4 as uuidv4 } from 'uuid';
+import { getPrisma } from '../../utils/prisma-factory';
 
 // Default instances for production use
-const defaultPrisma = new PrismaClient();
+const defaultPrisma = getPrisma();
 const defaultCache = CacheService.getInstance();
 
 export interface ProjectServiceDependencies {
