@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 interface EmailPreferences {
   marketingEmails: boolean;
