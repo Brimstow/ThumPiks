@@ -4,16 +4,26 @@ import DOMPurify from 'isomorphic-dompurify';
 import validator from 'validator';
 
 // Enhanced email validation regex (more comprehensive)
-const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
 // Password validation - enhanced security
 const MIN_PASSWORD_LENGTH = 8;
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/; // At least one lowercase, uppercase, digit, and special char
+const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/; // At least one lowercase, uppercase, digit, and special char
 
 interface ValidationRule {
   field: string;
   required?: boolean;
-  type?: 'string' | 'number' | 'email' | 'array' | 'object' | 'url' | 'uuid' | 'password';
+  type?:
+    | 'string'
+    | 'number'
+    | 'email'
+    | 'array'
+    | 'object'
+    | 'url'
+    | 'uuid'
+    | 'password';
   minLength?: number;
   maxLength?: number;
   min?: number;
@@ -38,7 +48,11 @@ export const validateRequest = (options: ValidationOptions) => {
 
     // Validate body
     if (options.body) {
-      const { errors: bodyErrors, warnings: bodyWarnings, sanitized } = validateFields(req.body, options.body, 'body');
+      const {
+        errors: bodyErrors,
+        warnings: bodyWarnings,
+        sanitized,
+      } = validateFields(req.body, options.body, 'body');
       errors.push(...bodyErrors);
       warnings.push(...bodyWarnings);
       req.body = sanitized; // Apply sanitized data
@@ -46,7 +60,11 @@ export const validateRequest = (options: ValidationOptions) => {
 
     // Validate params
     if (options.params) {
-      const { errors: paramErrors, warnings: paramWarnings, sanitized } = validateFields(req.params, options.params, 'params');
+      const {
+        errors: paramErrors,
+        warnings: paramWarnings,
+        sanitized,
+      } = validateFields(req.params, options.params, 'params');
       errors.push(...paramErrors);
       warnings.push(...paramWarnings);
       req.params = sanitized;
@@ -54,7 +72,11 @@ export const validateRequest = (options: ValidationOptions) => {
 
     // Validate query
     if (options.query) {
-      const { errors: queryErrors, warnings: queryWarnings, sanitized } = validateFields(req.query, options.query, 'query');
+      const {
+        errors: queryErrors,
+        warnings: queryWarnings,
+        sanitized,
+      } = validateFields(req.query, options.query, 'query');
       errors.push(...queryErrors);
       warnings.push(...queryWarnings);
       req.query = sanitized;
@@ -101,7 +123,11 @@ export const validateSchema = (schema: any) => {
   };
 };
 
-function validateFields(data: any, rules: ValidationRule[], source: string): { errors: string[], warnings: string[], sanitized: any } {
+function validateFields(
+  data: any,
+  rules: ValidationRule[],
+  source: string
+): { errors: string[]; warnings: string[]; sanitized: any } {
   const errors: string[] = [];
   const warnings: string[] = [];
   const sanitized: any = Array.isArray(data) ? [] : {};
@@ -118,7 +144,10 @@ function validateFields(data: any, rules: ValidationRule[], source: string): { e
     const fieldPath = `${source}.${rule.field}`;
 
     // Required field check
-    if (rule.required && (value === undefined || value === null || value === '')) {
+    if (
+      rule.required &&
+      (value === undefined || value === null || value === '')
+    ) {
       errors.push(`${fieldPath} is required`);
       continue;
     }
@@ -133,15 +162,20 @@ function validateFields(data: any, rules: ValidationRule[], source: string): { e
     // Sanitization (before validation)
     if (rule.sanitize && typeof value === 'string') {
       try {
-        processedValue = DOMPurify.sanitize(value, { 
-          ALLOWED_TAGS: [], 
-          ALLOWED_ATTR: [] 
+        processedValue = DOMPurify.sanitize(value, {
+          ALLOWED_TAGS: [],
+          ALLOWED_ATTR: [],
         });
         if (processedValue !== value) {
-          warnings.push(`${fieldPath} was sanitized (removed potentially dangerous content)`);
+          warnings.push(
+            `${fieldPath} was sanitized (removed potentially dangerous content)`
+          );
         }
       } catch (sanitizeError) {
-        logger.warn('Sanitization failed', { field: fieldPath, error: sanitizeError });
+        logger.warn('Sanitization failed', {
+          field: fieldPath,
+          error: sanitizeError,
+        });
       }
     }
 
@@ -158,10 +192,14 @@ function validateFields(data: any, rules: ValidationRule[], source: string): { e
     if (typeof processedValue === 'string' || Array.isArray(processedValue)) {
       const length = processedValue.length;
       if (rule.minLength && length < rule.minLength) {
-        errors.push(`${fieldPath} must be at least ${rule.minLength} characters`);
+        errors.push(
+          `${fieldPath} must be at least ${rule.minLength} characters`
+        );
       }
       if (rule.maxLength && length > rule.maxLength) {
-        errors.push(`${fieldPath} must be no more than ${rule.maxLength} characters`);
+        errors.push(
+          `${fieldPath} must be no more than ${rule.maxLength} characters`
+        );
       }
     }
 
@@ -188,7 +226,7 @@ function validateFields(data: any, rules: ValidationRule[], source: string): { e
     }
 
     // Blacklist validation
-    if (rule.blacklist && rule.blacklist.includes(processedValue)) {
+    if (rule.blacklist?.includes(processedValue)) {
       errors.push(`${fieldPath} contains forbidden value`);
     }
 
@@ -209,7 +247,11 @@ function validateFields(data: any, rules: ValidationRule[], source: string): { e
   return { errors, warnings, sanitized };
 }
 
-function validateType(value: any, type: string, fieldPath: string): string | null {
+function validateType(
+  value: any,
+  type: string,
+  fieldPath: string
+): string | null {
   switch (type) {
     case 'string':
       if (typeof value !== 'string') {
@@ -231,7 +273,10 @@ function validateType(value: any, type: string, fieldPath: string): string | nul
       }
       break;
     case 'url':
-      if (typeof value !== 'string' || !validator.isURL(value, { require_protocol: true })) {
+      if (
+        typeof value !== 'string' ||
+        !validator.isURL(value, { require_protocol: true })
+      ) {
         return `${fieldPath} must be a valid URL`;
       }
       break;
@@ -287,8 +332,13 @@ export const commonValidations = {
     custom: (value: string) => {
       // Check against common passwords
       const commonPasswords = [
-        'password', '123456789', 'qwerty123', 'admin123',
-        'password123', 'welcome123', 'letmein123'
+        'password',
+        '123456789',
+        'qwerty123',
+        'admin123',
+        'password123',
+        'welcome123',
+        'letmein123',
       ];
       if (commonPasswords.includes(value.toLowerCase())) {
         return 'Password is too common, please choose a stronger password';

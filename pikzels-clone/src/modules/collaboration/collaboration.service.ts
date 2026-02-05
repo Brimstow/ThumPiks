@@ -144,7 +144,7 @@ export class CollaborationService {
       where: { id: teamId },
     });
 
-    if (!team || team.ownerId !== userId) {
+    if (team?.ownerId !== userId) {
       throw new Error('Only team owners can delete teams');
     }
 
@@ -377,7 +377,7 @@ export class CollaborationService {
       },
     });
 
-    if (!updater || updater.role !== 'owner') {
+    if (updater?.role !== 'owner') {
       throw new Error('Only team owners can update member roles');
     }
 

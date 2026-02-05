@@ -40,7 +40,7 @@ class VideoProxyService {
       extractVideoId: (url: string) => {
         for (const pattern of this.platforms.get('youtube')!.urlPatterns) {
           const match = url.match(pattern);
-          if (match && match[1]) return match[1];
+          if (match?.[1]) return match[1];
         }
         return null;
       },
@@ -63,7 +63,7 @@ class VideoProxyService {
       extractVideoId: (url: string) => {
         for (const pattern of this.platforms.get('tiktok')!.urlPatterns) {
           const match = url.match(pattern);
-          if (match && match[1]) return match[1];
+          if (match?.[1]) return match[1];
         }
         return null;
       },
@@ -84,7 +84,7 @@ class VideoProxyService {
       extractVideoId: (url: string) => {
         for (const pattern of this.platforms.get('instagram')!.urlPatterns) {
           const match = url.match(pattern);
-          if (match && match[1]) return match[1];
+          if (match?.[1]) return match[1];
         }
         return null;
       },
@@ -105,7 +105,7 @@ class VideoProxyService {
       extractVideoId: (url: string) => {
         for (const pattern of this.platforms.get('twitter')!.urlPatterns) {
           const match = url.match(pattern);
-          if (match && match[1]) return match[1];
+          if (match?.[1]) return match[1];
         }
         return null;
       },
@@ -127,7 +127,7 @@ class VideoProxyService {
       extractVideoId: (url: string) => {
         for (const pattern of this.platforms.get('vimeo')!.urlPatterns) {
           const match = url.match(pattern);
-          if (match && match[1]) return match[1];
+          if (match?.[1]) return match[1];
         }
         return null;
       },
@@ -394,8 +394,7 @@ class VideoProxyService {
         },
       });
 
-      const progressiveFiles =
-        response.data?.request?.files?.progressive || [];
+      const progressiveFiles = response.data?.request?.files?.progressive || [];
       const bestQuality = progressiveFiles.sort(
         (a: any, b: any) => (b.width || 0) - (a.width || 0)
       )[0];

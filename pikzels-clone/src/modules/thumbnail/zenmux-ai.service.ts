@@ -242,7 +242,7 @@ export class ZenmuxAIService {
     if (data.candidates && Array.isArray(data.candidates)) {
       for (const candidate of data.candidates) {
         const content = candidate.content;
-        if (!content || !content.parts) continue;
+        if (!content?.parts) continue;
 
         for (const part of content.parts) {
           // Check for inline image data
@@ -357,7 +357,7 @@ export class ZenmuxAIService {
 
       const data: any = await response.json();
 
-      if (data.choices && data.choices[0]?.message?.content) {
+      if (data.choices?.[0]?.message?.content) {
         return data.choices[0].message.content;
       }
 
