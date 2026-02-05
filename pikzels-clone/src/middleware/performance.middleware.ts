@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { CacheService } from '../services/cache.service';
+import { getService } from '../utils/service-factory';
 
-const cache = CacheService.getInstance();
+const cache = getService('cache');
 
 interface PerformanceMetrics {
   requestCount: number;
@@ -37,7 +37,7 @@ export const performanceMiddleware = () => {
       route: req.route?.path || req.path,
       method: req.method,
       userAgent: req.get('User-Agent') || 'Unknown',
-      ip: (req.ip || req.connection?.remoteAddress || 'Unknown'),
+      ip: req.ip || req.connection?.remoteAddress || 'Unknown',
     };
 
     // Attach timing to request for later use
@@ -45,7 +45,7 @@ export const performanceMiddleware = () => {
 
     // Override res.end to capture response time
     const originalEnd = res.end;
-    (res as any).end = function(...args: any[]) {
+    (res as any).end = function (...args: any[]) {
       const responseTime = Date.now() - startTime;
       logPerformanceMetrics(req, res, responseTime);
       return (originalEnd as any).apply(this, args);
@@ -58,7 +58,11 @@ export const performanceMiddleware = () => {
 /**
  * Log performance metrics to cache and console
  */
-async function logPerformanceMetrics(req: Request, res: Response, responseTime: number) {
+async function logPerformanceMetrics(
+  req: Request,
+  res: Response,
+  responseTime: number
+) {
   try {
     const route = req.route?.path || req.path;
     const method = req.method;
@@ -70,7 +74,9 @@ async function logPerformanceMetrics(req: Request, res: Response, responseTime: 
     const dailyKey = `performance:daily:${new Date().toISOString().split('T')[0]}`;
 
     // Get existing metrics
-    const existingMetrics = await cache.get<PerformanceMetrics>(metricsKey) || {
+    const existingMetrics = (await cache.get<PerformanceMetrics>(
+      metricsKey
+    )) || {
       requestCount: 0,
       averageResponseTime: 0,
       errorCount: 0,
@@ -79,8 +85,10 @@ async function logPerformanceMetrics(req: Request, res: Response, responseTime: 
 
     // Update metrics
     const newRequestCount = existingMetrics.requestCount + 1;
-    const newAverageResponseTime = 
-      (existingMetrics.averageResponseTime * existingMetrics.requestCount + responseTime) / newRequestCount;
+    const newAverageResponseTime =
+      (existingMetrics.averageResponseTime * existingMetrics.requestCount +
+        responseTime) /
+      newRequestCount;
     const newErrorCount = existingMetrics.errorCount + (isError ? 1 : 0);
 
     const updatedMetrics: PerformanceMetrics = {
@@ -94,7 +102,10 @@ async function logPerformanceMetrics(req: Request, res: Response, responseTime: 
     await cache.set(metricsKey, updatedMetrics, 3600);
 
     // Update daily metrics
-    const dailyMetrics = await cache.get<DailyMetrics>(dailyKey) || { requests: 0, errors: 0 };
+    const dailyMetrics = (await cache.get<DailyMetrics>(dailyKey)) || {
+      requests: 0,
+      errors: 0,
+    };
     dailyMetrics.requests += 1;
     if (isError) dailyMetrics.errors += 1;
     await cache.set(dailyKey, dailyMetrics, 86400); // Keep for 24 hours
@@ -130,7 +141,6 @@ async function logPerformanceMetrics(req: Request, res: Response, responseTime: 
         errorRate: `${((newErrorCount / newRequestCount) * 100).toFixed(2)}%`,
       });
     }
-
   } catch (error) {
     console.error('Error logging performance metrics:', error);
   }
@@ -145,7 +155,7 @@ export const responseTimeMiddleware = () => {
 
     // Set the header before the response is sent
     const originalSend = res.send;
-    res.send = function(data) {
+    res.send = function (data) {
       const responseTime = Date.now() - startTime;
       // Only set header if response hasn't been sent yet
       if (!res.headersSent) {
@@ -161,7 +171,9 @@ export const responseTimeMiddleware = () => {
 /**
  * Get performance metrics for monitoring dashboard
  */
-export async function getPerformanceMetrics(_timeframe: 'hour' | 'day' = 'hour') {
+export async function getPerformanceMetrics(
+  _timeframe: 'hour' | 'day' = 'hour'
+) {
   try {
     const patterns = [
       'performance:GET:*',
@@ -175,12 +187,14 @@ export async function getPerformanceMetrics(_timeframe: 'hour' | 'day' = 'hour')
     for (const pattern of patterns) {
       // Note: In a real implementation, you'd need to implement key scanning
       // For now, we'll return cached data structure
-      allMetrics[pattern] = await cache.get(pattern) || {};
+      allMetrics[pattern] = (await cache.get(pattern)) || {};
     }
 
     // Get daily summary
     const today = new Date().toISOString().split('T')[0];
-    const dailyMetrics = await cache.get<DailyMetrics>(`performance:daily:${today}`) || {
+    const dailyMetrics = (await cache.get<DailyMetrics>(
+      `performance:daily:${today}`
+    )) || {
       requests: 0,
       errors: 0,
     };
@@ -189,14 +203,15 @@ export async function getPerformanceMetrics(_timeframe: 'hour' | 'day' = 'hour')
       summary: {
         totalRequests: dailyMetrics.requests,
         totalErrors: dailyMetrics.errors,
-        errorRate: dailyMetrics.requests > 0 
-          ? ((dailyMetrics.errors / dailyMetrics.requests) * 100).toFixed(2) + '%'
-          : '0%',
+        errorRate:
+          dailyMetrics.requests > 0
+            ? ((dailyMetrics.errors / dailyMetrics.requests) * 100).toFixed(2) +
+              '%'
+            : '0%',
       },
       routes: allMetrics,
       timestamp: new Date().toISOString(),
     };
-
   } catch (error) {
     console.error('Error getting performance metrics:', error);
     return null;

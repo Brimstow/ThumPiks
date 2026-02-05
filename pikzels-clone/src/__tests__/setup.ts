@@ -61,24 +61,27 @@ jest.mock('sharp', () => {
 afterAll(async () => {
   // Clean up all service singletons and their timers
   try {
-    // Import services dynamically to avoid import issues
-    const { CacheService } = await import('../services/cache.service');
-    const { analyticsHandlers } = await import('../events/analytics-handlers');
-    const { socialShareHandlers } = await import('../events/social-share-handlers');
-    const { systemMonitoringService } = await import('../modules/admin/system-monitoring.service');
+    // Use auto-cleanup registry (handles all services automatically)
+    const { jestGlobalTeardown } = await import('../utils/auto-cleanup');
+    await jestGlobalTeardown();
 
-    // Call cleanup methods
-    const cacheService = CacheService.getInstance();
-    cacheService.cleanup();
-    
+    // Import event handlers dynamically
+    const { analyticsHandlers } = await import('../events/analytics-handlers');
+    const { socialShareHandlers } = await import(
+      '../events/social-share-handlers'
+    );
+    const { systemMonitoringService } = await import(
+      '../modules/admin/system-monitoring.service'
+    );
+
+    // Call cleanup methods for event handlers
     await analyticsHandlers.cleanup();
     await socialShareHandlers.cleanup();
     systemMonitoringService.stop();
-    
   } catch (error) {
     console.error('❌ Error during global test cleanup:', error);
   }
 });
 
-// Note: Service-specific mocks (Prisma, Redis, etc.) should be handled 
+// Note: Service-specific mocks (Prisma, Redis, etc.) should be handled
 // in individual test files to avoid conflicts and ensure proper isolation
