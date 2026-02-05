@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client';
 import { analyticsService } from './analytics.service';
 import { adminAuthService } from './admin-auth.service';
+import { getPrisma } from '../../utils/prisma-factory';
 import Redis from 'ioredis';
 import os from 'os';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export interface HealthCheck {
   service: string;
@@ -133,11 +133,13 @@ export class SystemMonitoringService {
   async getSystemHealth(): Promise<SystemHealth> {
     try {
       const services = await this.runHealthChecks();
-      
+
       // Determine overall health
       const downServices = services.filter(s => s.status === 'down').length;
-      const degradedServices = services.filter(s => s.status === 'degraded').length;
-      
+      const degradedServices = services.filter(
+        s => s.status === 'degraded'
+      ).length;
+
       let overall: 'healthy' | 'degraded' | 'down';
       if (downServices > 0) {
         overall = 'down';
@@ -151,7 +153,7 @@ export class SystemMonitoringService {
         overall,
         services,
         uptime: process.uptime(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     } catch (error) {
       console.error('Error getting system health:', error);
@@ -168,11 +170,11 @@ export class SystemMonitoringService {
       this.checkRedis(),
       this.checkFileSystem(),
       this.checkAPI(),
-      this.checkExternalServices()
+      this.checkExternalServices(),
     ]);
 
     const serviceNames = ['database', 'redis', 'filesystem', 'api', 'external'];
-    
+
     const services: HealthCheck[] = checks.map((result, index) => {
       if (result.status === 'fulfilled') {
         return result.value;
@@ -181,7 +183,7 @@ export class SystemMonitoringService {
           service: serviceNames[index]!,
           status: 'down' as const,
           errorMessage: result.reason?.message || 'Unknown error',
-          lastChecked: new Date()
+          lastChecked: new Date(),
         };
       }
     });
@@ -199,16 +201,16 @@ export class SystemMonitoringService {
    */
   private async checkDatabase(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // Test database connection
       await prisma.$queryRaw`SELECT 1`;
-      
+
       // Test query performance
       const userCount = await prisma.user.count();
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       let status: 'healthy' | 'degraded' | 'down' = 'healthy';
       if (responseTime > 1000) {
         status = 'degraded';
@@ -223,16 +225,17 @@ export class SystemMonitoringService {
         lastChecked: new Date(),
         details: {
           userCount,
-          connectionPool: 'healthy'
-        }
+          connectionPool: 'healthy',
+        },
       };
     } catch (error) {
       return {
         service: 'database',
         status: 'down',
         responseTime: Date.now() - startTime,
-        errorMessage: error instanceof Error ? error.message : 'Database connection failed',
-        lastChecked: new Date()
+        errorMessage:
+          error instanceof Error ? error.message : 'Database connection failed',
+        lastChecked: new Date(),
       };
     }
   }
@@ -242,14 +245,14 @@ export class SystemMonitoringService {
    */
   private async checkRedis(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       if (!this.redis) {
         return {
           service: 'redis',
           status: 'down',
           errorMessage: 'Redis not configured',
-          lastChecked: new Date()
+          lastChecked: new Date(),
         };
       }
 
@@ -268,16 +271,17 @@ export class SystemMonitoringService {
         lastChecked: new Date(),
         details: {
           memory: 'usage-info', // Mock Redis memory info
-          connectedClients: 'client-list' // Mock client list
-        }
+          connectedClients: 'client-list', // Mock client list
+        },
       };
     } catch (error) {
       return {
         service: 'redis',
         status: 'down',
         responseTime: Date.now() - startTime,
-        errorMessage: error instanceof Error ? error.message : 'Redis connection failed',
-        lastChecked: new Date()
+        errorMessage:
+          error instanceof Error ? error.message : 'Redis connection failed',
+        lastChecked: new Date(),
       };
     }
   }
@@ -303,15 +307,16 @@ export class SystemMonitoringService {
         details: {
           diskUsage: diskUsage.percentage,
           totalSpace: diskUsage.total,
-          freeSpace: diskUsage.total - diskUsage.used
-        }
+          freeSpace: diskUsage.total - diskUsage.used,
+        },
       };
     } catch (error) {
       return {
         service: 'filesystem',
         status: 'down',
-        errorMessage: error instanceof Error ? error.message : 'File system check failed',
-        lastChecked: new Date()
+        errorMessage:
+          error instanceof Error ? error.message : 'File system check failed',
+        lastChecked: new Date(),
       };
     }
   }
@@ -321,11 +326,11 @@ export class SystemMonitoringService {
    */
   private async checkAPI(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // Mock API health check - would test actual endpoints
       const responseTime = Date.now() - startTime;
-      
+
       return {
         service: 'api',
         status: 'healthy',
@@ -333,16 +338,17 @@ export class SystemMonitoringService {
         lastChecked: new Date(),
         details: {
           endpoints: ['auth', 'users', 'thumbnails', 'analytics'],
-          averageResponseTime: responseTime
-        }
+          averageResponseTime: responseTime,
+        },
       };
     } catch (error) {
       return {
         service: 'api',
         status: 'down',
         responseTime: Date.now() - startTime,
-        errorMessage: error instanceof Error ? error.message : 'API health check failed',
-        lastChecked: new Date()
+        errorMessage:
+          error instanceof Error ? error.message : 'API health check failed',
+        lastChecked: new Date(),
       };
     }
   }
@@ -360,15 +366,18 @@ export class SystemMonitoringService {
         details: {
           cloudinary: 'healthy',
           email: 'healthy',
-          oauth: 'healthy'
-        }
+          oauth: 'healthy',
+        },
       };
     } catch (error) {
       return {
         service: 'external',
         status: 'degraded',
-        errorMessage: error instanceof Error ? error.message : 'External service check failed',
-        lastChecked: new Date()
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'External service check failed',
+        lastChecked: new Date(),
       };
     }
   }
@@ -383,10 +392,17 @@ export class SystemMonitoringService {
           service: healthCheck.service,
           status: healthCheck.status,
           response: healthCheck.responseTime || null,
-          errorRate: healthCheck.status === 'down' ? 100 : healthCheck.status === 'degraded' ? 50 : 0,
-          ...(healthCheck.details && { details: JSON.stringify(healthCheck.details) }),
-          checkedAt: healthCheck.lastChecked
-        }
+          errorRate:
+            healthCheck.status === 'down'
+              ? 100
+              : healthCheck.status === 'degraded'
+                ? 50
+                : 0,
+          ...(healthCheck.details && {
+            details: JSON.stringify(healthCheck.details),
+          }),
+          checkedAt: healthCheck.lastChecked,
+        },
       });
     } catch (error) {
       console.error('Error storing health check:', error);
@@ -401,11 +417,11 @@ export class SystemMonitoringService {
       const metrics: PerformanceMetrics = {
         cpu: {
           usage: this.getCpuUsage(),
-          loadAverage: os.loadavg()
+          loadAverage: os.loadavg(),
         },
         memory: this.getMemoryUsage(),
         disk: await this.getDiskUsage(),
-        network: this.getNetworkUsage()
+        network: this.getNetworkUsage(),
       };
 
       // Store metrics in database
@@ -447,7 +463,7 @@ export class SystemMonitoringService {
     return {
       used: Math.floor(used / 1024 / 1024), // MB
       total: Math.floor(total / 1024 / 1024), // MB
-      percentage: Math.floor((used / total) * 100)
+      percentage: Math.floor((used / total) * 100),
     };
   }
 
@@ -460,13 +476,13 @@ export class SystemMonitoringService {
       return {
         used: 45000, // MB
         total: 100000, // MB
-        percentage: 45
+        percentage: 45,
       };
     } catch (error) {
       return {
         used: 0,
         total: 0,
-        percentage: 0
+        percentage: 0,
       };
     }
   }
@@ -478,23 +494,41 @@ export class SystemMonitoringService {
     // Mock network usage - would track actual network stats
     return {
       bytesIn: Math.floor(Math.random() * 1000000),
-      bytesOut: Math.floor(Math.random() * 1000000)
+      bytesOut: Math.floor(Math.random() * 1000000),
     };
   }
 
   /**
    * Store performance metrics
    */
-  private async storePerformanceMetrics(metrics: PerformanceMetrics): Promise<void> {
+  private async storePerformanceMetrics(
+    metrics: PerformanceMetrics
+  ): Promise<void> {
     try {
       const now = new Date();
 
       await Promise.all([
         analyticsService.storeSystemMetric('cpu_usage', metrics.cpu.usage, now),
-        analyticsService.storeSystemMetric('memory_usage', metrics.memory.percentage, now),
-        analyticsService.storeSystemMetric('disk_usage', metrics.disk.percentage, now),
-        analyticsService.storeSystemMetric('network_in', metrics.network.bytesIn, now),
-        analyticsService.storeSystemMetric('network_out', metrics.network.bytesOut, now)
+        analyticsService.storeSystemMetric(
+          'memory_usage',
+          metrics.memory.percentage,
+          now
+        ),
+        analyticsService.storeSystemMetric(
+          'disk_usage',
+          metrics.disk.percentage,
+          now
+        ),
+        analyticsService.storeSystemMetric(
+          'network_in',
+          metrics.network.bytesIn,
+          now
+        ),
+        analyticsService.storeSystemMetric(
+          'network_out',
+          metrics.network.bytesOut,
+          now
+        ),
       ]);
     } catch (error) {
       console.error('Error storing performance metrics:', error);
@@ -521,18 +555,28 @@ export class SystemMonitoringService {
           level,
           message,
           stack,
-          context
+          context,
         },
-        level === 'critical' ? 'critical' : level === 'error' ? 'error' : 'warning'
+        level === 'critical'
+          ? 'critical'
+          : level === 'error'
+            ? 'error'
+            : 'warning'
       );
 
       // Log to console based on level
       if (level === 'error') {
-        console.error(`[${level.toUpperCase()}] ${message}`, { stack, context });
+        console.error(`[${level.toUpperCase()}] ${message}`, {
+          stack,
+          context,
+        });
       } else if (level === 'warning') {
         console.warn(`[${level.toUpperCase()}] ${message}`, { stack, context });
       } else {
-        console.error(`[${level.toUpperCase()}] ${message}`, { stack, context });
+        console.error(`[${level.toUpperCase()}] ${message}`, {
+          stack,
+          context,
+        });
       }
     } catch (error) {
       console.error('Error logging system error:', error);
@@ -555,11 +599,13 @@ export class SystemMonitoringService {
           value: 85,
           threshold: 80,
           triggeredAt: new Date(Date.now() - 1000 * 60 * 10),
-          acknowledged: false
-        }
+          acknowledged: false,
+        },
       ];
 
-      return mockAlerts.filter(alert => resolved ? !!alert.resolvedAt : !alert.resolvedAt);
+      return mockAlerts.filter(alert =>
+        resolved ? !!alert.resolvedAt : !alert.resolvedAt
+      );
     } catch (error) {
       console.error('Error getting system alerts:', error);
       throw error;
@@ -596,7 +642,7 @@ export class SystemMonitoringService {
   ): Promise<ErrorLog[]> {
     try {
       const where: any = {
-        action: 'SYSTEM_ERROR'
+        action: 'SYSTEM_ERROR',
       };
 
       if (level) {
@@ -606,17 +652,21 @@ export class SystemMonitoringService {
       const logs = await prisma.auditLog.findMany({
         where,
         orderBy: { timestamp: 'desc' },
-        take: limit
+        take: limit,
       });
 
       return logs.map(log => ({
         id: log.id,
         level: log.severity as 'error' | 'warning' | 'critical',
         message: log.action,
-        stack: log.details ? JSON.parse(log.details as string).stack : undefined,
-        context: log.details ? JSON.parse(log.details as string).context : undefined,
+        stack: log.details
+          ? JSON.parse(log.details as string).stack
+          : undefined,
+        context: log.details
+          ? JSON.parse(log.details as string).context
+          : undefined,
         timestamp: log.timestamp,
-        resolved: false // Would track resolution status
+        resolved: false, // Would track resolution status
       }));
     } catch (error) {
       console.error('Error getting error logs:', error);
@@ -635,15 +685,15 @@ export class SystemMonitoringService {
       // Clean old health checks (keep 30 days)
       await prisma.systemHealth.deleteMany({
         where: {
-          checkedAt: { lt: thirtyDaysAgo }
-        }
+          checkedAt: { lt: thirtyDaysAgo },
+        },
       });
 
       // Clean old audit logs (keep 90 days)
       await prisma.auditLog.deleteMany({
         where: {
-          timestamp: { lt: ninetyDaysAgo }
-        }
+          timestamp: { lt: ninetyDaysAgo },
+        },
       });
 
       console.log('Old monitoring data cleaned up successfully');

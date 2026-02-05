@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrisma } from '../../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export interface DateRange {
   startDate: Date;
@@ -89,25 +89,25 @@ export interface AnalyticsOverview {
 }
 
 export class AnalyticsService {
-
   /**
    * Get comprehensive analytics overview
    */
   async getAnalyticsOverview(dateRange: DateRange): Promise<AnalyticsOverview> {
     try {
-      const [userMetrics, contentMetrics, revenueMetrics, systemMetrics] = await Promise.all([
-        this.getUserMetrics(dateRange),
-        this.getContentMetrics(dateRange),
-        this.getRevenueMetrics(dateRange),
-        this.getSystemMetrics(dateRange)
-      ]);
+      const [userMetrics, contentMetrics, revenueMetrics, systemMetrics] =
+        await Promise.all([
+          this.getUserMetrics(dateRange),
+          this.getContentMetrics(dateRange),
+          this.getRevenueMetrics(dateRange),
+          this.getSystemMetrics(dateRange),
+        ]);
 
       return {
         userMetrics,
         contentMetrics,
         revenueMetrics,
         systemMetrics,
-        lastUpdated: new Date()
+        lastUpdated: new Date(),
       };
     } catch (error) {
       console.error('Error getting analytics overview:', error);
@@ -123,41 +123,40 @@ export class AnalyticsService {
       const { startDate, endDate } = dateRange;
 
       // Calculate period lengths
-      const currentPeriodDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const previousPeriodStart = new Date(startDate.getTime() - (currentPeriodDays * 24 * 60 * 60 * 1000));
+      const currentPeriodDays = Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const previousPeriodStart = new Date(
+        startDate.getTime() - currentPeriodDays * 24 * 60 * 60 * 1000
+      );
 
       // Get basic user counts
-      const [
-        totalUsers,
-        activeUsers,
-        newUsers,
-        ,
-        userGrowthData,
-        topUsers
-      ] = await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({
-          where: {
-            isActive: true,
-            lastLoginAt: { gte: startDate }
-          }
-        }),
-        prisma.user.count({
-          where: {
-            createdAt: { gte: startDate, lte: endDate }
-          }
-        }),
-        prisma.user.count({
-          where: {
-            createdAt: { gte: previousPeriodStart, lt: startDate }
-          }
-        }),
-        this.getUserGrowthData(dateRange),
-        this.getTopUsers(10)
-      ]);
+      const [totalUsers, activeUsers, newUsers, , userGrowthData, topUsers] =
+        await Promise.all([
+          prisma.user.count(),
+          prisma.user.count({
+            where: {
+              isActive: true,
+              lastLoginAt: { gte: startDate },
+            },
+          }),
+          prisma.user.count({
+            where: {
+              createdAt: { gte: startDate, lte: endDate },
+            },
+          }),
+          prisma.user.count({
+            where: {
+              createdAt: { gte: previousPeriodStart, lt: startDate },
+            },
+          }),
+          this.getUserGrowthData(dateRange),
+          this.getTopUsers(10),
+        ]);
 
       // Calculate retention rate (simplified)
-      const retentionRate = activeUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
+      const retentionRate =
+        activeUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
 
       // Generate user activity data
       const userActivity = await this.getUserActivityData(dateRange);
@@ -169,7 +168,7 @@ export class AnalyticsService {
         retentionRate,
         userGrowth: userGrowthData,
         userActivity,
-        topUsers
+        topUsers,
       };
     } catch (error) {
       console.error('Error getting user metrics:', error);
@@ -191,32 +190,52 @@ export class AnalyticsService {
         newProjects,
         totalTemplates,
         popularTemplates,
-        contentGrowthData
+        contentGrowthData,
       ] = await Promise.all([
         prisma.thumbnail.count(),
         prisma.thumbnail.count({
           where: {
-            createdAt: { gte: startDate, lte: endDate }
-          }
+            createdAt: { gte: startDate, lte: endDate },
+          },
         }),
         prisma.project.count(),
         prisma.project.count({
           where: {
-            createdAt: { gte: startDate, lte: endDate }
-          }
+            createdAt: { gte: startDate, lte: endDate },
+          },
         }),
         prisma.template.count(),
         this.getPopularTemplates(10),
-        this.getContentGrowthData(dateRange)
+        this.getContentGrowthData(dateRange),
       ]);
 
       // Mock category distribution (would be real data in production)
       const categoryDistribution = [
-        { category: 'YouTube Thumbnails', count: Math.floor(totalThumbnails * 0.45), percentage: 45 },
-        { category: 'Social Media', count: Math.floor(totalThumbnails * 0.25), percentage: 25 },
-        { category: 'Blog Headers', count: Math.floor(totalThumbnails * 0.15), percentage: 15 },
-        { category: 'Presentations', count: Math.floor(totalThumbnails * 0.10), percentage: 10 },
-        { category: 'Other', count: Math.floor(totalThumbnails * 0.05), percentage: 5 }
+        {
+          category: 'YouTube Thumbnails',
+          count: Math.floor(totalThumbnails * 0.45),
+          percentage: 45,
+        },
+        {
+          category: 'Social Media',
+          count: Math.floor(totalThumbnails * 0.25),
+          percentage: 25,
+        },
+        {
+          category: 'Blog Headers',
+          count: Math.floor(totalThumbnails * 0.15),
+          percentage: 15,
+        },
+        {
+          category: 'Presentations',
+          count: Math.floor(totalThumbnails * 0.1),
+          percentage: 10,
+        },
+        {
+          category: 'Other',
+          count: Math.floor(totalThumbnails * 0.05),
+          percentage: 5,
+        },
       ];
 
       return {
@@ -227,7 +246,7 @@ export class AnalyticsService {
         totalTemplates,
         popularTemplates,
         contentGrowth: contentGrowthData,
-        categoryDistribution
+        categoryDistribution,
       };
     } catch (error) {
       console.error('Error getting content metrics:', error);
@@ -245,20 +264,25 @@ export class AnalyticsService {
       // Get subscription data
       const subscriptions = await prisma.subscription.findMany({
         where: {
-          createdAt: { gte: startDate, lte: endDate }
+          createdAt: { gte: startDate, lte: endDate },
         },
         include: {
           User: {
-            select: { email: true }
-          }
-        }
+            select: { email: true },
+          },
+        },
       });
 
       // Calculate revenue metrics (simplified - would use actual payment data)
-      const subscriptionBreakdown = this.calculateSubscriptionBreakdown(subscriptions);
-      const totalRevenue = subscriptionBreakdown.reduce((sum, plan) => sum + plan.revenue, 0);
+      const subscriptionBreakdown =
+        this.calculateSubscriptionBreakdown(subscriptions);
+      const totalRevenue = subscriptionBreakdown.reduce(
+        (sum, plan) => sum + plan.revenue,
+        0
+      );
       const totalUsers = await prisma.user.count();
-      const averageRevenuePerUser = totalUsers > 0 ? totalRevenue / totalUsers : 0;
+      const averageRevenuePerUser =
+        totalUsers > 0 ? totalRevenue / totalUsers : 0;
 
       // Mock revenue growth data
       const revenueGrowth = await this.getRevenueGrowthData(dateRange);
@@ -269,7 +293,7 @@ export class AnalyticsService {
         revenueGrowth,
         subscriptionBreakdown,
         averageRevenuePerUser,
-        churnRate: 5.2 // Mock churn rate
+        churnRate: 5.2, // Mock churn rate
       };
     } catch (error) {
       console.error('Error getting revenue metrics:', error);
@@ -287,20 +311,31 @@ export class AnalyticsService {
         where: {
           checkedAt: {
             gte: dateRange.startDate,
-            lte: dateRange.endDate
-          }
+            lte: dateRange.endDate,
+          },
         },
         orderBy: { checkedAt: 'desc' },
-        take: 100
+        take: 100,
       });
 
       // Process system metrics
-      const apiResponseTime = this.processSystemHealthMetrics(systemHealthData, 'response');
-      const errorRate = this.processSystemHealthMetrics(systemHealthData, 'errorRate');
+      const apiResponseTime = this.processSystemHealthMetrics(
+        systemHealthData,
+        'response'
+      );
+      const errorRate = this.processSystemHealthMetrics(
+        systemHealthData,
+        'errorRate'
+      );
 
       // Calculate uptime (simplified)
-      const healthyChecks = systemHealthData.filter(h => h.status === 'healthy').length;
-      const uptime = systemHealthData.length > 0 ? (healthyChecks / systemHealthData.length) * 100 : 100;
+      const healthyChecks = systemHealthData.filter(
+        h => h.status === 'healthy'
+      ).length;
+      const uptime =
+        systemHealthData.length > 0
+          ? (healthyChecks / systemHealthData.length) * 100
+          : 100;
 
       return {
         apiResponseTime,
@@ -312,8 +347,8 @@ export class AnalyticsService {
         databasePerformance: {
           queryTime: 23.5, // ms (mock)
           connectionPool: 8, // Mock
-          slowQueries: 2 // Mock
-        }
+          slowQueries: 2, // Mock
+        },
       };
     } catch (error) {
       console.error('Error getting system metrics:', error);
@@ -335,19 +370,23 @@ export class AnalyticsService {
         where: {
           metricType_metricDate: {
             metricType,
-            metricDate: date
-          }
+            metricDate: date,
+          },
         },
         update: {
           metricValue: value,
-          ...(additionalData && { additionalData: JSON.stringify(additionalData) })
+          ...(additionalData && {
+            additionalData: JSON.stringify(additionalData),
+          }),
         },
         create: {
           metricType,
           metricValue: value,
           metricDate: date,
-          ...(additionalData && { additionalData: JSON.stringify(additionalData) })
-        }
+          ...(additionalData && {
+            additionalData: JSON.stringify(additionalData),
+          }),
+        },
       });
     } catch (error) {
       console.error('Error storing system metric:', error);
@@ -366,7 +405,7 @@ export class AnalyticsService {
   ) {
     try {
       const where: any = {
-        userId: { not: null }
+        userId: { not: null },
       };
 
       if (userId) {
@@ -376,7 +415,7 @@ export class AnalyticsService {
       if (dateRange) {
         where.timestamp = {
           gte: dateRange.startDate,
-          lte: dateRange.endDate
+          lte: dateRange.endDate,
         };
       }
 
@@ -384,12 +423,12 @@ export class AnalyticsService {
         where,
         include: {
           User_AuditLog_userIdToUser: {
-            select: { email: true, name: true }
-          }
+            select: { email: true, name: true },
+          },
         },
         orderBy: { timestamp: 'desc' },
         take: limit,
-        skip: offset
+        skip: offset,
       });
 
       return logs;
@@ -439,125 +478,154 @@ export class AnalyticsService {
   }
 
   // Helper methods
-  private async getUserGrowthData(dateRange: DateRange): Promise<MetricPoint[]> {
+  private async getUserGrowthData(
+    dateRange: DateRange
+  ): Promise<MetricPoint[]> {
     // Mock implementation - would query actual data
-    const days = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const days = Math.ceil(
+      (dateRange.endDate.getTime() - dateRange.startDate.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
     const points: MetricPoint[] = [];
-    
+
     for (let i = 0; i < Math.min(days, 30); i++) {
-      const date = new Date(dateRange.startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+      const date = new Date(
+        dateRange.startDate.getTime() + i * 24 * 60 * 60 * 1000
+      );
       points.push({
         date: date.toISOString().split('T')[0]!,
         value: Math.floor(Math.random() * 50) + 10,
-        change: Math.floor(Math.random() * 20) - 10
+        change: Math.floor(Math.random() * 20) - 10,
       });
     }
-    
+
     return points;
   }
 
-  private async getUserActivityData(dateRange: DateRange): Promise<MetricPoint[]> {
+  private async getUserActivityData(
+    dateRange: DateRange
+  ): Promise<MetricPoint[]> {
     // Mock implementation
-    const days = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const days = Math.ceil(
+      (dateRange.endDate.getTime() - dateRange.startDate.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
     const points: MetricPoint[] = [];
-    
+
     for (let i = 0; i < Math.min(days, 30); i++) {
-      const date = new Date(dateRange.startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+      const date = new Date(
+        dateRange.startDate.getTime() + i * 24 * 60 * 60 * 1000
+      );
       points.push({
         date: date.toISOString().split('T')[0]!,
-        value: Math.floor(Math.random() * 200) + 50
+        value: Math.floor(Math.random() * 200) + 50,
       });
     }
-    
+
     return points;
   }
 
   private async getTopUsers(limit: number) {
-    return prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        lastLoginAt: true,
-        _count: {
-          select: {
-            Thumbnail: true,
-            Project: true
-          }
-        }
-      },
-      orderBy: {
-        Thumbnail: {
-          _count: 'desc'
-        }
-      },
-      take: limit
-    }).then(users => 
-      users.map(user => ({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        thumbnailCount: user._count.Thumbnail,
-        projectCount: user._count.Project,
-        lastLoginAt: user.lastLoginAt
-      }))
-    );
+    return prisma.user
+      .findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          lastLoginAt: true,
+          _count: {
+            select: {
+              Thumbnail: true,
+              Project: true,
+            },
+          },
+        },
+        orderBy: {
+          Thumbnail: {
+            _count: 'desc',
+          },
+        },
+        take: limit,
+      })
+      .then(users =>
+        users.map(user => ({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          thumbnailCount: user._count.Thumbnail,
+          projectCount: user._count.Project,
+          lastLoginAt: user.lastLoginAt,
+        }))
+      );
   }
 
   private async getPopularTemplates(limit: number) {
-    return prisma.template.findMany({
-      select: {
-        id: true,
-        name: true,
-        downloads: true,
-        likes: true,
-        creatorId: true
-      },
-      orderBy: [
-        { downloads: 'desc' },
-        { likes: 'desc' }
-      ],
-      take: limit
-    }).then(templates =>
-      templates.map(template => ({
-        id: template.id,
-        name: template.name,
-        downloads: template.downloads,
-        likes: template.likes,
-        creator: template.creatorId
-      }))
-    );
+    return prisma.template
+      .findMany({
+        select: {
+          id: true,
+          name: true,
+          downloads: true,
+          likes: true,
+          creatorId: true,
+        },
+        orderBy: [{ downloads: 'desc' }, { likes: 'desc' }],
+        take: limit,
+      })
+      .then(templates =>
+        templates.map(template => ({
+          id: template.id,
+          name: template.name,
+          downloads: template.downloads,
+          likes: template.likes,
+          creator: template.creatorId,
+        }))
+      );
   }
 
-  private async getContentGrowthData(dateRange: DateRange): Promise<MetricPoint[]> {
+  private async getContentGrowthData(
+    dateRange: DateRange
+  ): Promise<MetricPoint[]> {
     // Mock implementation
-    const days = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const days = Math.ceil(
+      (dateRange.endDate.getTime() - dateRange.startDate.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
     const points: MetricPoint[] = [];
-    
+
     for (let i = 0; i < Math.min(days, 30); i++) {
-      const date = new Date(dateRange.startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+      const date = new Date(
+        dateRange.startDate.getTime() + i * 24 * 60 * 60 * 1000
+      );
       points.push({
         date: date.toISOString().split('T')[0]!,
-        value: Math.floor(Math.random() * 100) + 20
+        value: Math.floor(Math.random() * 100) + 20,
       });
     }
-    
+
     return points;
   }
 
-  private async getRevenueGrowthData(dateRange: DateRange): Promise<MetricPoint[]> {
+  private async getRevenueGrowthData(
+    dateRange: DateRange
+  ): Promise<MetricPoint[]> {
     // Mock implementation
-    const days = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const days = Math.ceil(
+      (dateRange.endDate.getTime() - dateRange.startDate.getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
     const points: MetricPoint[] = [];
-    
+
     for (let i = 0; i < Math.min(days, 30); i++) {
-      const date = new Date(dateRange.startDate.getTime() + (i * 24 * 60 * 60 * 1000));
+      const date = new Date(
+        dateRange.startDate.getTime() + i * 24 * 60 * 60 * 1000
+      );
       points.push({
         date: date.toISOString().split('T')[0]!,
-        value: Math.floor(Math.random() * 1000) + 500
+        value: Math.floor(Math.random() * 1000) + 500,
       });
     }
-    
+
     return points;
   }
 
@@ -568,33 +636,40 @@ export class AnalyticsService {
     percentage: number;
   }> {
     const breakdown = new Map<string, { count: number; revenue: number }>();
-    
+
     subscriptions.forEach(sub => {
       const existing = breakdown.get(sub.planType) || { count: 0, revenue: 0 };
       breakdown.set(sub.planType, {
         count: existing.count + 1,
-        revenue: existing.revenue + (sub.creditsBalance * 0.01) // Mock pricing
+        revenue: existing.revenue + sub.creditsBalance * 0.01, // Mock pricing
       });
     });
 
-    const total = Array.from(breakdown.values()).reduce((sum, item) => sum + item.revenue, 0);
-    
+    const total = Array.from(breakdown.values()).reduce(
+      (sum, item) => sum + item.revenue,
+      0
+    );
+
     return Array.from(breakdown.entries()).map(([planType, data]) => ({
       planType,
       count: data.count,
       revenue: data.revenue,
-      percentage: total > 0 ? (data.revenue / total) * 100 : 0
+      percentage: total > 0 ? (data.revenue / total) * 100 : 0,
     }));
   }
 
-  private processSystemHealthMetrics(healthData: any[], metricType: string): MetricPoint[] {
+  private processSystemHealthMetrics(
+    healthData: any[],
+    metricType: string
+  ): MetricPoint[] {
     // Group by date and calculate averages
     const dailyMetrics = new Map<string, number[]>();
-    
+
     healthData.forEach(health => {
       const date = health.checkedAt.toISOString().split('T')[0];
-      const value = metricType === 'response' ? health.response : health.errorRate;
-      
+      const value =
+        metricType === 'response' ? health.response : health.errorRate;
+
       if (value !== null) {
         if (!dailyMetrics.has(date)) {
           dailyMetrics.set(date, []);
@@ -605,14 +680,14 @@ export class AnalyticsService {
 
     return Array.from(dailyMetrics.entries()).map(([date, values]) => ({
       date,
-      value: values.reduce((sum, val) => sum + val, 0) / values.length
+      value: values.reduce((sum, val) => sum + val, 0) / values.length,
     }));
   }
 
   private convertToCSV(data: any): string {
     // Simplified CSV conversion
     let csv = 'Type,Metric,Value,Date\n';
-    
+
     Object.entries(data).forEach(([section, metrics]: [string, any]) => {
       if (metrics && typeof metrics === 'object') {
         Object.entries(metrics).forEach(([key, value]) => {
@@ -622,7 +697,7 @@ export class AnalyticsService {
         });
       }
     });
-    
+
     return csv;
   }
 }

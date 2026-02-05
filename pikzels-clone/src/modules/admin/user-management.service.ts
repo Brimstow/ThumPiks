@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { adminAuthService, AdminRoles } from './admin-auth.service';
+import { getPrisma } from '../../utils/prisma-factory';
 
-const prisma = new PrismaClient();
+const prisma = getPrisma();
 
 export interface UserListItem {
   id: string;
@@ -109,7 +109,6 @@ export interface UserListResponse {
 }
 
 export class UserManagementService {
-  
   /**
    * Get paginated list of users with filtering and sorting
    */
@@ -124,11 +123,11 @@ export class UserManagementService {
 
       // Build where clause
       const where: any = {};
-      
+
       if (filters.search) {
         where.OR = [
           { email: { contains: filters.search, mode: 'insensitive' } },
-          { name: { contains: filters.search, mode: 'insensitive' } }
+          { name: { contains: filters.search, mode: 'insensitive' } },
         ];
       }
 
@@ -157,11 +156,17 @@ export class UserManagementService {
       }
 
       if (filters.lastLoginAfter) {
-        where.lastLoginAt = { ...where.lastLoginAt, gte: filters.lastLoginAfter };
+        where.lastLoginAt = {
+          ...where.lastLoginAt,
+          gte: filters.lastLoginAfter,
+        };
       }
 
       if (filters.lastLoginBefore) {
-        where.lastLoginAt = { ...where.lastLoginAt, lte: filters.lastLoginBefore };
+        where.lastLoginAt = {
+          ...where.lastLoginAt,
+          lte: filters.lastLoginBefore,
+        };
       }
 
       // Build order by clause
@@ -177,18 +182,18 @@ export class UserManagementService {
         include: {
           AdminRole: {
             where: { isActive: true },
-            select: { role: true, isActive: true }
+            select: { role: true, isActive: true },
           },
           _count: {
             select: {
               Project: true,
-              Thumbnail: true
-            }
-          }
+              Thumbnail: true,
+            },
+          },
         },
         orderBy,
         skip,
-        take: limit
+        take: limit,
       });
 
       return {
@@ -197,10 +202,9 @@ export class UserManagementService {
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit)
-        }
+          totalPages: Math.ceil(total / limit),
+        },
       };
-
     } catch (error) {
       console.error('Error getting users:', error);
       throw error;
@@ -216,23 +220,23 @@ export class UserManagementService {
         where: { id: userId },
         include: {
           AdminRole: {
-            orderBy: { assignedAt: 'desc' }
+            orderBy: { assignedAt: 'desc' },
           },
           Project: {
             select: { id: true, name: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
-            take: 10
+            take: 10,
           },
           Thumbnail: {
             select: { id: true, title: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
-            take: 10
+            take: 10,
           },
           Subscription: {
             orderBy: { createdAt: 'desc' },
-            take: 5
-          }
-        }
+            take: 5,
+          },
+        },
       });
 
       return user as unknown as UserDetailsResponse;
@@ -245,11 +249,14 @@ export class UserManagementService {
   /**
    * Create a new user
    */
-  async createUser(userData: CreateUserRequest, adminId: string): Promise<string> {
+  async createUser(
+    userData: CreateUserRequest,
+    adminId: string
+  ): Promise<string> {
     try {
       // Check if email already exists
       const existingUser = await prisma.user.findUnique({
-        where: { email: userData.email.toLowerCase() }
+        where: { email: userData.email.toLowerCase() },
       });
 
       if (existingUser) {
@@ -269,8 +276,8 @@ export class UserManagementService {
           isVerified: userData.isVerified || false,
           isActive: userData.isActive !== false, // Default to true
           createdAt: new Date(),
-          updatedAt: new Date()
-        }
+          updatedAt: new Date(),
+        },
       });
 
       // Log user creation
@@ -283,7 +290,7 @@ export class UserManagementService {
           email: newUser.email,
           name: newUser.name,
           isVerified: newUser.isVerified,
-          isActive: newUser.isActive
+          isActive: newUser.isActive,
         }
       );
 
@@ -297,10 +304,14 @@ export class UserManagementService {
   /**
    * Update user information
    */
-  async updateUser(userId: string, updateData: UpdateUserRequest, adminId: string): Promise<boolean> {
+  async updateUser(
+    userId: string,
+    updateData: UpdateUserRequest,
+    adminId: string
+  ): Promise<boolean> {
     try {
       const existingUser = await prisma.user.findUnique({
-        where: { id: userId }
+        where: { id: userId },
       });
 
       if (!existingUser) {
@@ -310,7 +321,7 @@ export class UserManagementService {
       // Check email uniqueness if email is being updated
       if (updateData.email && updateData.email !== existingUser.email) {
         const emailExists = await prisma.user.findUnique({
-          where: { email: updateData.email.toLowerCase() }
+          where: { email: updateData.email.toLowerCase() },
         });
 
         if (emailExists) {
@@ -320,20 +331,24 @@ export class UserManagementService {
 
       // Prepare update data
       const dataToUpdate: any = {
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       if (updateData.name !== undefined) dataToUpdate.name = updateData.name;
       if (updateData.email) dataToUpdate.email = updateData.email.toLowerCase();
-      if (updateData.isVerified !== undefined) dataToUpdate.isVerified = updateData.isVerified;
-      if (updateData.isActive !== undefined) dataToUpdate.isActive = updateData.isActive;
-      if (updateData.avatarUrl !== undefined) dataToUpdate.avatarUrl = updateData.avatarUrl;
-      if (updateData.settings !== undefined) dataToUpdate.settings = updateData.settings;
+      if (updateData.isVerified !== undefined)
+        dataToUpdate.isVerified = updateData.isVerified;
+      if (updateData.isActive !== undefined)
+        dataToUpdate.isActive = updateData.isActive;
+      if (updateData.avatarUrl !== undefined)
+        dataToUpdate.avatarUrl = updateData.avatarUrl;
+      if (updateData.settings !== undefined)
+        dataToUpdate.settings = updateData.settings;
 
       // Update user
       await prisma.user.update({
         where: { id: userId },
-        data: dataToUpdate
+        data: dataToUpdate,
       });
 
       // Log user update
@@ -348,8 +363,8 @@ export class UserManagementService {
             email: existingUser.email,
             name: existingUser.name,
             isVerified: existingUser.isVerified,
-            isActive: existingUser.isActive
-          }
+            isActive: existingUser.isActive,
+          },
         }
       );
 
@@ -363,13 +378,17 @@ export class UserManagementService {
   /**
    * Delete/deactivate user
    */
-  async deleteUser(userId: string, adminId: string, hardDelete: boolean = false): Promise<boolean> {
+  async deleteUser(
+    userId: string,
+    adminId: string,
+    hardDelete: boolean = false
+  ): Promise<boolean> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          AdminRole: { where: { isActive: true } }
-        }
+          AdminRole: { where: { isActive: true } },
+        },
       });
 
       if (!user) {
@@ -378,12 +397,14 @@ export class UserManagementService {
 
       // Prevent deletion of users with active admin roles
       if (user.AdminRole.length > 0) {
-        throw new Error('Cannot delete user with active admin roles. Remove admin roles first.');
+        throw new Error(
+          'Cannot delete user with active admin roles. Remove admin roles first.'
+        );
       }
 
       if (hardDelete) {
         // Hard delete - remove all user data
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async tx => {
           // Delete related data in correct order
           await tx.auditLog.deleteMany({ where: { userId } });
           await tx.socialShare.deleteMany({ where: { userId } });
@@ -391,8 +412,8 @@ export class UserManagementService {
           await tx.thumbnail.deleteMany({ where: { userId } });
           await tx.subscription.deleteMany({ where: { userId } });
           await tx.teamMember.deleteMany({ where: { userId } });
-          await tx.teamInvitation.deleteMany({ 
-            where: { OR: [{ inviterId: userId }, { inviteeId: userId }] } 
+          await tx.teamInvitation.deleteMany({
+            where: { OR: [{ inviterId: userId }, { inviteeId: userId }] },
           });
           await tx.team.deleteMany({ where: { ownerId: userId } });
           await tx.project.deleteMany({ where: { userId } });
@@ -412,10 +433,10 @@ export class UserManagementService {
         // Soft delete - deactivate user
         await prisma.user.update({
           where: { id: userId },
-          data: { 
+          data: {
             isActive: false,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
         await adminAuthService.logAdminAction(
@@ -437,16 +458,20 @@ export class UserManagementService {
   /**
    * Reset user password
    */
-  async resetUserPassword(userId: string, newPassword: string, adminId: string): Promise<boolean> {
+  async resetUserPassword(
+    userId: string,
+    newPassword: string,
+    adminId: string
+  ): Promise<boolean> {
     try {
       const passwordHash = await bcrypt.hash(newPassword, 12);
 
       await prisma.user.update({
         where: { id: userId },
-        data: { 
+        data: {
           passwordHash,
-          updatedAt: new Date()
-        }
+          updatedAt: new Date(),
+        },
       });
 
       await adminAuthService.logAdminAction(
@@ -469,8 +494,8 @@ export class UserManagementService {
    * Assign admin role to user
    */
   async assignAdminRole(
-    userId: string, 
-    role: AdminRoles, 
+    userId: string,
+    role: AdminRoles,
     assignedBy: string,
     expiresAt?: Date
   ): Promise<boolean> {
@@ -507,14 +532,22 @@ export class UserManagementService {
   /**
    * Remove admin role from user
    */
-  async removeAdminRole(userId: string, role: AdminRoles, removedBy: string): Promise<boolean> {
+  async removeAdminRole(
+    userId: string,
+    role: AdminRoles,
+    removedBy: string
+  ): Promise<boolean> {
     try {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw new Error('User not found');
       }
 
-      const success = await adminAuthService.removeAdminRole(userId, role, removedBy);
+      const success = await adminAuthService.removeAdminRole(
+        userId,
+        role,
+        removedBy
+      );
 
       if (success) {
         await adminAuthService.logAdminAction(
@@ -549,25 +582,19 @@ export class UserManagementService {
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      const [
-        total,
-        active,
-        verified,
-        admins,
-        newThisMonth,
-        newThisWeek
-      ] = await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({ where: { isActive: true } }),
-        prisma.user.count({ where: { isVerified: true } }),
-        prisma.user.count({ 
-          where: { 
-            AdminRole: { some: { isActive: true } } 
-          } 
-        }),
-        prisma.user.count({ where: { createdAt: { gte: oneMonthAgo } } }),
-        prisma.user.count({ where: { createdAt: { gte: oneWeekAgo } } })
-      ]);
+      const [total, active, verified, admins, newThisMonth, newThisWeek] =
+        await Promise.all([
+          prisma.user.count(),
+          prisma.user.count({ where: { isActive: true } }),
+          prisma.user.count({ where: { isVerified: true } }),
+          prisma.user.count({
+            where: {
+              AdminRole: { some: { isActive: true } },
+            },
+          }),
+          prisma.user.count({ where: { createdAt: { gte: oneMonthAgo } } }),
+          prisma.user.count({ where: { createdAt: { gte: oneWeekAgo } } }),
+        ]);
 
       return {
         total,
@@ -575,7 +602,7 @@ export class UserManagementService {
         verified,
         admins,
         newThisMonth,
-        newThisWeek
+        newThisWeek,
       };
     } catch (error) {
       console.error('Error getting user stats:', error);
