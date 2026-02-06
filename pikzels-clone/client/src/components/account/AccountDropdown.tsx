@@ -6,6 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import * as accountService from '../../services/account.service';
+import type { SubscriptionTier } from '../../services/account.service';
 import {
   User,
   CreditCard,
@@ -28,9 +30,31 @@ interface AccountDropdownProps {
 const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionTier | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, logout, isAuthenticated, loading } = useAuth();
+
+  // Fetch subscription data when dropdown opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated && !subscription) {
+      fetchSubscriptionData();
+    }
+  }, [isOpen, isAuthenticated]);
+
+  const fetchSubscriptionData = async () => {
+    setLoadingSubscription(true);
+    try {
+      const data = await accountService.getSubscription();
+      setSubscription(data);
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+      // Keep null state to show fallback UI
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -154,10 +178,17 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
                   {user?.email}
                 </p>
               </div>
-              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 text-amber-400">
-                <Crown className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">Pro</span>
-              </div>
+              {subscription && (
+                <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${
+                  subscription.tier === 'free' ? 'bg-slate-500/20 text-slate-400' :
+                  subscription.tier === 'starter' ? 'bg-blue-500/20 text-blue-400' :
+                  subscription.tier === 'pro' ? 'bg-amber-500/20 text-amber-400' :
+                  'bg-purple-500/20 text-purple-400'
+                }`}>
+                  {subscription.tier !== 'free' && <Crown className="w-3.5 h-3.5" />}
+                  <span className="text-xs font-medium capitalize">{subscription.tier}</span>
+                </div>
+              )}
             </div>
             
             {/* Credits Display */}
@@ -166,7 +197,15 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
                 <Zap className="w-4 h-4 text-yellow-400" />
                 <span className="text-sm text-slate-300">Credits remaining</span>
               </div>
-              <span className="text-sm font-semibold text-slate-100">90 / 100</span>
+              {loadingSubscription ? (
+                <span className="text-sm text-slate-400 animate-pulse">Loading...</span>
+              ) : subscription ? (
+                <span className="text-sm font-semibold text-slate-100">
+                  {subscription.creditsRemaining} / {subscription.creditsTotal}
+                </span>
+              ) : (
+                <span className="text-sm font-semibold text-slate-100">-- / --</span>
+              )}
             </div>
           </div>
 

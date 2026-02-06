@@ -7,6 +7,17 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { authFetch, authPost } from '../../utils/api';
+import * as accountService from '../../services/account.service';
+import type {
+  ProfileData,
+  SubscriptionTier,
+  TwoFactorStatus,
+  ActiveSession,
+  LoginHistoryEntry,
+  EmailPreferences,
+  UserSettings,
+  TeamMember,
+} from '../../services/account.service';
 import {
   User,
   CreditCard,
@@ -63,14 +74,11 @@ const AccountPage: React.FC = () => {
   // Determine active tab from URL or default to profile
   const activeTab = (section as AccountTab) || 'profile';
   
-  // Profile state
-  const [profileData, setProfileData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    username: '',
-    bio: '',
-    website: '',
-  });
+  // Profile state - Real API data
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionTier | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -88,8 +96,11 @@ const AccountPage: React.FC = () => {
   });
   const [isPasswordSaving, setIsPasswordSaving] = useState(false);
   
-  // 2FA state
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  // Security state - Real API data
+  const [twoFactorStatus, setTwoFactorStatus] = useState<TwoFactorStatus | null>(null);
+  const [loadingSecurity, setLoadingSecurity] = useState(false);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryEntry[]>([]);
   const [show2FASetup, setShow2FASetup] = useState(false);
   
   // Delete account state
@@ -136,6 +147,7 @@ const AccountPage: React.FC = () => {
   }, [activeTab]);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!profileData) return;
     setProfileData({ ...profileData, [e.target.name]: e.target.value });
   };
 
@@ -151,23 +163,21 @@ const AccountPage: React.FC = () => {
   };
 
   const handleProfileSave = async () => {
+    if (!profileData) return;
+    
     setIsProfileSaving(true);
     setProfileMessage(null);
     
     try {
-      const response = await authFetch('/api/user/profile', {
-        method: 'PUT',
-        body: JSON.stringify(profileData),
+      await accountService.updateProfile({
+        name: profileData.name,
+        username: profileData.username,
       });
-      
-      if (response.ok) {
-        setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
-      } else {
-        const data = await response.json();
-        setProfileMessage({ type: 'error', text: data.error || 'Failed to update profile' });
-      }
-    } catch {
-      setProfileMessage({ type: 'error', text: 'Network error. Please try again.' });
+      setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
+      // Refresh profile data
+      fetchProfileData();
+    } catch (error) {
+      setProfileMessage({ type: 'error', text: 'Failed to update profile' });
     } finally {
       setIsProfileSaving(false);
     }
@@ -383,17 +393,66 @@ const AccountPage: React.FC = () => {
     { id: 'INV-003', date: '2024-11-27', amount: 29, status: 'paid' },
   ];
 
-  const sessions = [
-    { id: '1', device: 'Chrome on Windows', location: 'New York, US', lastActive: '2 minutes ago', current: true },
-    { id: '2', device: 'Safari on iPhone', location: 'New York, US', lastActive: '1 hour ago', current: false },
-    { id: '3', device: 'Firefox on MacOS', location: 'Los Angeles, US', lastActive: '2 days ago', current: false },
-  ];
+  // ============================================
+  // API DATA FETCHING
+  // ============================================
 
-  const loginHistory = [
-    { id: '1', device: 'Chrome on Windows', ip: '192.168.1.1', location: 'New York, US', time: '2 minutes ago', success: true },
-    { id: '2', device: 'Safari on iPhone', ip: '192.168.1.2', location: 'New York, US', time: '1 hour ago', success: true },
-    { id: '3', device: 'Unknown', ip: '10.0.0.1', location: 'Unknown', time: '3 hours ago', success: false },
-  ];
+  // Fetch profile data
+  useEffect(() => {
+    if (activeTab === 'profile') {
+      fetchProfileData();
+      fetchSubscriptionData();
+    }
+  }, [activeTab]);
+
+  // Fetch security data
+  useEffect(() => {
+    if (activeTab === 'security') {
+      fetchSecurityData();
+    }
+  }, [activeTab]);
+
+  const fetchProfileData = async () => {
+    setLoadingProfile(true);
+    try {
+      const data = await accountService.getProfile();
+      setProfileData(data);
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const fetchSubscriptionData = async () => {
+    setLoadingSubscription(true);
+    try {
+      const data = await accountService.getSubscription();
+      setSubscription(data);
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+
+  const fetchSecurityData = async () => {
+    setLoadingSecurity(true);
+    try {
+      const [twoFA, sessions, history] = await Promise.all([
+        accountService.get2FAStatus(),
+        accountService.getActiveSessions(),
+        accountService.getLoginHistory(20),
+      ]);
+      setTwoFactorStatus(twoFA);
+      setActiveSessions(sessions);
+      setLoginHistory(history);
+    } catch (error) {
+      console.error('Failed to fetch security data:', error);
+    } finally {
+      setLoadingSecurity(false);
+    }
+  };
 
   // ============================================
   // RENDER
@@ -430,193 +489,187 @@ const AccountPage: React.FC = () => {
         {/* PROFILE TAB */}
         {activeTab === 'profile' && (
           <>
-            {/* Profile Picture Section */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-slate-100 mb-4">Profile Picture</h2>
-              <div className="flex items-center gap-6">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-semibold overflow-hidden">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      user?.name?.charAt(0)?.toUpperCase() || 'U'
-                    )}
-                  </div>
-                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-500 transition-colors">
-                    <Camera className="w-4 h-4 text-white" />
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-                  </label>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-400 mb-2">
-                    Upload a new avatar. JPG, PNG or GIF. Max 5MB.
-                  </p>
-                  <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
-                    Remove photo
-                  </button>
-                </div>
+            {loadingProfile ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="w-8 h-8 animate-spin text-slate-500" />
               </div>
-            </div>
-
-            {/* Profile Info Section */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-slate-100 mb-4">Personal Information</h2>
-              
-              {profileMessage && (
-                <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
-                  profileMessage.type === 'success' 
-                    ? 'bg-green-500/20 text-green-400' 
-                    : 'bg-red-500/20 text-red-400'
-                }`}>
-                  {profileMessage.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                  {profileMessage.text}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={profileData.name}
-                    onChange={handleProfileChange}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      name="email"
-                      value={profileData.email}
-                      onChange={handleProfileChange}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-24"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">
-                      Verified
-                    </span>
+            ) : profileData ? (
+              <>
+                {/* Profile Picture Section */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-lg font-semibold text-slate-100 mb-4">Profile Picture</h2>
+                  <div className="flex items-center gap-6">
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-semibold overflow-hidden">
+                        {avatarPreview ? (
+                          <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : profileData.avatarUrl ? (
+                          <img src={profileData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          profileData.name?.charAt(0)?.toUpperCase() || 'U'
+                        )}
+                      </div>
+                      <label className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-500 transition-colors">
+                        <Camera className="w-4 h-4 text-white" />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                      </label>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-400 mb-2">
+                        Upload a new avatar. JPG, PNG or GIF. Max 5MB.
+                      </p>
+                      <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
+                        Remove photo
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Username</label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={profileData.username}
-                    onChange={handleProfileChange}
-                    placeholder="@username"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Website</label>
-                  <input
-                    type="url"
-                    name="website"
-                    value={profileData.website}
-                    onChange={handleProfileChange}
-                    placeholder="https://yourwebsite.com"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Bio</label>
-                  <textarea
-                    name="bio"
-                    value={profileData.bio}
-                    onChange={handleProfileChange}
-                    placeholder="Tell us about yourself..."
-                    rows={3}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors resize-none"
-                  />
-                </div>
-              </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={handleProfileSave}
-                  disabled={isProfileSaving}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isProfileSaving && <RefreshCw className="w-4 h-4 animate-spin" />}
-                  Save Changes
-                </button>
-              </div>
-            </div>
-
-            {/* Change Password Section */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-slate-100 mb-4">Change Password</h2>
-              <div className="space-y-4 max-w-md">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Current Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.current ? 'text' : 'password'}
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                    >
-                      {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.new ? 'text' : 'password'}
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                    >
-                      {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Confirm New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.confirm ? 'text' : 'password'}
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                    >
-                      {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
-                    <p className="mt-1 text-sm text-red-400">Passwords do not match</p>
+                {/* Profile Info Section */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-lg font-semibold text-slate-100 mb-4">Personal Information</h2>
+                  
+                  {profileMessage && (
+                    <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+                      profileMessage.type === 'success' 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {profileMessage.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                      {profileMessage.text}
+                    </div>
                   )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={profileData.name}
+                        onChange={handleProfileChange}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                      <div className="relative">
+                        <input
+                          type="email"
+                          name="email"
+                          value={profileData.email}
+                          onChange={handleProfileChange}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-24"
+                        />
+                        {profileData.emailVerified && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">
+                            Verified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Username</label>
+                      <input
+                        type="text"
+                        name="username"
+                        value={profileData.username}
+                        onChange={handleProfileChange}
+                        placeholder="@username"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={handleProfileSave}
+                      disabled={isProfileSaving}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isProfileSaving && <RefreshCw className="w-4 h-4 animate-spin" />}
+                      Save Changes
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={handlePasswordChange}
-                  disabled={isPasswordSaving || !passwordData.currentPassword || !passwordData.newPassword || passwordData.newPassword !== passwordData.confirmPassword}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isPasswordSaving && <RefreshCw className="w-4 h-4 animate-spin" />}
-                  Update Password
-                </button>
+
+                {/* Change Password Section */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-lg font-semibold text-slate-100 mb-4">Change Password</h2>
+                  <div className="space-y-4 max-w-md">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Current Password</label>
+                      <div className="relative">
+                        <input
+                          type={showPasswords.current ? 'text' : 'password'}
+                          value={passwordData.currentPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        >
+                          {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showPasswords.new ? 'text' : 'password'}
+                          value={passwordData.newPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        >
+                          {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Confirm New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showPasswords.confirm ? 'text' : 'password'}
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} // secretlint-disable-line @secretlint/secretlint-rule-pattern
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors pr-12"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        >
+                          {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
+                        <p className="mt-1 text-sm text-red-400">Passwords do not match</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handlePasswordChange}
+                      disabled={isPasswordSaving || !passwordData.currentPassword || !passwordData.newPassword || passwordData.newPassword !== passwordData.confirmPassword}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isPasswordSaving && <RefreshCw className="w-4 h-4 animate-spin" />}
+                      Update Password
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                Failed to load profile data
               </div>
-            </div>
+            )}
           </>
         )}
 
@@ -813,125 +866,149 @@ const AccountPage: React.FC = () => {
         {/* SECURITY TAB */}
         {activeTab === 'security' && (
           <>
-            {/* Two-Factor Authentication */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-100 mb-2">Two-Factor Authentication</h2>
-                  <p className="text-sm text-slate-400 mb-4">
-                    Add an extra layer of security to your account by requiring a verification code.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${is2FAEnabled ? 'bg-green-400' : 'bg-slate-600'}`} />
-                    <span className={`text-sm ${is2FAEnabled ? 'text-green-400' : 'text-slate-500'}`}>
-                      {is2FAEnabled ? 'Enabled' : 'Not enabled'}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShow2FASetup(!show2FASetup)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    is2FAEnabled
-                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                      : 'bg-blue-600 text-white hover:bg-blue-500'
-                  }`}
-                >
-                  {is2FAEnabled ? 'Disable' : 'Enable'}
-                </button>
+            {loadingSecurity ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="w-8 h-8 animate-spin text-slate-500" />
               </div>
-
-              {show2FASetup && !is2FAEnabled && (
-                <div className="mt-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                  <p className="text-sm text-slate-300 mb-4">
-                    Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-                  </p>
-                  <div className="w-40 h-40 bg-white rounded-lg mb-4 flex items-center justify-center">
-                    <span className="text-slate-900 text-xs">QR Code</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    className="w-full max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors mb-3"
-                  />
-                  <button
-                    onClick={() => {
-                      setIs2FAEnabled(true);
-                      setShow2FASetup(false);
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500 transition-colors"
-                  >
-                    Verify & Enable
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Active Sessions */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-100">Active Sessions</h2>
-                <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
-                  Log out all devices
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                {sessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center text-slate-400">
-                        {session.device.includes('iPhone') ? <Smartphone className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
+            ) : (
+              <>
+                {/* Two-Factor Authentication */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-100 mb-2">Two-Factor Authentication</h2>
+                      <p className="text-sm text-slate-400 mb-4">
+                        Add an extra layer of security to your account by requiring a verification code.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${twoFactorStatus?.enabled ? 'bg-green-400' : 'bg-slate-600'}`} />
+                        <span className={`text-sm ${twoFactorStatus?.enabled ? 'text-green-400' : 'text-slate-500'}`}>
+                          {twoFactorStatus?.enabled ? 'Enabled' : 'Not enabled'}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-slate-200">{session.device}</p>
-                          {session.current && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
-                              Current
-                            </span>
+                    </div>
+                    <button
+                      onClick={() => setShow2FASetup(!show2FASetup)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        twoFactorStatus?.enabled
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          : 'bg-blue-600 text-white hover:bg-blue-500'
+                      }`}
+                    >
+                      {twoFactorStatus?.enabled ? 'Disable' : 'Enable'}
+                    </button>
+                  </div>
+
+                  {show2FASetup && !twoFactorStatus?.enabled && (
+                    <div className="mt-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                      <p className="text-sm text-slate-300 mb-4">
+                        Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                      </p>
+                      {twoFactorStatus?.qrCode && (
+                        <div className="w-40 h-40 bg-white rounded-lg mb-4 flex items-center justify-center">
+                          <img src={twoFactorStatus.qrCode} alt="2FA QR Code" />
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Enter 6-digit code"
+                        className="w-full max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition-colors mb-3"
+                      />
+                      <button
+                        onClick={() => {
+                          setShow2FASetup(false);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-500 transition-colors"
+                      >
+                        Verify & Enable
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Active Sessions */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-slate-100">Active Sessions</h2>
+                    <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
+                      Log out all devices
+                    </button>
+                  </div>
+                  
+                  {activeSessions.length > 0 ? (
+                    <div className="space-y-3">
+                      {activeSessions.map((session) => (
+                        <div key={session.id} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center text-slate-400">
+                              {session.device.includes('iPhone') || session.device.includes('Android') ? <Smartphone className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-slate-200">{session.device}</p>
+                                {session.isCurrent && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <Globe className="w-3 h-3" />
+                                {session.location}
+                                <span>•</span>
+                                <Clock className="w-3 h-3" />
+                                {new Date(session.lastActivity).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                          {!session.isCurrent && (
+                            <button 
+                              onClick={() => accountService.terminateSession(session.id).then(fetchSecurityData)}
+                              className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                            >
+                              Revoke
+                            </button>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <Globe className="w-3 h-3" />
-                          {session.location}
-                          <span>•</span>
-                          <Clock className="w-3 h-3" />
-                          {session.lastActive}
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                    {!session.current && (
-                      <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
-                        Revoke
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-400">
+                      No active sessions found
+                    </div>
+                  )}
+                </div>
 
-            {/* Login History */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-semibold text-slate-100 mb-4">Recent Login Activity</h2>
-              <div className="space-y-3">
-                {loginHistory.map((login) => (
-                  <div key={login.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-800/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        login.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {login.success ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-200">{login.device}</p>
-                        <p className="text-xs text-slate-500">{login.ip} • {login.location}</p>
-                      </div>
+                {/* Login History */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h2 className="text-lg font-semibold text-slate-100 mb-4">Recent Login Activity</h2>
+                  {loginHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {loginHistory.map((login) => (
+                        <div key={login.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-800/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              login.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                            }`}>
+                              {login.success ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <p className="text-sm text-slate-200">{login.device}</p>
+                              <p className="text-xs text-slate-500">{login.ipAddress} • {login.location}</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-slate-500">{new Date(login.timestamp).toLocaleString()}</span>
+                        </div>
+                      ))}
                     </div>
-                    <span className="text-xs text-slate-500">{login.time}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-400">
+                      No login history available
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
 
