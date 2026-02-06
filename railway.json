@@ -1,9 +1,9 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
+  "rootDirectory": "pikzels-clone",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "npm ci && npx prisma generate && npm run build",
-    "rootDirectory": "pikzels-clone"
+    "buildCommand": "npm ci && npx prisma generate && npm run build"
   },
   "deploy": {
     "startCommand": "npx prisma migrate deploy && npm run prisma:seed && npm start",
