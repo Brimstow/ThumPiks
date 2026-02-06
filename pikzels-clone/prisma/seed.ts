@@ -14,6 +14,12 @@ interface TestUser {
 // Test users configuration
 const TEST_USERS: TestUser[] = [
   {
+    email: 'testerllm@example.com',
+    password: 'LLMdemo2026!',
+    name: 'Tester LLM',
+    username: 'testerLLM',
+  },
+  {
     email: 'tester1@example.com',
     password: 'Test123!',
     name: 'Tester One',
