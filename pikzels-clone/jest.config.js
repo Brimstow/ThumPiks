@@ -31,6 +31,10 @@ module.exports = {
   detectOpenHandles: false,
   // Modern globals injection (automatic in Jest 29)
   injectGlobals: true,
+  // Clear mock call history between tests (but preserve implementations)
+  clearMocks: true,
+  // Don't reset mock implementations (incompatible with module-level mocks)
+  resetMocks: false,
   // Coverage thresholds - enforced on pre-push
   coverageThreshold: {
     global: {

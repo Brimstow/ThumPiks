@@ -21,15 +21,33 @@ jest.mock('@prisma/client', () => {
 describe('AnalyticsService', () => {
   let analyticsService: AnalyticsService;
   let mockPrisma: any;
+  let originalNodeEnv: string | undefined;
+
+  beforeAll(() => {
+    // Save original NODE_ENV
+    originalNodeEnv = process.env.NODE_ENV;
+    // Set to 'development' so service uses Prisma instead of mock data
+    process.env.NODE_ENV = 'development';
+  });
+
+  afterAll(() => {
+    // Restore original NODE_ENV
+    process.env.NODE_ENV = originalNodeEnv;
+  });
 
   beforeEach(() => {
     analyticsService = new AnalyticsService();
     mockPrisma = new PrismaClient();
-    jest.clearAllMocks();
+
+    // Manually reset mock implementations to prevent test pollution
+    // clearMocks only clears call history, not mockResolvedValue queues
+    mockPrisma.thumbnail.count.mockReset();
+    mockPrisma.thumbnail.findMany.mockReset();
+    mockPrisma.project.count.mockReset();
+    mockPrisma.project.findMany.mockReset();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
     jest.clearAllTimers();
   });
 
