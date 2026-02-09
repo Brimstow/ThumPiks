@@ -48,6 +48,8 @@ import billingRoutes from './modules/billing/billing.routes';
 import userSettingsRoutes from './modules/user/user-settings.routes';
 import accountRoutes from './modules/account/account.routes';
 import visionRoutes from './modules/vision/vision.routes';
+import visualSearchRoutes from './modules/visual-search/visual-search.routes';
+import abTestingRoutes from './modules/ab-testing/ab-testing.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -181,6 +183,8 @@ app.use('/api/credits', creditRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
+app.use('/api/visual-search', visualSearchRoutes);
+app.use('/api/ab-tests', abTestingRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);

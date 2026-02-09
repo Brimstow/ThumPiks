@@ -101,6 +101,8 @@ const DashboardLayout: React.FC = () => {
     { id: 'create', label: 'Create', icon: Plus, path: '/dashboard/create-plus' },
     { id: 'ai-tools', label: 'AI Tools', icon: Wand2, path: '/dashboard/ai-tools' },
     { id: 'vision', label: 'Vision', icon: Eye, path: '/dashboard/vision' },
+    { id: 'visual-search', label: 'Search', icon: Search, path: '/dashboard/visual-search' },
+    { id: 'ab-testing', label: 'A/B Test', icon: BarChart2, path: '/dashboard/ab-testing' },
     { id: 'video-editor', label: 'Video Editor', icon: Video, path: '/dashboard/video-editor' },
     { id: 'editor', label: 'Editor', icon: Edit3, path: '/dashboard/editor' },
     { id: 'templates', label: 'Templates', icon: Video, path: '/dashboard/templates' },
