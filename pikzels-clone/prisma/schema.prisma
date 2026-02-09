@@ -308,6 +308,23 @@ model User {
   TeamMember                                    TeamMember[]
   Template                                      Template[]
   Thumbnail                                     Thumbnail[]
+  VisionAnalysis                                VisionAnalysis[]
+}
+
+model VisionAnalysis {
+  id              String   @id @default(uuid())
+  userId          String
+  imageUrl        String
+  description     String
+  suggestedPrompt String
+  elements        Json
+  sourceType      String   // 'upload' | 'url' | 'web_search'
+  createdAt       DateTime @default(now())
+
+  User            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model UserSession {

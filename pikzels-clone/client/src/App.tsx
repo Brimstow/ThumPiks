@@ -28,6 +28,7 @@ import TrendingPage from './components/dashboard/TrendingPage';
 import PricingPage from './components/dashboard/PricingPage';
 import CreditsPage from './components/dashboard/CreditsPage';
 import AIToolsPage from './components/dashboard/AIToolsPage';
+import VisionToolPage from './components/dashboard/VisionToolPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import ThumbnailEditor from './components/ThumbnailEditor';
 import BatchEditor from './components/BatchEditor';
@@ -183,6 +184,7 @@ function App() {
                 <Route path="editor/:id" element={<ThumbnailStudioPage />} />
                 <Route path="brand" element={<BrandPage />} />
                 <Route path="ai-tools" element={<ErrorBoundary><AIToolsPage /></ErrorBoundary>} />
+                <Route path="vision" element={<ErrorBoundary><VisionToolPage /></ErrorBoundary>} />
                 <Route path="trending" element={<TrendingPage />} />
                 <Route path="settings" element={<UserSettings />} />
                 <Route path="help" element={<HelpPage />} />
