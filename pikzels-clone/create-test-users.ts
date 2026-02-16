@@ -57,7 +57,7 @@ async function createTestUsers() {
         data: {
           email: testUser.email.toLowerCase(),
           name: testUser.name,
-          username: testUser.email.split('@')[0], // Use email prefix as username
+          username: testUser.email.split('@')[0] || 'user', // Use email prefix as username
           passwordHash,
           isVerified: true,
           isActive: true,

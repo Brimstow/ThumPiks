@@ -78,7 +78,7 @@ export const getTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().getTest(req.params.testId, req.user.id);
+    const result = await getService().getTest(req.params.testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message === 'Test not found') {
@@ -96,7 +96,7 @@ export const startTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().startTest(req.params.testId, req.user.id);
+    const result = await getService().startTest(req.params.testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message?.includes('not found')) {
@@ -117,7 +117,7 @@ export const pauseTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().pauseTest(req.params.testId, req.user.id);
+    const result = await getService().pauseTest(req.params.testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message?.includes('not found')) {
@@ -139,7 +139,7 @@ export const completeTest = async (req: AuthRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     const result = await getService().completeTest(
-      req.params.testId,
+      req.params.testId!,
       req.user.id
     );
     return res.status(200).json(result);
@@ -176,7 +176,7 @@ export const recordEvent = async (req: AuthRequest, res: Response) => {
     }
 
     await getService().recordEvent(
-      req.params.testId,
+      req.params.testId!,
       variantId,
       req.user.id,
       action
@@ -199,7 +199,7 @@ export const deleteTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    await getService().deleteTest(req.params.testId, req.user.id);
+    await getService().deleteTest(req.params.testId!, req.user.id);
     return res.status(204).send();
   } catch (error: any) {
     if (error.message?.includes('not found')) {

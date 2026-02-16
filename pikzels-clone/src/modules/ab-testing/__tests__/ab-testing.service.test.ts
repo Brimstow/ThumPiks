@@ -104,8 +104,8 @@ describe('ABTestingService', () => {
       expect(result.name).toBe('CTR Test');
       expect(result.status).toBe('draft');
       expect(result.variants).toHaveLength(2);
-      expect(result.variants[0].isControl).toBe(true);
-      expect(result.variants[1].thumbnailUrl).toBe('https://example.com/b.jpg');
+      expect(result.variants[0]!.isControl).toBe(true);
+      expect(result.variants[1]!.thumbnailUrl).toBe('https://example.com/b.jpg');
       expect(result.totalImpressions).toBe(0);
       expect(result.winner).toBeNull();
     });

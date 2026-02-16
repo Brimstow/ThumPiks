@@ -37,9 +37,9 @@ async function loginUser(page: Page, credentials = TEST_USER) {
   await page.waitForSelector('h2:has-text("Sign in to your account")', { timeout: 10000 });
   console.log('  ✓ Login form loaded');
   
-  // Fill login form using the actual UI labels
-  await page.getByRole('textbox', { name: 'Username or Email *' }).fill(credentials.username);
-  console.log(`  ✓ Username filled: ${credentials.username}`);
+  // Fill login form using the actual UI labels - using email for login
+  await page.getByRole('textbox', { name: 'Username or Email *' }).fill(credentials.email);
+  console.log(`  ✓ Email filled: ${credentials.email}`);
   
   await page.getByRole('textbox', { name: 'Password *' }).fill(credentials.password);
   console.log('  ✓ Password filled');

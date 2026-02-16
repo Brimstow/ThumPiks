@@ -11,6 +11,27 @@ interface TestUser {
   username: string;
 }
 
+interface TestAdminUser extends TestUser {
+  role: 'super_admin' | 'admin' | 'moderator';
+  permissions?: string[];
+}
+
+// Admin users configuration
+const TEST_ADMIN_USERS: TestAdminUser[] = [
+  {
+    email: 'admin@example.com',
+    password: 'AdminPass123!',
+    name: 'Admin User',
+    username: 'admin',
+    role: 'super_admin',  // Must match AdminRoles enum value
+    permissions: [
+      'user:read', 'user:write', 'user:delete',
+      'system:config', 'system:logs', 'system:health',
+      'analytics:read', 'admin:manage'
+    ]
+  }
+];
+
 // Test users configuration
 const TEST_USERS: TestUser[] = [
   {
@@ -122,6 +143,94 @@ async function seedTestUsers() {
 }
 
 /**
+ * Seed admin users into the database
+ * Creates users with admin roles and permissions
+ */
+async function seedAdminUsers() {
+  console.log('🔐 Seeding Admin Users...\n');
+
+  const createdAdmins = [];
+  const existingAdmins = [];
+
+  for (const adminUser of TEST_ADMIN_USERS) {
+    try {
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: adminUser.email.toLowerCase() },
+        include: { AdminRole: true },
+      });
+
+      let user;
+      if (existingUser) {
+        user = existingUser;
+        existingAdmins.push({
+          email: adminUser.email,
+          id: existingUser.id,
+          roles: existingUser.AdminRole?.map(r => r.role) || [],
+        });
+        console.log(`✅ Admin user already exists: ${adminUser.email}`);
+      } else {
+        // Hash password
+        const passwordHash = await bcrypt.hash(adminUser.password, 12);
+
+        // Create user
+        user = await prisma.user.create({
+          data: {
+            email: adminUser.email.toLowerCase(),
+            name: adminUser.name,
+            username: adminUser.username,
+            passwordHash,
+            isVerified: true,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          include: { AdminRole: true },
+        });
+
+        console.log(`✨ Admin user created: ${adminUser.email}`);
+        console.log(`   - ID: ${user.id}`);
+        console.log(`   - Username: ${user.username}`);
+      }
+
+      // Check if admin role already exists
+      const hasAdminRole = user.AdminRole?.some(
+        (r: any) => r.role === adminUser.role && r.isActive
+      );
+
+      if (!hasAdminRole) {
+        // Create admin role
+        await prisma.adminRole.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            role: adminUser.role,
+            isActive: true,
+            assignedBy: user.id,
+            assignedAt: new Date(),
+            permissions: adminUser.permissions || [],
+          },
+        });
+        console.log(`   - Role assigned: ${adminUser.role}\n`);
+      } else {
+        console.log(`   - Role already assigned: ${adminUser.role}\n`);
+      }
+
+      createdAdmins.push({
+        email: adminUser.email,
+        id: user.id,
+        role: adminUser.role,
+      });
+    } catch (error) {
+      console.error(`❌ Error processing admin ${adminUser.email}:`, error);
+      throw error;
+    }
+  }
+
+  return { createdAdmins, existingAdmins };
+}
+
+/**
  * Main seed function
  */
 async function main() {
@@ -156,6 +265,9 @@ async function main() {
 
     const { createdUsers, existingUsers } = await seedTestUsers();
 
+    // Seed admin users
+    const { createdAdmins, existingAdmins } = await seedAdminUsers();
+
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ DATABASE SEEDING COMPLETED');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -163,7 +275,10 @@ async function main() {
     console.log('📊 Summary:');
     console.log(`   - New users created: ${createdUsers.length}`);
     console.log(`   - Existing users found: ${existingUsers.length}`);
-    console.log(`   - Total test users: ${TEST_USERS.length}\n`);
+    console.log(`   - Total test users: ${TEST_USERS.length}`);
+    console.log(`   - New admins created: ${createdAdmins.length}`);
+    console.log(`   - Existing admins found: ${existingAdmins.length}`);
+    console.log(`   - Total admin users: ${TEST_ADMIN_USERS.length}\n`);
 
     if (createdUsers.length > 0) {
       console.log('🆕 Newly Created Users:');
@@ -181,7 +296,16 @@ async function main() {
       console.log('');
     }
 
-    console.log('📋 Test Credentials Summary:');
+    console.log('\n� Admin Credentials Summary:');
+    console.log('═══════════════════════════════════════════════');
+    TEST_ADMIN_USERS.forEach((admin) => {
+      console.log(`\n${admin.name} (${admin.role}):`);
+      console.log(`  Email: ${admin.email}`);
+      console.log(`  Username: ${admin.username}`);
+      console.log(`  Password: ${admin.password}`);
+    });
+
+    console.log('\n\n�� Test Credentials Summary:');
     console.log('═══════════════════════════════════════════════');
     TEST_USERS.forEach((user) => {
       console.log(`\n${user.name}:`);
@@ -192,7 +316,8 @@ async function main() {
     console.log('\n═══════════════════════════════════════════════');
     console.log('\n🚀 Ready for Testing!');
     console.log('📍 Frontend: http://localhost:8556');
-    console.log('📍 Backend API: http://localhost:8550\n');
+    console.log('📍 Backend API: http://localhost:8550');
+    console.log('📍 Admin Portal: http://localhost:8556/admin/login\n');
   } catch (error) {
     console.error('❌ Seeding failed:', error);
     process.exit(1);

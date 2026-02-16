@@ -85,6 +85,8 @@ model Project {
   description                                      String?
   userId                                           String
   teamId                                           String?
+  category                                         String?     // Design, Video, Branding, Client Work, Personal, Marketing
+  isArchived                                       Boolean     @default(false)
   createdAt                                        DateTime    @default(now())
   updatedAt                                        DateTime
   featuredThumbnailId                              String?     @unique
@@ -103,6 +105,7 @@ model Project {
   @@index([parentProjectId])
   @@index([teamId])
   @@index([userId])
+  @@index([isArchived])
 }
 
 model SocialShare {
@@ -158,7 +161,7 @@ model CreditTransaction {
 }
 
 model SystemHealth {
-  id        String   @id
+  id        String   @id @default(uuid())
   service   String
   status    String
   response  Float?
@@ -172,7 +175,7 @@ model SystemHealth {
 }
 
 model SystemMetrics {
-  id             String   @id
+  id             String   @id @default(uuid())
   metricType     String
   metricValue    Float
   metricDate     DateTime
@@ -261,6 +264,8 @@ model Thumbnail {
   userId                                         String
   createdAt                                      DateTime      @default(now())
   isFeatured                                     Boolean       @default(false)
+  downloadCount                                  Int           @default(0)
+  editCount                                      Int           @default(0)
   Project_Project_featuredThumbnailIdToThumbnail Project?      @relation("Project_featuredThumbnailIdToThumbnail")
   SocialShare                                    SocialShare[]
   Template                                       Template[]

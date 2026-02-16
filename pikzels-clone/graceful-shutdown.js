@@ -292,18 +292,50 @@ class GracefulShutdown {
     console.log('🚨 EMERGENCY SHUTDOWN - Force killing all processes...\n');
     
     try {
-      // Kill all Node.js processes
-      console.log('💀 Killing all Node.js processes...');
-      try {
-        await execAsync('taskkill /F /IM node.exe');
-      } catch (e) {
-        console.log('   No Node.js processes found');
+      // Kill Node.js processes on app ports (backend and frontend) instead of all node.exe
+      console.log('💀 Killing Node.js app processes...');
+      const appPorts = [SERVICE_CONFIG.BACKEND_PORT, SERVICE_CONFIG.FRONTEND_PORT];
+      let killedCount = 0;
+      
+      for (const port of appPorts) {
+        try {
+          const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
+          const lines = stdout.trim().split('\n');
+          
+          for (const line of lines) {
+            if (line.includes('LISTENING')) {
+              const pidMatch = line.match(/\s+(\d+)\s*$/);
+              if (pidMatch) {
+                const pid = parseInt(pidMatch[1]);
+                try {
+                  await execAsync(`taskkill /F /PID ${pid}`);
+                  console.log(`   Killed process on port ${port} (PID: ${pid})`);
+                  killedCount++;
+                } catch (e) {
+                  // Process may have already exited
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Port not in use
+        }
+      }
+      
+      if (killedCount === 0) {
+        console.log('   No Node.js app processes found');
       }
 
       // Kill PostgreSQL
       console.log('💀 Killing PostgreSQL processes...');
       try {
-        await execAsync('taskkill /F /IM postgres.exe');
+        const { stdout: pgList } = await execAsync('tasklist /FI "IMAGENAME eq postgres.exe" /NH');
+        if (pgList && !pgList.includes('No tasks')) {
+          await execAsync('taskkill /F /IM postgres.exe');
+          console.log('   PostgreSQL processes killed');
+        } else {
+          console.log('   No PostgreSQL processes found');
+        }
       } catch (e) {
         console.log('   No PostgreSQL processes found');
       }
@@ -311,7 +343,13 @@ class GracefulShutdown {
       // Kill Redis
       console.log('💀 Killing Redis processes...');
       try {
-        await execAsync('taskkill /F /IM redis-server.exe');
+        const { stdout: redisList } = await execAsync('tasklist /FI "IMAGENAME eq redis-server.exe" /NH');
+        if (redisList && !redisList.includes('No tasks')) {
+          await execAsync('taskkill /F /IM redis-server.exe');
+          console.log('   Redis processes killed');
+        } else {
+          console.log('   No Redis processes found');
+        }
       } catch (e) {
         console.log('   No Redis processes found');
       }

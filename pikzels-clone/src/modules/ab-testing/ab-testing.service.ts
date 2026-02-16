@@ -33,7 +33,7 @@ export class ABTestingService {
     // Ensure at least one control variant
     const hasControl = data.variants.some((v) => v.isControl);
     if (!hasControl) {
-      data.variants[0].isControl = true;
+      data.variants[0]!.isControl = true;
     }
 
     const test = await this.prisma.aBTest.create({

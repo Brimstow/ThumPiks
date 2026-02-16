@@ -19,8 +19,8 @@ const API_URL = process.env.API_URL || 'http://localhost:8550';
 
 // Test credentials
 const TEST_USER = {
-  username: 'tester1',
-  email: 'tester1@example.com',
+  username: 'tester2',
+  email: 'tester2@example.com',
   password: 'Test123!',
 };
 
