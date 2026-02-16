@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,7 +7,35 @@ import {
   ArrowDown,
 } from 'lucide-react';
 
+interface Template {
+  id: string;
+  name: string;
+  description: string;
+  Thumbnail: {
+    id: string;
+    title: string;
+    imageUrl: string;
+  };
+  User: {
+    id: string;
+    name: string;
+    avatarUrl: string;
+  };
+  tags: string[];
+  downloads: number;
+  likes: number;
+  createdAt: Date;
+}
+
 const TemplatesPage: React.FC = () => {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'popular' | 'recent' | 'downloads'>('popular');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
   // Mock data for carousel
   const carouselItem = {
     id: 1,
@@ -17,73 +45,107 @@ const TemplatesPage: React.FC = () => {
     image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2670&auto=format&fit=crop',
   };
 
-  // Mock data for categories
+  // Categories for filtering
   const categories = [
-    { id: 'all', name: 'All Templates', active: true },
-    { id: 'gaming', name: 'Gaming', active: false },
-    { id: 'vlogs', name: 'Vlogs', active: false },
-    { id: 'tech', name: 'Tech & Reviews', active: false },
-    { id: 'education', name: 'Education', active: false },
-    { id: 'minimal', name: 'Minimal', active: false },
+    { id: 'all', name: 'All Templates' },
+    { id: 'gaming', name: 'Gaming' },
+    { id: 'vlogs', name: 'Vlogs' },
+    { id: 'tech', name: 'Tech & Reviews' },
+    { id: 'education', name: 'Education' },
+    { id: 'minimal', name: 'Minimal' },
   ];
 
-  // Mock data for template cards
-  const templates = [
-    {
-      id: 1,
-      image: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop',
-      title: 'Cinematic Vlog Overlay',
-      creator: 'CreatorLabs',
-      views: '1.2k',
-      isPro: true,
-      category: 'Vlog',
-    },
-    {
-      id: 2,
-      image: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=1000&auto=format&fit=crop',
-      title: 'Modern 3D Shapes',
-      creator: 'ThumPiks Team',
-      views: '3.4k',
-      isPro: false,
-      category: 'Abstract',
-    },
-    {
-      id: 3,
-      image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1000&auto=format&fit=crop',
-      title: 'Retro Computer Review',
-      creator: 'RetroKing',
-      views: '856',
-      isPro: true,
-      category: 'Tech',
-    },
-    {
-      id: 4,
-      image: 'https://hoirqrkdgbmvpwutwuwj.supabase.co/storage/v1/object/public/assets/assets/917d6f93-fb36-439a-8c48-884b67b35381_1600w.jpg',
-      title: 'Movie Review Classic',
-      creator: 'MovieBuff',
-      views: '5.1k',
-      isPro: false,
-      category: 'Cinema',
-    },
-    {
-      id: 5,
-      image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1000&auto=format&fit=crop',
-      title: 'Crypto & Stocks Breakdown',
-      creator: 'FinanceWiz',
-      views: '2.8k',
-      isPro: true,
-      category: 'Finance',
-    },
-    {
-      id: 6,
-      image: 'https://hoirqrkdgbmvpwutwuwj.supabase.co/storage/v1/object/public/assets/assets/4734259a-bad7-422f-981e-ce01e79184f2_1600w.jpg',
-      title: 'Healthy Morning Routine',
-      creator: 'LifeStylePro',
-      views: '9.1k',
-      isPro: false,
-      category: 'Lifestyle',
-    },
-  ];
+  // Fetch templates from API
+  useEffect(() => {
+    fetchTemplates();
+  }, [activeCategory, sortBy, page]);
+
+  const fetchTemplates = async () => {
+    try {
+      setLoading(true);
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        isPublic: 'true',
+        page: page.toString(),
+        limit: '6',
+      });
+
+      // Add category filter (map to tags)
+      if (activeCategory !== 'all') {
+        params.append('tags', activeCategory);
+      }
+
+      // Add sorting
+      if (sortBy === 'recent') {
+        params.append('sortBy', 'createdAt');
+        params.append('sortOrder', 'desc');
+      } else if (sortBy === 'downloads') {
+        params.append('sortBy', 'downloads');
+        params.append('sortOrder', 'desc');
+      } else {
+        // popular = sort by likes
+        params.append('sortBy', 'likes');
+        params.append('sortOrder', 'desc');
+      }
+
+      const response = await fetch(`/api/templates?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates');
+      }
+
+      const data = await response.json();
+      
+      if (page === 1) {
+        setTemplates(data);
+      } else {
+        setTemplates(prev => [...prev, ...data]);
+      }
+
+      // Check if there are more templates to load
+      setHasMore(data.length === 6);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching templates:', err);
+      setError(err.message || 'Failed to load templates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategoryClick = (categoryId: string) => {
+    setActiveCategory(categoryId);
+    setPage(1);
+    setTemplates([]);
+  };
+
+  const handleSortChange = (newSort: 'popular' | 'recent' | 'downloads') => {
+    setSortBy(newSort);
+    setPage(1);
+    setTemplates([]);
+  };
+
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1);
+  };
+
+  const handleTemplateClick = (template: Template) => {
+    // TODO: Navigate to template detail or apply template
+    console.log('Template clicked:', template);
+    alert(`Template "${template.name}" clicked! Implementation coming soon.`);
+  };
+
+  // Map template data to display format
+  const displayTemplates = templates.map(template => ({
+    id: template.id,
+    image: template.Thumbnail?.imageUrl || 'https://via.placeholder.com/400x225',
+    title: template.name,
+    creator: template.User?.name || 'Unknown',
+    views: template.downloads.toString(),
+    isPro: template.tags.includes('pro'),
+    category: template.tags[0] || 'General',
+  }));
 
   return (
     <>
@@ -156,8 +218,9 @@ const TemplatesPage: React.FC = () => {
           {categories.map((category) => (
             <button
               key={category.id}
+              onClick={() => handleCategoryClick(category.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                category.active
+                activeCategory === category.id
                   ? 'bg-slate-700 text-white'
                   : 'bg-transparent text-slate-400 hover:text-slate-100 hover:bg-slate-800'
               }`}
@@ -168,21 +231,51 @@ const TemplatesPage: React.FC = () => {
         </div>
 
         {/* Sort */}
-        <div className="flex items-center">
-          <button className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200">
-            <span className="uppercase tracking-wider text-[11px] font-semibold text-slate-500">
-              Sort by:
-            </span>
-            <span className="font-medium text-slate-200">Popular</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
+        <div className="relative flex items-center">
+          <select
+            value={sortBy}
+            onChange={(e) => handleSortChange(e.target.value as 'popular' | 'recent' | 'downloads')}
+            className="appearance-none bg-transparent text-sm text-slate-200 hover:text-slate-100 cursor-pointer pr-6 focus:outline-none"
+          >
+            <option value="popular" className="bg-slate-800">Popular</option>
+            <option value="recent" className="bg-slate-800">Recent</option>
+            <option value="downloads" className="bg-slate-800">Most Downloaded</option>
+          </select>
+          <ChevronDown className="w-4 h-4 absolute right-0 pointer-events-none text-slate-400" />
+          <span className="absolute -left-16 uppercase tracking-wider text-[11px] font-semibold text-slate-500">
+            Sort by:
+          </span>
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && page === 1 && (
+        <div className="flex justify-center items-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-8">
+          <strong className="font-bold">Error: </strong>
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        {templates.map((template) => (
-          <div key={template.id} className="group cursor-pointer">
+      {!loading && displayTemplates.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-slate-400 text-lg">No templates found for this category.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          {displayTemplates.map((template) => (
+            <div 
+              key={template.id} 
+              className="group cursor-pointer"
+              onClick={() => handleTemplateClick(templates.find(t => t.id === template.id)!)}
+            >
             <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-800 border border-slate-800 group-hover:border-slate-700 transition-all shadow-lg shadow-black/20">
               <img
                 src={template.image}
@@ -220,14 +313,21 @@ const TemplatesPage: React.FC = () => {
           </div>
         ))}
       </div>
+      )}
 
       {/* Load More Button */}
-      <div className="flex justify-center mb-12">
-        <button className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition-all border border-slate-700">
-          Load more templates
-          <ArrowDown className="w-4 h-4" />
-        </button>
-      </div>
+      {hasMore && !loading && displayTemplates.length > 0 && (
+        <div className="flex justify-center mb-12">
+          <button 
+            onClick={handleLoadMore}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition-all border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Loading...' : 'Load more templates'}
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   TrendingUp, 
   Users, 
@@ -10,6 +10,7 @@ import {
   Filter,
   RefreshCw
 } from 'lucide-react';
+import { adminAnalyticsService } from '../../services/admin';
 
 interface MetricCard {
   title: string;
@@ -30,73 +31,73 @@ const AnalyticsDashboard: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [selectedSection, setSelectedSection] = useState('overview');
 
-  // Mock analytics data
   const [analyticsData, setAnalyticsData] = useState({
     overview: {
-      totalUsers: 2543,
-      activeUsers: 1876,
-      totalRevenue: 45670,
-      monthlyGrowth: 12.5
+      totalUsers: 0,
+      activeUsers: 0,
+      totalRevenue: 0,
+      monthlyGrowth: 0
     },
     userMetrics: {
-      newUsers: 324,
-      retentionRate: 78.5,
-      averageSessionTime: 245
+      newUsers: 0,
+      retentionRate: 0,
+      averageSessionTime: 0
     },
     contentMetrics: {
-      totalThumbnails: 8921,
-      newThumbnails: 567,
-      totalProjects: 1234,
-      popularCategories: [
-        { name: 'YouTube Thumbnails', count: 4015, percentage: 45 },
-        { name: 'Social Media', count: 2230, percentage: 25 },
-        { name: 'Blog Headers', count: 1338, percentage: 15 },
-        { name: 'Presentations', count: 892, percentage: 10 },
-        { name: 'Other', count: 446, percentage: 5 }
-      ]
+      totalThumbnails: 0,
+      newThumbnails: 0,
+      totalProjects: 0,
+      popularCategories: [] as Array<{ name: string; count: number; percentage: number }>
     },
     revenueMetrics: {
-      monthlyRevenue: 12450,
-      averageRevenuePerUser: 18.50,
-      subscriptionBreakdown: [
-        { plan: 'Basic', count: 1234, revenue: 6170, percentage: 35 },
-        { plan: 'Pro', count: 876, revenue: 17520, percentage: 50 },
-        { plan: 'Enterprise', count: 123, revenue: 12300, percentage: 15 }
-      ]
+      monthlyRevenue: 0,
+      averageRevenuePerUser: 0,
+      subscriptionBreakdown: [] as Array<{ plan: string; count: number; revenue: number; percentage: number }>
     }
   });
 
   const [chartData, setChartData] = useState<ChartData[]>([]);
 
-  useEffect(() => {
-    loadAnalyticsData();
-  }, [selectedPeriod]);
-
-  const loadAnalyticsData = async () => {
+  const loadAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
-      // Mock API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Generate mock chart data
-      const days = selectedPeriod === '7d' ? 7 : selectedPeriod === '30d' ? 30 : 90;
-      const mockChartData: ChartData[] = [];
-      
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        mockChartData.push({
-          date: date.toISOString().split('T')[0],
-          value: Math.floor(Math.random() * 100) + 50
+      const result = await adminAnalyticsService.getOverview({ period: selectedPeriod });
+
+      if (result.success && result.data) {
+        const d = result.data as any;
+        setAnalyticsData({
+          overview: d.overview ?? analyticsData.overview,
+          userMetrics: d.userMetrics ?? analyticsData.userMetrics,
+          contentMetrics: {
+            totalThumbnails: d.contentMetrics?.totalThumbnails ?? 0,
+            newThumbnails: d.contentMetrics?.newThumbnails ?? 0,
+            totalProjects: d.contentMetrics?.totalProjects ?? 0,
+            popularCategories: d.contentMetrics?.popularCategories ?? [],
+          },
+          revenueMetrics: {
+            monthlyRevenue: d.revenueMetrics?.monthlyRevenue ?? 0,
+            averageRevenuePerUser: d.revenueMetrics?.averageRevenuePerUser ?? 0,
+            subscriptionBreakdown: d.revenueMetrics?.subscriptionBreakdown ?? [],
+          },
         });
+
+        // Chart data from service
+        if (d.chartData && Array.isArray(d.chartData)) {
+          setChartData(d.chartData.map((p: any) => ({
+            date: p.date,
+            value: p.users ?? p.thumbnails ?? p.value ?? 0,
+          })));
+        }
       }
-      
-      setChartData(mockChartData);
     } catch (error) {
       console.error('Error loading analytics:', error);
     }
     setLoading(false);
-  };
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [loadAnalyticsData]);
 
   const metricCards: MetricCard[] = [
     {
@@ -141,10 +142,10 @@ const AnalyticsDashboard: React.FC = () => {
 
   const getColorClasses = (color: string) => {
     const colorMap: Record<string, string> = {
-      blue: 'bg-blue-50 text-blue-600 border-blue-200',
-      green: 'bg-green-50 text-green-600 border-green-200',
-      purple: 'bg-purple-50 text-purple-600 border-purple-200',
-      orange: 'bg-orange-50 text-orange-600 border-orange-200'
+      blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      green: 'bg-green-500/10 text-green-400 border-green-500/20',
+      purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20'
     };
     return colorMap[color] || colorMap.blue;
   };
@@ -154,8 +155,8 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-2">Comprehensive platform insights and metrics</p>
+          <h1 className="text-3xl font-bold text-slate-50">Analytics Dashboard</h1>
+          <p className="text-slate-400 mt-2">Comprehensive platform insights and metrics</p>
         </div>
         
         <div className="flex items-center space-x-4">
@@ -163,7 +164,7 @@ const AnalyticsDashboard: React.FC = () => {
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-slate-700 rounded-lg bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff]"
           >
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
@@ -174,14 +175,14 @@ const AnalyticsDashboard: React.FC = () => {
           <button
             onClick={loadAnalyticsData}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+            className="px-4 py-2 bg-[#2563ff] text-white rounded-lg hover:bg-[#1d4fff] transition-colors disabled:opacity-50 flex items-center space-x-2"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
 
           {/* Export Button */}
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2">
+          <button className="px-4 py-2 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors flex items-center space-x-2">
             <Download size={16} />
             <span>Export</span>
           </button>
@@ -189,7 +190,7 @@ const AnalyticsDashboard: React.FC = () => {
       </div>
 
       {/* Section Navigation */}
-      <div className="bg-white rounded-lg border border-gray-200 p-1">
+      <div className="bg-slate-900/50 rounded-lg border border-slate-800 p-1">
         <div className="flex space-x-1">
           {[
             { id: 'overview', label: 'Overview' },
@@ -202,8 +203,8 @@ const AnalyticsDashboard: React.FC = () => {
               onClick={() => setSelectedSection(section.id)}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 selectedSection === section.id
-                  ? 'bg-blue-100 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-[#2563ff] text-white font-medium'
+                  : 'text-slate-400 hover:bg-slate-800'
               }`}
             >
               {section.label}
@@ -215,16 +216,15 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Overview Section */}
       {selectedSection === 'overview' && (
         <>
-          {/* Metric Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {metricCards.map((metric, index) => (
-              <div key={index} className="bg-white p-6 rounded-lg border border-gray-200">
+              <div key={index} className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">{metric.title}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+                    <p className="text-sm font-medium text-slate-400">{metric.title}</p>
+                    <p className="text-2xl font-bold text-slate-50 mt-1">{metric.value}</p>
                     <p className={`text-sm mt-1 ${
-                      metric.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
+                      metric.changeType === 'increase' ? 'text-green-400' : 'text-red-400'
                     }`}>
                       {metric.changeType === 'increase' ? '+' : '-'}{metric.change}%
                     </p>
@@ -237,24 +237,22 @@ const AnalyticsDashboard: React.FC = () => {
             ))}
           </div>
 
-          {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* User Growth Chart */}
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">User Growth</h3>
-                <span className="text-sm text-gray-500">Last {selectedPeriod}</span>
+                <h3 className="text-lg font-semibold text-slate-50">User Growth</h3>
+                <span className="text-sm text-slate-500">Last {selectedPeriod}</span>
               </div>
               {loading ? (
                 <div className="h-64 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2563ff]"></div>
                 </div>
               ) : (
                 <div className="h-64 flex items-end space-x-1">
                   {chartData.map((point, index) => (
                     <div
                       key={index}
-                      className="bg-blue-500 rounded-t flex-1 min-w-0"
+                      className="bg-[#2563ff] rounded-t flex-1 min-w-0"
                       style={{ height: `${(point.value / 150) * 100}%` }}
                       title={`${point.date}: ${point.value}`}
                     />
@@ -263,22 +261,21 @@ const AnalyticsDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Revenue Chart */}
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Growth</h3>
-                <span className="text-sm text-gray-500">Last {selectedPeriod}</span>
+                <h3 className="text-lg font-semibold text-slate-50">Revenue Growth</h3>
+                <span className="text-sm text-slate-500">Last {selectedPeriod}</span>
               </div>
               {loading ? (
                 <div className="h-64 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2563ff]"></div>
                 </div>
               ) : (
                 <div className="h-64 flex items-end space-x-1">
                   {chartData.map((point, index) => (
                     <div
                       key={index}
-                      className="bg-green-500 rounded-t flex-1 min-w-0"
+                      className="bg-emerald-500 rounded-t flex-1 min-w-0"
                       style={{ height: `${(point.value / 150) * 100}%` }}
                       title={`${point.date}: $${point.value * 10}`}
                     />
@@ -293,28 +290,26 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Content Section */}
       {selectedSection === 'content' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Content Stats */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Content Overview</h3>
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
+            <h3 className="text-lg font-semibold text-slate-50 mb-4">Content Overview</h3>
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Total Thumbnails</span>
-                <span className="font-semibold">{analyticsData.contentMetrics.totalThumbnails.toLocaleString()}</span>
+                <span className="text-slate-400">Total Thumbnails</span>
+                <span className="font-semibold text-slate-100">{analyticsData.contentMetrics.totalThumbnails.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">New This Month</span>
-                <span className="font-semibold text-green-600">+{analyticsData.contentMetrics.newThumbnails}</span>
+                <span className="text-slate-400">New This Month</span>
+                <span className="font-semibold text-green-400">+{analyticsData.contentMetrics.newThumbnails}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Total Projects</span>
-                <span className="font-semibold">{analyticsData.contentMetrics.totalProjects.toLocaleString()}</span>
+                <span className="text-slate-400">Total Projects</span>
+                <span className="font-semibold text-slate-100">{analyticsData.contentMetrics.totalProjects.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* Category Distribution */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Popular Categories</h3>
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
+            <h3 className="text-lg font-semibold text-slate-50 mb-4">Popular Categories</h3>
             <div className="space-y-3">
               {analyticsData.contentMetrics.popularCategories.map((category, index) => (
                 <div key={index} className="flex items-center justify-between">
@@ -323,11 +318,11 @@ const AnalyticsDashboard: React.FC = () => {
                       className="w-4 h-4 rounded"
                       style={{ backgroundColor: `hsl(${index * 360 / 5}, 70%, 50%)` }}
                     />
-                    <span className="text-sm text-gray-700">{category.name}</span>
+                    <span className="text-sm text-slate-300">{category.name}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">{category.count.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">{category.percentage}%</div>
+                    <div className="text-sm font-medium text-slate-100">{category.count.toLocaleString()}</div>
+                    <div className="text-xs text-slate-500">{category.percentage}%</div>
                   </div>
                 </div>
               ))}
@@ -339,24 +334,22 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Revenue Section */}
       {selectedSection === 'revenue' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Stats */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Overview</h3>
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
+            <h3 className="text-lg font-semibold text-slate-50 mb-4">Revenue Overview</h3>
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Monthly Revenue</span>
-                <span className="font-semibold">${analyticsData.revenueMetrics.monthlyRevenue.toLocaleString()}</span>
+                <span className="text-slate-400">Monthly Revenue</span>
+                <span className="font-semibold text-slate-100">${analyticsData.revenueMetrics.monthlyRevenue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Avg Revenue Per User</span>
-                <span className="font-semibold">${analyticsData.revenueMetrics.averageRevenuePerUser}</span>
+                <span className="text-slate-400">Avg Revenue Per User</span>
+                <span className="font-semibold text-slate-100">${analyticsData.revenueMetrics.averageRevenuePerUser}</span>
               </div>
             </div>
           </div>
 
-          {/* Subscription Breakdown */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Subscription Plans</h3>
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
+            <h3 className="text-lg font-semibold text-slate-50 mb-4">Subscription Plans</h3>
             <div className="space-y-3">
               {analyticsData.revenueMetrics.subscriptionBreakdown.map((plan, index) => (
                 <div key={index} className="flex items-center justify-between">
@@ -365,11 +358,11 @@ const AnalyticsDashboard: React.FC = () => {
                       className="w-4 h-4 rounded"
                       style={{ backgroundColor: `hsl(${index * 120}, 70%, 50%)` }}
                     />
-                    <span className="text-sm text-gray-700">{plan.plan}</span>
+                    <span className="text-sm text-slate-300">{plan.plan}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">${plan.revenue.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">{plan.count} users</div>
+                    <div className="text-sm font-medium text-slate-100">${plan.revenue.toLocaleString()}</div>
+                    <div className="text-xs text-slate-500">{plan.count} users</div>
                   </div>
                 </div>
               ))}

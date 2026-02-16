@@ -21,6 +21,7 @@ import DashboardHome from './components/dashboard/DashboardHome';
 import HelpPage from './components/dashboard/HelpPage';
 import BrandPage from './components/dashboard/BrandPage';
 import ProjectsPage from './components/dashboard/ProjectsPage';
+import ProjectDetail from './components/projects/ProjectDetail';
 import TemplatesPage from './components/dashboard/TemplatesPage';
 import AnalyticsPage from './components/dashboard/AnalyticsPage';
 import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
@@ -259,10 +260,13 @@ function App() {
                 path="/projects"
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <DashboardLayout />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<ProjectsPage />} />
+                <Route path=":id" element={<ProjectDetail />} />
+              </Route>
               <Route
                 path="/thumbnails/edit/:id"
                 element={
@@ -461,13 +465,13 @@ function App() {
                 />
               </Route>
 
-              {/* Test pages */}
+              {/* Test pages - Development Only */}
               <Route path="/test" element={<TestPage />} />
               <Route path="/shadcn-test" element={<ShadcnTest />} />
               <Route path="/test-studio" element={<ThumbnailStudioPage />} />
 
-              {/* Catch-all for testing */}
-              <Route path="*" element={<TestPage />} />
+              {/* Catch-all - Redirect to Landing Page */}
+              <Route path="*" element={<ThumPiksLanding />} />
             </Routes>
           </div>
         </AuthProvider>

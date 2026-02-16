@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { adminSitemapService } from '../../services/admin';
 import { 
   Globe, 
   RefreshCw, 
@@ -54,119 +55,23 @@ const SitemapAdmin: React.FC = () => {
   const [sortField, setSortField] = useState<keyof SitemapEntry>('lastModified');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
     const fetchSitemapData = async () => {
       try {
-        const token = localStorage.getItem('adminToken');
-        
-        // Fetch stats
-        const statsResponse = await fetch('/api/admin/sitemap/stats', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setStats(statsData.data);
+        const [statsResult, entriesResult] = await Promise.all([
+          adminSitemapService.getStats(),
+          adminSitemapService.getEntries(),
+        ]);
+
+        if (statsResult.success && statsResult.data) {
+          setStats(statsResult.data as SitemapStats);
         }
-        
-        // Fetch entries
-        const entriesResponse = await fetch('/api/admin/sitemap/entries', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (entriesResponse.ok) {
-          const entriesData = await entriesResponse.json();
-          setSitemapEntries(entriesData.data.entries);
+        if (entriesResult.success && entriesResult.data) {
+          const data = entriesResult.data as { entries?: SitemapEntry[] } | SitemapEntry[];
+          setSitemapEntries(Array.isArray(data) ? data : (data.entries ?? []));
         }
-        
       } catch (error) {
         console.error('Error fetching sitemap data:', error);
-        // Fallback to mock data
-        const mockStats: SitemapStats = {
-          totalUrls: 1247,
-          indexedUrls: 1089,
-          pendingUrls: 158,
-          errorUrls: 23,
-          lastGenerated: '2024-01-15T10:30:00Z',
-          fileSize: '2.3 MB',
-          avgClickThrough: 3.2
-        };
-
-        const mockEntries: SitemapEntry[] = [
-          {
-            id: '1',
-            url: 'https://thumbnailcreator.com/',
-            lastModified: '2024-01-15T10:00:00Z',
-            changeFreq: 'daily',
-            priority: 1.0,
-            status: 'active',
-            type: 'page',
-            indexStatus: 'indexed',
-            crawledAt: '2024-01-15T08:30:00Z',
-            clicks: 1250,
-            impressions: 5670
-          },
-          {
-            id: '2',
-            url: 'https://thumbnailcreator.com/templates',
-            lastModified: '2024-01-14T15:20:00Z',
-            changeFreq: 'weekly',
-            priority: 0.8,
-            status: 'active',
-            type: 'page',
-            indexStatus: 'indexed',
-            crawledAt: '2024-01-14T12:15:00Z',
-            clicks: 890,
-            impressions: 3420
-          },
-          {
-            id: '3',
-            url: 'https://thumbnailcreator.com/thumbnails/gaming-header-123',
-            lastModified: '2024-01-13T09:45:00Z',
-            changeFreq: 'monthly',
-            priority: 0.6,
-            status: 'active',
-            type: 'thumbnail',
-            indexStatus: 'indexed',
-            crawledAt: '2024-01-13T14:20:00Z',
-            clicks: 45,
-            impressions: 180
-          },
-          {
-            id: '4',
-            url: 'https://thumbnailcreator.com/user/johndoe',
-            lastModified: '2024-01-12T16:30:00Z',
-            changeFreq: 'weekly',
-            priority: 0.4,
-            status: 'pending',
-            type: 'user_profile',
-            indexStatus: 'not_indexed',
-            clicks: 12,
-            impressions: 67
-          },
-          {
-            id: '5',
-            url: 'https://thumbnailcreator.com/templates/youtube-banner-template',
-            lastModified: '2024-01-11T11:15:00Z',
-            changeFreq: 'monthly',
-            priority: 0.7,
-            status: 'active',
-            type: 'template',
-            indexStatus: 'error',
-            clicks: 0,
-            impressions: 0
-          }
-        ];
-        
-        setStats(mockStats);
-        setSitemapEntries(mockEntries);
       } finally {
         setLoading(false);
       }
@@ -225,19 +130,9 @@ const SitemapAdmin: React.FC = () => {
   const handleGenerateSitemap = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch('/api/admin/sitemap/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Sitemap generated:', data);
+      const result = await adminSitemapService.generate();
+      if (result.success) {
+        console.log('Sitemap generated:', result.data);
         // Refresh the data
         window.location.reload();
       } else {
@@ -252,16 +147,11 @@ const SitemapAdmin: React.FC = () => {
 
   const handleExportSitemap = async () => {
     try {
-      const token = localStorage.getItem('adminToken');
-      
-      const response = await fetch('/api/admin/sitemap/export', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
+      const result = await adminSitemapService.exportSitemap();
+      if (result.success && result.data) {
+        // If data is a string (XML content), create a downloadable file
+        const content = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+        const blob = new Blob([content], { type: 'application/xml' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -282,29 +172,29 @@ const SitemapAdmin: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'indexed':
-        return <CheckCircle className="text-green-600" size={16} />;
+        return <CheckCircle className="text-green-400" size={16} />;
       case 'not_indexed':
-        return <Clock className="text-yellow-600" size={16} />;
+        return <Clock className="text-yellow-400" size={16} />;
       case 'blocked':
-        return <AlertCircle className="text-red-600" size={16} />;
+        return <AlertCircle className="text-red-400" size={16} />;
       case 'error':
-        return <AlertCircle className="text-red-600" size={16} />;
+        return <AlertCircle className="text-red-400" size={16} />;
       default:
-        return <Clock className="text-gray-600" size={16} />;
+        return <Clock className="text-slate-400" size={16} />;
     }
   };
 
   const getPriorityColor = (priority: number) => {
-    if (priority >= 0.8) return 'text-green-600 bg-green-50';
-    if (priority >= 0.5) return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (priority >= 0.8) return 'text-green-400 bg-green-500/10';
+    if (priority >= 0.5) return 'text-yellow-400 bg-yellow-500/10';
+    return 'text-red-400 bg-red-500/10';
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw className="animate-spin text-blue-600" size={32} />
-        <span className="ml-2 text-gray-600">Loading sitemap data...</span>
+        <RefreshCw className="animate-spin text-[#2563ff]" size={32} />
+        <span className="ml-2 text-slate-400">Loading sitemap data...</span>
       </div>
     );
   }
@@ -314,13 +204,13 @@ const SitemapAdmin: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sitemap Management</h1>
-          <p className="text-gray-600">Manage your website's sitemap and SEO visibility</p>
+          <h1 className="text-2xl font-bold text-slate-50">Sitemap Management</h1>
+          <p className="text-slate-400">Manage your website's sitemap and SEO visibility</p>
         </div>
         <div className="flex space-x-3">
           <button 
             onClick={handleExportSitemap}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+            className="px-4 py-2 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800 flex items-center space-x-2"
           >
             <Download size={16} />
             <span>Export Sitemap</span>
@@ -328,7 +218,7 @@ const SitemapAdmin: React.FC = () => {
           <button 
             onClick={handleGenerateSitemap}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+            className="px-4 py-2 bg-[#2563ff] text-white rounded-lg hover:bg-[#1d4fff] disabled:opacity-50 flex items-center space-x-2"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             <span>{loading ? 'Generating...' : 'Generate Sitemap'}</span>
@@ -339,63 +229,63 @@ const SitemapAdmin: React.FC = () => {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total URLs</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalUrls.toLocaleString()}</p>
+                <p className="text-sm text-slate-400">Total URLs</p>
+                <p className="text-2xl font-bold text-slate-50">{stats.totalUrls.toLocaleString()}</p>
               </div>
-              <Globe className="text-blue-600" size={24} />
+              <Globe className="text-blue-400" size={24} />
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Indexed URLs</p>
-                <p className="text-2xl font-bold text-green-600">{stats.indexedUrls.toLocaleString()}</p>
+                <p className="text-sm text-slate-400">Indexed URLs</p>
+                <p className="text-2xl font-bold text-green-400">{stats.indexedUrls.toLocaleString()}</p>
               </div>
-              <CheckCircle className="text-green-600" size={24} />
+              <CheckCircle className="text-green-400" size={24} />
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Pending URLs</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pendingUrls.toLocaleString()}</p>
+                <p className="text-sm text-slate-400">Pending URLs</p>
+                <p className="text-2xl font-bold text-yellow-400">{stats.pendingUrls.toLocaleString()}</p>
               </div>
-              <Clock className="text-yellow-600" size={24} />
+              <Clock className="text-yellow-400" size={24} />
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Error URLs</p>
-                <p className="text-2xl font-bold text-red-600">{stats.errorUrls.toLocaleString()}</p>
+                <p className="text-sm text-slate-400">Error URLs</p>
+                <p className="text-2xl font-bold text-red-400">{stats.errorUrls.toLocaleString()}</p>
               </div>
-              <AlertCircle className="text-red-600" size={24} />
+              <AlertCircle className="text-red-400" size={24} />
             </div>
           </div>
         </div>
       )}
 
       {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
           <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={16} />
               <input
                 type="text"
                 placeholder="Search URLs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-10 pr-4 py-2 border border-slate-700 rounded-lg bg-slate-900/80 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent"
               />
             </div>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-slate-700 rounded-lg bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent"
             >
               <option value="all">All Types</option>
               <option value="page">Pages</option>
@@ -407,7 +297,7 @@ const SitemapAdmin: React.FC = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-slate-700 rounded-lg bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -417,7 +307,7 @@ const SitemapAdmin: React.FC = () => {
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+            className="px-4 py-2 bg-[#2563ff] text-white rounded-lg hover:bg-[#1d4fff] flex items-center space-x-2"
           >
             <Plus size={16} />
             <span>Add URL</span>
@@ -426,15 +316,15 @@ const SitemapAdmin: React.FC = () => {
 
         {/* Bulk Actions */}
         {selectedEntries.length > 0 && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="mt-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-700">
+              <span className="text-sm text-blue-400">
                 {selectedEntries.length} items selected
               </span>
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleBulkAction('reindex')}
-                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-3 py-1 text-sm bg-[#2563ff] text-white rounded hover:bg-[#1d4fff]"
                 >
                   Reindex
                 </button>
@@ -451,10 +341,10 @@ const SitemapAdmin: React.FC = () => {
       </div>
 
       {/* Sitemap Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-slate-900/50 rounded-lg border border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-slate-800/50 border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3 text-left">
                   <input
@@ -467,43 +357,43 @@ const SitemapAdmin: React.FC = () => {
                       }
                     }}
                     checked={selectedEntries.length === sortedEntries.length && sortedEntries.length > 0}
-                    className="rounded border-gray-300"
+                    className="rounded border-slate-600 text-[#2563ff] bg-slate-800"
                   />
                 </th>
                 <th 
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-slate-400 cursor-pointer hover:bg-slate-800"
                   onClick={() => handleSort('url')}
                 >
                   URL
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Type</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Type</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Status</th>
                 <th 
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-slate-400 cursor-pointer hover:bg-slate-800"
                   onClick={() => handleSort('priority')}
                 >
                   Priority
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Change Freq</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Change Freq</th>
                 <th 
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-sm font-medium text-slate-400 cursor-pointer hover:bg-slate-800"
                   onClick={() => handleSort('lastModified')}
                 >
                   Last Modified
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Performance</th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Actions</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Performance</th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-slate-400">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-800">
               {sortedEntries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50">
+                <tr key={entry.id} className="hover:bg-slate-800/50 transition-colors">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={selectedEntries.includes(entry.id)}
                       onChange={() => handleSelectEntry(entry.id)}
-                      className="rounded border-gray-300"
+                      className="rounded border-slate-600 text-[#2563ff] bg-slate-800"
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -513,23 +403,23 @@ const SitemapAdmin: React.FC = () => {
                         href={entry.url} 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 hover:underline max-w-xs truncate"
+                        className="text-[#2563ff] hover:text-blue-400 hover:underline max-w-xs truncate"
                       >
                         {entry.url}
                       </a>
-                      <ExternalLink size={12} className="text-gray-400" />
+                      <ExternalLink size={12} className="text-slate-500" />
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-slate-800 text-slate-300">
                       {entry.type.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                      entry.status === 'active' ? 'bg-green-100 text-green-800' :
-                      entry.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                      entry.status === 'active' ? 'bg-green-500/10 text-green-400' :
+                      entry.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+                      'bg-red-500/10 text-red-400'
                     }`}>
                       {entry.status}
                     </span>
@@ -539,14 +429,14 @@ const SitemapAdmin: React.FC = () => {
                       {entry.priority.toFixed(1)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-slate-400">
                     {entry.changeFreq}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-slate-400">
                     {new Date(entry.lastModified).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center space-x-4 text-xs text-gray-600">
+                    <div className="flex items-center space-x-4 text-xs text-slate-400">
                       <div className="flex items-center space-x-1">
                         <Eye size={12} />
                         <span>{entry.impressions?.toLocaleString() || 0}</span>
@@ -559,10 +449,10 @@ const SitemapAdmin: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center space-x-2">
-                      <button className="p-1 text-gray-400 hover:text-blue-600">
+                      <button className="p-1 text-slate-400 hover:text-[#2563ff] transition-colors">
                         <Edit3 size={14} />
                       </button>
-                      <button className="p-1 text-gray-400 hover:text-red-600">
+                      <button className="p-1 text-slate-400 hover:text-red-400 transition-colors">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -576,14 +466,14 @@ const SitemapAdmin: React.FC = () => {
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-slate-400">
           Showing {sortedEntries.length} of {sitemapEntries.length} entries
         </div>
         <div className="flex space-x-2">
-          <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+          <button className="px-3 py-1 border border-slate-700 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-50">
             Previous
           </button>
-          <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">
+          <button className="px-3 py-1 border border-slate-700 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-50">
             Next
           </button>
         </div>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { adminAuditService } from '../../services/admin';
 import { 
   FileText, 
   Search, 
@@ -70,84 +71,38 @@ const AuditLogs: React.FC = () => {
     searchQuery: ''
   });
 
-  // Generate mock audit log data with real-time updates
-  useEffect(() => {
-    const generateMockLogs = (): AuditLogEntry[] => {
-      const users = [
-        { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'Super Admin' },
-        { id: '2', name: 'John Smith', email: 'john@example.com', role: 'Admin' },
-        { id: '3', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'Moderator' },
-        { id: '4', name: 'Mike Davis', email: 'mike@example.com', role: 'User' }
-      ];
-
-      const actions = [
-        { action: 'user.login', resource: 'authentication', severity: 'low' as const, category: 'authentication' as const },
-        { action: 'user.logout', resource: 'authentication', severity: 'low' as const, category: 'authentication' as const },
-        { action: 'user.create', resource: 'user', severity: 'medium' as const, category: 'admin' as const },
-        { action: 'user.update', resource: 'user', severity: 'medium' as const, category: 'data' as const },
-        { action: 'user.delete', resource: 'user', severity: 'high' as const, category: 'admin' as const },
-        { action: 'thumbnail.create', resource: 'thumbnail', severity: 'low' as const, category: 'data' as const },
-        { action: 'thumbnail.delete', resource: 'thumbnail', severity: 'medium' as const, category: 'data' as const },
-        { action: 'settings.update', resource: 'system_settings', severity: 'high' as const, category: 'system' as const },
-        { action: 'backup.create', resource: 'system', severity: 'medium' as const, category: 'system' as const },
-        { action: 'security.alert', resource: 'security', severity: 'critical' as const, category: 'security' as const },
-        { action: 'permission.grant', resource: 'permissions', severity: 'high' as const, category: 'authorization' as const },
-        { action: 'role.assign', resource: 'roles', severity: 'high' as const, category: 'authorization' as const }
-      ];
-
-      const mockLogs: AuditLogEntry[] = [];
-      
-      for (let i = 0; i < 50; i++) {
-        const user = users[Math.floor(Math.random() * users.length)];
-        const actionData = actions[Math.floor(Math.random() * actions.length)];
-        const timestamp = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000); // Last 7 days
-        const success = Math.random() > 0.1; // 90% success rate
-
-        mockLogs.push({
-          id: `log_${i + 1}`,
-          timestamp,
-          user,
-          action: actionData.action,
-          resource: actionData.resource,
-          resourceId: `${actionData.resource}_${Math.floor(Math.random() * 1000)}`,
-          details: generateLogDetails(actionData.action, user.name, success),
-          ipAddress: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          severity: actionData.severity,
-          category: actionData.category,
-          success,
-          metadata: {
-            duration: Math.floor(Math.random() * 1000) + 100,
-            endpoint: `/${actionData.resource}`,
-            method: ['GET', 'POST', 'PUT', 'DELETE'][Math.floor(Math.random() * 4)]
-          }
-        });
+  // Load audit logs from service (mock in dev, real API in prod)
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await adminAuditService.getActivityLogs();
+      if (result.success && result.data) {
+        const normalized = (result.data as any[]).map((log: any) => ({
+          id: log.id,
+          timestamp: new Date(log.timestamp),
+          user: log.user,
+          action: log.action,
+          resource: log.resource,
+          resourceId: log.resourceId,
+          details: log.details,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          severity: log.severity,
+          category: log.category,
+          success: log.success,
+          metadata: log.metadata,
+        }));
+        setLogs(normalized);
       }
-
-      return mockLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    };
-
-    const generateLogDetails = (action: string, userName: string, success: boolean): string => {
-      const baseDetails = {
-        'user.login': `${userName} ${success ? 'successfully logged in' : 'failed to log in'}`,
-        'user.logout': `${userName} logged out`,
-        'user.create': `${userName} ${success ? 'created' : 'failed to create'} a new user account`,
-        'user.update': `${userName} ${success ? 'updated' : 'failed to update'} user profile`,
-        'user.delete': `${userName} ${success ? 'deleted' : 'failed to delete'} user account`,
-        'thumbnail.create': `${userName} ${success ? 'created' : 'failed to create'} new thumbnail`,
-        'thumbnail.delete': `${userName} ${success ? 'deleted' : 'failed to delete'} thumbnail`,
-        'settings.update': `${userName} ${success ? 'modified' : 'failed to modify'} system settings`,
-        'backup.create': `${userName} ${success ? 'initiated' : 'failed to initiate'} system backup`,
-        'security.alert': `Security alert triggered${success ? '' : ' (false positive)'}`,
-        'permission.grant': `${userName} ${success ? 'granted' : 'failed to grant'} permissions`,
-        'role.assign': `${userName} ${success ? 'assigned' : 'failed to assign'} user role`
-      };
-      
-      return baseDetails[action as keyof typeof baseDetails] || `${userName} performed ${action}`;
-    };
-
-    setLogs(generateMockLogs());
+    } catch (error) {
+      console.error('Error loading audit logs:', error);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   // Real-time log updates
   useEffect(() => {
@@ -245,10 +200,10 @@ const AuditLogs: React.FC = () => {
 
   const getSeverityColor = (severity: string) => {
     const colors = {
-      low: 'text-blue-600 bg-blue-50 border-blue-200',
-      medium: 'text-yellow-600 bg-yellow-50 border-yellow-200',
-      high: 'text-orange-600 bg-orange-50 border-orange-200',
-      critical: 'text-red-600 bg-red-50 border-red-200'
+      low: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+      medium: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+      high: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
+      critical: 'text-red-400 bg-red-500/10 border-red-500/20'
     };
     return colors[severity as keyof typeof colors] || colors.low;
   };
@@ -291,19 +246,16 @@ const AuditLogs: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
+    <div className="min-h-screen p-8">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-4xl font-black text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text mb-2">
-              📋 Audit Logs
-            </h1>
-            <p className="text-gray-600 font-medium">Monitor and track all system activities and user actions</p>
+            <h1 className="text-3xl font-bold text-slate-50 mb-2">Audit Logs</h1>
+            <p className="text-slate-400 font-medium">Monitor and track all system activities and user actions</p>
           </div>
-          
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-slate-400">
               Showing {filteredLogs.length} of {logs.length} logs
             </span>
             <button
@@ -318,33 +270,28 @@ const AuditLogs: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-lg border border-white/20 mb-8">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          {/* Search */}
           <div className="md:col-span-2 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
               type="text"
               placeholder="Search logs..."
               value={filters.searchQuery}
               onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent"
             />
           </div>
-
-          {/* Date Range */}
           <select
             value={filters.dateRange}
             onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
-            className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff]"
           >
             <option value="1h">Last Hour</option>
             <option value="24h">Last 24 Hours</option>
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>
           </select>
-
-          {/* Severity Filter */}
           <select
             multiple
             value={filters.severity}
@@ -352,44 +299,39 @@ const AuditLogs: React.FC = () => {
               const values = Array.from(e.target.selectedOptions, option => option.value);
               setFilters(prev => ({ ...prev, severity: values }));
             }}
-            className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff]"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
-
-          {/* Success Filter */}
           <select
             value={filters.success === null ? 'all' : filters.success.toString()}
             onChange={(e) => {
               const value = e.target.value === 'all' ? null : e.target.value === 'true';
               setFilters(prev => ({ ...prev, success: value }));
             }}
-            className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff]"
           >
             <option value="all">All</option>
             <option value="true">Success</option>
             <option value="false">Failed</option>
           </select>
-
-          {/* Sort Options */}
           <div className="flex gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="flex-1 px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-100 focus:ring-2 focus:ring-[#2563ff]"
             >
               <option value="timestamp">Time</option>
               <option value="user">User</option>
               <option value="action">Action</option>
               <option value="severity">Severity</option>
             </select>
-            
             <button
               onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors"
+              className="px-3 py-2 rounded-xl border border-slate-700 text-slate-400 hover:bg-slate-800 transition-colors"
             >
               <ArrowUpDown className="w-4 h-4" />
             </button>
@@ -398,68 +340,46 @@ const AuditLogs: React.FC = () => {
       </div>
 
       {/* Logs Table */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-lg border border-white/20 overflow-hidden">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-slate-800/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Timestamp
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Details
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Severity
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Timestamp</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">User</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Details</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Severity</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredLogs.map((log, index) => (
-                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div>
-                      <div className="font-medium">
-                        {log.timestamp.toLocaleDateString()}
-                      </div>
-                      <div className="text-gray-500">
-                        {log.timestamp.toLocaleTimeString()}
-                      </div>
-                    </div>
+            <tbody className="divide-y divide-slate-800">
+              {filteredLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100">
+                    <div className="font-medium">{log.timestamp.toLocaleDateString()}</div>
+                    <div className="text-slate-500">{log.timestamp.toLocaleTimeString()}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-8 h-8 bg-[#2563ff] rounded-full flex items-center justify-center text-white text-xs font-bold">
                         {log.user.name.charAt(0)}
                       </div>
                       <div>
                         <div className="font-medium">{log.user.name}</div>
-                        <div className="text-gray-500 text-xs">{log.user.role}</div>
+                        <div className="text-slate-500 text-xs">{log.user.role}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100">
                     <div className="flex items-center gap-2">
                       {getCategoryIcon(log.category)}
                       <span className="font-medium">{log.action}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                    <div className="truncate" title={log.details}>
-                      {log.details}
-                    </div>
+                  <td className="px-6 py-4 text-sm text-slate-100 max-w-xs">
+                    <div className="truncate" title={log.details}>{log.details}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(log.severity)}`}>
@@ -469,17 +389,17 @@ const AuditLogs: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                       log.success 
-                        ? 'text-green-600 bg-green-50 border border-green-200' 
-                        : 'text-red-600 bg-red-50 border border-red-200'
+                        ? 'text-green-400 bg-green-500/10 border border-green-500/20' 
+                        : 'text-red-400 bg-red-500/10 border border-red-500/20'
                     }`}>
                       {log.success ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                       {log.success ? 'Success' : 'Failed'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <button
                       onClick={() => setSelectedLog(log)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-[#2563ff] hover:text-blue-400 font-medium"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
@@ -492,8 +412,8 @@ const AuditLogs: React.FC = () => {
 
         {filteredLogs.length === 0 && (
           <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No logs found matching your filters</p>
+            <FileText className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+            <p className="text-slate-400">No logs found matching your filters</p>
           </div>
         )}
       </div>
@@ -501,84 +421,77 @@ const AuditLogs: React.FC = () => {
       {/* Log Detail Modal */}
       {selectedLog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Log Details</h2>
+              <h2 className="text-2xl font-bold text-slate-50">Log Details</h2>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-xl hover:bg-slate-800 transition-colors"
               >
-                <XCircle className="w-6 h-6 text-gray-600" />
+                <XCircle className="w-6 h-6 text-slate-400" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">ID</label>
-                <p className="text-gray-900 font-mono text-sm">{selectedLog.id}</p>
+                <label className="text-sm font-medium text-slate-400">ID</label>
+                <p className="text-slate-100 font-mono text-sm">{selectedLog.id}</p>
               </div>
-
               <div>
-                <label className="text-sm font-medium text-gray-700">Timestamp</label>
-                <p className="text-gray-900">{selectedLog.timestamp.toLocaleString()}</p>
+                <label className="text-sm font-medium text-slate-400">Timestamp</label>
+                <p className="text-slate-100">{selectedLog.timestamp.toLocaleString()}</p>
               </div>
-
               <div>
-                <label className="text-sm font-medium text-gray-700">User</label>
+                <label className="text-sm font-medium text-slate-400">User</label>
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-8 h-8 bg-[#2563ff] rounded-full flex items-center justify-center text-white text-xs font-bold">
                     {selectedLog.user.name.charAt(0)}
                   </div>
                   <div>
-                    <p className="font-medium">{selectedLog.user.name}</p>
-                    <p className="text-sm text-gray-600">{selectedLog.user.email} • {selectedLog.user.role}</p>
+                    <p className="font-medium text-slate-100">{selectedLog.user.name}</p>
+                    <p className="text-sm text-slate-400">{selectedLog.user.email} · {selectedLog.user.role}</p>
                   </div>
                 </div>
               </div>
-
               <div>
-                <label className="text-sm font-medium text-gray-700">Action & Resource</label>
-                <p className="text-gray-900">{selectedLog.action} on {selectedLog.resource}</p>
+                <label className="text-sm font-medium text-slate-400">Action & Resource</label>
+                <p className="text-slate-100">{selectedLog.action} on {selectedLog.resource}</p>
                 {selectedLog.resourceId && (
-                  <p className="text-sm text-gray-600">Resource ID: {selectedLog.resourceId}</p>
+                  <p className="text-sm text-slate-400">Resource ID: {selectedLog.resourceId}</p>
                 )}
               </div>
-
               <div>
-                <label className="text-sm font-medium text-gray-700">Details</label>
-                <p className="text-gray-900">{selectedLog.details}</p>
+                <label className="text-sm font-medium text-slate-400">Details</label>
+                <p className="text-slate-100">{selectedLog.details}</p>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">IP Address</label>
-                  <p className="text-gray-900 font-mono text-sm">{selectedLog.ipAddress}</p>
+                  <label className="text-sm font-medium text-slate-400">IP Address</label>
+                  <p className="text-slate-100 font-mono text-sm">{selectedLog.ipAddress}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <label className="text-sm font-medium text-slate-400">Status</label>
                   <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                     selectedLog.success 
-                      ? 'text-green-600 bg-green-50' 
-                      : 'text-red-600 bg-red-50'
+                      ? 'text-green-400 bg-green-500/10' 
+                      : 'text-red-400 bg-red-500/10'
                   }`}>
                     {selectedLog.success ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                     {selectedLog.success ? 'Success' : 'Failed'}
                   </span>
                 </div>
               </div>
-
               {selectedLog.metadata && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Metadata</label>
-                  <pre className="text-sm text-gray-900 bg-gray-50 p-3 rounded-xl overflow-x-auto">
+                  <label className="text-sm font-medium text-slate-400">Metadata</label>
+                  <pre className="text-sm text-slate-100 bg-slate-800/50 p-3 rounded-xl overflow-x-auto">
                     {JSON.stringify(selectedLog.metadata, null, 2)}
                   </pre>
                 </div>
               )}
-
               <div>
-                <label className="text-sm font-medium text-gray-700">User Agent</label>
-                <p className="text-gray-600 text-sm break-all">{selectedLog.userAgent}</p>
+                <label className="text-sm font-medium text-slate-400">User Agent</label>
+                <p className="text-slate-400 text-sm break-all">{selectedLog.userAgent}</p>
               </div>
             </div>
           </div>

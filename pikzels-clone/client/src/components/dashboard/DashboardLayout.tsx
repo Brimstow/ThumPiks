@@ -20,6 +20,9 @@ import {
   HelpCircle,
   ChevronRight,
   X,
+  GitBranch,
+  LayoutTemplate,
+  SearchCode,
 } from 'lucide-react';
 import AccountDropdown from '../account/AccountDropdown';
 import NotificationsDropdown from '../notifications/NotificationsDropdown';
@@ -101,11 +104,11 @@ const DashboardLayout: React.FC = () => {
     { id: 'create', label: 'Create', icon: Plus, path: '/dashboard/create-plus' },
     { id: 'ai-tools', label: 'AI Tools', icon: Wand2, path: '/dashboard/ai-tools' },
     { id: 'vision', label: 'Vision', icon: Eye, path: '/dashboard/vision' },
-    { id: 'visual-search', label: 'Search', icon: Search, path: '/dashboard/visual-search' },
-    { id: 'ab-testing', label: 'A/B Test', icon: BarChart2, path: '/dashboard/ab-testing' },
+    { id: 'visual-search', label: 'Search', icon: SearchCode, path: '/dashboard/visual-search' },
+    { id: 'ab-testing', label: 'A/B Test', icon: GitBranch, path: '/dashboard/ab-testing' },
     { id: 'video-editor', label: 'Video Editor', icon: Video, path: '/dashboard/video-editor' },
     { id: 'editor', label: 'Editor', icon: Edit3, path: '/dashboard/editor' },
-    { id: 'templates', label: 'Templates', icon: Video, path: '/dashboard/templates' },
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate, path: '/dashboard/templates' },
     { id: 'projects', label: 'Projects', icon: Folder, path: '/dashboard/projects' },
     { id: 'brand', label: 'Brand', icon: Palette, path: '/dashboard/brand' },
     { id: 'analytics', label: 'Analytics', icon: BarChart2, path: '/dashboard/analytics' },

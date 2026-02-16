@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { DashboardProvider } from '../../contexts/DashboardContext';
-import InteractiveBackground from '../ui/InteractiveBackground';
-import { ThemeToggleButton } from '../ui/ThemeSelector';
 import { 
   Users, 
   Settings, 
@@ -21,12 +19,8 @@ import {
   Monitor,
   Globe,
   Search,
-  Moon,
-  Sun,
   Maximize2,
   Minimize2,
-  HelpCircle,
-  Command,
   Zap
 } from 'lucide-react';
 
@@ -40,11 +34,10 @@ interface AdminNavItem {
 }
 
 const AdminLayout: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false); // Desktop: expanded/collapsed
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile: overlay menu
   const [notifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -236,92 +229,57 @@ const AdminLayout: React.FC = () => {
 
   return (
     <DashboardProvider>
-      <div className={`flex h-screen transition-colors duration-300 relative overflow-hidden ${
-        isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
-      }`}>
-        {/* Interactive Background */}
-        <InteractiveBackground />
-      {/* Enhanced Sidebar with Modern Design */}
-      <div className={`${
-        sidebarCollapsed ? 'w-20' : sidebarOpen ? 'w-80' : 'w-16'
-      } ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white/80 backdrop-blur-xl border-white/20'} 
-      border-r transition-all duration-500 flex flex-col shadow-2xl relative overflow-hidden`}>
+      <div className="flex h-screen relative overflow-hidden bg-[#020817] text-slate-100">
+      {/* Desktop Sidebar */}
+      <div className={`hidden lg:flex ${
+        sidebarExpanded ? 'w-64' : 'w-20'
+      } bg-[#020818] border-r border-slate-800 transition-all duration-500 flex-col`}>
         
-        {/* Animated Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }} />
-        </div>
-        
-        {/* Enhanced Sidebar Header */}
-        <div className={`p-6 border-b relative z-10 ${
-          isDarkMode ? 'border-gray-700 bg-gradient-to-r from-blue-600 to-purple-600' : 'border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600'
-        }`}>
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-slate-800">
           <div className="flex items-center justify-between">
-            <div className={`${sidebarCollapsed ? 'hidden' : 'block'} transition-all duration-500`}>
+            <div className={`${!sidebarExpanded ? 'hidden' : 'block'} transition-all duration-500`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 rounded-xl bg-[#0F172A] border border-slate-700 flex items-center justify-center shadow-md shadow-black/40">
+                  <Zap className="w-6 h-6 text-slate-100" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-white">Admin Panel</h2>
-                  <p className="text-sm text-blue-100 font-medium">Thumbnail Creator Pro</p>
+                  <h2 className="text-xl font-semibold text-slate-50">Admin Panel</h2>
+                  <p className="text-sm text-slate-400">ThumPiks</p>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!sidebarCollapsed && (
-                <button
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-2 rounded-xl hover:bg-white/20 transition-colors text-white"
-                  title="Collapse sidebar"
-                >
-                  <Menu size={20} />
-                </button>
-              )}
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-xl hover:bg-white/20 transition-colors text-white"
-                title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-            </div>
+            <button
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="p-2 rounded-xl hover:bg-[#202020] text-slate-400 transition-colors"
+              title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <ChevronDown size={20} className={`transition-transform ${sidebarExpanded ? 'rotate-90' : '-rotate-90'}`} />
+            </button>
           </div>
         </div>
 
-        {/* Enhanced Search Bar */}
-        {!sidebarCollapsed && (
-          <div className="p-4 relative z-10">
-            <div className={`relative ${
-              isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-            } rounded-2xl`}>
-              <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              }`} />
+        {/* Search Bar */}
+        {sidebarExpanded && (
+          <div className="p-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search admin panel..."
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                className={`w-full pl-12 pr-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-blue-500 transition-all ${
-                  isDarkMode 
-                    ? 'bg-gray-700 text-white placeholder-gray-400' 
-                    : 'bg-gray-100 text-gray-900 placeholder-gray-500'
-                } font-medium`}
+                className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent transition-all text-sm"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <kbd className={`px-2 py-1 text-xs rounded ${
-                  isDarkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'
-                } font-mono`}>⌘K</kbd>
+                <kbd className="px-2 py-1 text-xs rounded bg-slate-800 text-slate-400 font-mono">⌘K</kbd>
               </div>
             </div>
           </div>
         )}
 
-        {/* Enhanced Navigation */}
-        <nav className="flex-1 p-4 space-y-2 relative z-10 overflow-y-auto custom-scrollbar">
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {visibleNavItems.map((item, index) => (
             <div
               key={item.id}
@@ -331,205 +289,139 @@ const AdminLayout: React.FC = () => {
               <NavItem 
                 item={item} 
                 currentPath={location.pathname}
-                sidebarOpen={!sidebarCollapsed}
-                isDarkMode={isDarkMode}
+                sidebarOpen={sidebarExpanded}
               />
             </div>
           ))}
         </nav>
 
-        {/* Enhanced Sidebar Footer */}
-        <div className={`p-4 border-t relative z-10 ${
-          isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-white/50'
-        }`}>
-          {!sidebarCollapsed ? (
-            <div className="space-y-4">
-              {/* User Profile Card */}
-              <div className={`p-4 rounded-2xl transition-all duration-300 hover:shadow-lg ${
-                isDarkMode ? 'bg-gray-700' : 'bg-gradient-to-r from-blue-50 to-purple-50'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg">
-                      {adminUser.name?.charAt(0).toUpperCase() || 'A'}
-                    </div>
-                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
-                      adminUser.status === 'online' ? 'bg-green-400' : 'bg-gray-400'
-                    } ${
-                      isDarkMode ? 'border-gray-700' : 'border-white'
-                    }`}></div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-bold truncate ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>{adminUser.name}</p>
-                    <p className={`text-xs truncate ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>{adminUser.roles.join(', ')}</p>
-                  </div>
-                </div>
-                
-                {/* Quick Actions */}
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={handleLogout}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                      isDarkMode 
-                        ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' 
-                        : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
-                    }`}
-                  >
-                    <LogOut size={16} />
-                    <span>Logout</span>
-                  </button>
-                  
-                  <div className="flex items-center gap-1">
-                    <ThemeToggleButton />
-                    
-                    <button
-                      onClick={() => setIsDarkMode(!isDarkMode)}
-                      className={`p-2 rounded-xl transition-colors ${
-                        isDarkMode 
-                          ? 'text-yellow-400 hover:bg-yellow-400/10' 
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                      title="Toggle dark mode"
-                    >
-                      {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                    </button>
-                    
-                    <button
-                      className={`p-2 rounded-xl transition-colors ${
-                        isDarkMode 
-                          ? 'text-gray-400 hover:bg-gray-600' 
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                      title="Help & Support"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
-                  </div>
-                </div>
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-slate-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="relative">
+              <div className="w-10 h-10 bg-[#2563ff] rounded-xl flex items-center justify-center text-white text-sm font-bold">
+                {adminUser.name?.charAt(0).toUpperCase() || 'A'}
               </div>
+              <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020818] ${
+                adminUser.status === 'online' ? 'bg-green-400' : 'bg-slate-500'
+              }`}></div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <button
-                onClick={handleLogout}
-                className={`w-full p-3 rounded-2xl transition-all group ${
-                  isDarkMode 
-                    ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400' 
-                    : 'hover:bg-red-50 text-gray-600 hover:text-red-600'
-                }`}
-                title="Logout"
-              >
-                <LogOut size={20} className="mx-auto" />
-              </button>
-              
-              <div className="space-y-2">
-                <div className="flex justify-center">
-                  <ThemeToggleButton />
-                </div>
-                
-                <button
-                  onClick={() => setIsDarkMode(!isDarkMode)}
-                  className={`w-full p-3 rounded-2xl transition-all ${
-                    isDarkMode 
-                      ? 'text-yellow-400 hover:bg-yellow-400/10' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                  title="Toggle dark mode"
-                >
-                  {isDarkMode ? <Sun size={20} className="mx-auto" /> : <Moon size={20} className="mx-auto" />}
-                </button>
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-100 truncate">{adminUser.name}</p>
+              <p className="text-xs text-slate-400 truncate">{adminUser.roles.join(', ')}</p>
             </div>
-          )}
+          </div>
+          
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all w-full"
+          >
+            <LogOut size={16} />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
 
-      {/* Enhanced Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Enhanced Header */}
-        <header className={`transition-colors duration-300 border-b px-6 py-4 ${
-          isDarkMode 
-            ? 'bg-gray-800/50 backdrop-blur-xl border-gray-700' 
-            : 'bg-white/80 backdrop-blur-xl border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Mobile menu button */}
-              {!sidebarOpen && (
+      {/* Mobile Sidebar Overlay */}
+      <div className={`lg:hidden fixed inset-0 z-10 bg-black/60 backdrop-blur-sm flex items-center justify-center ${
+        mobileMenuOpen ? 'block' : 'hidden'
+      }`}>
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-slate-50">Admin Panel</h2>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-2 rounded-xl transition-colors text-slate-400 hover:bg-slate-800"
+              aria-label="Close menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <nav className="space-y-2">
+            {visibleNavItems.map((item, index) => (
+              <div
+                key={item.id}
+                style={{ animationDelay: `${index * 50}ms` }}
+                className="animate-in slide-in-from-left-5 duration-500"
+              >
                 <button
-                  onClick={() => setSidebarOpen(true)}
-                  className={`lg:hidden p-2 rounded-xl transition-colors ${
-                    isDarkMode 
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  onClick={() => {
+                    navigate(item.path);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
+                    location.pathname === item.path || location.pathname.startsWith(item.path + '/')
+                      ? 'bg-[#2563ff] text-white'
+                      : 'text-slate-100 hover:bg-[#202020]'
                   }`}
                 >
-                  <Menu size={20} />
+                  {item.icon}
+                  <span className="font-medium">{item.label}</span>
                 </button>
-              )}
+              </div>
+            ))}
+          </nav>
+          
+          <button
+            onClick={() => {
+              handleLogout();
+              setMobileMenuOpen(false);
+            }}
+            className="w-full flex items-center gap-3 p-3 rounded-xl text-red-400 hover:bg-red-500/10 mt-4"
+          >
+            <LogOut size={20} />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="border-b border-slate-800 px-6 py-4 bg-[#020817]/95 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 rounded-xl transition-colors text-slate-400 hover:text-slate-50 hover:bg-slate-800/80"
+              >
+                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
               
               <div>
-                <h1 className={`text-2xl font-bold ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
-                }`}>Admin Dashboard</h1>
-                <p className={`text-sm ${
-                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                }`}>Welcome back, {adminUser.name}</p>
+                <h1 className="text-2xl font-bold text-slate-50">Admin Dashboard</h1>
+                <p className="text-sm text-slate-400">Welcome back, {adminUser.name}</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Enhanced Search (Desktop) */}
+              {/* Search (Desktop) */}
               <div className="hidden md:block relative">
-                <div className={`relative ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
-                } rounded-2xl`}>
-                  <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`} />
-                  <input
-                    type="text"
-                    placeholder="Quick search..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className={`w-64 pl-10 pr-4 py-2 rounded-2xl border-0 focus:ring-2 focus:ring-blue-500 transition-all text-sm ${
-                      isDarkMode 
-                        ? 'bg-gray-700 text-white placeholder-gray-400' 
-                        : 'bg-gray-100 text-gray-900 placeholder-gray-500'
-                    }`}
-                  />
-                </div>
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Quick search..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent transition-all text-sm"
+                />
               </div>
               
-              {/* Enhanced Controls */}
+              {/* Controls */}
               <div className="flex items-center gap-2">
-                {/* Fullscreen Toggle */}
                 <button
                   onClick={toggleFullscreen}
-                  className={`p-2 rounded-xl transition-colors ${
-                    isDarkMode 
-                      ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-blue-50'
-                  }`}
+                  className="p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-colors"
                   title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
                 >
                   {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
                 </button>
                 
-                {/* Enhanced Notifications */}
-                <button className={`relative p-2 rounded-xl transition-all duration-200 ${
-                  isDarkMode 
-                    ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                }`}>
+                <button className="relative p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-colors">
                   <Bell size={20} />
                   {notifications > 0 && (
                     <>
-                      <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse font-bold">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                         {notifications}
                       </span>
                       <span className="absolute -top-1 -right-1 bg-red-400 rounded-full h-5 w-5 animate-ping"></span>
@@ -537,24 +429,18 @@ const AdminLayout: React.FC = () => {
                   )}
                 </button>
 
-                {/* Enhanced User Menu */}
+                {/* User Menu */}
                 <div className="flex items-center gap-3 ml-2">
                   <div className="text-right hidden sm:block">
-                    <p className={`text-sm font-bold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
-                    }`}>{adminUser.name}</p>
-                    <p className={`text-xs ${
-                      isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`}>{adminUser.email}</p>
+                    <p className="text-sm font-medium text-slate-50">{adminUser.name}</p>
+                    <p className="text-xs text-slate-400">{adminUser.email}</p>
                   </div>
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg hover:scale-105 transition-transform cursor-pointer">
+                    <div className="w-10 h-10 bg-[#2563ff] rounded-xl flex items-center justify-center text-white text-sm font-bold hover:bg-[#1d4fff] transition-colors cursor-pointer">
                       {adminUser.name?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
-                      adminUser.status === 'online' ? 'bg-green-400' : 'bg-gray-400'
-                    } ${
-                      isDarkMode ? 'border-gray-800' : 'border-white'
+                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020817] ${
+                      adminUser.status === 'online' ? 'bg-green-400' : 'bg-slate-500'
                     }`}></div>
                   </div>
                 </div>
@@ -563,10 +449,8 @@ const AdminLayout: React.FC = () => {
           </div>
         </header>
 
-        {/* Enhanced Page Content */}
-        <main className={`flex-1 overflow-y-auto transition-colors duration-300 ${
-          isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
-        }`}>
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>
@@ -580,10 +464,9 @@ interface NavItemProps {
   item: AdminNavItem;
   currentPath: string;
   sidebarOpen: boolean;
-  isDarkMode: boolean;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ item, currentPath, sidebarOpen, isDarkMode }) => {
+const NavItem: React.FC<NavItemProps> = ({ item, currentPath, sidebarOpen }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   
@@ -602,27 +485,19 @@ const NavItem: React.FC<NavItemProps> = ({ item, currentPath, sidebarOpen, isDar
     <div>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-200 group ${
+        className={`w-full h-10 rounded-xl flex items-center justify-between px-3 transition-colors group ${
           isActive 
-            ? isDarkMode
-              ? 'bg-blue-600 text-white shadow-lg border border-blue-500'
-              : 'bg-blue-50 text-blue-700 border-2 border-blue-200 shadow-md'
-            : isDarkMode
-              ? 'text-gray-300 hover:text-white hover:bg-gray-700/50'
-              : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+            ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white'
+            : 'hover:bg-[#202020] text-slate-100'
         }`}
         title={!sidebarOpen ? item.label : undefined}
       >
-        <div className="flex items-center gap-4">
-          <div className={`transition-colors ${
-            isActive
-              ? isDarkMode ? 'text-white' : 'text-blue-600'
-              : isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-blue-600'
-          }`}>
+        <div className="flex items-center gap-3">
+          <div className="w-6 flex justify-center shrink-0">
             {item.icon}
           </div>
           {sidebarOpen && (
-            <span className="text-sm font-semibold tracking-wide">{item.label}</span>
+            <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>
           )}
         </div>
         {sidebarOpen && hasChildren && (
@@ -630,37 +505,25 @@ const NavItem: React.FC<NavItemProps> = ({ item, currentPath, sidebarOpen, isDar
             size={16} 
             className={`transition-transform duration-200 ${
               isOpen ? 'rotate-180' : ''
-            } ${
-              isActive
-                ? isDarkMode ? 'text-white' : 'text-blue-600'
-                : isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`} 
+            } ${isActive ? 'text-white' : 'text-slate-400'}`} 
           />
         )}
       </button>
 
-      {/* Enhanced Sub-navigation */}
+      {/* Sub-navigation */}
       {sidebarOpen && hasChildren && isOpen && (
-        <div className="ml-6 mt-2 space-y-1 animate-in slide-in-from-top-2 duration-300">
+        <div className="ml-6 mt-1 space-y-1">
           {item.children?.map((child) => (
             <button
               key={child.id}
               onClick={() => navigate(child.path)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl text-sm transition-all duration-200 group ${
+              className={`w-full h-9 flex items-center gap-3 px-3 rounded-xl text-sm transition-colors ${
                 currentPath === child.path
-                  ? isDarkMode
-                    ? 'bg-blue-600/80 text-white shadow-md'
-                    : 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : isDarkMode
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-700/30'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                  ? 'bg-[#2563ff]/80 text-white'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-[#202020]'
               }`}
             >
-              <div className={`transition-colors ${
-                currentPath === child.path
-                  ? isDarkMode ? 'text-white' : 'text-blue-600'
-                  : isDarkMode ? 'text-gray-500 group-hover:text-white' : 'text-gray-500 group-hover:text-blue-600'
-              }`}>
+              <div className="w-5 flex justify-center shrink-0">
                 {child.icon}
               </div>
               <span className="font-medium">{child.label}</span>

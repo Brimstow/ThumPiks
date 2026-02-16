@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { adminSettingsService } from '../../services/admin';
 import { 
   Settings, 
   Save, 
@@ -353,7 +354,31 @@ const AdminSettings: React.FC = () => {
       }
     ];
 
-    setSettings(mockSettings);
+    // Load values from service and merge into section definitions
+    const loadValues = async () => {
+      try {
+        const result = await adminSettingsService.getSettings();
+        if (result.success && result.data) {
+          const values = result.data as Record<string, Record<string, any>>;
+          const merged = mockSettings.map(section => ({
+            ...section,
+            settings: section.settings.map(setting => {
+              const sectionValues = values[section.id];
+              if (sectionValues && setting.id in sectionValues) {
+                return { ...setting, value: sectionValues[setting.id] };
+              }
+              return setting;
+            }),
+          }));
+          setSettings(merged);
+        } else {
+          setSettings(mockSettings);
+        }
+      } catch {
+        setSettings(mockSettings);
+      }
+    };
+    loadValues();
   }, []);
 
   const handleSettingChange = (sectionId: string, settingId: string, value: any) => {
@@ -366,9 +391,13 @@ const AdminSettings: React.FC = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      const result = await adminSettingsService.saveSettings(unsavedChanges);
+      if (!result.success) {
+        console.error('Failed to save settings');
+        setSaving(false);
+        return;
+      }
+
       // Apply changes to settings
       setSettings(prevSettings => {
         return prevSettings.map(section => ({
@@ -406,8 +435,8 @@ const AdminSettings: React.FC = () => {
     const currentValue = changeKey in unsavedChanges ? unsavedChanges[changeKey] : setting.value;
     const hasUnsavedChange = changeKey in unsavedChanges;
 
-    const commonClasses = `w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-      hasUnsavedChange ? 'border-yellow-300 bg-yellow-50' : 'border-gray-300'
+    const commonClasses = `w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-[#2563ff] focus:border-transparent transition-colors text-slate-100 bg-slate-900/80 placeholder-slate-500 ${
+      hasUnsavedChange ? 'border-yellow-500/30' : 'border-slate-700'
     }`;
 
     switch (setting.type) {
@@ -421,13 +450,13 @@ const AdminSettings: React.FC = () => {
               className="sr-only"
             />
             <div className={`relative w-12 h-6 rounded-full transition-colors ${
-              currentValue ? 'bg-blue-600' : 'bg-gray-300'
+              currentValue ? 'bg-[#2563ff]' : 'bg-slate-600'
             }`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${
                 currentValue ? 'translate-x-7' : 'translate-x-1'
               }`} />
             </div>
-            <span className="ml-3 text-sm font-medium text-gray-700">
+            <span className="ml-3 text-sm font-medium text-slate-300">
               {currentValue ? 'Enabled' : 'Disabled'}
             </span>
           </label>
@@ -465,7 +494,7 @@ const AdminSettings: React.FC = () => {
               type="color"
               value={currentValue}
               onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
-              className="w-12 h-8 rounded border border-gray-300 cursor-pointer"
+              className="w-12 h-8 rounded border border-slate-700 cursor-pointer"
             />
             <input
               type="text"
@@ -491,7 +520,7 @@ const AdminSettings: React.FC = () => {
               <button
                 type="button"
                 onClick={() => toggleSensitiveVisibility(setting.id)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200"
               >
                 {showSensitive[setting.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -527,20 +556,20 @@ const AdminSettings: React.FC = () => {
   const hasUnsavedChanges = Object.keys(unsavedChanges).length > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-8">
+    <div className="min-h-screen p-8">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-4xl font-black text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text mb-2">
-              ⚙️ Admin Settings
+            <h1 className="text-3xl font-bold text-slate-50 mb-2">
+              Admin Settings
             </h1>
-            <p className="text-gray-600 font-medium">Configure system settings and application preferences</p>
+            <p className="text-slate-400 font-medium">Configure system settings and application preferences</p>
           </div>
           
           <div className="flex items-center gap-4">
             {hasUnsavedChanges && (
-              <span className="flex items-center gap-2 text-sm text-yellow-600 bg-yellow-50 px-3 py-2 rounded-xl border border-yellow-200">
+              <span className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/10 px-3 py-2 rounded-xl border border-yellow-500/20">
                 <AlertTriangle className="w-4 h-4" />
                 Unsaved changes
               </span>
@@ -549,7 +578,7 @@ const AdminSettings: React.FC = () => {
             <button
               onClick={handleSave}
               disabled={!hasUnsavedChanges || saving}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-2 bg-[#2563ff] text-white rounded-xl font-semibold hover:bg-[#1d4fff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Saving...' : 'Save Changes'}
@@ -559,21 +588,21 @@ const AdminSettings: React.FC = () => {
 
         {/* Search */}
         <div className="relative max-w-md">
-          <Settings className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Settings className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             type="text"
             placeholder="Search settings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/80 backdrop-blur-sm"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-700 focus:ring-2 focus:ring-[#2563ff] focus:border-transparent bg-slate-900/80 text-slate-100 placeholder-slate-500"
           />
         </div>
       </div>
 
       <div className="flex gap-8">
         {/* Sidebar Navigation */}
-        <div className="w-80 bg-white/80 backdrop-blur-xl rounded-3xl p-6 shadow-lg border border-white/20 h-fit sticky top-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Setting Categories</h2>
+        <div className="w-80 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 h-fit sticky top-8">
+          <h2 className="text-lg font-bold text-slate-50 mb-4">Setting Categories</h2>
           <nav className="space-y-2">
             {filteredSettings.map(section => (
               <button
@@ -581,18 +610,18 @@ const AdminSettings: React.FC = () => {
                 onClick={() => setActiveSection(section.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-all duration-200 ${
                   activeSection === section.id
-                    ? 'bg-blue-50 text-blue-700 border-2 border-blue-200 shadow-md'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+                    ? 'bg-[#2563ff] text-white'
+                    : 'text-slate-100 hover:bg-[#202020]'
                 }`}
               >
                 <div className={`transition-colors ${
-                  activeSection === section.id ? 'text-blue-600' : 'text-gray-600'
+                  activeSection === section.id ? 'text-white' : 'text-slate-400'
                 }`}>
                   {section.icon}
                 </div>
                 <div>
                   <div className="font-semibold">{section.title}</div>
-                  <div className="text-xs text-gray-500">{section.settings.length} settings</div>
+                  <div className="text-xs text-slate-500">{section.settings.length} settings</div>
                 </div>
               </button>
             ))}
@@ -603,15 +632,15 @@ const AdminSettings: React.FC = () => {
         <div className="flex-1">
           {filteredSettings.map(section => (
             activeSection === section.id && (
-              <div key={section.id} className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-lg border border-white/20">
+              <div key={section.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8">
                 <div className="mb-8">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                    <div className="p-2 rounded-xl bg-[#2563ff]/10 text-[#2563ff]">
                       {section.icon}
                     </div>
-                    <h2 className="text-3xl font-bold text-gray-900">{section.title}</h2>
+                    <h2 className="text-3xl font-bold text-slate-50">{section.title}</h2>
                   </div>
-                  <p className="text-gray-600">{section.description}</p>
+                  <p className="text-slate-400">{section.description}</p>
                 </div>
 
                 <div className="space-y-8">
@@ -624,31 +653,31 @@ const AdminSettings: React.FC = () => {
                         key={setting.id}
                         className={`p-6 rounded-2xl border-2 transition-all duration-200 ${
                           hasUnsavedChange 
-                            ? 'border-yellow-200 bg-yellow-50' 
-                            : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                            ? 'border-yellow-500/20 bg-yellow-500/5' 
+                            : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
                         }`}
                       >
                         <div className="mb-4">
                           <div className="flex items-center justify-between mb-2">
-                            <label className="text-lg font-semibold text-gray-900">
+                            <label className="text-lg font-semibold text-slate-50">
                               {setting.label}
                               {setting.validation?.required && (
                                 <span className="text-red-500 ml-1">*</span>
                               )}
                             </label>
                             {hasUnsavedChange && (
-                              <span className="text-xs text-yellow-600 font-medium bg-yellow-100 px-2 py-1 rounded-full">
+                              <span className="text-xs text-yellow-400 font-medium bg-yellow-500/10 px-2 py-1 rounded-full">
                                 Modified
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600">{setting.description}</p>
+                          <p className="text-sm text-slate-400">{setting.description}</p>
                         </div>
                         
                         {renderSettingInput(section, setting)}
 
                         {setting.validation && (
-                          <div className="mt-2 text-xs text-gray-500">
+                          <div className="mt-2 text-xs text-slate-500">
                             {setting.validation.required && <span>Required • </span>}
                             {setting.validation.min !== undefined && <span>Min: {setting.validation.min} • </span>}
                             {setting.validation.max !== undefined && <span>Max: {setting.validation.max} • </span>}

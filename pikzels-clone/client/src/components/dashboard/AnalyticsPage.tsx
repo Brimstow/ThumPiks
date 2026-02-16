@@ -1,30 +1,189 @@
-import React from 'react';
-import { Image, CheckCircle2, Eye, Calendar, ChevronDown, Download, Lightbulb, ArrowUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Image, CheckCircle2, Eye, Calendar, ChevronDown, Download, Lightbulb, ArrowUp, RefreshCw, AlertCircle } from 'lucide-react';
+import { config } from '../../config/environment';
+
+// ============================================
+// TYPESCRIPT INTERFACES
+// ============================================
+
+interface AnalyticsData {
+  totals: {
+    thumbnails: number;
+    projects: number;
+    recentThumbnails: number;
+  };
+  trends: {
+    daily: Record<string, number>;
+  };
+  styles: Record<string, number>;
+  projects: Array<{
+    id: string;
+    name: string;
+    thumbnailCount: number;
+  }>;
+  hourlyDistribution: Record<string, number>;
+  dayOfWeekDistribution: Record<string, number>;
+}
+
+interface TopPerformer {
+  id: string;
+  title: string;
+  imageUrl: string;
+  performanceScore: number;
+  socialShares: number;
+  downloads: number;
+  edits: number;
+  daysActive: number;
+}
+
+interface StatCard {
+  id: number;
+  title: string;
+  value: string;
+  change: string;
+  icon: React.ComponentType<any>;
+  gradient: string;
+  shadowColor: string;
+}
+
+type TimeframeFilter = '7' | '30' | '90';
+type PlatformFilter = 'all' | 'youtube' | 'tiktok' | 'instagram' | 'twitter';
 
 const AnalyticsPage = () => {
-  const statCards = [
+  // ============================================
+  // STATE MANAGEMENT
+  // ============================================
+  
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filter states
+  const [timeframeFilter, setTimeframeFilter] = useState<TimeframeFilter>('30');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'score'>('date');
+  
+  // Auto-refresh state (premium feature)
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
+
+  // ============================================
+  // API INTEGRATION
+  // ============================================
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch dashboard analytics data
+      const analyticsResponse = await fetch(`${config.apiBaseUrl}/api/analytics/dashboard`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!analyticsResponse.ok) {
+        throw new Error('Failed to fetch analytics data');
+      }
+
+      const analyticsResult = await analyticsResponse.json();
+      setAnalyticsData(analyticsResult.userAnalytics);
+
+      // Fetch top performers
+      const performersResponse = await fetch(`${config.apiBaseUrl}/api/analytics/top-performers?limit=10`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (performersResponse.ok) {
+        const performersResult = await performersResponse.json();
+        setTopPerformers(performersResult.topPerformers || []);
+      }
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchAnalytics();
+  }, [timeframeFilter]);
+
+  // Auto-refresh effect (premium feature)
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      fetchAnalytics();
+    }, refreshInterval);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshInterval, timeframeFilter]);
+
+  // CSV Export handler
+  const handleExportCSV = async () => {
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/analytics/export/csv`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export CSV');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+      setError('Failed to export CSV');
+    }
+  };
+
+  // ============================================
+  // COMPUTED VALUES
+  // ============================================
+
+  const statCards: StatCard[] = analyticsData ? [
     {
       id: 1,
       title: 'Total Thumbnails',
-      value: '2,847',
-      change: '12%',
+      value: analyticsData.totals.thumbnails.toLocaleString(),
+      change: `${Math.round((analyticsData.totals.recentThumbnails / Math.max(analyticsData.totals.thumbnails, 1)) * 100)}%`,
       icon: Image,
       gradient: 'from-indigo-500 to-blue-600',
       shadowColor: 'blue-900/20',
     },
     {
       id: 2,
-      title: 'Avg CTR',
-      value: '6.2%',
-      change: '0.8%',
+      title: 'Active Projects',
+      value: analyticsData.totals.projects.toString(),
+      change: '5%',
       icon: CheckCircle2,
       gradient: 'from-emerald-500 to-teal-500',
       shadowColor: 'emerald-900/20',
     },
     {
       id: 3,
-      title: 'Total Views',
-      value: '124K',
+      title: 'Recent (30d)',
+      value: analyticsData.totals.recentThumbnails.toString(),
       change: '34%',
       icon: Eye,
       gradient: 'from-cyan-500 to-blue-500',
@@ -32,89 +191,83 @@ const AnalyticsPage = () => {
     },
     {
       id: 4,
-      title: 'Active This Month',
-      value: '892',
-      change: '5%',
+      title: 'Top Performer Score',
+      value: topPerformers[0]?.performanceScore.toFixed(1) || '0',
+      change: '12%',
       icon: Calendar,
       gradient: 'from-orange-500 to-amber-500',
       shadowColor: 'orange-900/20',
     },
-  ];
+  ] : [];
 
-  const topPerformers = [
-    {
-      id: 1,
-      image: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=200&auto=format&fit=crop',
-      title: 'Productivity Hacks 2024',
-      ctr: '8.4%',
-      views: '45K',
-      time: '2 days ago',
-      ctrColor: 'green',
-    },
-    {
-      id: 2,
-      image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=200&auto=format&fit=crop',
-      title: 'Coding ASMR Session',
-      ctr: '7.1%',
-      views: '12K',
-      time: '5 days ago',
-      ctrColor: 'green',
-    },
-    {
-      id: 3,
-      image: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=200&auto=format&fit=crop',
-      title: 'How to Learn React Fast',
-      ctr: '6.8%',
-      views: '89K',
-      time: '1 week ago',
-      ctrColor: 'green',
-    },
-    {
-      id: 4,
-      image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=200&auto=format&fit=crop',
-      title: 'Gaming Setup Tour',
-      ctr: '5.2%',
-      views: '102K',
-      time: '2 weeks ago',
-      ctrColor: 'yellow',
-    },
-  ];
+  // ============================================
+  // RENDER - LOADING STATE
+  // ============================================
 
-  const latestThumbnails = [
-    {
-      id: 1,
-      image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=100&auto=format&fit=crop',
-      title: 'Vlog #45 - Tokyo',
-      time: '2 hours ago',
-      status: 'High CTR',
-      statusColor: 'emerald',
-    },
-    {
-      id: 2,
-      image: 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?q=80&w=100&auto=format&fit=crop',
-      title: 'Tech Review 2024',
-      time: 'Yesterday',
-      status: 'Processing',
-      statusColor: 'blue',
-    },
-    {
-      id: 3,
-      image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=100&auto=format&fit=crop',
-      title: 'My Setup Tour',
-      time: '3 days ago',
-      status: 'Draft',
-      statusColor: 'yellow',
-    },
-    {
-      id: 4,
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=100&auto=format&fit=crop',
-      title: 'Hidden Features',
-      time: '4 days ago',
-      status: 'Posted',
-      statusColor: 'slate',
-    },
-  ];
+  if (loading && !analyticsData) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <RefreshCw className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+            <p className="text-slate-400 text-lg">Loading analytics data...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
+  // ============================================
+  // RENDER - ERROR STATE
+  // ============================================
+
+  if (error && !analyticsData) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <p className="text-slate-300 text-lg mb-2">Failed to load analytics</p>
+            <p className="text-slate-500 text-sm mb-4">{error}</p>
+            <button
+              onClick={fetchAnalytics}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ============================================
+  // RENDER - EMPTY STATE
+  // ============================================
+
+  if (analyticsData && analyticsData.totals.thumbnails === 0) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-10">
+          <h1 className="text-3xl sm:text-4xl font-semibold text-slate-50 tracking-tight">Analytics Overview</h1>
+          <p className="text-lg text-slate-400 mt-2 font-medium">Track your thumbnail performance and insights</p>
+        </div>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <Image className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+            <p className="text-slate-300 text-lg mb-2">No analytics data yet</p>
+            <p className="text-slate-500 text-sm">Create some thumbnails to see your analytics here</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ============================================
+  // RENDER - MAIN CONTENT
+  // ============================================
+
+  // Keep AI insights as hardcoded for now (will be computed from data in future)
   const aiInsights = [
     { text: 'Neon thumbnails get ', highlight: '34% more clicks', suffix: ' in your niche compared to pastel colors.' },
     { text: 'Your best upload time is ', highlight: 'Tuesday at 3PM EST', suffix: '. Try scheduling your next video then.' },
@@ -157,20 +310,71 @@ const AnalyticsPage = () => {
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors">
-            Last 30 Days
-            <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors">
-            All Platforms
-            <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors">
-            Sort by Date
-            <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
+          {/* Timeframe Filter */}
+          <div className="relative group">
+            <button 
+              onClick={() => {
+                // Cycle through timeframes
+                const timeframes: TimeframeFilter[] = ['7', '30', '90'];
+                const currentIndex = timeframes.indexOf(timeframeFilter);
+                const nextIndex = (currentIndex + 1) % timeframes.length;
+                setTimeframeFilter(timeframes[nextIndex]);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors"
+            >
+              Last {timeframeFilter} Days
+              <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
+            </button>
+          </div>
+
+          {/* Platform Filter */}
+          <div className="relative group">
+            <button 
+              onClick={() => {
+                // Cycle through platforms
+                const platforms: PlatformFilter[] = ['all', 'youtube', 'tiktok', 'instagram', 'twitter'];
+                const currentIndex = platforms.indexOf(platformFilter);
+                const nextIndex = (currentIndex + 1) % platforms.length;
+                setPlatformFilter(platforms[nextIndex]);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors"
+            >
+              {platformFilter === 'all' ? 'All Platforms' : platformFilter.charAt(0).toUpperCase() + platformFilter.slice(1)}
+              <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
+            </button>
+          </div>
+
+          {/* Sort Filter */}
+          <div className="relative group">
+            <button 
+              onClick={() => setSortBy(sortBy === 'date' ? 'score' : 'date')}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-colors"
+            >
+              Sort by {sortBy === 'date' ? 'Date' : 'Score'}
+              <ChevronDown className="w-4 h-4 ml-1 opacity-70" />
+            </button>
+          </div>
+
+          {/* Auto-Refresh Toggle (Premium Feature) */}
+          <button 
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              autoRefresh 
+                ? 'bg-blue-600 border-blue-500 text-white' 
+                : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+            Auto-Refresh
           </button>
         </div>
-        <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50 hover:brightness-110 transition-all w-full sm:w-auto justify-center">
+
+        {/* Export CSV Button */}
+        <button 
+          onClick={handleExportCSV}
+          disabled={loading}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50 hover:brightness-110 transition-all w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Download className="w-4 h-4" />
           Export Report
         </button>
@@ -257,34 +461,44 @@ const AnalyticsPage = () => {
         <div className="lg:col-span-2 bg-[#020818] border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/20 ring-1 ring-white/5 flex flex-col">
           <h3 className="text-base font-semibold text-slate-50 tracking-tight mb-5">Best Performing Thumbnails</h3>
 
-          <div className="flex flex-col gap-4 overflow-y-auto">
-            {topPerformers.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-900/50 transition-colors group cursor-pointer"
-              >
-                <div className="h-12 w-12 rounded-md bg-slate-800 shrink-0 overflow-hidden relative">
-                  <img
-                    src={item.image}
-                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                    alt="Thumbnail"
-                  />
+          {topPerformers.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+              No performance data yet
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 overflow-y-auto">
+              {topPerformers.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-900/50 transition-colors group cursor-pointer"
+                >
+                  <div className="h-12 w-12 rounded-md bg-slate-800 shrink-0 overflow-hidden relative">
+                    <img
+                      src={item.imageUrl}
+                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                      alt="Thumbnail"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-medium text-slate-200 truncate group-hover:text-blue-400 transition-colors">
+                      {item.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {item.daysActive} {item.daysActive === 1 ? 'day' : 'days'} active
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">
+                      {item.performanceScore.toFixed(1)} score
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {item.socialShares} shares
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-slate-200 truncate group-hover:text-blue-400 transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{item.time}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${item.ctrColor === 'green' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                    {item.ctr} CTR
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono">{item.views} views</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -380,29 +594,37 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        {/* Latest Thumbnails Card */}
+        {/* Latest Projects Card */}
         <div className="bg-[#020818] border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/20 ring-1 ring-white/5 flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-base font-semibold text-slate-50 tracking-tight">Latest Thumbnails</h3>
+            <h3 className="text-base font-semibold text-slate-50 tracking-tight">Recent Projects</h3>
             <button className="text-xs font-medium text-slate-400 hover:text-white">View All</button>
           </div>
 
-          <div className="space-y-4">
-            {latestThumbnails.map((item) => (
-              <div key={item.id} className="flex items-center gap-3">
-                <div className="h-8 w-12 bg-slate-800 rounded overflow-hidden">
-                  <img src={item.image} className="w-full h-full object-cover" alt="Thumbnail" />
+          {analyticsData && analyticsData.projects.length > 0 ? (
+            <div className="space-y-4">
+              {analyticsData.projects.slice(0, 4).map((project) => (
+                <div key={project.id} className="flex items-center gap-3">
+                  <div className="h-8 w-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded flex items-center justify-center text-white text-xs font-bold">
+                    {project.thumbnailCount}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-slate-200 truncate w-32">{project.name}</p>
+                    <p className="text-[10px] text-slate-500">
+                      {project.thumbnailCount} thumbnail{project.thumbnailCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                    Active
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-slate-200 truncate w-32">{item.title}</p>
-                  <p className="text-[10px] text-slate-500">{item.time}</p>
-                </div>
-                <span className={`text-[10px] font-mono text-${item.statusColor}-400 bg-${item.statusColor}-500/10 px-1.5 py-0.5 rounded`}>
-                  {item.status}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+              No projects yet
+            </div>
+          )}
         </div>
       </div>
 

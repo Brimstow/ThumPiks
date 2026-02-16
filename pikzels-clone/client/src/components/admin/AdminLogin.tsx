@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Eye, EyeOff, AlertCircle, Sparkles, Zap } from 'lucide-react';
+import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { adminAuthService } from '../../services/admin';
 
 interface LoginFormData {
   email: string;
@@ -15,22 +16,7 @@ const AdminLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, delay: number}>>([]);
   const navigate = useNavigate();
-
-  // Generate floating particles for background animation
-  useEffect(() => {
-    const generateParticles = () => {
-      const newParticles = Array.from({ length: 15 }, (_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        delay: Math.random() * 5
-      }));
-      setParticles(newParticles);
-    };
-    generateParticles();
-  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -47,26 +33,14 @@ const AdminLogin: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/admin/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+      const result = await adminAuthService.login(formData.email, formData.password);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
+      if (!result.success) {
+        throw new Error(result.error || 'Login failed');
       }
 
-      const data = await response.json();
-      
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminUser', JSON.stringify(data.admin || data.user));
-      
+      // Token and user are stored by adminAuthService.login()
       navigate('/admin', { replace: true });
-      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login');
     } finally {
@@ -75,76 +49,36 @@ const AdminLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex items-center justify-center px-4">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        {/* Dynamic Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-600/20 animate-pulse"></div>
-        
-        {/* Floating Particles */}
-        {particles.map((particle) => (
-          <div
-            key={particle.id}
-            className="absolute w-2 h-2 bg-white/30 rounded-full animate-bounce"
-            style={{
-              left: `${particle.x}%`,
-              top: `${particle.y}%`,
-              animationDelay: `${particle.delay}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          />
-        ))}
-        
-        {/* Geometric Shapes */}
-        <div className="absolute top-20 left-10 w-32 h-32 bg-blue-500/10 rounded-full blur-xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-24 h-24 bg-purple-500/10 rounded-full blur-xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-pink-500/10 rounded-full blur-xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-      </div>
+    <div className="min-h-screen bg-[#020817] flex items-center justify-center px-4">
       
-      <div className="max-w-md w-full space-y-8 relative z-10">
+      <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto h-20 w-20 relative">
-            {/* Animated Icon Container */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-3xl animate-pulse shadow-2xl">
-            </div>
-            <div className="relative h-full w-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl hover:scale-110 transition-transform duration-300">
-              <Zap className="h-10 w-10 text-white animate-pulse" />
-            </div>
-            {/* Sparkle Effects */}
-            <Sparkles className="absolute -top-2 -right-2 h-6 w-6 text-yellow-400 animate-spin" style={{ animationDuration: '3s' }} />
-            <Sparkles className="absolute -bottom-1 -left-1 h-4 w-4 text-blue-300 animate-ping" />
+          <div className="mx-auto h-16 w-16 bg-[#2563ff] rounded-2xl flex items-center justify-center">
+            <Shield className="h-8 w-8 text-white" />
           </div>
-          <h2 className="mt-8 text-4xl font-black text-transparent bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text">
+          <h2 className="mt-6 text-3xl font-bold text-slate-50">
             Admin Portal
           </h2>
-          <p className="mt-3 text-lg text-blue-100 font-medium">
-            ✨ Sign in to access your powerful dashboard
+          <p className="mt-2 text-slate-400">
+            Sign in to access the dashboard
           </p>
         </div>
 
-        {/* Glass-morphism Login Card */}
-        <div className="relative">
-          {/* Card Background with Glass Effect */}
-          <div className="absolute inset-0 bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl"></div>
-          
-          {/* Inner Glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-3xl"></div>
-          
-          <div className="relative py-10 px-8 rounded-3xl">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-500/10 backdrop-blur-sm border border-red-400/30 rounded-2xl p-4 flex items-start space-x-3 animate-in slide-in-from-top-2 duration-300">
-                <AlertCircle className="h-5 w-5 text-red-300 flex-shrink-0 mt-0.5 animate-pulse" />
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start space-x-3">
+                <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-bold text-red-200">Login Failed</h3>
-                  <p className="text-sm text-red-100 mt-1">{error}</p>
+                  <h3 className="text-sm font-medium text-red-300">Login Failed</h3>
+                  <p className="text-sm text-red-400 mt-1">{error}</p>
                 </div>
               </div>
             )}
 
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-bold text-white/90">
-                ✉️ Email Address
+              <label htmlFor="email" className="block text-sm font-medium text-slate-400">
+                Email Address
               </label>
               <div className="relative group">
                 <input
@@ -155,16 +89,15 @@ const AdminLogin: React.FC = () => {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="appearance-none block w-full px-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl placeholder-white/60 text-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300 hover:bg-white/20 group-hover:shadow-lg"
+                  className="appearance-none block w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-lg placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-[#2563ff] focus:border-transparent transition-colors"
                   placeholder="Enter your admin email"
                 />
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-bold text-white/90">
-                🔒 Password
+              <label htmlFor="password" className="block text-sm font-medium text-slate-400">
+                Password
               </label>
               <div className="relative group">
                 <input
@@ -175,7 +108,7 @@ const AdminLogin: React.FC = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="appearance-none block w-full px-4 py-4 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl placeholder-white/60 text-white focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-300 hover:bg-white/20 group-hover:shadow-lg"
+                  className="appearance-none block w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-lg placeholder-slate-500 text-white focus:outline-none focus:ring-2 focus:ring-[#2563ff] focus:border-transparent transition-colors"
                   placeholder="Enter your password"
                 />
                 <button
@@ -189,7 +122,6 @@ const AdminLogin: React.FC = () => {
                     <Eye className="h-5 w-5 text-white/60 hover:text-white group-hover/btn:scale-110 transition-all duration-200" />
                   )}
                 </button>
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             </div>
 
@@ -197,38 +129,25 @@ const AdminLogin: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-4 px-6 border-0 text-lg font-black rounded-2xl text-white bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-2xl active:scale-95 overflow-hidden"
+                className="w-full flex justify-center py-3 px-6 text-base font-medium rounded-lg text-white bg-[#2563ff] hover:bg-[#1d4fff] focus:outline-none focus:ring-2 focus:ring-[#2563ff] focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {/* Button Background Animation */}
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                
-                <div className="relative flex items-center gap-3">
-                  {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
-                      <span className="animate-pulse">Signing in...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-5 w-5 group-hover:animate-pulse" />
-                      <span>Sign in to Admin Portal</span>
-                      <Sparkles className="h-4 w-4 group-hover:animate-spin" />
-                    </>
-                  )}
-                </div>
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    <span>Signing in...</span>
+                  </div>
+                ) : (
+                  <span>Sign in</span>
+                )}
               </button>
             </div>
           </form>
 
-          <div className="mt-6 p-5 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10">
-            <h4 className="text-sm font-bold text-white/90 mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-yellow-400" />
-              Demo Credentials
-            </h4>
-            <div className="text-sm text-white/80 space-y-2">
-              <p><strong className="text-blue-300">Email:</strong> admin@example.com</p>
-              <p><strong className="text-purple-300">Password:</strong> AdminPass123!</p>
+          <div className="mt-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+            <h4 className="text-sm font-medium text-slate-300 mb-2">Demo Credentials</h4>
+            <div className="text-sm text-slate-400 space-y-1">
+              <p><span className="text-slate-300">Email:</span> admin@example.com</p>
+              <p><span className="text-slate-300">Password:</span> AdminPass123!</p>
             </div>
             <button
               type="button"
@@ -238,18 +157,16 @@ const AdminLogin: React.FC = () => {
                   password: 'AdminPass123!'
                 });
               }}
-              className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
+              className="mt-3 px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 transition-colors"
             >
-              <Zap className="h-3 w-3" />
               Auto-fill Demo Credentials
             </button>
           </div>
-          </div>
         </div>
 
-        <div className="text-center animate-pulse">
-          <p className="text-sm text-white/60 font-medium">
-            🔐 Authorized personnel only • All access is monitored
+        <div className="text-center">
+          <p className="text-sm text-slate-500">
+            Authorized personnel only
           </p>
         </div>
       </div>

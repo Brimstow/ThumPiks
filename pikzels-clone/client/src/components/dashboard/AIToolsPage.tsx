@@ -4,12 +4,12 @@
  */
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { 
-  Sparkles, 
-  Wand2, 
-  Eraser, 
-  Users, 
-  Zap, 
+import {
+  Sparkles,
+  Wand2,
+  Eraser,
+  Users,
+  Zap,
   Image as ImageIcon,
   ArrowRight,
   Upload,
@@ -18,18 +18,26 @@ import {
   Check,
   AlertCircle,
   Maximize2,
-  X
+  X,
 } from 'lucide-react';
 import { useAIService } from '../../hooks/useAIService';
 import { useAIWorker } from '../../hooks/useAIWorker';
 import { config } from '../../config/environment';
 import type { AIGenerateRequest } from '../../services/ai-providers';
+import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
+import type { ModelTierId } from '../../features/ai-tools';
 
 // ============================================
 // TYPES
 // ============================================
 
-type AIToolId = 'generate' | 'inpaint' | 'remove-bg' | 'face-swap' | 'enhance' | 'upscale';
+type AIToolId =
+  | 'generate'
+  | 'inpaint'
+  | 'remove-bg'
+  | 'face-swap'
+  | 'enhance'
+  | 'upscale';
 
 interface AITool {
   id: AIToolId;
@@ -55,7 +63,10 @@ const stylePresets = [
   { id: 'gaming', label: 'Gaming', icon: '🎮' },
 ];
 
-const aspectRatios: { value: AIGenerateRequest['aspectRatio']; label: string }[] = [
+const aspectRatios: {
+  value: AIGenerateRequest['aspectRatio'];
+  label: string;
+}[] = [
   { value: '16:9', label: '16:9 (YouTube)' },
   { value: '9:16', label: '9:16 (Shorts/Reels)' },
   { value: '1:1', label: '1:1 (Square)' },
@@ -69,31 +80,39 @@ const aspectRatios: { value: AIGenerateRequest['aspectRatio']; label: string }[]
 const AIToolsPage: React.FC = () => {
   // Use Web Worker if available, fallback to main thread
   const worker = useAIWorker();
-  
+
+  // Fetch tier config from backend (single source of truth)
+  const modelTiers = useModelTiers();
+
   // Memoize config to prevent infinite re-render loop in useAIService
-  const aiServiceConfig = useMemo(() => ({
-    config: {
-      providers: {
-        tensorflow: {},
-        replicate: {
-          apiKey: config.ai.replicateApiKey || '', // Falls back to mock provider if empty
+  const aiServiceConfig = useMemo(
+    () => ({
+      config: {
+        providers: {
+          tensorflow: {},
+          replicate: {
+            apiKey: config.ai.replicateApiKey || '', // Falls back to mock provider if empty
+          },
         },
       },
-    },
-    autoInitialize: !worker.isReady, // Only initialize if worker not available
-  }), [worker.isReady]);
-  
+      autoInitialize: !worker.isReady, // Only initialize if worker not available
+    }),
+    [worker.isReady]
+  );
+
   // Fallback AI Service (main thread) for browsers without worker support
   const aiService = useAIService(aiServiceConfig);
-  
+
   // Use worker if available, otherwise fallback to aiService
-  const ai = worker.isReady ? {
-    isLoading: worker.isProcessing,
-    error: null,
-    isInitializing: false,
-    isReady: worker.isReady,
-  } : aiService;
-  
+  const ai = worker.isReady
+    ? {
+        isLoading: worker.isProcessing,
+        error: null,
+        isInitializing: false,
+        isReady: worker.isReady,
+      }
+    : aiService;
+
   // State
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -101,15 +120,22 @@ const AIToolsPage: React.FC = () => {
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [style, setStyle] = useState('cinematic');
-  const [aspectRatio, setAspectRatio] = useState<AIGenerateRequest['aspectRatio']>('16:9');
-  const [enhanceType, setEnhanceType] = useState<'auto' | 'sharpen' | 'denoise' | 'color'>('auto');
+  const [aspectRatio, setAspectRatio] =
+    useState<AIGenerateRequest['aspectRatio']>('16:9');
+  const [enhanceType, setEnhanceType] = useState<
+    'auto' | 'sharpen' | 'denoise' | 'color'
+  >('auto');
   const [upscaleScale, setUpscaleScale] = useState<2 | 4>(2);
   const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isFaceDragging, setIsFaceDragging] = useState(false);
-  
+
+  // Model tier selection ("Intel Inside" pattern)
+  // Default to 'standard' — will be validated against fetched config
+  const [selectedTier, setSelectedTier] = useState<ModelTierId>('standard');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faceInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,30 +144,48 @@ const AIToolsPage: React.FC = () => {
     {
       id: 'generate',
       name: 'AI Image Generation',
-      description: 'Create stunning images from text descriptions using advanced AI models',
+      description:
+        'Create stunning images from text descriptions using advanced AI models',
       icon: <Sparkles className="w-6 h-6" />,
       color: 'from-purple-500 to-pink-500',
-      features: ['Text-to-image', 'Style presets', 'High resolution', 'Multiple variants'],
+      features: [
+        'Text-to-image',
+        'Style presets',
+        'High resolution',
+        'Multiple variants',
+      ],
       requiresImage: false,
       apiCost: '~$0.003/image',
     },
     {
       id: 'inpaint',
       name: 'AI Inpainting',
-      description: 'Intelligently edit parts of your images by describing what you want',
+      description:
+        'Intelligently edit parts of your images by describing what you want',
       icon: <Wand2 className="w-6 h-6" />,
       color: 'from-blue-500 to-cyan-500',
-      features: ['Smart editing', 'Context-aware', 'Natural blending', 'Precise control'],
+      features: [
+        'Smart editing',
+        'Context-aware',
+        'Natural blending',
+        'Precise control',
+      ],
       requiresImage: true,
       apiCost: '~$0.003/edit',
     },
     {
       id: 'remove-bg',
       name: 'Background Removal',
-      description: 'Automatically remove backgrounds from images with AI precision',
+      description:
+        'Automatically remove backgrounds from images with AI precision',
       icon: <Eraser className="w-6 h-6" />,
       color: 'from-green-500 to-emerald-500',
-      features: ['One-click removal', 'Edge detection', 'Transparent output', 'Batch processing'],
+      features: [
+        'One-click removal',
+        'Edge detection',
+        'Transparent output',
+        'Batch processing',
+      ],
       requiresImage: true,
       apiCost: 'Free (local)',
     },
@@ -151,7 +195,12 @@ const AIToolsPage: React.FC = () => {
       description: 'Seamlessly swap faces in images using AI face detection',
       icon: <Users className="w-6 h-6" />,
       color: 'from-orange-500 to-red-500',
-      features: ['Face detection', 'Natural blending', 'Multiple faces', 'Quick swap'],
+      features: [
+        'Face detection',
+        'Natural blending',
+        'Multiple faces',
+        'Quick swap',
+      ],
       requiresImage: true,
       apiCost: '~$0.002/swap',
     },
@@ -168,38 +217,50 @@ const AIToolsPage: React.FC = () => {
     {
       id: 'upscale',
       name: 'AI Upscaling',
-      description: 'Increase image resolution while maintaining quality using AI',
+      description:
+        'Increase image resolution while maintaining quality using AI',
       icon: <Maximize2 className="w-6 h-6" />,
       color: 'from-indigo-500 to-purple-500',
-      features: ['2x/4x upscale', 'Detail preservation', 'Smart interpolation', 'Batch support'],
+      features: [
+        '2x/4x upscale',
+        'Detail preservation',
+        'Smart interpolation',
+        'Batch support',
+      ],
       requiresImage: true,
       apiCost: '~$0.0015/image',
     },
   ];
 
   // Handlers
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setUploadedImage(event.target?.result as string);
-      setResultImage(null);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-  
-  const handleFaceUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setFaceSwapSource(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+  const handleImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = event => {
+        setUploadedImage(event.target?.result as string);
+        setResultImage(null);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+
+  const handleFaceUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = event => {
+        setFaceSwapSource(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
 
   // Drag and drop handlers for main image upload
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -218,12 +279,12 @@ const AIToolsPage: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
+
     const file = e.dataTransfer.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
-    
+
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = event => {
       setUploadedImage(event.target?.result as string);
       setResultImage(null);
     };
@@ -247,12 +308,12 @@ const AIToolsPage: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsFaceDragging(false);
-    
+
     const file = e.dataTransfer.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
-    
+
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = event => {
       setFaceSwapSource(event.target?.result as string);
     };
     reader.readAsDataURL(file);
@@ -260,76 +321,91 @@ const AIToolsPage: React.FC = () => {
 
   const handleGenerate = useCallback(async () => {
     if (!generatePrompt.trim() || ai.isLoading || isGenerating) return;
-    
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
+      // Resolve the model from the selected quality tier (backend-driven)
+      const resolvedModel = modelTiers.resolveModel('generate', selectedTier);
+
       // Call backend API endpoint with cookies for authentication
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/generate`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: generatePrompt,
-          style,
-          projectId: 'temp-project-id', // TODO: Get actual project ID from context
-        }),
-      });
-      
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/generate`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prompt: generatePrompt,
+            style,
+            tier: selectedTier,
+            ...(resolvedModel ? { model: resolvedModel } : {}),
+            projectId: 'temp-project-id', // TODO: Get actual project ID from context
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to generate image');
       }
-      
+
       const data = await response.json();
-      
+
       // Backend returns array of thumbnails, use the first one
       if (data.thumbnails && data.thumbnails.length > 0) {
         setResultImage(data.thumbnails[0].imageUrl);
       }
     } catch (error) {
       console.error('Generate failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Failed to generate image');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Failed to generate image'
+      );
     } finally {
       setIsGenerating(false);
     }
-  }, [generatePrompt, style, ai.isLoading, isGenerating]);
+  }, [generatePrompt, style, selectedTier, ai.isLoading, isGenerating]);
 
   const handleRemoveBackground = useCallback(async () => {
     if (!uploadedImage || ai.isLoading || isGenerating) return;
-    
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/remove-background`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Send HttpOnly cookies for auth
-        body: JSON.stringify({
-          image: uploadedImage,
-          backgroundColor: 'transparent',
-        }),
-      });
-      
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/ai/remove-background`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Send HttpOnly cookies for auth
+          body: JSON.stringify({
+            image: uploadedImage,
+            backgroundColor: 'transparent',
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to remove background');
       }
-      
+
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Remove background failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Remove background failed');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Remove background failed'
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -337,36 +413,41 @@ const AIToolsPage: React.FC = () => {
 
   const handleEnhance = useCallback(async () => {
     if (!uploadedImage || ai.isLoading || isGenerating) return;
-    
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/enhance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Send HttpOnly cookies for auth
-        body: JSON.stringify({
-          image: uploadedImage,
-          enhancementType: enhanceType,
-        }),
-      });
-      
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/ai/enhance`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Send HttpOnly cookies for auth
+          body: JSON.stringify({
+            image: uploadedImage,
+            enhancementType: enhanceType,
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to enhance image');
       }
-      
+
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Enhance failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Enhance failed');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Enhance failed'
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -374,119 +455,151 @@ const AIToolsPage: React.FC = () => {
 
   const handleUpscale = useCallback(async () => {
     if (!uploadedImage || ai.isLoading || isGenerating) return;
-    
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
-      // Call backend OpenRouter API (FLUX.2 Max model, auth via HttpOnly cookie)
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/upscale`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Send HttpOnly cookies for auth
-        body: JSON.stringify({
-          image: uploadedImage,
-          scale: upscaleScale === 2 ? '2x' : '4x',
-        }),
-      });
-      
+      // Resolve the model from the selected quality tier (backend-driven)
+      const resolvedModel = modelTiers.resolveModel('upscale', selectedTier);
+
+      // Call backend OpenRouter API (auth via HttpOnly cookie)
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/ai/upscale`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Send HttpOnly cookies for auth
+          body: JSON.stringify({
+            image: uploadedImage,
+            scale: upscaleScale === 2 ? '2x' : '4x',
+            tier: selectedTier,
+            ...(resolvedModel ? { model: resolvedModel } : {}),
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to upscale image');
       }
-      
+
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Upscale failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Upscale failed');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Upscale failed'
+      );
     } finally {
       setIsGenerating(false);
     }
-  }, [uploadedImage, upscaleScale, ai.isLoading, isGenerating]);
+  }, [uploadedImage, upscaleScale, selectedTier, ai.isLoading, isGenerating]);
 
   const handleFaceSwap = useCallback(async () => {
-    if (!uploadedImage || !faceSwapSource || ai.isLoading || isGenerating) return;
-    
+    if (!uploadedImage || !faceSwapSource || ai.isLoading || isGenerating)
+      return;
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
-      // Call backend OpenRouter API (ByteDance Seedream 4.5 model, auth via HttpOnly cookie)
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/face-swap`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Send HttpOnly cookies for auth
-        body: JSON.stringify({
-          sourceImage: faceSwapSource,
-          targetImage: uploadedImage,
-        }),
-      });
-      
+      // Resolve the model from the selected quality tier (backend-driven)
+      const resolvedModel = modelTiers.resolveModel('face-swap', selectedTier);
+
+      // Call backend OpenRouter API (auth via HttpOnly cookie)
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/ai/face-swap`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Send HttpOnly cookies for auth
+          body: JSON.stringify({
+            sourceImage: faceSwapSource,
+            targetImage: uploadedImage,
+            tier: selectedTier,
+            ...(resolvedModel ? { model: resolvedModel } : {}),
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to swap faces');
       }
-      
+
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Face swap failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Face swap failed');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Face swap failed'
+      );
     } finally {
       setIsGenerating(false);
     }
-  }, [uploadedImage, faceSwapSource, ai.isLoading, isGenerating]);
+  }, [uploadedImage, faceSwapSource, selectedTier, ai.isLoading, isGenerating]);
 
   const handleInpaint = useCallback(async () => {
-    if (!uploadedImage || !inpaintPrompt.trim() || ai.isLoading || isGenerating) return;
-    
+    if (!uploadedImage || !inpaintPrompt.trim() || ai.isLoading || isGenerating)
+      return;
+
     setIsGenerating(true);
     setGenerateError(null);
-    
+
     try {
-      // Call backend OpenRouter API (Gemini 3 Pro model, auth via HttpOnly cookie)
-      const response = await fetch(`${config.apiBaseUrl}/api/thumbnails/ai/inpaint`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Send HttpOnly cookies for auth
-        body: JSON.stringify({
-          image: uploadedImage,
-          mask: '', // For now, we use prompt-only inpainting
-          prompt: inpaintPrompt,
-        }),
-      });
-      
+      // Resolve the model from the selected quality tier (backend-driven)
+      const resolvedModel = modelTiers.resolveModel('inpaint', selectedTier);
+
+      // Call backend OpenRouter API (auth via HttpOnly cookie)
+      const response = await fetch(
+        `${config.apiBaseUrl}/api/thumbnails/ai/inpaint`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Send HttpOnly cookies for auth
+          body: JSON.stringify({
+            image: uploadedImage,
+            mask: '', // For now, we use prompt-only inpainting
+            prompt: inpaintPrompt,
+            tier: selectedTier,
+            ...(resolvedModel ? { model: resolvedModel } : {}),
+          }),
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to inpaint image');
       }
-      
+
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Inpaint failed:', error);
-      setGenerateError(error instanceof Error ? error.message : 'Inpaint failed');
+      setGenerateError(
+        error instanceof Error ? error.message : 'Inpaint failed'
+      );
     } finally {
       setIsGenerating(false);
     }
-  }, [uploadedImage, inpaintPrompt, ai.isLoading, isGenerating]);
+  }, [uploadedImage, inpaintPrompt, selectedTier, ai.isLoading, isGenerating]);
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return;
-    
+
     const link = document.createElement('a');
     link.href = resultImage;
     link.download = `ai-${selectedTool}-${Date.now()}.png`;
@@ -516,7 +629,15 @@ const AIToolsPage: React.FC = () => {
       default:
         break;
     }
-  }, [selectedTool, handleGenerate, handleInpaint, handleRemoveBackground, handleEnhance, handleUpscale, handleFaceSwap]);
+  }, [
+    selectedTool,
+    handleGenerate,
+    handleInpaint,
+    handleRemoveBackground,
+    handleEnhance,
+    handleUpscale,
+    handleFaceSwap,
+  ]);
 
   const currentTool = aiTools.find(t => t.id === selectedTool);
 
@@ -545,20 +666,24 @@ const AIToolsPage: React.FC = () => {
       {/* Tool Selection Grid */}
       {!selectedTool && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {aiTools.map((tool) => (
+          {aiTools.map(tool => (
             <div
               key={tool.id}
               className="group relative bg-slate-900/50 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 cursor-pointer overflow-hidden"
               onClick={() => setSelectedTool(tool.id)}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && setSelectedTool(tool.id)}
+              onKeyDown={e => e.key === 'Enter' && setSelectedTool(tool.id)}
             >
               {/* Gradient background effect - z-0 keeps it behind content */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${tool.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300 pointer-events-none z-0`} />
-              
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${tool.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300 pointer-events-none z-0`}
+              />
+
               {/* Icon - z-10 ensures it's above the overlay */}
-              <div className={`relative z-10 w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} p-3 mb-4 shadow-lg shadow-black/20 flex items-center justify-center text-white`}>
+              <div
+                className={`relative z-10 w-14 h-14 rounded-xl bg-gradient-to-br ${tool.color} p-3 mb-4 shadow-lg shadow-black/20 flex items-center justify-center text-white`}
+              >
                 {tool.icon}
               </div>
 
@@ -573,8 +698,13 @@ const AIToolsPage: React.FC = () => {
               {/* Features */}
               <div className="relative z-10 space-y-2 mb-4">
                 {tool.features.slice(0, 3).map((feature, idx) => (
-                  <div key={idx} className="flex items-center text-xs text-slate-500">
-                    <div className={`w-1 h-1 rounded-full bg-gradient-to-r ${tool.color} mr-2`} />
+                  <div
+                    key={idx}
+                    className="flex items-center text-xs text-slate-500"
+                  >
+                    <div
+                      className={`w-1 h-1 rounded-full bg-gradient-to-r ${tool.color} mr-2`}
+                    />
                     {feature}
                   </div>
                 ))}
@@ -599,15 +729,21 @@ const AIToolsPage: React.FC = () => {
           {/* Tool Header */}
           <div className="flex items-center justify-between p-6 border-b border-slate-800">
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${currentTool.color} p-2.5 flex items-center justify-center text-white`}>
+              <div
+                className={`w-12 h-12 rounded-xl bg-gradient-to-br ${currentTool.color} p-2.5 flex items-center justify-center text-white`}
+              >
                 {currentTool.icon}
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-white">{currentTool.name}</h2>
-                <p className="text-sm text-slate-400">{currentTool.description}</p>
+                <h2 className="text-xl font-semibold text-white">
+                  {currentTool.name}
+                </h2>
+                <p className="text-sm text-slate-400">
+                  {currentTool.description}
+                </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => {
                 setSelectedTool(null);
                 setUploadedImage(null);
@@ -616,6 +752,7 @@ const AIToolsPage: React.FC = () => {
                 setGeneratePrompt('');
                 setInpaintPrompt('');
                 setGenerateError(null);
+                setSelectedTier('standard');
               }}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
@@ -634,7 +771,11 @@ const AIToolsPage: React.FC = () => {
                   </label>
                   {uploadedImage ? (
                     <div className="relative aspect-video bg-slate-800 rounded-xl overflow-hidden">
-                      <img src={uploadedImage} alt="Uploaded" className="w-full h-full object-contain" />
+                      <img
+                        src={uploadedImage}
+                        alt="Uploaded"
+                        className="w-full h-full object-contain"
+                      />
                       <button
                         onClick={() => {
                           setUploadedImage(null);
@@ -652,16 +793,24 @@ const AIToolsPage: React.FC = () => {
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       className={`w-full aspect-video bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
-                        isDragging 
-                          ? 'border-blue-500 bg-blue-500/10' 
+                        isDragging
+                          ? 'border-blue-500 bg-blue-500/10'
                           : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/70'
                       }`}
                     >
-                      <Upload className={`w-10 h-10 pointer-events-none ${isDragging ? 'text-blue-400' : 'text-slate-500'}`} />
-                      <span className={`text-sm pointer-events-none ${isDragging ? 'text-blue-300' : 'text-slate-400'}`}>
-                        {isDragging ? 'Drop your image here' : 'Click to upload or drag and drop'}
+                      <Upload
+                        className={`w-10 h-10 pointer-events-none ${isDragging ? 'text-blue-400' : 'text-slate-500'}`}
+                      />
+                      <span
+                        className={`text-sm pointer-events-none ${isDragging ? 'text-blue-300' : 'text-slate-400'}`}
+                      >
+                        {isDragging
+                          ? 'Drop your image here'
+                          : 'Click to upload or drag and drop'}
                       </span>
-                      <span className="text-xs text-slate-500 pointer-events-none">PNG, JPG up to 10MB</span>
+                      <span className="text-xs text-slate-500 pointer-events-none">
+                        PNG, JPG up to 10MB
+                      </span>
                     </div>
                   )}
                   <input
@@ -674,58 +823,30 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Generate Tool Options */}
+              {/* Generate Tool Options — only prompt stays on left */}
               {selectedTool === 'generate' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      Describe Your Image
-                    </label>
-                    <textarea
-                      value={generatePrompt}
-                      onChange={(e) => setGeneratePrompt(e.target.value)}
-                      placeholder="A futuristic cityscape at sunset with flying cars..."
-                      className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      Style
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {stylePresets.map((preset) => (
-                        <button
-                          key={preset.id}
-                          onClick={() => setStyle(preset.id)}
-                          className={`p-3 rounded-xl border text-sm transition-all ${
-                            style === preset.id
-                              ? 'bg-blue-500/20 border-blue-500 text-blue-400'
-                              : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                          }`}
-                        >
-                          <span className="text-lg mb-1">{preset.icon}</span>
-                          <span className="block text-xs mt-1">{preset.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      Aspect Ratio
-                    </label>
-                    <select
-                      value={aspectRatio}
-                      onChange={(e) => setAspectRatio(e.target.value as AIGenerateRequest['aspectRatio'])}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                    >
-                      {aspectRatios.map((ar) => (
-                        <option key={ar.value} value={ar.value}>{ar.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-3">
+                    Describe Your Image
+                  </label>
+                  <textarea
+                    value={generatePrompt}
+                    onChange={e => setGeneratePrompt(e.target.value)}
+                    placeholder="A futuristic cityscape at sunset with flying cars..."
+                    className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Model Tier Selector — shown for all tiered tools */}
+              {selectedTool && modelTiers.isTiered(selectedTool) && (
+                <ModelTierSelector
+                  toolId={selectedTool}
+                  tierConfig={modelTiers.getConfig(selectedTool)}
+                  selectedTierId={selectedTier}
+                  onTierChange={setSelectedTier}
+                  disabled={ai.isLoading || isGenerating}
+                />
               )}
 
               {/* Enhance Tool Options */}
@@ -735,22 +856,24 @@ const AIToolsPage: React.FC = () => {
                     Enhancement Type
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['auto', 'sharpen', 'denoise', 'color'] as const).map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setEnhanceType(type)}
-                        className={`p-3 rounded-xl border text-sm transition-all ${
-                          enhanceType === type
-                            ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400'
-                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        {type === 'auto' && '✨ Auto Enhance'}
-                        {type === 'sharpen' && '🔍 Sharpen'}
-                        {type === 'denoise' && '🔇 Denoise'}
-                        {type === 'color' && '🎨 Color Boost'}
-                      </button>
-                    ))}
+                    {(['auto', 'sharpen', 'denoise', 'color'] as const).map(
+                      type => (
+                        <button
+                          key={type}
+                          onClick={() => setEnhanceType(type)}
+                          className={`p-3 rounded-xl border text-sm transition-all ${
+                            enhanceType === type
+                              ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400'
+                              : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {type === 'auto' && '✨ Auto Enhance'}
+                          {type === 'sharpen' && '🔍 Sharpen'}
+                          {type === 'denoise' && '🔇 Denoise'}
+                          {type === 'color' && '🎨 Color Boost'}
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -771,7 +894,9 @@ const AIToolsPage: React.FC = () => {
                       }`}
                     >
                       <span className="text-2xl font-bold">2x</span>
-                      <span className="block text-xs mt-1">Double resolution</span>
+                      <span className="block text-xs mt-1">
+                        Double resolution
+                      </span>
                     </button>
                     <button
                       onClick={() => setUpscaleScale(4)}
@@ -782,7 +907,9 @@ const AIToolsPage: React.FC = () => {
                       }`}
                     >
                       <span className="text-2xl font-bold">4x</span>
-                      <span className="block text-xs mt-1">Quadruple resolution</span>
+                      <span className="block text-xs mt-1">
+                        Quadruple resolution
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -796,7 +923,11 @@ const AIToolsPage: React.FC = () => {
                   </label>
                   {faceSwapSource ? (
                     <div className="relative w-32 h-32 bg-slate-800 rounded-xl overflow-hidden">
-                      <img src={faceSwapSource} alt="Source face" className="w-full h-full object-cover" />
+                      <img
+                        src={faceSwapSource}
+                        alt="Source face"
+                        className="w-full h-full object-cover"
+                      />
                       <button
                         onClick={() => setFaceSwapSource(null)}
                         className="absolute top-1 right-1 p-1 bg-black/60 rounded-lg hover:bg-black/80"
@@ -811,13 +942,17 @@ const AIToolsPage: React.FC = () => {
                       onDragLeave={handleFaceDragLeave}
                       onDrop={handleFaceDrop}
                       className={`w-32 h-32 bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isFaceDragging 
-                          ? 'border-orange-500 bg-orange-500/10' 
+                        isFaceDragging
+                          ? 'border-orange-500 bg-orange-500/10'
                           : 'border-slate-700 hover:border-slate-600'
                       }`}
                     >
-                      <Users className={`w-6 h-6 ${isFaceDragging ? 'text-orange-400' : 'text-slate-500'}`} />
-                      <span className={`text-xs ${isFaceDragging ? 'text-orange-300' : 'text-slate-400'}`}>
+                      <Users
+                        className={`w-6 h-6 ${isFaceDragging ? 'text-orange-400' : 'text-slate-500'}`}
+                      />
+                      <span
+                        className={`text-xs ${isFaceDragging ? 'text-orange-300' : 'text-slate-400'}`}
+                      >
                         {isFaceDragging ? 'Drop here' : 'Upload face'}
                       </span>
                     </div>
@@ -839,10 +974,13 @@ const AIToolsPage: React.FC = () => {
                     <div className="flex items-start gap-3">
                       <Wand2 className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="text-sm font-medium text-blue-300 mb-1">How to use Inpainting</h4>
+                        <h4 className="text-sm font-medium text-blue-300 mb-1">
+                          How to use Inpainting
+                        </h4>
                         <p className="text-xs text-slate-400">
-                          Describe what you want to add, change, or modify in your image. 
-                          The AI will intelligently edit the image based on your description.
+                          Describe what you want to add, change, or modify in
+                          your image. The AI will intelligently edit the image
+                          based on your description.
                         </p>
                       </div>
                     </div>
@@ -853,7 +991,7 @@ const AIToolsPage: React.FC = () => {
                     </label>
                     <textarea
                       value={inpaintPrompt}
-                      onChange={(e) => setInpaintPrompt(e.target.value)}
+                      onChange={e => setInpaintPrompt(e.target.value)}
                       placeholder="e.g., Add a sunset sky in the background, Replace the text with 'AMAZING', Make the person smile..."
                       className="w-full h-32 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
                     />
@@ -865,7 +1003,7 @@ const AIToolsPage: React.FC = () => {
               <button
                 onClick={handleProcessTool}
                 disabled={
-                  ai.isLoading || 
+                  ai.isLoading ||
                   isGenerating ||
                   (selectedTool === 'generate' && !generatePrompt.trim()) ||
                   (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
@@ -874,7 +1012,7 @@ const AIToolsPage: React.FC = () => {
                 }
                 className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
               >
-                {(ai.isLoading || isGenerating) ? (
+                {ai.isLoading || isGenerating ? (
                   <>
                     <RefreshCw className="w-5 h-5 animate-spin" />
                     Processing...
@@ -882,7 +1020,9 @@ const AIToolsPage: React.FC = () => {
                 ) : (
                   <>
                     {currentTool.icon}
-                    {selectedTool === 'generate' ? 'Generate Image' : `Apply ${currentTool.name}`}
+                    {selectedTool === 'generate'
+                      ? 'Generate Image'
+                      : `Apply ${currentTool.name}`}
                   </>
                 )}
               </button>
@@ -896,8 +1036,58 @@ const AIToolsPage: React.FC = () => {
               )}
             </div>
 
-            {/* Right Panel - Result */}
+            {/* Right Panel - Config + Result */}
             <div className="space-y-4">
+              {/* Style & Aspect Ratio — moved here from left panel to reduce scroll */}
+              {selectedTool === 'generate' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Style
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {stylePresets.map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => setStyle(preset.id)}
+                          className={`p-2 rounded-lg border text-sm transition-all ${
+                            style === preset.id
+                              ? 'bg-blue-500/20 border-blue-500 text-blue-400'
+                              : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          <span className="text-base">{preset.icon}</span>
+                          <span className="block text-[11px] mt-0.5">
+                            {preset.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Aspect Ratio
+                    </label>
+                    <select
+                      value={aspectRatio}
+                      onChange={e =>
+                        setAspectRatio(
+                          e.target.value as AIGenerateRequest['aspectRatio']
+                        )
+                      }
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    >
+                      {aspectRatios.map(ar => (
+                        <option key={ar.value} value={ar.value}>
+                          {ar.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-300">
                   Result
@@ -912,11 +1102,15 @@ const AIToolsPage: React.FC = () => {
                   </button>
                 )}
               </div>
-              
+
               <div className="aspect-video bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden flex items-center justify-center">
                 {resultImage ? (
-                  <img src={resultImage} alt="Result" className="w-full h-full object-contain" />
-                ) : (ai.isLoading || isGenerating) ? (
+                  <img
+                    src={resultImage}
+                    alt="Result"
+                    className="w-full h-full object-contain"
+                  />
+                ) : ai.isLoading || isGenerating ? (
                   <div className="flex flex-col items-center gap-3 text-slate-500">
                     <RefreshCw className="w-10 h-10 animate-spin" />
                     <span className="text-sm">Processing your image...</span>

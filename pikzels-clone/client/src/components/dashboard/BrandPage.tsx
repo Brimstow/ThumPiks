@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Share,
   Aperture,
@@ -8,228 +8,355 @@ import {
   Image as ImageIcon,
   Layers,
   Sticker,
-  BarChart3,
+  Sparkles,
   Plus,
+  X,
+  Folder,
+  FileText,
+  Video,
+  Music,
+  Bookmark,
+  Heart,
+  Zap,
+  Crown,
+  Gem,
+  Target,
+  Briefcase,
+  Mail,
+  Phone,
+  Globe,
+  CreditCard,
+  Package,
+  Gift,
+  Clock,
+  Calendar,
+  Users,
+  Star,
 } from 'lucide-react';
+import { BrandCategoryType, BrandCategory, CustomCategory } from './brand/types';
+import { useBrandKit } from './brand/useBrandKit';
+import BrandKitModal from './brand/BrandKitModal';
+import BrandUsageOverview from './brand/BrandUsageOverview';
+import RecentBrandActivity from './brand/RecentBrandActivity';
+
+// ── Category Card Config (driven by hook state for counts) ────────────
+
+const brandCategoryConfig: BrandCategory[] = [
+  {
+    id: 'logos',
+    icon: Aperture,
+    title: 'Logos',
+    count: '', // filled dynamically
+    color: 'blue',
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/20',
+    textColor: 'text-blue-400',
+    hoverColor: 'group-hover:text-blue-300',
+  },
+  {
+    id: 'colors',
+    icon: Palette,
+    title: 'Colors',
+    count: '',
+    color: 'purple',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/20',
+    textColor: 'text-purple-400',
+    hoverColor: 'group-hover:text-purple-300',
+  },
+  {
+    id: 'fonts',
+    icon: Type,
+    title: 'Fonts',
+    count: '',
+    color: 'emerald',
+    bgColor: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/20',
+    textColor: 'text-emerald-400',
+    hoverColor: 'group-hover:text-emerald-300',
+  },
+  {
+    id: 'brand-voice',
+    icon: Megaphone,
+    title: 'Brand Voice',
+    count: '',
+    color: 'rose',
+    bgColor: 'bg-rose-500/10',
+    borderColor: 'border-rose-500/20',
+    textColor: 'text-rose-400',
+    hoverColor: 'group-hover:text-rose-300',
+  },
+  {
+    id: 'photos',
+    icon: ImageIcon,
+    title: 'Photos',
+    count: '',
+    color: 'amber',
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/20',
+    textColor: 'text-amber-400',
+    hoverColor: 'group-hover:text-amber-300',
+  },
+  {
+    id: 'graphics',
+    icon: Layers,
+    title: 'Graphics',
+    count: '',
+    color: 'indigo',
+    bgColor: 'bg-indigo-500/10',
+    borderColor: 'border-indigo-500/20',
+    textColor: 'text-indigo-400',
+    hoverColor: 'group-hover:text-indigo-300',
+  },
+  {
+    id: 'icons',
+    icon: Sticker,
+    title: 'Icons',
+    count: '',
+    color: 'cyan',
+    bgColor: 'bg-cyan-500/10',
+    borderColor: 'border-cyan-500/20',
+    textColor: 'text-cyan-400',
+    hoverColor: 'group-hover:text-cyan-300',
+  },
+  {
+    id: 'styles',
+    icon: Sparkles,
+    title: 'Styles',
+    count: '',
+    color: 'orange',
+    bgColor: 'bg-orange-500/10',
+    borderColor: 'border-orange-500/20',
+    textColor: 'text-orange-400',
+    hoverColor: 'group-hover:text-orange-300',
+  },
+];
+
+// Available icons for custom categories
+const customCategoryIcons: { name: string; icon: React.ElementType }[] = [
+  { name: 'Folder', icon: Folder },
+  { name: 'FileText', icon: FileText },
+  { name: 'Video', icon: Video },
+  { name: 'Music', icon: Music },
+  { name: 'Bookmark', icon: Bookmark },
+  { name: 'Heart', icon: Heart },
+  { name: 'Zap', icon: Zap },
+  { name: 'Crown', icon: Crown },
+  { name: 'Gem', icon: Gem },
+  { name: 'Target', icon: Target },
+  { name: 'Briefcase', icon: Briefcase },
+  { name: 'Mail', icon: Mail },
+  { name: 'Phone', icon: Phone },
+  { name: 'Globe', icon: Globe },
+  { name: 'CreditCard', icon: CreditCard },
+  { name: 'Package', icon: Package },
+  { name: 'Gift', icon: Gift },
+  { name: 'Clock', icon: Clock },
+  { name: 'Calendar', icon: Calendar },
+  { name: 'Users', icon: Users },
+  { name: 'Star', icon: Star },
+];
+
+// Available colors for custom categories
+const customCategoryColors = [
+  { name: 'pink', color: 'pink', bgColor: 'bg-pink-500/10', borderColor: 'border-pink-500/20', textColor: 'text-pink-400', hoverColor: 'group-hover:text-pink-300' },
+  { name: 'red', color: 'red', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20', textColor: 'text-red-400', hoverColor: 'group-hover:text-red-300' },
+  { name: 'yellow', color: 'yellow', bgColor: 'bg-yellow-500/10', borderColor: 'border-yellow-500/20', textColor: 'text-yellow-400', hoverColor: 'group-hover:text-yellow-300' },
+  { name: 'lime', color: 'lime', bgColor: 'bg-lime-500/10', borderColor: 'border-lime-500/20', textColor: 'text-lime-400', hoverColor: 'group-hover:text-lime-300' },
+  { name: 'teal', color: 'teal', bgColor: 'bg-teal-500/10', borderColor: 'border-teal-500/20', textColor: 'text-teal-400', hoverColor: 'group-hover:text-teal-300' },
+  { name: 'sky', color: 'sky', bgColor: 'bg-sky-500/10', borderColor: 'border-sky-500/20', textColor: 'text-sky-400', hoverColor: 'group-hover:text-sky-300' },
+  { name: 'slate', color: 'slate', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/20', textColor: 'text-slate-400', hoverColor: 'group-hover:text-slate-300' },
+];
+
+// Helper to get icon component by name
+const getIconByName = (name: string): React.ElementType => {
+  const found = customCategoryIcons.find((i) => i.name === name);
+  return found ? found.icon : Folder;
+};
+
+// ── Dynamic Card Content Renderers ────────────────────────────────────
+
+function LogosPreview({ logos }: { logos: ReturnType<typeof useBrandKit>['state']['logos'] }) {
+  const visible = logos.slice(0, 2);
+  const remaining = Math.max(0, logos.length - 2);
+  return (
+    <div className="mt-4 flex items-center gap-2">
+      {visible.map((logo) => (
+        <div
+          key={logo.id}
+          className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+            logo.variant === 'dark' || logo.variant === 'icon'
+              ? 'bg-slate-950 border border-slate-800'
+              : 'bg-white border border-slate-200'
+          }`}
+        >
+          <div className={`w-4 h-4 rounded-full ${logo.variant === 'dark' || logo.variant === 'icon' ? 'bg-white' : 'bg-slate-950'}`} />
+        </div>
+      ))}
+      {remaining > 0 && (
+        <div className="h-10 w-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-xs text-slate-500">
+          +{remaining}
+        </div>
+      )}
+      {logos.length === 0 && <span className="text-xs text-slate-500">No logos yet</span>}
+    </div>
+  );
+}
+
+function ColorsPreview({ palettes }: { palettes: ReturnType<typeof useBrandKit>['state']['colorPalettes'] }) {
+  const primaryPalette = palettes.find((p) => p.isPrimary) || palettes[0];
+  if (!primaryPalette) return <span className="mt-3 text-xs text-slate-500">No palettes yet</span>;
+  return (
+    <div className="mt-4 flex gap-2">
+      {primaryPalette.colors.slice(0, 4).map((color) => (
+        <div key={color.id} className="h-8 w-12 rounded shadow-sm" style={{ backgroundColor: color.hex }} />
+      ))}
+    </div>
+  );
+}
+
+function FontsPreview({ fonts }: { fonts: ReturnType<typeof useBrandKit>['state']['fonts'] }) {
+  if (fonts.length === 0) return <span className="mt-3 text-xs text-slate-500">No fonts yet</span>;
+  return (
+    <div className="mt-4 flex items-baseline gap-3">
+      {fonts.slice(0, 2).map((font, i) => (
+        <span
+          key={font.id}
+          className={`text-2xl ${i === 0 ? 'font-bold text-slate-200' : 'text-slate-400'}`}
+          style={{ fontFamily: font.fontFamily }}
+        >
+          {font.previewText}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function BrandVoicePreview({ voice }: { voice: ReturnType<typeof useBrandKit>['state']['brandVoice'] }) {
+  if (!voice) return <span className="mt-3 text-xs text-slate-500">Not configured</span>;
+  return (
+    <p className="mt-3 text-xs text-slate-400 leading-relaxed line-clamp-2">
+      {voice.description}
+    </p>
+  );
+}
+
+function PhotosPreview({ photos }: { photos: ReturnType<typeof useBrandKit>['state']['photos'] }) {
+  const visible = photos.slice(0, 3);
+  const remaining = Math.max(0, photos.length - 3);
+  if (photos.length === 0) return <span className="mt-3 text-xs text-slate-500">No photos yet</span>;
+  return (
+    <div className="mt-4 flex -space-x-2 overflow-hidden">
+      {visible.map((photo) => (
+        <img
+          key={photo.id}
+          className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-900 object-cover"
+          src={photo.thumbnailUrl}
+          alt={photo.name}
+        />
+      ))}
+      {remaining > 0 && (
+        <div className="h-8 w-8 rounded-full ring-2 ring-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-medium">
+          +{remaining}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GraphicsPreview({ graphics }: { graphics: ReturnType<typeof useBrandKit>['state']['graphics'] }) {
+  if (graphics.length === 0) return <span className="mt-3 text-xs text-slate-500">No graphics yet</span>;
+  return (
+    <div className="mt-4 grid grid-cols-4 gap-1 opacity-60">
+      {graphics.slice(0, 4).map((_, i) => (
+        <div key={i} className={`h-2 w-full rounded-sm ${i % 2 === 0 ? 'bg-indigo-500/40' : 'bg-slate-700'}`} />
+      ))}
+    </div>
+  );
+}
+
+function IconsPreview({ icons }: { icons: ReturnType<typeof useBrandKit>['state']['icons'] }) {
+  if (icons.length === 0) return <span className="mt-3 text-xs text-slate-500">No icons yet</span>;
+  return (
+    <div className="mt-4 flex gap-3 text-slate-500">
+      {icons.slice(0, 3).map((icon) => (
+        <div key={icon.id} className="w-5 h-5" dangerouslySetInnerHTML={{ __html: icon.svg }} />
+      ))}
+    </div>
+  );
+}
+
+function StylesPreview({ styles }: { styles: ReturnType<typeof useBrandKit>['state']['styles'] }) {
+  if (styles.length === 0) return <span className="mt-3 text-xs text-slate-500">No presets yet</span>;
+  return (
+    <div className="mt-4 flex items-end gap-1 h-6">
+      {styles.slice(0, 3).map((style, i) => (
+        <div
+          key={style.id}
+          className="w-2 rounded-t-sm"
+          style={{
+            backgroundColor: style.colorScheme[0] || '#F97316',
+            height: `${100 - i * 25}%`,
+            opacity: 1 - i * 0.2,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Render card content by category type ──────────────────────────────
+
+function renderCardContent(categoryId: BrandCategoryType, state: ReturnType<typeof useBrandKit>['state']) {
+  switch (categoryId) {
+    case 'logos':
+      return <LogosPreview logos={state.logos} />;
+    case 'colors':
+      return <ColorsPreview palettes={state.colorPalettes} />;
+    case 'fonts':
+      return <FontsPreview fonts={state.fonts} />;
+    case 'brand-voice':
+      return <BrandVoicePreview voice={state.brandVoice} />;
+    case 'photos':
+      return <PhotosPreview photos={state.photos} />;
+    case 'graphics':
+      return <GraphicsPreview graphics={state.graphics} />;
+    case 'icons':
+      return <IconsPreview icons={state.icons} />;
+    case 'styles':
+      return <StylesPreview styles={state.styles} />;
+    default:
+      return null;
+  }
+}
+
+// ── BrandPage Component ───────────────────────────────────────────────
 
 const BrandPage: React.FC = () => {
-  const brandCategories = [
-    {
-      id: 1,
-      icon: Aperture,
-      title: 'Logos',
-      count: '4 assets',
-      color: 'blue',
-      bgColor: 'bg-blue-500/10',
-      borderColor: 'border-blue-500/20',
-      textColor: 'text-blue-400',
-      hoverColor: 'group-hover:text-blue-300',
-      content: (
-        <div className="mt-4 flex items-center gap-2">
-          <div className="h-10 w-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center">
-            <div className="w-4 h-4 rounded-full bg-white"></div>
-          </div>
-          <div className="h-10 w-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
-            <div className="w-4 h-4 rounded-full bg-slate-950"></div>
-          </div>
-          <div className="h-10 w-10 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-xs text-slate-500">
-            +2
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: 2,
-      icon: Palette,
-      title: 'Colors',
-      count: '3 palettes',
-      color: 'purple',
-      bgColor: 'bg-purple-500/10',
-      borderColor: 'border-purple-500/20',
-      textColor: 'text-purple-400',
-      hoverColor: 'group-hover:text-purple-300',
-      content: (
-        <div className="mt-4 flex gap-2">
-          <div className="h-8 w-12 rounded bg-[#2563ff] shadow-sm"></div>
-          <div className="h-8 w-12 rounded bg-emerald-500 shadow-sm"></div>
-          <div className="h-8 w-12 rounded bg-rose-500 shadow-sm"></div>
-          <div className="h-8 w-12 rounded bg-amber-400 shadow-sm"></div>
-        </div>
-      ),
-    },
-    {
-      id: 3,
-      icon: Type,
-      title: 'Fonts',
-      count: '2 families',
-      color: 'emerald',
-      bgColor: 'bg-emerald-500/10',
-      borderColor: 'border-emerald-500/20',
-      textColor: 'text-emerald-400',
-      hoverColor: 'group-hover:text-emerald-300',
-      content: (
-        <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-2xl font-bold text-slate-200">Aa</span>
-          <span className="text-2xl text-slate-400" style={{ fontFamily: '"Playfair Display", serif' }}>
-            Aa
-          </span>
-        </div>
-      ),
-    },
-    {
-      id: 4,
-      icon: Megaphone,
-      title: 'Brand Voice',
-      count: 'Set up',
-      color: 'rose',
-      bgColor: 'bg-rose-500/10',
-      borderColor: 'border-rose-500/20',
-      textColor: 'text-rose-400',
-      hoverColor: 'group-hover:text-rose-300',
-      content: (
-        <p className="mt-3 text-xs text-slate-400 leading-relaxed line-clamp-2">
-          Friendly, professional, and concise tone for all generated text.
-        </p>
-      ),
-    },
-    {
-      id: 5,
-      icon: ImageIcon,
-      title: 'Photos',
-      count: '128 items',
-      color: 'amber',
-      bgColor: 'bg-amber-500/10',
-      borderColor: 'border-amber-500/20',
-      textColor: 'text-amber-400',
-      hoverColor: 'group-hover:text-amber-300',
-      content: (
-        <div className="mt-4 flex -space-x-2 overflow-hidden">
-          <img
-            className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-900 object-cover"
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=64&h=64"
-            alt=""
-          />
-          <img
-            className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-900 object-cover"
-            src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=64&h=64"
-            alt=""
-          />
-          <img
-            className="inline-block h-8 w-8 rounded-full ring-2 ring-slate-900 object-cover"
-            src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=64&h=64"
-            alt=""
-          />
-          <div className="h-8 w-8 rounded-full ring-2 ring-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-medium">
-            +125
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: 6,
-      icon: Layers,
-      title: 'Graphics',
-      count: '12 items',
-      color: 'indigo',
-      bgColor: 'bg-indigo-500/10',
-      borderColor: 'border-indigo-500/20',
-      textColor: 'text-indigo-400',
-      hoverColor: 'group-hover:text-indigo-300',
-      content: (
-        <div className="mt-4 grid grid-cols-4 gap-1 opacity-60">
-          <div className="h-2 w-full bg-indigo-500/40 rounded-sm"></div>
-          <div className="h-2 w-full bg-slate-700 rounded-sm"></div>
-          <div className="h-2 w-full bg-indigo-500/40 rounded-sm"></div>
-          <div className="h-2 w-full bg-slate-700 rounded-sm"></div>
-        </div>
-      ),
-    },
-    {
-      id: 7,
-      icon: Sticker,
-      title: 'Icons',
-      count: 'Library',
-      color: 'cyan',
-      bgColor: 'bg-cyan-500/10',
-      borderColor: 'border-cyan-500/20',
-      textColor: 'text-cyan-400',
-      hoverColor: 'group-hover:text-cyan-300',
-      content: (
-        <div className="mt-4 flex gap-3 text-slate-500">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M13 10V3L4 14h7v7l9-11h-7z"
-            />
-          </svg>
-        </div>
-      ),
-    },
-    {
-      id: 8,
-      icon: BarChart3,
-      title: 'Charts',
-      count: 'Styles',
-      color: 'orange',
-      bgColor: 'bg-orange-500/10',
-      borderColor: 'border-orange-500/20',
-      textColor: 'text-orange-400',
-      hoverColor: 'group-hover:text-orange-300',
-      content: (
-        <div className="mt-4 flex items-end gap-1 h-6">
-          <div className="w-2 bg-orange-500/40 h-full rounded-t-sm"></div>
-          <div className="w-2 bg-orange-500/70 h-3/4 rounded-t-sm"></div>
-          <div className="w-2 bg-orange-500 h-1/2 rounded-t-sm"></div>
-        </div>
-      ),
-    },
-  ];
+  const brandKit = useBrandKit();
+  const { state, usageStats, activityFeed, getCategoryCount, openModal, closeModal, isModalOpen, activeCategory, modalMode, addCustomCategory, deleteCustomCategory } = brandKit;
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('Folder');
+  const [newCategoryColor, setNewCategoryColor] = useState('pink');
 
-  const projects = [
-    {
-      id: 1,
-      title: '24 Hours with Danny Duncan (The Most Dangerous Neighborhood)',
-      badge: 'Free Plan',
-      image: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2669&auto=format&fit=crop',
-      label: 'Demo project',
-    },
-    {
-      id: 2,
-      title: 'Curry Drills 12 Threes Including The Game Winner',
-      badge: 'Free Plan',
-      demo: true,
-      image: 'https://images.unsplash.com/photo-1546519638-68e109498888?q=80&w=2670&auto=format&fit=crop',
-      label: 'Demo project',
-    },
-    {
-      id: 3,
-      title: 'Tal Wilkenfeld: Music, Guitar, Bass, Jeff Beck',
-      badge: 'Free Plan',
-      image: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?q=80&w=2669&auto=format&fit=crop',
-      label: 'Demo project',
-    },
-  ];
-
-  const recentThumbnails = [
-    { id: 1, title: 'How to Build Amazing...', time: '2 hours ago', gradient: 'from-blue-500/30 to-indigo-500/30' },
-    { id: 2, title: 'Top 10 Design Tips', time: '1 day ago', gradient: 'from-sky-500/30 to-blue-500/30' },
-    { id: 3, title: 'Ultimate Guide to...', time: '3 days ago', gradient: 'from-emerald-500/30 to-teal-500/30' },
-  ];
-
-  const stats = [
-    { value: '127', label: 'Thumbnails Created' },
-    { value: '89%', label: 'Click-Through Rate' },
-    { value: '42', label: 'Templates Used' },
-    { value: '2.4M', label: 'Total Views' },
-  ];
+  const handleCreateCategory = () => {
+    if (!newCategoryName.trim()) return;
+    const colorConfig = customCategoryColors.find((c) => c.name === newCategoryColor) || customCategoryColors[0];
+    addCustomCategory({
+      name: newCategoryName,
+      icon: newCategoryIcon,
+      color: colorConfig.color,
+      bgColor: colorConfig.bgColor,
+      borderColor: colorConfig.borderColor,
+      textColor: colorConfig.textColor,
+      hoverColor: colorConfig.hoverColor,
+    });
+    setNewCategoryName('');
+    setNewCategoryIcon('Folder');
+    setNewCategoryColor('pink');
+    setShowNewCategoryForm(false);
+  };
 
   return (
     <>
@@ -252,8 +379,34 @@ const BrandPage: React.FC = () => {
 
         {/* Brand Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {brandCategories.map((category) => {
+          {brandCategoryConfig.map((category) => {
             const IconComponent = category.icon;
+            const count = getCategoryCount(category.id);
+            return (
+              <div
+                key={category.id}
+                onClick={() => openModal(category.id)}
+                className="group relative rounded-2xl border border-slate-800 bg-[#020818]/80 hover:bg-slate-900/90 backdrop-blur-sm p-5 transition-all cursor-pointer hover:border-slate-700 hover:shadow-lg hover:shadow-black/20"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div
+                    className={`p-2.5 rounded-xl ${category.bgColor} ${category.borderColor} border ${category.textColor} ${category.hoverColor} transition-colors`}
+                  >
+                    <IconComponent className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500 group-hover:text-slate-400">
+                    {count}
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-slate-100">{category.title}</h3>
+                {renderCardContent(category.id, state)}
+              </div>
+            );
+          })}
+
+          {/* Custom Categories */}
+          {state.customCategories.map((category) => {
+            const IconComponent = getIconByName(category.icon);
             return (
               <div
                 key={category.id}
@@ -265,151 +418,118 @@ const BrandPage: React.FC = () => {
                   >
                     <IconComponent className="w-6 h-6" />
                   </div>
-                  <span className="text-xs font-medium text-slate-500 group-hover:text-slate-400">
-                    {category.count}
-                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteCustomCategory(category.id);
+                    }}
+                    className="text-xs text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Delete
+                  </button>
                 </div>
-                <h3 className="text-base font-semibold text-slate-100">{category.title}</h3>
-                {category.content}
+                <h3 className="text-base font-semibold text-slate-100">{category.name}</h3>
+                <p className="mt-3 text-xs text-slate-500">Custom category</p>
               </div>
             );
           })}
 
           {/* New Category Card */}
-          <div className="group relative rounded-2xl border border-dashed border-slate-700 bg-slate-900/20 hover:bg-slate-900/50 backdrop-blur-sm p-5 transition-all cursor-pointer hover:border-slate-500 flex flex-col items-center justify-center text-center h-full min-h-[160px]">
-            <div className="p-3 rounded-full bg-slate-800/50 border border-slate-700 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800 transition-all mb-3">
-              <Plus className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-300 group-hover:text-slate-100">New Category</h3>
-            <p className="text-xs text-slate-500 mt-1">Add custom asset type</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Existing Tabs and Projects Section */}
-      <div className="mt-10 mb-12">
-        {/* Section Header with Tabs and Stats */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-800 pb-1 gap-y-4">
-          {/* Left: Tabs */}
-          <div className="flex items-center gap-8">
-            <button className="relative pb-4 text-sm font-semibold text-slate-50">
-              All projects (0)
-              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-white shadow-[0_0_8px_rgba(255,255,255,0.5)]"></span>
-            </button>
-            <button className="relative pb-4 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors">
-              Saved projects (0)
-            </button>
-          </div>
-
-          {/* Right: Stats & Status */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400 pb-3 lg:pb-0">
-            <span className="font-medium font-mono text-slate-500">0 GB / 100 GB</span>
-
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-slate-300">Auto-save</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.6)]"></span>
-              <span className="text-slate-300">Auto-import</span>
-            </div>
-
-            <span className="bg-slate-800 border border-slate-700 text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase">
-              Beta
-            </span>
-          </div>
-        </div>
-
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {projects.map((project) => (
-            <div key={project.id} className="group cursor-pointer">
-              <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800/80 shadow-lg shadow-black/40 ring-1 ring-white/5 transition-all duration-300 group-hover:ring-slate-700 group-hover:shadow-xl">
-                {/* Badges */}
-                <div className="absolute top-3 left-3 z-20 flex gap-2">
-                  <span className="bg-white text-slate-950 text-[11px] font-bold px-2 py-0.5 rounded shadow-sm">
-                    {project.badge}
-                  </span>
-                  {project.demo && (
-                    <span className="bg-slate-900/90 backdrop-blur text-slate-200 border border-slate-700 text-[11px] font-bold px-2 py-0.5 rounded shadow-sm">
-                      Demo
-                    </span>
-                  )}
+          {showNewCategoryForm ? (
+            <div className="group relative rounded-2xl border border-slate-700 bg-slate-900/80 backdrop-blur-sm p-5 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-100">Create New Category</h3>
+                <button
+                  onClick={() => setShowNewCategoryForm(false)}
+                  className="p-1 hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Category Name</label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="e.g., Templates, Videos..."
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                  />
                 </div>
-
-                {/* Background Image */}
-                <img
-                  src={project.image}
-                  alt="Project Thumbnail"
-                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 opacity-90 group-hover:opacity-100"
-                />
-
-                {/* Dark Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent opacity-80"></div>
-
-                {/* Bottom Label inside Image */}
-                <div className="absolute bottom-0 left-0 right-0 p-3 z-20">
-                  <div className="inline-flex items-center rounded bg-slate-950/60 backdrop-blur-md border border-white/10 px-2 py-1">
-                    <span className="text-[11px] text-slate-300 font-medium">{project.label}</span>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Icon</label>
+                  <div className="flex flex-wrap gap-2">
+                    {customCategoryIcons.slice(0, 8).map((iconOption) => (
+                      <button
+                        key={iconOption.name}
+                        onClick={() => setNewCategoryIcon(iconOption.name)}
+                        className={`p-2 rounded-lg border transition-all ${
+                          newCategoryIcon === iconOption.name
+                            ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                            : 'border-slate-700 hover:border-slate-600 text-slate-400'
+                        }`}
+                      >
+                        <iconOption.icon className="w-4 h-4" />
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              {/* Content Below */}
-              <div className="mt-3 px-1">
-                <h3 className="text-sm font-semibold text-slate-100 leading-snug tracking-tight group-hover:text-blue-400 transition-colors line-clamp-2">
-                  {project.title}
-                </h3>
-                <p className="text-xs text-slate-500 font-medium mt-1.5">{project.label}</p>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Color</label>
+                  <div className="flex flex-wrap gap-2">
+                    {customCategoryColors.map((colorOption) => (
+                      <button
+                        key={colorOption.name}
+                        onClick={() => setNewCategoryColor(colorOption.name)}
+                        className={`w-6 h-6 rounded-full border-2 transition-all ${
+                          newCategoryColor === colorOption.name
+                            ? 'border-white scale-110'
+                            : 'border-transparent hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: colorOption.color === 'slate' ? '#64748b' : `var(--${colorOption.name}-500)` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleCreateCategory}
+                  disabled={!newCategoryName.trim()}
+                  className="w-full mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Create Category
+                </button>
               </div>
             </div>
-          ))}
+          ) : (
+            <div
+              onClick={() => setShowNewCategoryForm(true)}
+              className="group relative rounded-2xl border border-dashed border-slate-700 bg-slate-900/20 hover:bg-slate-900/50 backdrop-blur-sm p-5 transition-all cursor-pointer hover:border-slate-500 flex flex-col items-center justify-center text-center h-full min-h-[160px]"
+            >
+              <div className="p-3 rounded-full bg-slate-800/50 border border-slate-700 text-slate-400 group-hover:text-slate-200 group-hover:bg-slate-800 transition-all mb-3">
+                <Plus className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-300 group-hover:text-slate-100">New Category</h3>
+              <p className="text-xs text-slate-500 mt-1">Add custom asset type</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Dashboard Grid */}
+      {/* Brand Usage & Activity Section (replaces old projects/stats) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Thumbnails Card */}
-        <div className="bg-[#020818] border border-slate-800 rounded-2xl p-6 backdrop-blur ring-1 ring-slate-900/80 shadow-xl shadow-black/40">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold tracking-tight text-slate-50">Recent Thumbnails</h3>
-            <button className="text-sm text-slate-400 hover:text-blue-400">View All</button>
-          </div>
-          <div className="space-y-3">
-            {recentThumbnails.map((thumbnail) => (
-              <div
-                key={thumbnail.id}
-                className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:bg-slate-800/80 transition-all"
-              >
-                <div
-                  className={`w-20 h-12 rounded-md bg-gradient-to-br ${thumbnail.gradient} border border-slate-700`}
-                ></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-100 truncate">{thumbnail.title}</p>
-                  <p className="text-xs text-slate-500">{thumbnail.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Stats Card */}
-        <div className="bg-[#020818] border border-slate-800 rounded-2xl p-6 backdrop-blur ring-1 ring-slate-900/80 shadow-xl shadow-black/40">
-          <h3 className="text-xl font-semibold tracking-tight mb-4 text-slate-50">Your Stats</h3>
-          <div className="grid grid-cols-2 gap-4">
-            {stats.map((stat, index) => (
-              <div key={index} className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-                <div className="text-3xl font-semibold text-slate-50">{stat.value}</div>
-                <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <BrandUsageOverview usageStats={usageStats} />
+        <RecentBrandActivity activityFeed={activityFeed} />
       </div>
+
+      {/* CRUD Modal */}
+      <BrandKitModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        category={activeCategory}
+        mode={modalMode}
+        brandKit={brandKit}
+      />
     </>
   );
 };

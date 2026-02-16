@@ -33,6 +33,61 @@ const TemplateMarketplace: React.FC = () => {
     fetchTemplates();
   }, []);
 
+  const normalizeTemplate = (item: any): Template => {
+    // Handle both real Prisma response (Thumbnail/User) and mock response (thumbnail/creator)
+    const thumbnailSource =
+      item.thumbnail ||
+      item.Thumbnail || {
+        id: item.thumbnailId || 'unknown-thumbnail',
+        title:
+          (item.thumbnail && item.thumbnail.title) ||
+          (item.Thumbnail && item.Thumbnail.title) ||
+          item.name,
+        imageUrl:
+          (item.thumbnail && item.thumbnail.imageUrl) ||
+          (item.Thumbnail && item.Thumbnail.imageUrl) ||
+          item.imageUrl ||
+          '',
+      };
+
+    const creatorSource =
+      item.creator ||
+      item.User || {
+        id: item.creatorId || 'unknown-creator',
+        name:
+          (item.User && item.User.name) ||
+          item.creatorName ||
+          'Unknown Creator',
+        avatarUrl:
+          (item.User && item.User.avatarUrl) ||
+          item.creatorAvatarUrl ||
+          '/default-avatar.png',
+      };
+
+    return {
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      thumbnail: {
+        id: thumbnailSource.id,
+        title: thumbnailSource.title || item.name,
+        imageUrl: thumbnailSource.imageUrl || '',
+      },
+      creator: {
+        id: creatorSource.id,
+        name: creatorSource.name,
+        avatarUrl: creatorSource.avatarUrl || '/default-avatar.png',
+      },
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      downloads: typeof item.downloads === 'number' ? item.downloads : 0,
+      likes: typeof item.likes === 'number' ? item.likes : 0,
+      createdAt:
+        typeof item.createdAt === 'string'
+          ? item.createdAt
+          : item.createdAt?.toString() || new Date().toISOString(),
+    };
+  };
+
   const fetchTemplates = async () => {
     try {
       setLoading(true);
@@ -41,7 +96,10 @@ const TemplateMarketplace: React.FC = () => {
         throw new Error('Failed to fetch templates');
       }
       const data = await response.json();
-      setTemplates(data);
+      const normalized = Array.isArray(data)
+        ? data.map(normalizeTemplate)
+        : [];
+      setTemplates(normalized);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch templates');
     } finally {
@@ -117,7 +175,10 @@ const TemplateMarketplace: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div
+      className="container mx-auto px-4 py-8"
+      data-testid="template-marketplace-page"
+    >
       <h1 className="text-3xl font-bold mb-8">Template Marketplace</h1>
 
       {/* Search and Filter Section */}
