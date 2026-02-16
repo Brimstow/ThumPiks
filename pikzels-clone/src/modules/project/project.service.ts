@@ -125,17 +125,61 @@ export class ProjectService {
     return project;
   }
 
-  async getProjectsByUser(userId: string) {
-    const cacheKey = `projects:user:${userId}`;
+  async getProjectsByUser(
+    userId: string,
+    filters?: {
+      searchTerm?: string;
+      category?: string;
+      type?: 'project' | 'folder' | 'all';
+      sortBy?: 'name' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
+      isArchived?: boolean;
+    }
+  ) {
+    const cacheKey = `projects:user:${userId}:${JSON.stringify(filters || {})}`;
 
     return this.cache.getOrSet(
       cacheKey,
       async () => {
+        // Build where clause
+        const where: any = { userId };
+
+        // Apply filters
+        if (filters?.searchTerm) {
+          where.OR = [
+            { name: { contains: filters.searchTerm, mode: 'insensitive' } },
+            {
+              description: {
+                contains: filters.searchTerm,
+                mode: 'insensitive',
+              },
+            },
+          ];
+        }
+
+        if (filters?.category && filters.category !== 'all') {
+          where.category = filters.category;
+        }
+
+        if (filters?.type && filters.type !== 'all') {
+          where.folderType = filters.type;
+        }
+
+        if (filters?.isArchived !== undefined) {
+          where.isArchived = filters.isArchived;
+        }
+
+        // Build orderBy clause
+        const orderBy: any = {};
+        if (filters?.sortBy) {
+          orderBy[filters.sortBy] = filters.sortOrder || 'desc';
+        } else {
+          orderBy.createdAt = 'desc';
+        }
+
         return this.prisma.project.findMany({
-          where: { userId },
-          orderBy: {
-            createdAt: 'desc',
-          },
+          where,
+          orderBy,
           include: {
             Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
           },
@@ -197,23 +241,233 @@ export class ProjectService {
   }
 
   async deleteProject(id: string) {
-    // Get project info for cache invalidation
+    // Get project info for cache invalidation and to verify existence
     const existingProject = await this.prisma.project.findUnique({
+      where: { id },
+      select: { userId: true, featuredThumbnailId: true },
+    });
+
+    if (!existingProject) {
+      throw new Error('Project not found');
+    }
+
+    // Use a transaction to clean up ALL dependent records before deleting.
+    // Without this, Prisma throws foreign key constraint errors because:
+    //   - Thumbnail.projectId → Project.id (no onDelete cascade)
+    //   - Project.parentProjectId → Project.id (no onDelete cascade for children)
+    //   - SocialShare/Template/ABTestVariant → Thumbnail.id (no onDelete cascade)
+    await this.prisma.$transaction(async tx => {
+      // 1. Get all thumbnail IDs belonging to this project
+      const thumbnails = await tx.thumbnail.findMany({
+        where: { projectId: id },
+        select: { id: true },
+      });
+      const thumbnailIds = thumbnails.map((t: { id: string }) => t.id);
+
+      // 2. Clear featuredThumbnailId on THIS project (self-referencing FK)
+      if (existingProject.featuredThumbnailId) {
+        await tx.project.update({
+          where: { id },
+          data: { featuredThumbnailId: null },
+        });
+      }
+
+      if (thumbnailIds.length > 0) {
+        // 3. Clear featuredThumbnailId on ANY OTHER project that features
+        //    one of our thumbnails (the unique FK would block thumbnail deletion)
+        await tx.project.updateMany({
+          where: {
+            featuredThumbnailId: { in: thumbnailIds },
+            id: { not: id },
+          },
+          data: { featuredThumbnailId: null },
+        });
+
+        // 4. Delete SocialShares referencing our thumbnails
+        await tx.socialShare.deleteMany({
+          where: { thumbnailId: { in: thumbnailIds } },
+        });
+
+        // 5. Delete Templates referencing our thumbnails
+        await tx.template.deleteMany({
+          where: { thumbnailId: { in: thumbnailIds } },
+        });
+
+        // 6. Delete ABTestVariants referencing our thumbnails
+        //    (ABTestImpressions cascade automatically via onDelete: Cascade)
+        await tx.aBTestVariant.deleteMany({
+          where: { thumbnailId: { in: thumbnailIds } },
+        });
+
+        // 7. Delete all Thumbnails belonging to this project
+        await tx.thumbnail.deleteMany({
+          where: { projectId: id },
+        });
+      }
+
+      // 8. Reassign child projects to root level (orphan them)
+      //    so their parentProjectId FK doesn't block our deletion
+      await tx.project.updateMany({
+        where: { parentProjectId: id },
+        data: { parentProjectId: null, depth: 0, projectPath: '/' },
+      });
+
+      // 9. Finally delete the project itself
+      await tx.project.delete({
+        where: { id },
+      });
+    });
+
+    // Invalidate ALL cache layers after successful deletion.
+    // There are multiple cache key formats used across the codebase:
+    //   - Middleware cache keys: "api:${userId}:${path}:${base64query}"
+    //   - Service cache keys:   "projects:user:${userId}:${JSON.stringify(filters)}"
+    //   - Individual project:   "project:${id}"
+    //   - Projects tree:        "projects:tree:${userId}"
+    //   - Children cache:       "projects:children:${id}"
+    // We must nuke ALL of them or stale data will reappear in the UI.
+
+    const userId = existingProject.userId;
+
+    // 1. Exact service-level keys
+    await this.cache.del(`project:${id}`);
+    await this.cache.del(`projects:tree:${userId}`);
+    await this.cache.del(`projects:children:${id}`);
+
+    // 2. Pattern-based invalidation for service-level keys (covers all filter combos)
+    await this.cache.delPattern(`projects:user:${userId}*`);
+
+    // 3. Pattern-based invalidation for middleware-level keys (covers GET /api/projects)
+    await this.cache.delPattern(`api:${userId}:*`);
+
+    return { success: true };
+  }
+
+  /**
+   * Duplicate a project (creates a copy with "(Copy)" suffix)
+   */
+  async duplicateProject(id: string, userId: string) {
+    // Get original project
+    const originalProject = await this.prisma.project.findUnique({
+      where: { id },
+      select: {
+        name: true,
+        description: true,
+        userId: true,
+        parentProjectId: true,
+        folderType: true,
+      },
+    });
+
+    if (!originalProject) {
+      throw new Error('Project not found');
+    }
+
+    // Verify ownership
+    if (originalProject.userId !== userId) {
+      throw new Error('You do not have permission to duplicate this project');
+    }
+
+    // Create duplicate with "(Copy)" suffix
+    const duplicateName = `${originalProject.name} (Copy)`;
+
+    // Validate hierarchy if has parent
+    if (originalProject.parentProjectId) {
+      const folderType = originalProject.folderType as 'project' | 'folder';
+      await this.validateHierarchy(originalProject.parentProjectId, folderType);
+    }
+
+    const depth = await this.calculateDepth(
+      originalProject.parentProjectId || undefined
+    );
+    const projectPath = await this.generateProjectPath(
+      originalProject.parentProjectId || undefined
+    );
+
+    const duplicateProject = await this.prisma.project.create({
+      data: {
+        id: uuidv4(),
+        name: duplicateName,
+        description: originalProject.description,
+        userId: originalProject.userId,
+        parentProjectId: originalProject.parentProjectId,
+        folderType: originalProject.folderType,
+        depth,
+        projectPath,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Invalidate caches
+    await this.cache.del(`projects:user:${userId}`);
+    await this.cache.del(`projects:tree:${userId}`);
+    if (originalProject.parentProjectId) {
+      await this.cache.del(
+        `projects:children:${originalProject.parentProjectId}`
+      );
+    }
+
+    return duplicateProject;
+  }
+
+  /**
+   * Archive a project (soft delete)
+   */
+  async archiveProject(id: string, userId: string) {
+    const project = await this.prisma.project.findUnique({
       where: { id },
       select: { userId: true },
     });
 
-    const project = await this.prisma.project.delete({
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    if (project.userId !== userId) {
+      throw new Error('You do not have permission to archive this project');
+    }
+
+    const archivedProject = await this.prisma.project.update({
       where: { id },
+      data: { isArchived: true, updatedAt: new Date() },
     });
 
     // Invalidate caches
     await this.cache.del(`project:${id}`);
-    if (existingProject) {
-      await this.cache.del(`projects:user:${existingProject.userId}`);
+    await this.cache.del(`projects:user:${userId}`);
+    await this.cache.del(`projects:tree:${userId}`);
+
+    return archivedProject;
+  }
+
+  /**
+   * Unarchive a project
+   */
+  async unarchiveProject(id: string, userId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!project) {
+      throw new Error('Project not found');
     }
 
-    return project;
+    if (project.userId !== userId) {
+      throw new Error('You do not have permission to unarchive this project');
+    }
+
+    const unarchivedProject = await this.prisma.project.update({
+      where: { id },
+      data: { isArchived: false, updatedAt: new Date() },
+    });
+
+    // Invalidate caches
+    await this.cache.del(`project:${id}`);
+    await this.cache.del(`projects:user:${userId}`);
+    await this.cache.del(`projects:tree:${userId}`);
+
+    return unarchivedProject;
   }
 
   async setFeaturedThumbnail(projectId: string, thumbnailId: string) {
@@ -276,6 +530,17 @@ export class ProjectService {
           },
         });
 
+        console.log('DEBUG: All projects fetched:', allProjects.length);
+        console.log(
+          'DEBUG: Projects with parent IDs:',
+          allProjects.filter(p => p.parentProjectId).length
+        );
+        console.log('DEBUG: Projects by depth:', {
+          depth0: allProjects.filter(p => p.depth === 0).length,
+          depth1: allProjects.filter(p => p.depth === 1).length,
+          depth2: allProjects.filter(p => p.depth === 2).length,
+        });
+
         // Build tree structure
         const projectMap = new Map();
         const rootProjects: any[] = [];
@@ -299,6 +564,18 @@ export class ProjectService {
             rootProjects.push(projectMap.get(project.id));
           }
         });
+
+        console.log('DEBUG: Root projects count:', rootProjects.length);
+        console.log(
+          'DEBUG: Sample root project:',
+          rootProjects[0]
+            ? {
+                id: rootProjects[0].id,
+                name: rootProjects[0].name,
+                childrenCount: rootProjects[0].children?.length || 0,
+              }
+            : 'No root projects'
+        );
 
         return rootProjects;
       },

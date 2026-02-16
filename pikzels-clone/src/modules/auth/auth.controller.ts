@@ -343,7 +343,13 @@ export const resetPassword = async (req: Request, res: Response) => {
  */
 export const refreshToken = async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    // Try to get refresh token from cookie first, then fallback to request body
+    let refreshToken = (req as any).cookies?.refreshToken;
+    
+    // Fallback to request body for backwards compatibility
+    if (!refreshToken) {
+      refreshToken = req.body.refreshToken;
+    }
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -352,6 +358,21 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     const result = await authService.refreshToken(refreshToken);
+
+    // Set new tokens in HttpOnly cookies
+    res.cookie('token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
     return res.status(200).json(result);
   } catch (error: any) {

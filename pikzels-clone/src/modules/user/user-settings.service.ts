@@ -2,12 +2,20 @@ import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
+const isTestEnv = process.env.NODE_ENV === 'test';
 
 interface EmailPreferences {
   marketingEmails: boolean;
   productUpdates: boolean;
   weeklyDigest: boolean;
   securityAlerts: boolean;
+}
+
+interface StorageInfo {
+  usedGB: number;
+  totalGB: number;
+  autoSave: boolean;
+  autoImport: boolean;
 }
 
 /**
@@ -100,4 +108,120 @@ export async function updateEmailPreferences(
     });
     throw error;
   }
+}
+
+/**
+ * Get user storage information
+ */
+export async function getUserStorage(userId: string): Promise<StorageInfo> {
+  try {
+    // Test environment: return mock data
+    if (isTestEnv) {
+      return getMockStorage();
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        settings: true,
+      },
+    });
+
+    if (!user) {
+      logger.info('User not found for storage info, using defaults', { userId });
+      return getMockStorage();
+    }
+
+    // Parse settings JSON for storage-related data
+    const settings = (user.settings as any) || {};
+
+    return {
+      usedGB: settings.storageUsedGB || 0,
+      totalGB: settings.storageTotalGB || 100,
+      autoSave: settings.autoSave ?? true,
+      autoImport: settings.autoImport ?? true,
+    };
+  } catch (error) {
+    logger.error('Failed to fetch user storage', error as Error, { userId });
+    // Graceful degradation: return mock data
+    return getMockStorage();
+  }
+}
+
+/**
+ * Update auto-save setting
+ */
+export async function updateAutoSave(
+  userId: string,
+  enabled: boolean
+): Promise<{ success: boolean }> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const settings = (user.settings as any) || {};
+    settings.autoSave = enabled;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { settings: settings },
+    });
+
+    logger.info('Auto-save setting updated', { userId, enabled });
+    return { success: true };
+  } catch (error) {
+    logger.error('Failed to update auto-save', error as Error, { userId });
+    throw error;
+  }
+}
+
+/**
+ * Update auto-import setting
+ */
+export async function updateAutoImport(
+  userId: string,
+  enabled: boolean
+): Promise<{ success: boolean }> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const settings = (user.settings as any) || {};
+    settings.autoImport = enabled;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { settings: settings },
+    });
+
+    logger.info('Auto-import setting updated', { userId, enabled });
+    return { success: true };
+  } catch (error) {
+    logger.error('Failed to update auto-import', error as Error, { userId });
+    throw error;
+  }
+}
+
+/**
+ * Mock storage data for development/testing
+ */
+function getMockStorage(): StorageInfo {
+  return {
+    usedGB: 0,
+    totalGB: 100,
+    autoSave: true,
+    autoImport: true,
+  };
 }

@@ -4,6 +4,10 @@ import { ThumbnailService } from './thumbnail.service';
 import { ImageProcessingService } from './image-processing.service';
 import { OpenRouterAIService } from './openrouter-ai.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
+import {
+  resolveModelFromTier,
+  buildTierAPIResponse,
+} from './model-tiers.config';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
@@ -58,6 +62,10 @@ const getImageProcessingService = () => {
 // Initialize OpenRouter AI service for image generation
 const openRouterService = new OpenRouterAIService();
 
+// Tier types and resolveModelFromTier imported from ./model-tiers.config
+// That file is the SINGLE SOURCE OF TRUTH for all tier metadata.
+// To swap a model, change ONE line there. Zero frontend changes needed.
+
 // AI service wrapper with proper interface
 const aiService = {
   isConfigured: () => !!process.env.OPENROUTER_API_KEY,
@@ -66,11 +74,12 @@ const aiService = {
     prompt: string;
     style?: string;
     count?: number;
+    model?: string;
   }) => {
     try {
       const images = await openRouterService.generateImages(
         options.prompt,
-        undefined, // use default model
+        options.model || undefined, // Use tier-selected model or fall back to default
         options.style || 'thumbnail'
       );
       return images;
@@ -271,7 +280,8 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { prompt, style, projectId, videoUrl, includeFace } = req.body;
+    const { prompt, style, projectId, videoUrl, includeFace, tier, model } =
+      req.body;
 
     // Handle YouTube video URL generation
     if (videoUrl) {
@@ -449,11 +459,15 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     if (aiService.isConfigured()) {
       // Use AI service to generate thumbnails
       try {
+        // Resolve the model: direct model override takes priority, then tier-based lookup
+        const resolvedModel = model || resolveModelFromTier(tier, 'generate');
+
         const imageUrls = await aiService.generateThumbnails({
           userId: req.user.id,
           prompt,
           style: style || 'bold',
           count: 3,
+          model: resolvedModel,
         });
 
         // Generate 3 variations
@@ -987,7 +1001,7 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { image, mask, prompt } = req.body;
+    const { image, mask, prompt, tier, model: modelOverride } = req.body;
 
     if (!image || !prompt) {
       return res.status(400).json({
@@ -1001,13 +1015,19 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const model = openRouterService.getModelForTool('inpaint');
-    console.log(`[AI Inpaint] Using model: ${model}`);
+    // Resolve model: direct override takes priority, then tier-based lookup, then default
+    const resolvedModel =
+      modelOverride || resolveModelFromTier(tier, 'inpaint');
+    const model = resolvedModel || openRouterService.getModelForTool('inpaint');
+    console.log(
+      `[AI Inpaint] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
+    );
 
     const imageUrls = await openRouterService.inpaintImage(
       image,
       mask || '',
-      prompt
+      prompt,
+      resolvedModel || undefined
     );
 
     // Emit analytics event
@@ -1039,7 +1059,13 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { sourceImage, targetImage, prompt } = req.body;
+    const {
+      sourceImage,
+      targetImage,
+      prompt,
+      tier,
+      model: modelOverride,
+    } = req.body;
 
     if (!sourceImage || !targetImage) {
       return res.status(400).json({
@@ -1053,13 +1079,20 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const model = openRouterService.getModelForTool('faceSwap');
-    console.log(`[AI Face Swap] Using model: ${model}`);
+    // Resolve model: direct override takes priority, then tier-based lookup, then default
+    const resolvedModel =
+      modelOverride || resolveModelFromTier(tier, 'face-swap');
+    const model =
+      resolvedModel || openRouterService.getModelForTool('faceSwap');
+    console.log(
+      `[AI Face Swap] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
+    );
 
     const imageUrls = await openRouterService.faceSwapImage(
       sourceImage,
       targetImage,
-      prompt || ''
+      prompt || '',
+      resolvedModel || undefined
     );
 
     // Emit analytics event
@@ -1090,7 +1123,7 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { image, scale = '2x' } = req.body;
+    const { image, scale = '2x', tier, model: modelOverride } = req.body;
 
     if (!image) {
       return res.status(400).json({
@@ -1111,10 +1144,19 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const model = openRouterService.getModelForTool('upscale');
-    console.log(`[AI Upscale] Using model: ${model}, scale: ${scale}`);
+    // Resolve model: direct override takes priority, then tier-based lookup, then default
+    const resolvedModel =
+      modelOverride || resolveModelFromTier(tier, 'upscale');
+    const model = resolvedModel || openRouterService.getModelForTool('upscale');
+    console.log(
+      `[AI Upscale] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'}), scale: ${scale}`
+    );
 
-    const imageUrls = await openRouterService.upscaleImage(image, scale);
+    const imageUrls = await openRouterService.upscaleImage(
+      image,
+      scale,
+      resolvedModel || undefined
+    );
 
     // Emit analytics event
     emitAnalyticsEvent(req.user.id, 'ai-tool', 'upscale', 'ai-upscale', {
@@ -1256,29 +1298,12 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
  */
 export const getAIToolModels = async (_req: Request, res: Response) => {
   try {
-    const toolModels = {
-      generate: {
-        model: openRouterService.getModelForTool('generate'),
-        description: 'Text-to-image generation',
-      },
-      inpaint: {
-        model: openRouterService.getModelForTool('inpaint'),
-        description: 'Image editing/inpainting',
-      },
-      faceSwap: {
-        model: openRouterService.getModelForTool('faceSwap'),
-        description: 'Face swap with portrait optimization',
-      },
-      upscale: {
-        model: openRouterService.getModelForTool('upscale'),
-        description: 'Image upscaling with detail preservation',
-      },
-    };
+    // Build the full tier response from the single source of truth.
+    // The frontend fetches this on mount and renders the ModelTierSelector from it.
+    // No hardcoded model data lives in the frontend — only here.
+    const response = buildTierAPIResponse(openRouterService.isConfigured());
 
-    return res.status(200).json({
-      toolModels,
-      configured: openRouterService.isConfigured(),
-    });
+    return res.status(200).json(response);
   } catch (error) {
     console.error('Error fetching AI tool models:', error);
     return res.status(500).json({ error: 'Internal server error' });

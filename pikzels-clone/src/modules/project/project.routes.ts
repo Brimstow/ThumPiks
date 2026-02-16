@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { ProjectController } from './project.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import { AuthRequest } from '../../types/auth';
-import { cacheMiddleware } from '../../middleware/cache.middleware';
+import { cacheMiddleware, invalidateCacheMiddleware } from '../../middleware/cache.middleware';
+import { CacheKeys } from '../../services/cache.service';
 
 const router = Router();
 const projectController = new ProjectController();
@@ -13,20 +14,45 @@ router.get('/tree', authenticateToken, cacheMiddleware({ ttl: 300 }), (req, res)
 });
 
 // Project CRUD operations with authentication and caching
-router.post('/', authenticateToken, (req, res) => {
+// POST - invalidate user cache after creating project to ensure fresh data
+router.post('/', authenticateToken, invalidateCacheMiddleware([
+  `api:*:/:*`, // Invalidate all API caches for this user
+  CacheKeys.userProjects('*'), // Invalidate projects cache
+]), (req, res) => {
   projectController.createProject(req as AuthRequest, res);
 });
+// GET - use cache for listing projects
 router.get('/', authenticateToken, cacheMiddleware({ ttl: 300 }), (req, res) => {
   projectController.getProjects(req as AuthRequest, res);
 });
 router.get('/:id', authenticateToken, cacheMiddleware({ ttl: 600 }), (req, res) => {
   projectController.getProjectById(req as AuthRequest, res);
 });
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', authenticateToken, invalidateCacheMiddleware([
+  `api:*:/:*`, // Invalidate all API caches for this user
+  CacheKeys.userProjects('*'), // Invalidate projects cache
+]), (req, res) => {
   projectController.updateProject(req as AuthRequest, res);
 });
-router.delete('/:id', authenticateToken, (req, res) => {
+router.delete('/:id', authenticateToken, invalidateCacheMiddleware([
+  `api:*:/:*`, // Invalidate all API caches for this user
+  CacheKeys.userProjects('*'), // Invalidate projects cache
+]), (req, res) => {
   projectController.deleteProject(req as AuthRequest, res);
+});
+
+// Duplicate project
+router.post('/:id/duplicate', authenticateToken, (req, res) => {
+  projectController.duplicateProject(req as AuthRequest, res);
+});
+
+// Archive/Unarchive project
+router.put('/:id/archive', authenticateToken, (req, res) => {
+  projectController.archiveProject(req as AuthRequest, res);
+});
+
+router.put('/:id/unarchive', authenticateToken, (req, res) => {
+  projectController.unarchiveProject(req as AuthRequest, res);
 });
 
 // Additional project operations

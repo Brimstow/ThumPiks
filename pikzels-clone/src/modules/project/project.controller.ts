@@ -98,8 +98,64 @@ export class ProjectController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const projects = await getProjectService().getProjectsByUser(req.user.id);
-      return res.status(200).json({ projects });
+      // Extract filter parameters from query
+      const { search, category, type, sortBy, sortOrder, isArchived } =
+        req.query;
+
+      // Build filters object
+      const filters: any = {};
+
+      if (search && typeof search === 'string') {
+        filters.searchTerm = search;
+      }
+
+      if (category && typeof category === 'string' && category !== 'all') {
+        filters.category = category;
+      }
+
+      if (type && typeof type === 'string' && type !== 'all') {
+        filters.type = type as 'project' | 'folder';
+      }
+
+      if (sortBy && typeof sortBy === 'string') {
+        filters.sortBy = sortBy as 'name' | 'createdAt' | 'updatedAt';
+      }
+
+      if (sortOrder && typeof sortOrder === 'string') {
+        filters.sortOrder = sortOrder as 'asc' | 'desc';
+      }
+
+      if (isArchived !== undefined) {
+        filters.isArchived = isArchived === 'true';
+      }
+
+      // Parse pagination query params
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100); // Max 100 per page
+      const skip = (page - 1) * limit;
+
+      // Get filtered projects for user
+      const allProjects = await getProjectService().getProjectsByUser(
+        req.user.id,
+        Object.keys(filters).length > 0 ? filters : undefined
+      );
+
+      // Apply pagination in memory for now
+      const total = allProjects.length;
+      const totalPages = Math.ceil(total / limit);
+      const projects = allProjects.slice(skip, skip + limit);
+
+      return res.status(200).json({
+        projects,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      });
     } catch (error) {
       console.error('Error fetching projects:', error);
       return res.status(500).json({ error: 'Internal server error' });
@@ -193,9 +249,114 @@ export class ProjectController {
       }
 
       await getProjectService().deleteProject(id);
-      return res.status(204).send();
+      return res.status(200).json({ success: true });
     } catch (error) {
       console.error('Error deleting project:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async duplicateProject(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const id = req.params.id as string;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+
+      // Verify project exists and user owns it
+      const project = await getProjectService().getProjectById(id);
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      if (project.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const duplicateProject = await getProjectService().duplicateProject(
+        id,
+        req.user.id
+      );
+      return res.status(201).json({ project: duplicateProject });
+    } catch (error: any) {
+      console.error('Error duplicating project:', error);
+
+      if (
+        error.message.includes('Maximum nesting depth') ||
+        error.message.includes('permission')
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async archiveProject(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const id = req.params.id as string;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+
+      const project = await getProjectService().getProjectById(id);
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      if (project.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const archivedProject = await getProjectService().archiveProject(
+        id,
+        req.user.id
+      );
+      return res.status(200).json({ project: archivedProject });
+    } catch (error: any) {
+      console.error('Error archiving project:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async unarchiveProject(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const id = req.params.id as string;
+      if (!id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+      }
+
+      const project = await getProjectService().getProjectById(id);
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      if (project.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const unarchivedProject = await getProjectService().unarchiveProject(
+        id,
+        req.user.id
+      );
+      return res.status(200).json({ project: unarchivedProject });
+    } catch (error: any) {
+      console.error('Error unarchiving project:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

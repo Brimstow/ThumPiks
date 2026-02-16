@@ -14,6 +14,11 @@ router.get('/dashboard', (req, res) => {
   analyticsController.getDashboardData(req as AuthRequest, res);
 });
 
+// User stats summary (for StatsWidget)
+router.get('/stats', (req, res) => {
+  analyticsController.getUserStats(req as AuthRequest, res);
+});
+
 // Advanced analytics
 router.get('/advanced', (req, res) => {
   analyticsController.getAdvancedAnalytics(req as AuthRequest, res);
@@ -42,6 +47,16 @@ router.get('/styles', (req, res) => {
 // Project usage
 router.get('/projects', (req, res) => {
   analyticsController.getProjectUsage(req as AuthRequest, res);
+});
+
+// Top performers with performance scores
+router.get('/top-performers', (req, res) => {
+  analyticsController.getTopPerformers(req as AuthRequest, res);
+});
+
+// Export analytics as CSV
+router.get('/export/csv', (req, res) => {
+  analyticsController.exportCSV(req as AuthRequest, res);
 });
 
 export default router;

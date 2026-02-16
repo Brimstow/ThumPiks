@@ -66,20 +66,34 @@ function defaultKeyGenerator(req: Request): string {
 
 /**
  * Cache invalidation middleware
+ * IMPORTANT: Awaits cache invalidation before response is sent
+ * to prevent race conditions where refetch hits stale cache
  */
 export const invalidateCacheMiddleware = (patterns: string[]) => {
-  return async (_req: Request, res: Response, next: NextFunction) => {
-    const originalJson = res.json;
-    res.json = function (data: any) {
-      // Invalidate cache on successful write operations
+  return async (req: Request, res: Response, next: NextFunction) => {
+    // Store the original json function
+    const originalJson = res.json.bind(res);
+    
+    // Override res.json to trigger cache invalidation before response
+    (res as any).json = async function (data: any) {
+      // Only invalidate on successful responses
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const cache = CacheService.getInstance();
-        patterns.forEach(pattern => {
-          cache.delPattern(pattern).catch(console.error);
-        });
+        
+        // Wait for all cache invalidations to complete before sending response
+        // This prevents race condition where refetch hits stale cache
+        try {
+          await Promise.all(patterns.map(pattern => 
+            cache.delPattern(pattern)
+          ));
+          console.log(`[Cache Invalidation] Invalidated ${patterns.length} patterns for ${req.method} ${req.path}`);
+        } catch (err) {
+          console.warn(`[Cache Invalidation] Failed for patterns:`, patterns, err);
+        }
       }
-      return originalJson.call(this, data);
+      return originalJson(data);
     };
+    
     next();
   };
 };

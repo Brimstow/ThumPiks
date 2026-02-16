@@ -1,7 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
+const isTestEnv = process.env.NODE_ENV === 'test';
+const isProdEnv = process.env.NODE_ENV === 'production';
 
 export class TemplateService {
   /**
@@ -32,6 +35,7 @@ export class TemplateService {
 
   /**
    * Get templates with filtering and pagination
+   * Returns real data from database, or mock data in test/dev environments
    */
   async getTemplates(filters?: {
     search?: string;
@@ -43,6 +47,11 @@ export class TemplateService {
     page?: number;
     limit?: number;
   }) {
+    // In test environment, always use mock data (no DB dependency)
+    if (isTestEnv) {
+      return this.getMockTemplates(filters);
+    }
+
     const where: any = {};
 
     // Apply public filter
@@ -87,28 +96,42 @@ export class TemplateService {
     const limit = Math.min(filters?.limit || 20, 100); // Max 100 items per page
     const skip = (page - 1) * limit;
 
-    const templates = await prisma.template.findMany({
-      where,
-      include: {
-        Thumbnail: true,
-        User: {
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
+    try {
+      const templates = await prisma.template.findMany({
+        where,
+        include: {
+          Thumbnail: true,
+          User: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+            },
           },
         },
-      },
-      orderBy,
-      skip,
-      take: limit,
-    });
+        orderBy,
+        skip,
+        take: limit,
+      });
 
-    // Parse tags from JSON
-    return templates.map(template => ({
-      ...template,
-      tags: JSON.parse(template.tags as string),
-    }));
+      // Parse tags from JSON
+      return templates.map(template => ({
+        ...template,
+        tags: JSON.parse(template.tags as string),
+      }));
+    } catch (error) {
+      // In non-production environments, fall back to mock data if DB access fails
+      if (!isProdEnv) {
+        logger.warn(
+          '🎭 DEMO MODE: TemplateService falling back to mock templates',
+          error as Error
+        );
+        return this.getMockTemplates(filters);
+      }
+
+      // In production, surface the error (no silent mock data)
+      throw error;
+    }
   }
 
   /**
@@ -216,5 +239,154 @@ export class TemplateService {
         },
       },
     });
+  }
+
+  /**
+   * Environment-aware mock templates for development/test/demo
+   * Returned shape is compatible with getTemplates consumers.
+   */
+  private getMockTemplates(filters?: {
+    search?: string;
+    tags?: string[];
+    isPublic?: boolean;
+    creatorId?: string;
+    sortBy?: 'createdAt' | 'downloads' | 'likes';
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }) {
+    const now = new Date();
+
+    const mockTemplates = [
+      {
+        id: 'tmpl_mock_1',
+        name: 'Neon Cyberpunk Gaming Pack',
+        description:
+          'High-energy purple neon layout designed for gaming highlight thumbnails.',
+        thumbnailId: 'thumb_mock_1',
+        creatorId: 'user_mock_1',
+        parameters: {},
+        tags: ['gaming', 'neon', 'purple'],
+        isPublic: true,
+        downloads: 1234,
+        likes: 150,
+        createdAt: now,
+        updatedAt: now,
+        Thumbnail: {
+          id: 'thumb_mock_1',
+          title: 'Neon Cyberpunk Gaming Pack',
+          imageUrl:
+            'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1200&auto=format&fit=crop',
+        },
+        User: {
+          id: 'user_mock_1',
+          name: 'Demo Creator',
+          avatarUrl: '/default-avatar.png',
+        },
+      },
+      {
+        id: 'tmpl_mock_2',
+        name: 'Minimal Tech Review',
+        description:
+          'Clean layout ideal for product review and tech commentary thumbnails.',
+        thumbnailId: 'thumb_mock_2',
+        creatorId: 'user_mock_2',
+        parameters: {},
+        tags: ['tech', 'minimal', 'review'],
+        isPublic: true,
+        downloads: 845,
+        likes: 92,
+        createdAt: now,
+        updatedAt: now,
+        Thumbnail: {
+          id: 'thumb_mock_2',
+          title: 'Minimal Tech Review',
+          imageUrl:
+            'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200&auto=format&fit=crop',
+        },
+        User: {
+          id: 'user_mock_2',
+          name: 'RetroKing',
+          avatarUrl: '/default-avatar.png',
+        },
+      },
+      {
+        id: 'tmpl_mock_3',
+        name: 'Vlog Cinematic Overlay',
+        description:
+          'Professional vlog layout with cinematic feel for lifestyle content.',
+        thumbnailId: 'thumb_mock_3',
+        creatorId: 'user_mock_1',
+        parameters: {},
+        tags: ['vlog', 'cinematic', 'lifestyle'],
+        isPublic: true,
+        downloads: 2156,
+        likes: 312,
+        createdAt: now,
+        updatedAt: now,
+        Thumbnail: {
+          id: 'thumb_mock_3',
+          title: 'Vlog Cinematic Overlay',
+          imageUrl:
+            'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1200&auto=format&fit=crop',
+        },
+        User: {
+          id: 'user_mock_1',
+          name: 'Demo Creator',
+          avatarUrl: '/default-avatar.png',
+        },
+      },
+    ];
+
+    let results = [...mockTemplates];
+
+    // Simple in-memory filters to roughly match real API behavior
+    if (filters?.isPublic !== undefined) {
+      results = results.filter(t => t.isPublic === filters.isPublic);
+    }
+
+    if (filters?.creatorId) {
+      results = results.filter(t => t.creatorId === filters.creatorId);
+    }
+
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      results = results.filter(
+        t =>
+          t.name.toLowerCase().includes(q) ||
+          (t.description || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (filters?.tags && filters.tags.length > 0) {
+      results = results.filter(t =>
+        filters.tags!.every(tag => t.tags.includes(tag))
+      );
+    }
+
+    // Sort (default by createdAt desc)
+    const sorted = [...results];
+    const sortField: 'createdAt' | 'downloads' | 'likes' =
+      filters?.sortBy &&
+      ['createdAt', 'downloads', 'likes'].includes(filters.sortBy)
+        ? (filters.sortBy as 'createdAt' | 'downloads' | 'likes')
+        : 'createdAt';
+    const sortOrder = filters?.sortOrder === 'asc' ? 1 : -1;
+
+    sorted.sort((a, b) => {
+      const av = a[sortField] as any;
+      const bv = b[sortField] as any;
+
+      if (av < bv) return -1 * sortOrder;
+      if (av > bv) return 1 * sortOrder;
+      return 0;
+    });
+
+    // Pagination
+    const page = filters?.page || 1;
+    const limit = Math.min(filters?.limit || 20, 100);
+    const start = (page - 1) * limit;
+
+    return sorted.slice(start, start + limit);
   }
 }

@@ -65,10 +65,10 @@ export class OpenRouterAIService {
       fallback: 'black-forest-labs/flux.2-flex',
       envVar: 'OPENROUTER_MODEL_INPAINT',
     },
-    // Face swap - needs identity preservation
-    // Using Gemini which supports image input+output via modalities
+    // Face swap - needs identity preservation and facial feature detection
+    // ByteDance Seedream 4.5 is specifically optimized for face swapping operations
     faceSwap: {
-      primary: 'google/gemini-2.5-flash-image',
+      primary: 'bytedance-seed/seedream-4.5',
       fallback: 'google/gemini-3-pro-image-preview',
       envVar: 'OPENROUTER_MODEL_FACESWAP',
     },
@@ -217,17 +217,32 @@ export class OpenRouterAIService {
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
 
-        return await this.executeImageRequest(prompt, model, aspectRatio, imageSize);
+        return await this.executeImageRequest(
+          prompt,
+          model,
+          aspectRatio,
+          imageSize
+        );
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // Don't retry on certain errors
-        const noRetryErrors = ['API key', 'credits', 'Invalid', '400', '401', '402'];
+        const noRetryErrors = [
+          'API key',
+          'credits',
+          'Invalid',
+          '400',
+          '401',
+          '402',
+        ];
         if (noRetryErrors.some(e => lastError!.message.includes(e))) {
           throw lastError;
         }
 
-        console.warn(`OpenRouter attempt ${attempt + 1} failed:`, lastError.message);
+        console.warn(
+          `OpenRouter attempt ${attempt + 1} failed:`,
+          lastError.message
+        );
       }
     }
 
@@ -245,7 +260,10 @@ export class OpenRouterAIService {
   ): Promise<string[]> {
     // Create abort controller for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      IMAGE_GENERATION_TIMEOUT
+    );
 
     try {
       // Build request body
@@ -257,10 +275,19 @@ export class OpenRouterAIService {
             content: prompt,
           },
         ],
-        // CRITICAL: Required for image generation
-        modalities: ['image', 'text'],
         stream: false,
       };
+
+      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
+      // ByteDance Seedream and some other models don't support this parameter
+      if (
+        model.includes('gemini') ||
+        model.includes('google/') ||
+        model.includes('gpt-') ||
+        model.includes('flux.2')
+      ) {
+        requestBody.modalities = ['image', 'text'];
+      }
 
       // Add image_config for Gemini models
       if (model.includes('gemini') || model.includes('google/')) {
@@ -343,7 +370,9 @@ export class OpenRouterAIService {
 
       // Handle abort/timeout specifically
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s. Image generation may take longer - please try again.`);
+        throw new Error(
+          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s. Image generation may take longer - please try again.`
+        );
       }
 
       if (error instanceof Error) {
@@ -527,7 +556,7 @@ export class OpenRouterAIService {
   /**
    * Get the best model for a specific AI tool type
    * Checks environment variables first, then uses recommended defaults
-   * 
+   *
    * @param toolType The type of AI tool (generate, inpaint, faceSwap, upscale)
    * @param useFallback Whether to use the fallback model instead of primary
    * @returns The model ID to use
@@ -572,13 +601,14 @@ export class OpenRouterAIService {
   async inpaintImage(
     imageBase64: string,
     _maskBase64: string, // Reserved for future mask-based inpainting
-    prompt: string
+    prompt: string,
+    modelOverride?: string
   ): Promise<string[]> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured');
     }
 
-    const model = this.getModelForTool('inpaint');
+    const model = modelOverride || this.getModelForTool('inpaint');
     const fullPrompt = `Edit this image. Apply a mask and modify the masked region as follows: ${prompt}. Preserve the unmasked areas exactly as they are.`;
 
     // Send image with prompt for inpainting
@@ -587,7 +617,7 @@ export class OpenRouterAIService {
 
   /**
    * Face swap - replace a face in an image with another face
-   * Uses ByteDance Seedream for best portrait results
+   * Uses ByteDance Seedream 4.5 - specifically designed for portrait and face swap operations
    *
    * @param sourceImageBase64 Base64-encoded source image (contains the face to keep)
    * @param targetImageBase64 Base64-encoded target image (where face will be placed)
@@ -597,14 +627,16 @@ export class OpenRouterAIService {
   async faceSwapImage(
     sourceImageBase64: string,
     targetImageBase64: string,
-    prompt: string = ''
+    prompt: string = '',
+    modelOverride?: string
   ): Promise<string[]> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured');
     }
 
-    const model = this.getModelForTool('faceSwap');
-    const fullPrompt = `Perform a face swap. Take the face from the first image and seamlessly blend it onto the person in the second image. Maintain natural lighting, skin tone matching, and preserve the expression. ${prompt}`.trim();
+    const model = modelOverride || this.getModelForTool('faceSwap');
+    const fullPrompt =
+      `Perform a face swap. Take the face from the first image and seamlessly blend it onto the person in the second image. Maintain natural lighting, skin tone matching, and preserve the expression. ${prompt}`.trim();
 
     // Send both images for face swap
     return await this.callImageAPIWithMultipleImages(
@@ -624,18 +656,25 @@ export class OpenRouterAIService {
    */
   async upscaleImage(
     imageBase64: string,
-    scale: '2x' | '4x' = '2x'
+    scale: '2x' | '4x' = '2x',
+    modelOverride?: string
   ): Promise<string[]> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured');
     }
 
-    const model = this.getModelForTool('upscale');
+    const model = modelOverride || this.getModelForTool('upscale');
     const imageSize = scale === '4x' ? '4K' : '2K';
     const fullPrompt = `Upscale this image to ${scale} resolution. Enhance details, sharpen edges, reduce artifacts, and improve overall quality while maintaining the original composition and style.`;
 
     // Gemini models support image_size for higher resolution output
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', imageSize);
+    return await this.callImageAPIWithImage(
+      imageBase64,
+      fullPrompt,
+      model,
+      '16:9',
+      imageSize
+    );
   }
 
   /**
@@ -655,9 +694,10 @@ export class OpenRouterAIService {
     }
 
     const model = this.getModelForTool('inpaint'); // Inpaint model works well for this
-    const bgDesc = backgroundColor === 'transparent' 
-      ? 'a completely transparent background (PNG with alpha channel)' 
-      : `a solid ${backgroundColor} background`;
+    const bgDesc =
+      backgroundColor === 'transparent'
+        ? 'a completely transparent background (PNG with alpha channel)'
+        : `a solid ${backgroundColor} background`;
     const fullPrompt = `Remove the background from this image. Keep only the main subject(s) in the foreground with ${bgDesc}. Preserve fine details like hair edges and semi-transparent elements.`;
 
     return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
@@ -679,23 +719,28 @@ export class OpenRouterAIService {
     }
 
     const model = this.getModelForTool('inpaint'); // Pro model for quality
-    
+
     let enhancementDesc: string;
     switch (enhancementType) {
       case 'color':
-        enhancementDesc = 'Enhance the colors: improve saturation, correct white balance, and make colors more vibrant while keeping them natural.';
+        enhancementDesc =
+          'Enhance the colors: improve saturation, correct white balance, and make colors more vibrant while keeping them natural.';
         break;
       case 'sharpen':
-        enhancementDesc = 'Sharpen the image: enhance edges and fine details without introducing artifacts or halos.';
+        enhancementDesc =
+          'Sharpen the image: enhance edges and fine details without introducing artifacts or halos.';
         break;
       case 'denoise':
-        enhancementDesc = 'Remove noise and grain from the image while preserving important details and textures.';
+        enhancementDesc =
+          'Remove noise and grain from the image while preserving important details and textures.';
         break;
       case 'hdr':
-        enhancementDesc = 'Apply HDR-style enhancement: expand dynamic range, bring out shadow details, and control highlights.';
+        enhancementDesc =
+          'Apply HDR-style enhancement: expand dynamic range, bring out shadow details, and control highlights.';
         break;
       default:
-        enhancementDesc = 'Automatically enhance this image: improve colors, sharpness, reduce noise, and optimize overall quality.';
+        enhancementDesc =
+          'Automatically enhance this image: improve colors, sharpness, reduce noise, and optimize overall quality.';
     }
 
     const fullPrompt = `${enhancementDesc} Maintain the original composition and style.`;
@@ -721,12 +766,15 @@ export class OpenRouterAIService {
     imageSize?: '1K' | '2K' | '4K'
   ): Promise<string[]> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      IMAGE_GENERATION_TIMEOUT
+    );
 
     try {
       // Ensure base64 has proper data URL prefix
-      const imageUrl = imageBase64.startsWith('data:image') 
-        ? imageBase64 
+      const imageUrl = imageBase64.startsWith('data:image')
+        ? imageBase64
         : `data:image/png;base64,${imageBase64}`;
 
       const requestBody: any = {
@@ -737,18 +785,28 @@ export class OpenRouterAIService {
             content: [
               {
                 type: 'image_url',
-                image_url: { url: imageUrl }
+                image_url: { url: imageUrl },
               },
               {
                 type: 'text',
-                text: prompt
-              }
+                text: prompt,
+              },
             ],
           },
         ],
-        modalities: ['image', 'text'],
         stream: false,
       };
+
+      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
+      // ByteDance Seedream and some other models don't support this parameter
+      if (
+        model.includes('gemini') ||
+        model.includes('google/') ||
+        model.includes('gpt-') ||
+        model.includes('flux.2')
+      ) {
+        requestBody.modalities = ['image', 'text'];
+      }
 
       // Add image_config for Gemini models
       if (model.includes('gemini') || model.includes('google/')) {
@@ -774,7 +832,9 @@ export class OpenRouterAIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+        throw new Error(
+          `OpenRouter API error (${response.status}): ${errorText}`
+        );
       }
 
       const data: any = await response.json();
@@ -782,7 +842,9 @@ export class OpenRouterAIService {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`);
+        throw new Error(
+          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`
+        );
       }
       throw error;
     }
@@ -797,17 +859,20 @@ export class OpenRouterAIService {
     model: string
   ): Promise<string[]> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), IMAGE_GENERATION_TIMEOUT);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      IMAGE_GENERATION_TIMEOUT
+    );
 
     try {
       // Build content array with all images then the prompt
-      const content: any[] = imagesBase64.map((img) => {
-        const imageUrl = img.startsWith('data:image') 
-          ? img 
+      const content: any[] = imagesBase64.map(img => {
+        const imageUrl = img.startsWith('data:image')
+          ? img
           : `data:image/png;base64,${img}`;
         return {
           type: 'image_url',
-          image_url: { url: imageUrl }
+          image_url: { url: imageUrl },
         };
       });
       content.push({ type: 'text', text: prompt });
@@ -815,9 +880,19 @@ export class OpenRouterAIService {
       const requestBody: any = {
         model: model,
         messages: [{ role: 'user', content }],
-        modalities: ['image', 'text'],
         stream: false,
       };
+
+      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
+      // ByteDance Seedream and some other models don't support this parameter
+      if (
+        model.includes('gemini') ||
+        model.includes('google/') ||
+        model.includes('gpt-') ||
+        model.includes('flux.2')
+      ) {
+        requestBody.modalities = ['image', 'text'];
+      }
 
       const response = await fetch(`${this.apiUrl}/chat/completions`, {
         method: 'POST',
@@ -835,7 +910,9 @@ export class OpenRouterAIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+        throw new Error(
+          `OpenRouter API error (${response.status}): ${errorText}`
+        );
       }
 
       const data: any = await response.json();
@@ -843,7 +920,9 @@ export class OpenRouterAIService {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`);
+        throw new Error(
+          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`
+        );
       }
       throw error;
     }

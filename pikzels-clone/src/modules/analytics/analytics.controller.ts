@@ -5,6 +5,24 @@ import { AuthRequest } from '../../types/auth';
 const analyticsService = new AnalyticsService();
 
 export class AnalyticsController {
+  async getUserStats(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const userId = req.user.id;
+
+      // Get user stats summary
+      const stats = await analyticsService.getUserStats(userId);
+
+      return res.status(200).json(stats);
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async getDashboardData(req: AuthRequest, res: Response) {
     try {
       if (!req.user) {
@@ -177,6 +195,88 @@ export class AnalyticsController {
       });
     } catch (error) {
       console.error('Error fetching comparative analytics data:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get top performing thumbnails with performance scores
+  async getTopPerformers(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const userId = req.user.id;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      // Validate limit parameter
+      if (limit < 1 || limit > 100) {
+        return res.status(400).json({
+          error: 'Invalid limit. Must be between 1 and 100.',
+        });
+      }
+
+      const topPerformers = await analyticsService.getTopPerformers(
+        userId,
+        limit
+      );
+
+      return res.status(200).json({
+        topPerformers,
+      });
+    } catch (error) {
+      console.error('Error fetching top performers:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Export analytics data as CSV
+  async exportCSV(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const userId = req.user.id;
+
+      // Get all analytics data
+      const userAnalytics = await analyticsService.getUserAnalytics(userId);
+      const topPerformers = await analyticsService.getTopPerformers(userId, 50);
+
+      // Build CSV content
+      let csvContent = 'Analytics Report\n\n';
+      
+      // Summary stats
+      csvContent += 'Summary\n';
+      csvContent += 'Total Thumbnails,Projects,Recent (30 days)\n';
+      csvContent += `${userAnalytics.totals.thumbnails},${userAnalytics.totals.projects},${userAnalytics.totals.recentThumbnails}\n\n`;
+      
+      // Top performers
+      csvContent += 'Top Performers\n';
+      csvContent += 'Rank,Title,Performance Score,Social Shares,Downloads,Edits,Days Active\n';
+      topPerformers.forEach((performer, index) => {
+        csvContent += `${index + 1},"${performer.title.replace(/"/g, '""')}",${performer.performanceScore},${performer.socialShares},${performer.downloads},${performer.edits},${performer.daysActive}\n`;
+      });
+      
+      csvContent += '\n';
+      
+      // Style distribution
+      csvContent += 'Style Distribution\n';
+      csvContent += 'Style,Count\n';
+      Object.entries(userAnalytics.styles).forEach(([style, count]) => {
+        csvContent += `${style},${count}\n`;
+      });
+
+      // Set headers for CSV download
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="analytics-${Date.now()}.csv"`
+      );
+
+      return res.status(200).send(csvContent);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

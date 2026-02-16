@@ -146,7 +146,11 @@ export class CacheService {
   /**
    * Set cached data with TTL - uses both Redis and in-memory for resilience
    */
-  async set(key: string, value: unknown, ttlSeconds = CacheTTL.MEDIUM): Promise<void> {
+  async set(
+    key: string,
+    value: unknown,
+    ttlSeconds = CacheTTL.MEDIUM
+  ): Promise<void> {
     // Try Redis first (production-like)
     if (this.redis && this.isRedisAvailable) {
       try {
@@ -160,7 +164,8 @@ export class CacheService {
 
     // Always store in in-memory cache as backup
     const MILLISECONDS_PER_SECOND = 1000;
-    const expires = ttlSeconds > 0 ? Date.now() + ttlSeconds * MILLISECONDS_PER_SECOND : 0;
+    const expires =
+      ttlSeconds > 0 ? Date.now() + ttlSeconds * MILLISECONDS_PER_SECOND : 0;
     this.inMemoryCache.set(key, { value, expires });
   }
 
@@ -182,18 +187,33 @@ export class CacheService {
   }
 
   /**
-   * Delete multiple keys by pattern
+   * Delete multiple keys by pattern (glob-style: * matches any characters)
+   * Works with BOTH Redis and in-memory cache.
    */
   async delPattern(pattern: string): Promise<void> {
-    if (!this.redis) return;
-
-    try {
-      const keys = await this.redis.keys(pattern);
-      if (keys.length > 0) {
-        await this.redis.del(...keys);
+    // 1. Clear from Redis if available
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        const keys = await this.redis.keys(pattern);
+        if (keys.length > 0) {
+          await this.redis.del(...keys);
+        }
+      } catch (error) {
+        console.warn(`Cache delPattern error for pattern ${pattern}:`, error);
       }
-    } catch (error) {
-      console.warn(`Cache delPattern error for pattern ${pattern}:`, error);
+    }
+
+    // 2. Always clear matching keys from in-memory cache
+    //    Convert glob pattern (e.g. "api:*:/:*") to a RegExp
+    const regexStr =
+      '^' +
+      pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') +
+      '$';
+    const regex = new RegExp(regexStr);
+    for (const key of this.inMemoryCache.keys()) {
+      if (regex.test(key)) {
+        this.inMemoryCache.delete(key);
+      }
     }
   }
 
@@ -232,7 +252,10 @@ export class CacheService {
   /**
    * Increment counter (for rate limiting)
    */
-  async increment(key: string, ttlSeconds = CacheTTL.VERY_LONG): Promise<number> {
+  async increment(
+    key: string,
+    ttlSeconds = CacheTTL.VERY_LONG
+  ): Promise<number> {
     if (!this.redis) return 0;
 
     try {
