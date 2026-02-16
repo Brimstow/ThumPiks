@@ -115,21 +115,21 @@ const ProjectDetail: React.FC = () => {
   }
 
   return (
-    <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+    <div className="bg-slate-900 border border-slate-800 shadow-lg overflow-hidden rounded-xl">
       <div className="px-4 py-5 sm:px-6">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
+            <h3 className="text-lg leading-6 font-medium text-slate-100">
               {project.name}
             </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+            <p className="mt-1 max-w-2xl text-sm text-slate-400">
               Project details and information.
             </p>
           </div>
           <div className="flex space-x-3">
             <button
               onClick={() => navigate(`/projects/${project.id}/edit`)}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center px-3 py-2 border border-slate-600 shadow-sm text-sm leading-4 font-medium rounded-md text-slate-300 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-colors"
             >
               Edit
             </button>
@@ -143,32 +143,32 @@ const ProjectDetail: React.FC = () => {
                   // Handle delete
                 }
               }}
-              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-500 transition-colors"
             >
               Delete
             </button>
           </div>
         </div>
       </div>
-      <div className="border-t border-gray-200">
+      <div className="border-t border-slate-800">
         <dl>
-          <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Project Name</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <div className="bg-slate-800/50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt className="text-sm font-medium text-slate-400">Project Name</dt>
+            <dd className="mt-1 text-sm text-slate-100 sm:mt-0 sm:col-span-2">
               {project.name}
             </dd>
           </div>
           {project.description && (
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Description</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-slate-900 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-slate-400">Description</dt>
+              <dd className="mt-1 text-sm text-slate-100 sm:mt-0 sm:col-span-2">
                 {project.description}
               </dd>
             </div>
           )}
-          <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Created At</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <div className="bg-slate-800/50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt className="text-sm font-medium text-slate-400">Created At</dt>
+            <dd className="mt-1 text-sm text-slate-100 sm:mt-0 sm:col-span-2">
               {new Date(project.createdAt).toLocaleDateString()} at{' '}
               {new Date(project.createdAt).toLocaleTimeString()}
             </dd>

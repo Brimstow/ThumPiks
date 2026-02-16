@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FolderOpen, Loader2, AlertCircle } from 'lucide-react';
 
 interface Project {
@@ -17,6 +18,7 @@ interface AllProjectsWidgetProps {
 }
 
 export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className = '' }) => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +133,11 @@ export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className 
       {!loading && projects.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard 
+              key={project.id} 
+              project={project} 
+              onNavigate={(id) => navigate(`/projects/${id}`)}
+            />
           ))}
         </div>
       )}
@@ -142,11 +148,15 @@ export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className 
 // Project Card Component
 interface ProjectCardProps {
   project: Project;
+  onNavigate: (projectId: string) => void;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onNavigate }) => {
   return (
-    <div className="group relative cursor-pointer">
+    <div 
+      className="group relative cursor-pointer"
+      onClick={() => onNavigate(project.id)}
+    >
       {/* Demo Project Badge (if applicable) */}
       {project.description?.includes('Demo') && (
         <div className="absolute top-2 right-2 z-10">
