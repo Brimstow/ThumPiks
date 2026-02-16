@@ -85,8 +85,6 @@ model Project {
   description                                      String?
   userId                                           String
   teamId                                           String?
-  category                                         String?     // Design, Video, Branding, Client Work, Personal, Marketing
-  isArchived                                       Boolean     @default(false)
   createdAt                                        DateTime    @default(now())
   updatedAt                                        DateTime
   featuredThumbnailId                              String?     @unique
@@ -94,6 +92,8 @@ model Project {
   folderType                                       String      @default("project")
   depth                                            Int         @default(0)
   projectPath                                      String?
+  category                                         String?
+  isArchived                                       Boolean     @default(false)
   Thumbnail_Project_featuredThumbnailIdToThumbnail Thumbnail?  @relation("Project_featuredThumbnailIdToThumbnail", fields: [featuredThumbnailId], references: [id])
   Project                                          Project?    @relation("ProjectToProject", fields: [parentProjectId], references: [id])
   other_Project                                    Project[]   @relation("ProjectToProject")
@@ -147,10 +147,10 @@ model Subscription {
 model CreditTransaction {
   id              String   @id @default(uuid())
   userId          String
-  type            String   // 'purchase', 'usage', 'refund', 'bonus'
-  amount          Int      // Credits added/removed
+  type            String
+  amount          Int
   description     String
-  stripePaymentId String?  // For purchases via Stripe
+  stripePaymentId String?
   metadata        Json?
   createdAt       DateTime @default(now())
   User            User     @relation(fields: [userId], references: [id])
@@ -255,68 +255,65 @@ model Template {
 }
 
 model Thumbnail {
-  id                                             String        @id
+  id                                             String          @id
   title                                          String
   imageUrl                                       String
   prompt                                         String
   parameters                                     Json
   projectId                                      String
   userId                                         String
-  createdAt                                      DateTime      @default(now())
-  isFeatured                                     Boolean       @default(false)
-  downloadCount                                  Int           @default(0)
-  editCount                                      Int           @default(0)
-  Project_Project_featuredThumbnailIdToThumbnail Project?      @relation("Project_featuredThumbnailIdToThumbnail")
+  createdAt                                      DateTime        @default(now())
+  isFeatured                                     Boolean         @default(false)
+  downloadCount                                  Int             @default(0)
+  editCount                                      Int             @default(0)
+  ABTestVariant                                  ABTestVariant[]
+  Project_Project_featuredThumbnailIdToThumbnail Project?        @relation("Project_featuredThumbnailIdToThumbnail")
   SocialShare                                    SocialShare[]
   Template                                       Template[]
-  ABTestVariant                                   ABTestVariant[]
-  Project_Thumbnail_projectIdToProject           Project       @relation("Thumbnail_projectIdToProject", fields: [projectId], references: [id])
-  User                                           User          @relation(fields: [userId], references: [id])
+  Project_Thumbnail_projectIdToProject           Project         @relation("Thumbnail_projectIdToProject", fields: [projectId], references: [id])
+  User                                           User            @relation(fields: [userId], references: [id])
 }
 
 model User {
-  id                                            String           @id @default(uuid())
-  email                                         String           @unique
-  username                                      String           @unique
+  id                                            String              @id @default(uuid())
+  email                                         String              @unique
+  username                                      String              @unique
   passwordHash                                  String
   name                                          String
   avatarUrl                                     String?
-  isVerified                                    Boolean          @default(false)
-  emailVerificationToken                        String?          @unique
+  isVerified                                    Boolean             @default(false)
+  emailVerificationToken                        String?             @unique
   emailVerificationExpiry                       DateTime?
-  displayPreference                             String           @default("name")
+  displayPreference                             String              @default("name")
   settings                                      Json?
-  createdAt                                     DateTime         @default(now())
-  updatedAt                                     DateTime         @updatedAt
+  createdAt                                     DateTime            @default(now())
+  updatedAt                                     DateTime            @updatedAt
   lastLoginAt                                   DateTime?
-  isActive                                      Boolean          @default(true)
-  stripeCustomerId                              String?          @unique
+  isActive                                      Boolean             @default(true)
+  stripeCustomerId                              String?             @unique
   stripeSubscriptionId                          String?
-  
-  // Email preferences for marketing & notifications
-  emailVerified                                 Boolean          @default(false)
-  marketingEmails                               Boolean          @default(true)
-  productUpdates                                Boolean          @default(true)
-  weeklyDigest                                  Boolean          @default(false)
-  securityAlerts                                Boolean          @default(true)
   emailUnsubscribedAt                           DateTime?
-  
+  emailVerified                                 Boolean             @default(false)
+  marketingEmails                               Boolean             @default(true)
+  productUpdates                                Boolean             @default(true)
+  securityAlerts                                Boolean             @default(true)
+  weeklyDigest                                  Boolean             @default(false)
+  ABTest                                        ABTest[]
+  ABTestImpression                              ABTestImpression[]
   AdminRole                                     AdminRole[]
-  AuditLog_AuditLog_adminIdToUser               AuditLog[]       @relation("AuditLog_adminIdToUser")
-  AuditLog_AuditLog_userIdToUser                AuditLog[]       @relation("AuditLog_userIdToUser")
+  AuditLog_AuditLog_adminIdToUser               AuditLog[]          @relation("AuditLog_adminIdToUser")
+  AuditLog_AuditLog_userIdToUser                AuditLog[]          @relation("AuditLog_userIdToUser")
   CreditTransaction                             CreditTransaction[]
   Project                                       Project[]
   SocialShare                                   SocialShare[]
   Subscription                                  Subscription[]
   Team                                          Team[]
-  TeamInvitation_TeamInvitation_inviteeIdToUser TeamInvitation[] @relation("TeamInvitation_inviteeIdToUser")
-  TeamInvitation_TeamInvitation_inviterIdToUser TeamInvitation[] @relation("TeamInvitation_inviterIdToUser")
+  TeamInvitation_TeamInvitation_inviteeIdToUser TeamInvitation[]    @relation("TeamInvitation_inviteeIdToUser")
+  TeamInvitation_TeamInvitation_inviterIdToUser TeamInvitation[]    @relation("TeamInvitation_inviterIdToUser")
   TeamMember                                    TeamMember[]
   Template                                      Template[]
   Thumbnail                                     Thumbnail[]
   VisionAnalysis                                VisionAnalysis[]
-  ABTest                                        ABTest[]
-  ABTestImpression                              ABTestImpression[]
 }
 
 model VisionAnalysis {
@@ -326,9 +323,8 @@ model VisionAnalysis {
   description     String
   suggestedPrompt String
   elements        Json
-  sourceType      String   // 'upload' | 'url' | 'web_search'
+  sourceType      String
   createdAt       DateTime @default(now())
-
   User            User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
@@ -336,19 +332,18 @@ model VisionAnalysis {
 }
 
 model ABTest {
-  id          String          @id @default(uuid())
+  id          String             @id @default(uuid())
   name        String
   description String?
   userId      String
-  status      String          @default("draft") // draft | active | paused | completed
+  status      String             @default("draft")
   startDate   DateTime?
   endDate     DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-
-  User        User            @relation(fields: [userId], references: [id])
-  variants    ABTestVariant[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  User        User               @relation(fields: [userId], references: [id])
   impressions ABTestImpression[]
+  variants    ABTestVariant[]
 
   @@index([userId])
   @@index([status])
@@ -356,35 +351,33 @@ model ABTest {
 }
 
 model ABTestVariant {
-  id          String          @id @default(uuid())
-  testId      String
-  name        String          // e.g., "Variant A", "Variant B"
-  thumbnailId String
-  impressions Int             @default(0)
-  clicks      Int             @default(0)
-  ctr         Float           @default(0) // click-through rate
-  isControl   Boolean         @default(false)
-
-  ABTest      ABTest          @relation(fields: [testId], references: [id], onDelete: Cascade)
-  Thumbnail   Thumbnail       @relation(fields: [thumbnailId], references: [id])
+  id               String             @id @default(uuid())
+  testId           String
+  name             String
+  thumbnailId      String
+  impressions      Int                @default(0)
+  clicks           Int                @default(0)
+  ctr              Float              @default(0)
+  isControl        Boolean            @default(false)
   ABTestImpression ABTestImpression[]
+  ABTest           ABTest             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  Thumbnail        Thumbnail          @relation(fields: [thumbnailId], references: [id])
 
   @@index([testId])
   @@index([thumbnailId])
 }
 
 model ABTestImpression {
-  id          String          @id @default(uuid())
-  testId      String
-  variantId   String
-  userId      String
-  action      String          // 'impression' | 'click'
-  metadata    Json?
-  createdAt   DateTime        @default(now())
-
-  ABTest      ABTest          @relation(fields: [testId], references: [id], onDelete: Cascade)
-  Variant     ABTestVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  User        User            @relation(fields: [userId], references: [id])
+  id        String        @id @default(uuid())
+  testId    String
+  variantId String
+  userId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  ABTest    ABTest        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  User      User          @relation(fields: [userId], references: [id])
+  Variant   ABTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@index([testId])
   @@index([variantId])
