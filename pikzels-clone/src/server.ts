@@ -193,6 +193,44 @@ app.use('/api/admin/analytics', analyticsAdminRoutes);
 app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
 
+// Health check endpoint - MUST be before error handler for Railway healthchecks
+app.get('/health', async (_req, res) => {
+  try {
+    const cacheStatus = await cache.healthCheck();
+    const eventStats = eventRegistry.getStats();
+
+    res.status(200).json({
+      status: 'OK',
+      message: 'Thumbnail Maker API is running',
+      services: {
+        cache: cacheStatus ? 'healthy' : 'unhealthy',
+        database: 'healthy', // Will add Prisma health check later
+        events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy',
+      },
+      events: {
+        totalHandlers: eventStats.totalHandlers,
+        eventTypes: eventStats.eventTypes,
+        registeredEvents: eventStats.handlers,
+        emitterStats: eventStats.emitterStats,
+      },
+      performance: {
+        compression: process.env.ENABLE_COMPRESSION === 'true',
+        caching: process.env.ENABLE_CACHE === 'true',
+        rateLimiting: process.env.ENABLE_RATE_LIMITING === 'true',
+        monitoring: process.env.ENABLE_PERFORMANCE_MONITORING === 'true',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    // Return 200 even on partial failures so Railway knows the server is up
+    res.status(200).json({
+      status: 'OK',
+      message: 'Thumbnail Maker API is running',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Production API-only mode (frontend deployed separately)
 if (process.env.NODE_ENV === 'production') {
   app.get('/', (_req, res) => {
@@ -251,34 +289,6 @@ app.use(
   }
 );
 
-// Health check endpoint
-app.get('/health', async (_req, res) => {
-  const cacheStatus = await cache.healthCheck();
-  const eventStats = eventRegistry.getStats();
-
-  res.status(200).json({
-    status: 'OK',
-    message: 'Thumbnail Maker API is running',
-    services: {
-      cache: cacheStatus ? 'healthy' : 'unhealthy',
-      database: 'healthy', // Will add Prisma health check later
-      events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy',
-    },
-    events: {
-      totalHandlers: eventStats.totalHandlers,
-      eventTypes: eventStats.eventTypes,
-      registeredEvents: eventStats.handlers,
-      emitterStats: eventStats.emitterStats,
-    },
-    performance: {
-      compression: process.env.ENABLE_COMPRESSION === 'true',
-      caching: process.env.ENABLE_CACHE === 'true',
-      rateLimiting: process.env.ENABLE_RATE_LIMITING === 'true',
-      monitoring: process.env.ENABLE_PERFORMANCE_MONITORING === 'true',
-    },
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // Initialize event system before starting server
 async function initializeServer() {

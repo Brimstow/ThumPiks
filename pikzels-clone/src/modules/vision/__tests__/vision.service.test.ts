@@ -132,7 +132,7 @@ describe('VisionService', () => {
       );
 
       // Verify body contains multimodal message format
-      const callBody = JSON.parse((mockFetch.mock.calls[0][1] as any).body);
+      const callBody = JSON.parse((mockFetch.mock.calls[0]![1] as any).body);
       expect(callBody.messages[1].content).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ type: 'image_url' }),
@@ -294,10 +294,10 @@ describe('VisionService', () => {
 
       // Should filter out the 400px image
       expect(results).toHaveLength(2);
-      expect(results[0].url).toBe('https://example.com/img1.jpg');
-      expect(results[0].title).toBe('Test Image 1');
-      expect(results[0].width).toBe(1280);
-      expect(results[1].url).toBe('https://example.com/img3.jpg');
+      expect(results[0]!.url).toBe('https://example.com/img1.jpg');
+      expect(results[0]!.title).toBe('Test Image 1');
+      expect(results[0]!.width).toBe(1280);
+      expect(results[1]!.url).toBe('https://example.com/img3.jpg');
 
       // Verify Bing API was called correctly
       expect(mockFetch).toHaveBeenCalledWith(
@@ -412,8 +412,8 @@ describe('VisionService', () => {
       const results = await service.getHistory('user-123', 10);
 
       expect(results).toHaveLength(1);
-      expect(results[0].id).toBe('analysis-1');
-      expect(results[0].elements.mainSubject).toBe('Person');
+      expect(results[0]!.id).toBe('analysis-1');
+      expect(results[0]!.elements.mainSubject).toBe('Person');
 
       // Verify cache was used with proper key and TTL
       expect(mockCache.getOrSet).toHaveBeenCalledWith(

@@ -78,7 +78,8 @@ export const getTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().getTest(req.params.testId!, req.user.id);
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+    const result = await getService().getTest(testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message === 'Test not found') {
@@ -96,7 +97,8 @@ export const startTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().startTest(req.params.testId!, req.user.id);
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+    const result = await getService().startTest(testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message?.includes('not found')) {
@@ -117,7 +119,8 @@ export const pauseTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await getService().pauseTest(req.params.testId!, req.user.id);
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+    const result = await getService().pauseTest(testId!, req.user.id);
     return res.status(200).json(result);
   } catch (error: any) {
     if (error.message?.includes('not found')) {
@@ -138,8 +141,9 @@ export const completeTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
     const result = await getService().completeTest(
-      req.params.testId!,
+      testId!,
       req.user.id
     );
     return res.status(200).json(result);
@@ -175,8 +179,9 @@ export const recordEvent = async (req: AuthRequest, res: Response) => {
         .json({ error: 'action must be impression or click' });
     }
 
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
     await getService().recordEvent(
-      req.params.testId!,
+      testId!,
       variantId,
       req.user.id,
       action
@@ -199,7 +204,8 @@ export const deleteTest = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    await getService().deleteTest(req.params.testId!, req.user.id);
+    const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+    await getService().deleteTest(testId!, req.user.id);
     return res.status(204).send();
   } catch (error: any) {
     if (error.message?.includes('not found')) {

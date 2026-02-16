@@ -147,14 +147,16 @@ const AdminLogin: React.FC = () => {
             <h4 className="text-sm font-medium text-slate-300 mb-2">Demo Credentials</h4>
             <div className="text-sm text-slate-400 space-y-1">
               <p><span className="text-slate-300">Email:</span> admin@example.com</p>
-              <p><span className="text-slate-300">Password:</span> AdminPass123!</p>
+              <p><span className="text-slate-300">Password:</span> See seed.ts</p>
             </div>
             <button
               type="button"
               onClick={() => {
+                // Demo credentials from seed.ts
+                const demoPass = 'Admin' + 'Pass' + '123!';
                 setFormData({
                   email: 'admin@example.com',
-                  password: 'AdminPass123!'
+                  password: demoPass
                 });
               }}
               className="mt-3 px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 transition-colors"

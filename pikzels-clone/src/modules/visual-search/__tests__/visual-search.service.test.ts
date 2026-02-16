@@ -76,7 +76,7 @@ describe('EmbeddingService', () => {
       );
 
       // Verify body contains jina-clip-v2 model and image input
-      const callBody = JSON.parse((mockFetch.mock.calls[0][1] as any).body);
+      const callBody = JSON.parse((mockFetch.mock.calls[0]![1] as any).body);
       expect(callBody.model).toBe('jina-clip-v2');
       expect(callBody.input[0].image).toBe('https://example.com/img.jpg');
 
@@ -137,7 +137,7 @@ describe('EmbeddingService', () => {
 
       expect(result.vector).toHaveLength(768);
 
-      const callBody = JSON.parse((mockFetch.mock.calls[0][1] as any).body);
+      const callBody = JSON.parse((mockFetch.mock.calls[0]![1] as any).body);
       expect(callBody.input[0].text).toBe('gaming thumbnail');
 
       // Text cache is 1 hour
@@ -180,7 +180,7 @@ describe('QdrantService', () => {
       await service.ensureCollection();
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      const createCall = mockFetch.mock.calls[1];
+      const createCall = mockFetch.mock.calls[1]!;
       const body = JSON.parse((createCall[1] as any).body);
       expect(body.vectors.size).toBe(768);
       expect(body.vectors.distance).toBe('Cosine');
@@ -223,9 +223,9 @@ describe('QdrantService', () => {
       const results = await service.search(vector, 20, 0.5);
 
       expect(results).toHaveLength(2);
-      expect(results[0].score).toBe(0.95);
-      expect(results[0].thumbnailId).toBe('thumb-1');
-      expect(results[1].score).toBe(0.82);
+      expect(results[0]!.score).toBe(0.95);
+      expect(results[0]!.thumbnailId).toBe('thumb-1');
+      expect(results[1]!.score).toBe(0.82);
     });
   });
 
@@ -298,7 +298,7 @@ describe('VisualSearchService', () => {
       const result = await service.searchByImage('https://example.com/query.jpg');
 
       expect(result.matches).toHaveLength(1);
-      expect(result.matches[0].score).toBe(0.9);
+      expect(result.matches[0]!.score).toBe(0.9);
       expect(result.total).toBe(1);
       expect(result.query.imageUrl).toBe('https://example.com/query.jpg');
     });
@@ -337,7 +337,7 @@ describe('VisualSearchService', () => {
       });
 
       // Verify Qdrant upsert was called
-      const upsertCall = mockFetch.mock.calls[2]; // 3rd fetch call
+      const upsertCall = mockFetch.mock.calls[2]!; // 3rd fetch call
       expect((upsertCall[0] as string)).toContain('/collections/thumbnails/points');
     });
 

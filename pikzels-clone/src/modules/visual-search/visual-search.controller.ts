@@ -99,7 +99,7 @@ export const indexThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { thumbnailId } = req.params;
+    const thumbnailId = Array.isArray(req.params.thumbnailId) ? req.params.thumbnailId[0] : req.params.thumbnailId;
     if (!thumbnailId) {
       return res.status(400).json({ error: 'thumbnailId is required' });
     }
