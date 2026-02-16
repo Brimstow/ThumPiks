@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, Image, MousePointer2, Layout, Eye, FolderOpen, TrendingUp } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/environment';
 
 interface UserStats {
   thumbnailsCreated: number;
@@ -21,7 +22,7 @@ export const StatsWidget: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch('/api/analytics/stats', {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/stats`, {
         credentials: 'include',
       });
 

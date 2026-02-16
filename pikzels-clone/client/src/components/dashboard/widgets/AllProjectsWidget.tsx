@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen, Loader2, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/environment';
 
 interface Project {
   id: string;
@@ -43,7 +44,7 @@ export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className 
         params.append('saved', 'true');
       }
 
-      const response = await fetch(`/api/projects?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/api/projects?${params.toString()}`, {
         credentials: 'include'
       });
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Image, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/environment';
 
 interface Thumbnail {
   id: string;
@@ -21,7 +22,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
 
   const fetchRecentThumbnails = async () => {
     try {
-      const response = await fetch('/api/thumbnails?limit=3&sort=recent', {
+      const response = await fetch(`${API_BASE_URL}/api/thumbnails?limit=3&sort=recent`, {
         credentials: 'include',
       });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HardDrive, Loader2, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/environment';
 
 interface StorageInfo {
   usedGB: number;
@@ -25,7 +26,7 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/user/storage', {
+      const response = await fetch(`${API_BASE_URL}/api/user/storage`, {
         credentials: 'include'
       });
 
@@ -54,7 +55,7 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
     if (!storage) return;
 
     try {
-      const response = await fetch('/api/user/settings/auto-save', {
+      const response = await fetch(`${API_BASE_URL}/api/user/settings/auto-save`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
