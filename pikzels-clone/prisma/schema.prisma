@@ -258,6 +258,7 @@ model Thumbnail {
   id                                             String          @id
   title                                          String
   imageUrl                                       String
+  originalImageUrl                               String?
   prompt                                         String
   parameters                                     Json
   projectId                                      String
@@ -266,12 +267,18 @@ model Thumbnail {
   isFeatured                                     Boolean         @default(false)
   downloadCount                                  Int             @default(0)
   editCount                                      Int             @default(0)
+  storagePublicId                                String?
+  storageProvider                                String?         @default("cloudinary")
+  deletedAt                                      DateTime?
   ABTestVariant                                  ABTestVariant[]
   Project_Project_featuredThumbnailIdToThumbnail Project?        @relation("Project_featuredThumbnailIdToThumbnail")
   SocialShare                                    SocialShare[]
   Template                                       Template[]
   Project_Thumbnail_projectIdToProject           Project         @relation("Thumbnail_projectIdToProject", fields: [projectId], references: [id])
   User                                           User            @relation(fields: [userId], references: [id])
+
+  @@index([storagePublicId])
+  @@index([deletedAt])
 }
 
 model User {
@@ -313,6 +320,9 @@ model User {
   TeamMember                                    TeamMember[]
   Template                                      Template[]
   Thumbnail                                     Thumbnail[]
+  CompositionLayout                             CompositionLayout[]
+  UserAsset                                     UserAsset[]
+  UserUrlHistory                                UserUrlHistory[]
   VisionAnalysis                                VisionAnalysis[]
 }
 
@@ -383,6 +393,71 @@ model ABTestImpression {
   @@index([variantId])
   @@index([userId])
   @@index([createdAt])
+}
+
+model UserAsset {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String   @default("other")
+  url             String
+  publicId        String
+  name            String?
+  sizeBytes       Int      @default(0)
+  mimeType        String?
+  width           Int?
+  height          Int?
+  createdAt       DateTime @default(now())
+  User            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model UserUrlHistory {
+  id                 String   @id @default(uuid())
+  userId             String
+  url                String
+  title              String?
+  platform           String?
+  thumbnailUrl       String?
+  selectedFrameTime  Float?
+  createdAt          DateTime @default(now())
+  User               User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@unique([userId, url])
+}
+
+model CompositionLayout {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  category           String   @default("custom")
+  tags               Json     @default("[]")
+  canvasWidth        Int      @default(1920)
+  canvasHeight       Int      @default(1080)
+  wireframeSvg       String
+  slots              Json
+  textSlots          Json     @default("[]")
+  fallbackBackground String?
+  previewUrl         String?
+  builtIn            Boolean  @default(false)
+  isPublic           Boolean  @default(true)
+  popularity         Int      @default(0)
+  downloads          Int      @default(0)
+  likes              Int      @default(0)
+  creatorId          String?
+  User               User?    @relation(fields: [creatorId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublic])
+  @@index([builtIn])
+  @@index([creatorId])
+  @@index([popularity])
 }
 
 model UserSession {

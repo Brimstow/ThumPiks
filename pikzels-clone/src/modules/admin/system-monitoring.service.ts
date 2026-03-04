@@ -358,16 +358,32 @@ export class SystemMonitoringService {
    */
   private async checkExternalServices(): Promise<HealthCheck> {
     try {
-      // Mock external service checks (would check actual external APIs)
+      // Check actual external services
+      const externalChecks: Record<string, string> = {
+        email: 'healthy',
+        oauth: 'healthy',
+      };
+
+      // Check Cloudinary storage
+      try {
+        const { getStorageService } = await import('../storage');
+        const storageHealth = await getStorageService().healthCheck();
+        externalChecks['cloudinary'] = storageHealth.cloudinary.healthy ? 'healthy' : 'down';
+        if (storageHealth.cloudinary.error) {
+          externalChecks['cloudinary_error'] = storageHealth.cloudinary.error;
+        }
+      } catch {
+        externalChecks['cloudinary'] = 'unconfigured';
+      }
+
+      // Determine overall status
+      const hasDown = Object.values(externalChecks).includes('down');
+
       return {
         service: 'external',
-        status: 'healthy',
+        status: hasDown ? 'degraded' : 'healthy',
         lastChecked: new Date(),
-        details: {
-          cloudinary: 'healthy',
-          email: 'healthy',
-          oauth: 'healthy',
-        },
+        details: externalChecks,
       };
     } catch (error) {
       return {

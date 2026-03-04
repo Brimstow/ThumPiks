@@ -133,7 +133,7 @@ router.post(
   '/refresh-token',
   validateRequest({
     body: [
-      { field: 'refreshToken', required: true, type: 'string', minLength: 1 },
+      { field: 'refreshToken', required: false, type: 'string', minLength: 1 },
     ],
   }),
   refreshToken

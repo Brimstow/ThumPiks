@@ -35,6 +35,7 @@ export interface ThumbnailDeletedEvent extends BaseEvent {
   data: {
     thumbnailId: string;
     filePath: string;
+    softDelete?: boolean;
   };
 }
 

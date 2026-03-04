@@ -59,7 +59,7 @@ const DEV_DEFAULTS = {
     refreshExpiry: '30d',      // Month-long refresh token
   },
   cors: {
-    origins: ['http://localhost:3000', 'http://localhost:8556', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8556', 'http://127.0.0.1:5173'],
+    origins: ['http://localhost:8556', 'http://127.0.0.1:8556'],
   },
   security: {
     enableHttpsRedirect: false, // No HTTPS locally
@@ -482,7 +482,7 @@ function validateSecurityConfig(config: SecurityConfig): void {
     }
 
     // Check CORS origins in production
-    if (config.cors.origins.includes('*') || config.cors.origins.includes('http://localhost:3000')) {
+    if (config.cors.origins.includes('*') || config.cors.origins.includes('http://localhost:8556')) {
       logger.warn('CORS origins should be restricted in production', { 
         origins: config.cors.origins 
       });

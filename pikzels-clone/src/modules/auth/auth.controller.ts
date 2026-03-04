@@ -359,18 +359,22 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     const result = await authService.refreshToken(refreshToken);
 
+    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' as const : 'strict' as const,
+    };
+
     // Set new tokens in HttpOnly cookies
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 

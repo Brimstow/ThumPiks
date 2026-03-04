@@ -29,6 +29,7 @@ import {
 } from './middleware/performance.middleware';
 import { logger } from './utils/logger';
 import { eventRegistry } from './events';
+import { getReplicateQueue } from './modules/thumbnail/replicate-queue.service';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -50,6 +51,10 @@ import accountRoutes from './modules/account/account.routes';
 import visionRoutes from './modules/vision/vision.routes';
 import visualSearchRoutes from './modules/visual-search/visual-search.routes';
 import abTestingRoutes from './modules/ab-testing/ab-testing.routes';
+import userAssetRoutes from './modules/user-asset/user-asset.routes';
+import urlHistoryRoutes from './modules/user-url-history/user-url-history.routes';
+import editorCommandRoutes from './modules/editor-command/editor-command.routes';
+import compositionLayoutRoutes from './modules/composition-layout/composition-layout.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -175,6 +180,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/composition-layouts', compositionLayoutRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/video', videoProxyRoutes);
@@ -183,8 +189,11 @@ app.use('/api/credits', creditRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
+app.use('/api/editor-command', editorCommandRoutes);
 app.use('/api/visual-search', visualSearchRoutes);
 app.use('/api/ab-tests', abTestingRoutes);
+app.use('/api/user-assets', userAssetRoutes);
+app.use('/api/url-history', urlHistoryRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -198,6 +207,13 @@ app.get('/health', async (_req, res) => {
   try {
     const cacheStatus = await cache.healthCheck();
     const eventStats = eventRegistry.getStats();
+    
+    // Check Replicate queue status
+    const replicateQueue = getReplicateQueue();
+    let queueStats = null;
+    if (replicateQueue.isReady()) {
+      queueStats = await replicateQueue.getStats();
+    }
 
     res.status(200).json({
       status: 'OK',
@@ -206,6 +222,7 @@ app.get('/health', async (_req, res) => {
         cache: cacheStatus ? 'healthy' : 'unhealthy',
         database: 'healthy', // Will add Prisma health check later
         events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy',
+        replicateQueue: replicateQueue.isReady() ? 'healthy' : 'not initialized',
       },
       events: {
         totalHandlers: eventStats.totalHandlers,
@@ -213,6 +230,14 @@ app.get('/health', async (_req, res) => {
         registeredEvents: eventStats.handlers,
         emitterStats: eventStats.emitterStats,
       },
+      ...(queueStats && {
+        replicateQueue: {
+          waiting: queueStats.waiting,
+          active: queueStats.active,
+          completed: queueStats.completed,
+          failed: queueStats.failed,
+        },
+      }),
       performance: {
         compression: process.env.ENABLE_COMPRESSION === 'true',
         caching: process.env.ENABLE_CACHE === 'true',
@@ -297,6 +322,20 @@ async function initializeServer() {
     await eventRegistry.initialize();
     console.log('📡 Event system initialized');
 
+    // Initialize Replicate queue if Redis is available
+    if (process.env.ENABLE_REPLICATE_QUEUE !== 'false') {
+      try {
+        const replicateQueue = getReplicateQueue();
+        await replicateQueue.initialize();
+        console.log('🚀 Replicate job queue initialized');
+      } catch (queueError) {
+        // Queue initialization failure is non-fatal - service will work without queue
+        console.warn('⚠️  Replicate queue not initialized (Redis may be unavailable):', 
+          queueError instanceof Error ? queueError.message : String(queueError));
+        console.warn('   Replicate requests will be processed directly without queuing');
+      }
+    }
+
     // Start server - bind to 0.0.0.0 for Railway
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
@@ -339,6 +378,13 @@ if (require.main === module) {
     server.close(() => {
       console.log('👋 Process terminated');
     });
+    
+    // Shutdown Replicate queue
+    const replicateQueue = getReplicateQueue();
+    if (replicateQueue.isReady()) {
+      await replicateQueue.shutdown();
+    }
+    
     await cache.disconnect();
   });
 
@@ -348,6 +394,13 @@ if (require.main === module) {
     server.close(() => {
       console.log('👋 Process terminated');
     });
+    
+    // Shutdown Replicate queue
+    const replicateQueue = getReplicateQueue();
+    if (replicateQueue.isReady()) {
+      await replicateQueue.shutdown();
+    }
+    
     await cache.disconnect();
   });
 
