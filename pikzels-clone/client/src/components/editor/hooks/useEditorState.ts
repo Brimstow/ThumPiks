@@ -1,4 +1,5 @@
-import { useReducer, useCallback, useMemo } from 'react';
+import { useReducer, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useEditorStore } from '../../../stores/editorStore';
 import type {
   EditorState,
   EditorAction,
@@ -13,10 +14,16 @@ import type {
   ShapeLayer,
   DrawingLayer,
   GroupLayer,
+  AdjustmentState,
+  SmartSelectionState,
 } from '../types/editor.types';
+import { DEFAULT_ADJUSTMENTS, DEFAULT_SMART_SELECTION } from '../types/editor.types';
 
 // Generate unique IDs
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Maximum history entries to prevent memory growth (esp. with base64 image data)
+const MAX_HISTORY = 50;
 
 // Initial tool settings
 const initialToolSettings: ToolSettings = {
@@ -33,6 +40,19 @@ const initialToolSettings: ToolSettings = {
     hardness: 80,
     opacity: 100,
   },
+  clone: {
+    size: 20,
+    hardness: 80,
+    opacity: 100,
+    sourceX: 0,
+    sourceY: 0,
+  },
+  gradient: {
+    type: 'linear',
+    colorStart: '#000000',
+    colorEnd: '#ffffff',
+    angle: 0,
+  },
   shape: {
     fill: '#3b82f6',
     stroke: '#1e40af',
@@ -47,100 +67,185 @@ const initialToolSettings: ToolSettings = {
   },
 };
 
-// Initial state
-const createInitialState = (width = 1920, height = 1080): EditorState => ({
-  layers: [],
-  layerOrder: [],
-  selection: { layerIds: [] },
-  activeTool: 'select',
-  toolSettings: initialToolSettings,
-  canvas: {
-    width,
-    height,
-    zoom: 0.5,
-    panX: 0,
-    panY: 0,
-    backgroundColor: '#1a1a2e',
-    showGrid: false,
-    showGuides: true,
-    snapToGrid: false,
-    gridSize: 20,
-  },
-  history: [],
-  historyIndex: -1,
-  isModified: false,
-});
+// Initial state — history[0] holds the initial snapshot so undo can return to it
+// Can optionally restore from persisted state
+const createInitialState = (
+  width = 1920, 
+  height = 1080,
+  persistedState?: Partial<EditorState>
+): EditorState => {
+  // If we have persisted state with layers, use it
+  if (persistedState?.layers && persistedState.layers.length > 0) {
+    const layers = persistedState.layers;
+    const layerOrder = persistedState.layerOrder || layers.map(l => l.id);
+    const selection = persistedState.selection || { layerIds: [] };
+    const adjustments = persistedState.adjustments || { ...DEFAULT_ADJUSTMENTS };
+    const canvas = persistedState.canvas || {
+      width,
+      height,
+      zoom: 0.5,
+      panX: 0,
+      panY: 0,
+      backgroundColor: '#1a1a2e',
+      showGrid: false,
+      showGuides: true,
+      snapToGrid: false,
+      gridSize: 20,
+    };
+    const toolSettings = persistedState.toolSettings || initialToolSettings;
+    const activeTool = persistedState.activeTool || 'select';
+    const smartSelection = persistedState.smartSelection || { ...DEFAULT_SMART_SELECTION };
+    
+    // Reconstruct history with current state as the base
+    const initialSnapshot = createHistoryEntry('Restored state', layers, layerOrder, selection, adjustments);
 
-// Create history entry
-const createHistoryEntry = (state: EditorState, action: string): HistoryEntry => ({
+    return {
+      layers,
+      layerOrder,
+      selection,
+      activeTool,
+      toolSettings,
+      canvas,
+      history: [initialSnapshot],
+      historyIndex: 0,
+      isModified: false, // Restored state starts as unmodified
+      adjustments,
+      smartSelection,
+    };
+  }
+
+  // Default: create fresh state
+  const layers: Layer[] = [];
+  const layerOrder: string[] = [];
+  const selection: Selection = { layerIds: [] };
+  const adjustments: AdjustmentState = { ...DEFAULT_ADJUSTMENTS };
+  const smartSelection: SmartSelectionState = { ...DEFAULT_SMART_SELECTION };
+
+  const initialSnapshot = createHistoryEntry('Initial state', layers, layerOrder, selection, adjustments);
+
+  return {
+    layers,
+    layerOrder,
+    selection,
+    activeTool: 'select',
+    toolSettings: initialToolSettings,
+    canvas: {
+      width,
+      height,
+      zoom: 0.5,
+      panX: 0,
+      panY: 0,
+      backgroundColor: '#1a1a2e',
+      showGrid: false,
+      showGuides: true,
+      snapToGrid: false,
+      gridSize: 20,
+    },
+    history: [initialSnapshot],
+    historyIndex: 0,
+    isModified: false,
+    adjustments,
+    smartSelection,
+  };
+};
+
+// Create history entry — snapshots the RESULT state after an action
+const createHistoryEntry = (
+  action: string,
+  layers: Layer[],
+  layerOrder: string[],
+  selection: Selection,
+  adjustments: AdjustmentState,
+): HistoryEntry => ({
   id: generateId(),
   timestamp: Date.now(),
   action,
-  layers: JSON.parse(JSON.stringify(state.layers)),
-  selection: { ...state.selection },
+  layers: JSON.parse(JSON.stringify(layers)),
+  layerOrder: [...layerOrder],
+  selection: { ...selection },
+  adjustments: { ...adjustments },
 });
+
+// Push a history entry storing the NEW state, capped at MAX_HISTORY.
+// Truncates any redo-future beyond the current index before pushing.
+const pushHistory = (
+  state: EditorState,
+  actionLabel: string,
+  newLayers: Layer[],
+  newLayerOrder: string[],
+  newSelection: Selection,
+  newAdjustments: AdjustmentState,
+): { history: HistoryEntry[]; historyIndex: number } => {
+  let newHistory = state.history.slice(0, state.historyIndex + 1);
+  newHistory.push(
+    createHistoryEntry(actionLabel, newLayers, newLayerOrder, newSelection, newAdjustments),
+  );
+  if (newHistory.length > MAX_HISTORY) {
+    newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+  }
+  return { history: newHistory, historyIndex: newHistory.length - 1 };
+};
 
 // Reducer
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'ADD_LAYER': {
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, `Add ${action.layer.type} layer`));
+      const newLayers = [...state.layers, action.layer];
+      const newLayerOrder = [...state.layerOrder, action.layer.id];
+      const newSelection = { layerIds: [action.layer.id] };
+      const hist = pushHistory(state, `Add ${action.layer.type} layer`, newLayers, newLayerOrder, newSelection, state.adjustments);
       
       return {
         ...state,
-        layers: [...state.layers, action.layer],
-        layerOrder: [...state.layerOrder, action.layer.id],
-        selection: { layerIds: [action.layer.id] },
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
         isModified: true,
       };
     }
 
     case 'REMOVE_LAYER': {
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Remove layer'));
+      const newLayers = state.layers.filter(l => l.id !== action.layerId);
+      const newLayerOrder = state.layerOrder.filter(id => id !== action.layerId);
+      const newSelection = {
+        layerIds: state.selection.layerIds.filter(id => id !== action.layerId),
+      };
+      const hist = pushHistory(state, 'Remove layer', newLayers, newLayerOrder, newSelection, state.adjustments);
       
       return {
         ...state,
-        layers: state.layers.filter(l => l.id !== action.layerId),
-        layerOrder: state.layerOrder.filter(id => id !== action.layerId),
-        selection: {
-          layerIds: state.selection.layerIds.filter(id => id !== action.layerId),
-        },
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
         isModified: true,
       };
     }
 
     case 'UPDATE_LAYER': {
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Update layer'));
+      const newLayers = state.layers.map(layer =>
+        layer.id === action.layerId
+          ? { ...layer, ...action.updates } as Layer
+          : layer
+      );
+      const hist = pushHistory(state, 'Update layer', newLayers, state.layerOrder, state.selection, state.adjustments);
       
       return {
         ...state,
-        layers: state.layers.map(layer =>
-          layer.id === action.layerId
-            ? { ...layer, ...action.updates } as Layer
-            : layer
-        ),
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        layers: newLayers,
+        ...hist,
         isModified: true,
       };
     }
 
     case 'REORDER_LAYERS': {
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Reorder layers'));
+      const hist = pushHistory(state, 'Reorder layers', state.layers, action.layerIds, state.selection, state.adjustments);
       
       return {
         ...state,
         layerOrder: action.layerIds,
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        ...hist,
         isModified: true,
       };
     }
@@ -187,16 +292,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const newOrder = state.layerOrder.filter(id => !action.layerIds.includes(id));
       newOrder.splice(firstIndex, 0, groupId);
 
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Group layers'));
+      const newLayers = [...updatedLayers, groupLayer];
+      const newSelection = { layerIds: [groupId] };
+      const hist = pushHistory(state, 'Group layers', newLayers, newOrder, newSelection, state.adjustments);
 
       return {
         ...state,
-        layers: [...updatedLayers, groupLayer],
+        layers: newLayers,
         layerOrder: newOrder,
-        selection: { layerIds: [groupId] },
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        selection: newSelection,
+        ...hist,
         isModified: true,
       };
     }
@@ -219,16 +324,15 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const newOrder = state.layerOrder.filter(id => id !== action.groupId);
       newOrder.splice(groupIndex, 0, ...group.children);
 
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Ungroup layers'));
+      const newSelection = { layerIds: group.children };
+      const hist = pushHistory(state, 'Ungroup layers', updatedLayers, newOrder, newSelection, state.adjustments);
 
       return {
         ...state,
         layers: updatedLayers,
         layerOrder: newOrder,
-        selection: { layerIds: group.children },
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        selection: newSelection,
+        ...hist,
         isModified: true,
       };
     }
@@ -248,16 +352,16 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const newOrder = [...state.layerOrder];
       newOrder.splice(layerIndex + 1, 0, newId);
 
-      const newHistory = state.history.slice(0, state.historyIndex + 1);
-      newHistory.push(createHistoryEntry(state, 'Duplicate layer'));
+      const newLayers = [...state.layers, duplicatedLayer];
+      const newSelection = { layerIds: [newId] };
+      const hist = pushHistory(state, 'Duplicate layer', newLayers, newOrder, newSelection, state.adjustments);
 
       return {
         ...state,
-        layers: [...state.layers, duplicatedLayer],
+        layers: newLayers,
         layerOrder: newOrder,
-        selection: { layerIds: [newId] },
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
+        selection: newSelection,
+        ...hist,
         isModified: true,
       };
     }
@@ -298,13 +402,30 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         },
       };
 
-    case 'UNDO': {
-      if (state.historyIndex < 0) return state;
-      const prevEntry = state.history[state.historyIndex];
+    case 'UPDATE_ADJUSTMENTS': {
+      const newAdjustments = {
+        ...state.adjustments,
+        ...action.updates,
+      };
+      const hist = pushHistory(state, 'Update adjustments', state.layers, state.layerOrder, state.selection, newAdjustments);
+      
       return {
         ...state,
-        layers: prevEntry.layers,
-        selection: prevEntry.selection,
+        adjustments: newAdjustments,
+        ...hist,
+        isModified: true,
+      };
+    }
+
+    case 'UNDO': {
+      if (state.historyIndex <= 0) return state; // Can't undo past initial state
+      const prevEntry = state.history[state.historyIndex - 1];
+      return {
+        ...state,
+        layers: JSON.parse(JSON.stringify(prevEntry.layers)),
+        layerOrder: [...prevEntry.layerOrder],
+        selection: { ...prevEntry.selection },
+        adjustments: { ...prevEntry.adjustments },
         historyIndex: state.historyIndex - 1,
       };
     }
@@ -314,11 +435,31 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       const nextEntry = state.history[state.historyIndex + 1];
       return {
         ...state,
-        layers: nextEntry.layers,
-        selection: nextEntry.selection,
+        layers: JSON.parse(JSON.stringify(nextEntry.layers)),
+        layerOrder: [...nextEntry.layerOrder],
+        selection: { ...nextEntry.selection },
+        adjustments: { ...nextEntry.adjustments },
         historyIndex: state.historyIndex + 1,
       };
     }
+
+    case 'MARK_SAVED':
+      return { ...state, isModified: false };
+
+    case 'SET_SMART_SELECTION':
+      return {
+        ...state,
+        smartSelection: {
+          ...state.smartSelection,
+          ...action.selection,
+        },
+      };
+
+    case 'CLEAR_SMART_SELECTION':
+      return {
+        ...state,
+        smartSelection: { ...DEFAULT_SMART_SELECTION },
+      };
 
     case 'RESET':
       return createInitialState();
@@ -330,19 +471,82 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 
 // Hook
 export function useEditorState(initialWidth?: number, initialHeight?: number) {
+  // Get persisted state from Zustand store (if any)
+  const store = useEditorStore();
+  const persistedState = useMemo(() => ({
+    layers: store.layers,
+    layerOrder: store.layerOrder,
+    selection: store.selection,
+    activeTool: store.activeTool,
+    toolSettings: store.toolSettings,
+    canvas: store.canvas,
+    adjustments: store.adjustments,
+    smartSelection: store.smartSelection,
+  }), []); // Only read once on mount
+  
+  // Track if we've initialized from persisted state
+  const hasInitializedRef = useRef(false);
+  
   const [state, dispatch] = useReducer(
     editorReducer,
-    createInitialState(initialWidth, initialHeight)
+    undefined,
+    () => {
+      // Check if there's meaningful persisted state (has layers)
+      if (persistedState.layers && persistedState.layers.length > 0 && !hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        return createInitialState(initialWidth, initialHeight, persistedState);
+      }
+      return createInitialState(initialWidth, initialHeight);
+    }
   );
 
+  // Sync state changes back to Zustand store for persistence
+  // Debounce to avoid excessive writes on rapid changes
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    // Skip initial sync to avoid overwriting persisted state
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      return;
+    }
+    
+    // Debounce sync to store
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    
+    syncTimeoutRef.current = setTimeout(() => {
+      store.syncFromReducer({
+        layers: state.layers,
+        layerOrder: state.layerOrder,
+        selection: state.selection,
+        activeTool: state.activeTool,
+        toolSettings: state.toolSettings,
+        canvas: state.canvas,
+        adjustments: state.adjustments,
+        smartSelection: state.smartSelection,
+        isModified: state.isModified,
+      });
+    }, 300); // 300ms debounce
+    
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [state.layers, state.layerOrder, state.selection, state.activeTool, 
+      state.toolSettings, state.canvas, state.adjustments, state.smartSelection,
+      state.isModified, store]);
+
   // Layer helpers
-  const addImageLayer = useCallback((src: string, name = 'Image') => {
+  const addImageLayer = useCallback((src: string, name = 'Image', locked = false) => {
     const layer: ImageLayer = {
       id: generateId(),
       name,
       type: 'image',
       visible: true,
-      locked: false,
+      locked,
       opacity: 100,
       blendMode: 'normal',
       transform: {
@@ -480,15 +684,21 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
   }, [state.canvas.width, state.canvas.height]);
 
   // Selection helpers
+  // Use refs to avoid creating new callback references on every selection change,
+  // which would cascade re-renders to all children receiving selectLayer as a prop
+  const selectionRef = useRef(state.selection.layerIds);
+  selectionRef.current = state.selection.layerIds;
+  
   const selectLayer = useCallback((layerId: string, multi = false) => {
     if (multi) {
-      const isSelected = state.selection.layerIds.includes(layerId);
+      const currentIds = selectionRef.current;
+      const isSelected = currentIds.includes(layerId);
       dispatch({
         type: 'SET_SELECTION',
         selection: {
           layerIds: isSelected
-            ? state.selection.layerIds.filter(id => id !== layerId)
-            : [...state.selection.layerIds, layerId],
+            ? currentIds.filter(id => id !== layerId)
+            : [...currentIds, layerId],
         },
       });
     } else {
@@ -497,7 +707,7 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
         selection: { layerIds: [layerId] },
       });
     }
-  }, [state.selection.layerIds]);
+  }, []);
 
   const clearSelection = useCallback(() => {
     dispatch({ type: 'SET_SELECTION', selection: { layerIds: [] } });
@@ -514,8 +724,31 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
     [state.layers, state.layerOrder]
   );
 
-  const canUndo = state.historyIndex >= 0;
+  const canUndo = state.historyIndex > 0;
   const canRedo = state.historyIndex < state.history.length - 1;
+
+  // Adjustment helpers
+  const updateAdjustments = useCallback((updates: Partial<AdjustmentState>) => {
+    dispatch({ type: 'UPDATE_ADJUSTMENTS', updates });
+  }, []);
+
+  // Smart Selection helpers
+  const setSmartSelection = useCallback((selection: Partial<SmartSelectionState>) => {
+    dispatch({ type: 'SET_SMART_SELECTION', selection });
+  }, []);
+
+  const clearSmartSelection = useCallback(() => {
+    dispatch({ type: 'CLEAR_SMART_SELECTION' });
+  }, []);
+
+  const updateSelectionMode = useCallback((mode: SmartSelectionState['mode']) => {
+    dispatch({ type: 'SET_SMART_SELECTION', selection: { mode } });
+  }, []);
+
+  // Mark as saved (reset isModified flag)
+  const markSaved = useCallback(() => {
+    dispatch({ type: 'MARK_SAVED' });
+  }, []);
 
   return {
     state,
@@ -533,6 +766,16 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
     orderedLayers,
     canUndo,
     canRedo,
+    // Adjustments
+    updateAdjustments,
+    // Smart Selection
+    setSmartSelection,
+    clearSmartSelection,
+    updateSelectionMode,
+    smartSelection: state.smartSelection,
+    // Save state
+    markSaved,
+    isModified: state.isModified,
   };
 }
 

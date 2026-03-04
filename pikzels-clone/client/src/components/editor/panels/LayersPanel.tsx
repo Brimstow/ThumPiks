@@ -1,5 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import type { Layer, LayerType, BlendMode, Selection } from '../types/editor.types';
+import { getDisclosurePref, setDisclosurePref } from '../../ui/CollapsibleSection';
+import { useEditorMode } from '../../../features/editor-mode';
+import { LayerSortableList, SortableLayerItem, DragInstructions } from '../../../features/drag-drop';
 
 interface LayersPanelProps {
   layers: Layer[];
@@ -155,9 +158,11 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   onGroupLayers,
   onMergeLayers,
 }) => {
-  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
   const [selectedBlendMode, setSelectedBlendMode] = useState<BlendMode>('normal');
   const [selectedOpacity, setSelectedOpacity] = useState(100);
+  
+  // Editor mode - hide blend mode controls in Simple mode
+  const { isSimpleMode } = useEditorMode();
 
   // Get layers in render order (reversed for display - top layer first)
   const orderedLayers = [...layerOrder]
@@ -168,35 +173,19 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   const selectedLayer = layers.find(l => selection.layerIds.includes(l.id));
 
   // Update blend mode / opacity when selection changes
+  // Use primitive values as dependencies to avoid firing on every render
+  // (selectedLayer is a new object reference each render since layers array is new)
+  const selectedBlendModeValue = selectedLayer?.blendMode;
+  const selectedOpacityValue = selectedLayer?.opacity;
+  
   React.useEffect(() => {
-    if (selectedLayer) {
-      setSelectedBlendMode(selectedLayer.blendMode);
-      setSelectedOpacity(selectedLayer.opacity);
+    if (selectedBlendModeValue !== undefined) {
+      setSelectedBlendMode(selectedBlendModeValue);
     }
-  }, [selectedLayer]);
-
-  const handleDragStart = (e: React.DragEvent, layerId: string) => {
-    setDraggedLayerId(layerId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    if (!draggedLayerId || draggedLayerId === targetId) return;
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    if (!draggedLayerId || draggedLayerId === targetId) return;
-
-    const fromIndex = layerOrder.indexOf(draggedLayerId);
-    const toIndex = layerOrder.indexOf(targetId);
-    
-    if (fromIndex !== -1 && toIndex !== -1) {
-      onLayerReorder(fromIndex, toIndex);
+    if (selectedOpacityValue !== undefined) {
+      setSelectedOpacity(selectedOpacityValue);
     }
-    setDraggedLayerId(null);
-  };
+  }, [selectedBlendModeValue, selectedOpacityValue]);
 
   const handleBlendModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const blendMode = e.target.value as BlendMode;
@@ -215,6 +204,16 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   };
 
   const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // Progressive disclosure: blend mode + opacity collapsed by default
+  const [advancedOpen, setAdvancedOpen] = useState(() => getDisclosurePref('editor.layersAdvanced'));
+  const toggleAdvanced = () => {
+    setAdvancedOpen((prev) => {
+      const next = !prev;
+      setDisclosurePref('editor.layersAdvanced', next);
+      return next;
+    });
+  };
 
   return (
     <div className="layers-panel">
@@ -293,33 +292,58 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
         </div>
       </div>
 
-      {/* Blend mode & opacity */}
-      <div className="layers-panel__blend">
-        <select
-          className="blend-select"
-          value={selectedBlendMode}
-          onChange={handleBlendModeChange}
-          disabled={selection.layerIds.length === 0}
-        >
-          {blendModes.map(mode => (
-            <option key={mode} value={mode}>
-              {mode.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-            </option>
-          ))}
-        </select>
-        <div className="opacity-control">
-          <span className="opacity-control__label">Opacity:</span>
-          <input
-            type="number"
-            className="opacity-control__input"
-            value={selectedOpacity}
-            onChange={handleOpacityChange}
-            min={0}
-            max={100}
-            disabled={selection.layerIds.length === 0}
-          />
-        </div>
-      </div>
+      {/* Advanced toggle — progressive disclosure (hidden in Simple mode) */}
+      {!isSimpleMode && (
+        <>
+          <button
+            className="layers-panel__advanced-toggle"
+            onClick={toggleAdvanced}
+            aria-expanded={advancedOpen}
+          >
+            <svg
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className={`layers-panel__advanced-chevron ${advancedOpen ? 'layers-panel__advanced-chevron--open' : ''}`}
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            <span>Advanced</span>
+            {selectedBlendMode !== 'normal' && (
+              <span className="layers-panel__advanced-indicator" />
+            )}
+          </button>
+
+          {/* Blend mode & opacity — collapsible */}
+          <div className={`layers-panel__blend-wrapper ${advancedOpen ? 'layers-panel__blend-wrapper--open' : ''}`}>
+            <div className="layers-panel__blend">
+              <select
+                className="blend-select"
+                value={selectedBlendMode}
+                onChange={handleBlendModeChange}
+                disabled={selection.layerIds.length === 0}
+              >
+                {blendModes.map(mode => (
+                  <option key={mode} value={mode}>
+                    {mode.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                  </option>
+                ))}
+              </select>
+              <div className="opacity-control">
+                <span className="opacity-control__label">Opacity:</span>
+                <input
+                  type="number"
+                  className="opacity-control__input"
+                  value={selectedOpacity}
+                  onChange={handleOpacityChange}
+                  min={0}
+                  max={100}
+                  disabled={selection.layerIds.length === 0}
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Layer list */}
       <div className="layers-list">
@@ -334,63 +358,76 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
             Add a layer to get started.
           </div>
         ) : (
-          orderedLayers.map(layer => (
-            <div
-              key={layer.id}
-              className={`layer-item ${selection.layerIds.includes(layer.id) ? 'layer-item--selected' : ''} ${draggedLayerId === layer.id ? 'layer-item--dragging' : ''}`}
-              onClick={(e) => onLayerSelect(layer.id, e.shiftKey || e.ctrlKey || e.metaKey)}
-              draggable
-              onDragStart={(e) => handleDragStart(e, layer.id)}
-              onDragOver={(e) => handleDragOver(e, layer.id)}
-              onDrop={(e) => handleDrop(e, layer.id)}
-            >
-              <button
-                className={`layer-item__visibility ${!layer.visible ? 'layer-item__visibility--hidden' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onLayerVisibilityToggle(layer.id);
-                }}
-              >
-                <Icons.Eye visible={layer.visible} />
-              </button>
-
-              <div className="layer-item__thumbnail">
-                {getLayerIcon(layer.type)}
-              </div>
-
-              <div className="layer-item__info">
-                <div className="layer-item__name">{layer.name}</div>
-                <div className="layer-item__type">{layer.type}</div>
-              </div>
-
-              <div className="layer-item__actions">
-                <button
-                  className="layer-item__action"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLayerDuplicate(layer.id);
-                  }}
-                  title="Duplicate"
+          <LayerSortableList layerOrder={layerOrder} onReorder={onLayerReorder}>
+            {orderedLayers.map((layer, index) => (
+              <SortableLayerItem key={layer.id} id={layer.id} index={index}>
+                <div
+                  className={`layer-item ${selection.layerIds.includes(layer.id) ? 'layer-item--selected' : ''}`}
+                  onClick={(e) => onLayerSelect(layer.id, e.shiftKey || e.ctrlKey || e.metaKey)}
                 >
-                  <Icons.Copy />
-                </button>
-                <button
-                  className="layer-item__action"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLayerDelete(layer.id);
-                  }}
-                  title="Delete"
-                >
-                  <Icons.Trash />
-                </button>
-              </div>
-            </div>
-          ))
+                  <button
+                    className={`layer-item__visibility ${!layer.visible ? 'layer-item__visibility--hidden' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLayerVisibilityToggle(layer.id);
+                    }}
+                  >
+                    <Icons.Eye visible={layer.visible} />
+                  </button>
+
+                  <button
+                    className={`layer-item__lock ${layer.locked ? 'layer-item__lock--locked' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLayerLockToggle(layer.id);
+                    }}
+                    title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                  >
+                    <Icons.Lock locked={layer.locked} />
+                  </button>
+
+                  <div className="layer-item__thumbnail">
+                    {getLayerIcon(layer.type)}
+                  </div>
+
+                  <div className="layer-item__info">
+                    <div className="layer-item__name">{layer.name}</div>
+                    <div className="layer-item__type">{layer.type}</div>
+                  </div>
+
+                  <div className="layer-item__actions">
+                    <button
+                      className="layer-item__action"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLayerDuplicate(layer.id);
+                      }}
+                      title="Duplicate"
+                    >
+                      <Icons.Copy />
+                    </button>
+                    <button
+                      className="layer-item__action"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLayerDelete(layer.id);
+                      }}
+                      title="Delete"
+                    >
+                      <Icons.Trash />
+                    </button>
+                  </div>
+                </div>
+              </SortableLayerItem>
+            ))}
+          </LayerSortableList>
         )}
       </div>
+      
+      {/* Screen reader instructions for drag-drop */}
+      <DragInstructions />
     </div>
   );
 };
 
-export default LayersPanel;
+export default React.memo(LayersPanel);

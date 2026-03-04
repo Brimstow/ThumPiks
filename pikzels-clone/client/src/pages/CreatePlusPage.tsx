@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Video, Layers, Wand2, FileText, Link2, UploadCloud, MonitorPlay, Smartphone, Instagram, Maximize2, Plus, Trash2, Save } from 'lucide-react';
 import CreateThumbnail from '../components/CreateThumbnail';
+import { authPost } from '../utils/api';
 
 interface AspectRatioPreset {
   id: string;
@@ -24,6 +25,7 @@ interface CustomPreset {
 const CreatePlusPage: React.FC = () => {
   const navigate = useNavigate();
   const [showAiPromptModal, setShowAiPromptModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string>('youtube-16-9');
   const [customWidth, setCustomWidth] = useState<number>(1920);
@@ -128,10 +130,45 @@ const CreatePlusPage: React.FC = () => {
 
   // AI prompt thumbnail creation handler
   const handleAiPromptCreate = useCallback(async (prompt: string, style: string, projectId: string) => {
-    console.log('Creating AI thumbnail with:', { prompt, style, projectId });
     setShowAiPromptModal(false);
-    // TODO: Implement AI thumbnail generation API call
-  }, []);
+    setIsGenerating(true);
+    try {
+      const response = await authPost('/api/thumbnails/ai/generate', { prompt, style, tier: 'standard' });
+
+      if (response.status === 402) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Insufficient credits. Please purchase more credits.');
+        navigate('/dashboard/credits');
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.images || data.images.length === 0) {
+        throw new Error('No images generated');
+      }
+
+      // Navigate to editor with the generated image
+      navigate('/dashboard/editor', {
+        state: {
+          initialImage: data.images[0],
+          projectId,
+          prompt,
+          style,
+        },
+      });
+    } catch (error) {
+      console.error('AI generation error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to generate thumbnail');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [navigate]);
 
   // Creation methods configuration
   const creationMethods = [

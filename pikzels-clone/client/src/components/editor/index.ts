@@ -1,5 +1,10 @@
 // Thumbnail Studio Editor - Main exports
 export { default as ThumbnailStudio } from './ThumbnailStudio';
+export { EditorRouter, default as EditorRouterDefault } from './EditorRouter';
+
+// Mobile Editor
+export { MobileEditor } from './mobile';
+export type { MobileEditorProps, MobileToolTab } from './mobile';
 
 // Types
 export type {
