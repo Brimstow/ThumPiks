@@ -2,8 +2,9 @@ import { AIService } from './ai.service';
 import { CometAIService } from './comet-ai.service';
 import { ZenmuxAIService } from './zenmux-ai.service';
 import { OpenRouterAIService } from './openrouter-ai.service';
+import { ReplicateAIService } from './replicate-ai.service';
 
-export type AIProvider = 'openai' | 'comet' | 'zenmux' | 'openrouter';
+export type AIProvider = 'openai' | 'comet' | 'zenmux' | 'openrouter' | 'replicate';
 
 export interface AIGenerationOptions {
   provider?: AIProvider;
@@ -22,12 +23,14 @@ export class AIServiceManager {
   private cometService: CometAIService;
   private zenmuxService: ZenmuxAIService;
   private openrouterService: OpenRouterAIService;
+  private replicateService: ReplicateAIService;
 
   constructor() {
     this.openaiService = new AIService();
     this.cometService = new CometAIService();
     this.zenmuxService = new ZenmuxAIService();
     this.openrouterService = new OpenRouterAIService();
+    this.replicateService = new ReplicateAIService();
   }
 
   /**
@@ -93,6 +96,9 @@ export class AIServiceManager {
     if (this.openrouterService.isConfigured()) {
       providers.push('openrouter');
     }
+    if (this.replicateService.isConfigured()) {
+      providers.push('replicate');
+    }
 
     return providers;
   }
@@ -112,6 +118,8 @@ export class AIServiceManager {
         return this.zenmuxService.isConfigured();
       case 'openrouter':
         return this.openrouterService.isConfigured();
+      case 'replicate':
+        return this.replicateService.isConfigured();
       default:
         return false;
     }
@@ -135,6 +143,22 @@ export class AIServiceManager {
       throw new Error('OpenRouter service is not configured');
     }
     return await this.openrouterService.listModels();
+  }
+
+  /**
+   * Get the Replicate AI service instance for direct access
+   * Used by controllers that need Replicate-specific methods (segment, removeBg, upscale, expand)
+   */
+  getReplicateService(): ReplicateAIService {
+    return this.replicateService;
+  }
+
+  /**
+   * Get the OpenRouter AI service instance for direct access
+   * Used by controllers that need OpenRouter-specific methods
+   */
+  getOpenRouterService(): OpenRouterAIService {
+    return this.openrouterService;
   }
 }
 

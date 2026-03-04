@@ -73,6 +73,103 @@ export interface AIToolModelsAPIResponse {
 }
 
 // ============================================
+// PROVIDER MODEL CATALOGS (DRY - Single Source of Truth)
+// ============================================
+
+/**
+ * Available AI providers and their model offerings.
+ * Each provider has models mapped to quality tiers (flash/standard/pro).
+ */
+type AIProvider = 'comet' | 'zenmux' | 'openrouter';
+
+/**
+ * Provider-specific model catalogs.
+ * IMPORTANT: This is the ONLY place where model IDs are defined.
+ * Do NOT hardcode model IDs anywhere else in tier configurations.
+ */
+const PROVIDER_MODELS: Record<AIProvider, Record<ModelTierId, string>> = {
+  comet: {
+    flash: 'flux-schnell',
+    standard: 'flux-dev',
+    pro: 'flux-pro',
+  },
+  zenmux: {
+    flash: 'google/gemini-2.5-flash-image',
+    standard: 'google/gemini-2.5-flash-image',
+    pro: 'google/gemini-3-pro-image-preview',
+  },
+  openrouter: {
+    flash: 'google/gemini-2.5-flash-image',
+    standard: 'google/gemini-2.5-flash-image',
+    pro: 'google/gemini-3-pro-image-preview',
+  },
+};
+
+/**
+ * Human-readable model labels for each provider's models.
+ * Displayed in the UI as "Powered by {label}"
+ */
+const PROVIDER_MODEL_LABELS: Record<AIProvider, Record<ModelTierId, string>> = {
+  comet: {
+    flash: 'FLUX Schnell',
+    standard: 'FLUX Dev',
+    pro: 'FLUX Pro',
+  },
+  zenmux: {
+    flash: 'Gemini 2.5 Flash Image',
+    standard: 'Gemini 2.5 Flash Image',
+    pro: 'Gemini 3 Pro Image',
+  },
+  openrouter: {
+    flash: 'Gemini 2.5 Flash Image',
+    standard: 'Gemini 2.5 Flash Image',
+    pro: 'Gemini 3 Pro Image',
+  },
+};
+
+/**
+ * Global tier-to-provider mapping (SINGLE SOURCE OF TRUTH)
+ * 
+ * Change ONE line here to switch ALL tools using that tier to a different provider.
+ * 
+ * Example: To switch all Flash tiers from Comet to ZenMux:
+ *   flash: 'comet' → flash: 'zenmux'
+ * 
+ * This will automatically update generate, inpaint, face-swap, and upscale Flash tiers.
+ */
+const TIER_PROVIDER_MAP: Record<ModelTierId, AIProvider> = {
+  flash: 'comet',      // Fast, cost-effective - uses Comet FLUX Schnell
+  standard: 'openrouter', // Balanced - uses OpenRouter Gemini 2.5
+  pro: 'openrouter',   // Best quality - uses OpenRouter Gemini 3 Pro
+};
+
+/**
+ * Resolve the model ID for a specific tier.
+ * This is the centralized lookup that prevents model ID duplication.
+ */
+function getModelForTier(tierId: ModelTierId): string {
+  const provider = TIER_PROVIDER_MAP[tierId];
+  return PROVIDER_MODELS[provider][tierId];
+}
+
+/**
+ * Resolve the model label for a specific tier.
+ * Returns the human-readable model name for UI display.
+ */
+function getModelLabelForTier(tierId: ModelTierId): string {
+  const provider = TIER_PROVIDER_MAP[tierId];
+  return PROVIDER_MODEL_LABELS[provider][tierId];
+}
+
+/**
+ * Get the provider that will handle requests for a specific tier.
+ * Used by the controller to route requests to the correct AI service.
+ */
+export function getProviderForTier(tierId: ModelTierId): AIProvider {
+  return TIER_PROVIDER_MAP[tierId];
+}
+
+// ============================================
 // TIER BASE TEMPLATES
 // ============================================
 
@@ -104,9 +201,12 @@ const TIER_BASE: Record<
 /**
  * Text-to-image generation tiers.
  *
- * Flash    → FLUX.2 Klein: fastest, cheapest, good for quick iterations
- * Standard → Gemini 2.5 Flash Image: balanced quality and speed (default)
- * Pro      → Gemini 3 Pro Image: highest quality, 2K/4K support, slower
+ * Flash    → FLUX Schnell (Comet): fastest, cheapest, good for quick iterations
+ * Standard → Gemini 2.5 Flash Image (OpenRouter): balanced quality and speed (default)
+ * Pro      → Gemini 3 Pro Image (OpenRouter): highest quality, 2K/4K support, slower
+ * 
+ * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP. To change providers,
+ * update TIER_PROVIDER_MAP at the top of this file.
  */
 const generateTiers: ToolTierConfig = {
   toolId: 'generate',
@@ -115,16 +215,16 @@ const generateTiers: ToolTierConfig = {
     {
       ...TIER_BASE.flash,
       tagline: 'Fast iterations, good quality',
-      modelId: 'black-forest-labs/flux.2-klein-4b',
-      modelLabel: 'FLUX.2 Klein',
+      modelId: getModelForTier('flash'),
+      modelLabel: getModelLabelForTier('flash'),
       credits: 1,
       estimatedTime: '~3s',
     },
     {
       ...TIER_BASE.standard,
       tagline: 'Balanced quality and speed',
-      modelId: 'google/gemini-2.5-flash-image',
-      modelLabel: 'Gemini 2.5 Flash Image',
+      modelId: getModelForTier('standard'),
+      modelLabel: getModelLabelForTier('standard'),
       credits: 2,
       estimatedTime: '~8s',
       isDefault: true,
@@ -133,8 +233,8 @@ const generateTiers: ToolTierConfig = {
     {
       ...TIER_BASE.pro,
       tagline: 'Best quality, 2K/4K output',
-      modelId: 'google/gemini-3-pro-image-preview',
-      modelLabel: 'Gemini 3 Pro Image',
+      modelId: getModelForTier('pro'),
+      modelLabel: getModelLabelForTier('pro'),
       credits: 5,
       estimatedTime: '~15s',
       badge: 'Best Quality',
@@ -145,9 +245,11 @@ const generateTiers: ToolTierConfig = {
 /**
  * Inpainting / image editing tiers.
  *
- * Flash    → FLUX.2 Flex: fast, decent contextual edits, great at text
- * Standard → Gemini 3 Pro Image: strong context understanding (default)
- * Pro      → GPT-5 Image: premium editing precision
+ * Flash    → FLUX Schnell (Comet): fast, decent contextual edits
+ * Standard → Gemini 3 Pro Image (OpenRouter): strong context understanding (default)
+ * Pro      → GPT-5 Image (OpenRouter): premium editing precision
+ * 
+ * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP.
  */
 const inpaintTiers: ToolTierConfig = {
   toolId: 'inpaint',
@@ -156,16 +258,16 @@ const inpaintTiers: ToolTierConfig = {
     {
       ...TIER_BASE.flash,
       tagline: 'Quick edits, good for text overlays',
-      modelId: 'black-forest-labs/flux.2-flex',
-      modelLabel: 'FLUX.2 Flex',
+      modelId: getModelForTier('flash'),
+      modelLabel: getModelLabelForTier('flash'),
       credits: 1,
       estimatedTime: '~5s',
     },
     {
       ...TIER_BASE.standard,
       tagline: 'Context-aware, natural blending',
-      modelId: 'google/gemini-3-pro-image-preview',
-      modelLabel: 'Gemini 3 Pro Image',
+      modelId: getModelForTier('standard'),
+      modelLabel: getModelLabelForTier('standard'),
       credits: 3,
       estimatedTime: '~10s',
       isDefault: true,
@@ -174,7 +276,7 @@ const inpaintTiers: ToolTierConfig = {
     {
       ...TIER_BASE.pro,
       tagline: 'Premium precision editing',
-      modelId: 'openai/gpt-5-image',
+      modelId: 'openai/gpt-5-image', // Special case: Pro tier uses GPT-5 for inpainting
       modelLabel: 'GPT-5 Image',
       credits: 6,
       estimatedTime: '~18s',
@@ -186,9 +288,11 @@ const inpaintTiers: ToolTierConfig = {
 /**
  * Face swap tiers.
  *
- * Flash    → Gemini 2.5 Flash Image: fast, acceptable face quality
- * Standard → Seedream 4.5: portrait-optimized, natural results (default)
- * Pro      → Gemini 3 Pro Image: highest fidelity face reconstruction
+ * Flash    → FLUX Schnell (Comet): fast, acceptable face quality
+ * Standard → Seedream 4.5 (OpenRouter): portrait-optimized, natural results (default)
+ * Pro      → Gemini 3 Pro Image (OpenRouter): highest fidelity face reconstruction
+ * 
+ * NOTE: Standard tier uses Seedream 4.5 (special case for face-optimized model).
  */
 const faceSwapTiers: ToolTierConfig = {
   toolId: 'face-swap',
@@ -197,15 +301,15 @@ const faceSwapTiers: ToolTierConfig = {
     {
       ...TIER_BASE.flash,
       tagline: 'Quick swaps, good enough for drafts',
-      modelId: 'google/gemini-2.5-flash-image',
-      modelLabel: 'Gemini 2.5 Flash Image',
+      modelId: getModelForTier('flash'),
+      modelLabel: getModelLabelForTier('flash'),
       credits: 1,
       estimatedTime: '~4s',
     },
     {
       ...TIER_BASE.standard,
       tagline: 'Portrait-optimized, natural results',
-      modelId: 'bytedance-seed/seedream-4.5',
+      modelId: 'bytedance-seed/seedream-4.5', // Special case: Seedream optimized for faces
       modelLabel: 'Seedream 4.5',
       credits: 2,
       estimatedTime: '~8s',
@@ -215,8 +319,8 @@ const faceSwapTiers: ToolTierConfig = {
     {
       ...TIER_BASE.pro,
       tagline: 'Highest fidelity face reconstruction',
-      modelId: 'google/gemini-3-pro-image-preview',
-      modelLabel: 'Gemini 3 Pro Image',
+      modelId: getModelForTier('pro'),
+      modelLabel: getModelLabelForTier('pro'),
       credits: 5,
       estimatedTime: '~14s',
       badge: 'Most Realistic',
@@ -227,8 +331,10 @@ const faceSwapTiers: ToolTierConfig = {
 /**
  * AI upscaling tiers.
  *
- * Standard → Gemini 2.5 Flash Image: fast, good detail preservation (default)
- * Pro      → Gemini 3 Pro Image: native 2K/4K, maximum detail
+ * Standard → Gemini 2.5 Flash Image (OpenRouter): fast, good detail preservation (default)
+ * Pro      → Gemini 3 Pro Image (OpenRouter): native 2K/4K, maximum detail
+ * 
+ * NOTE: Upscale does not have a Flash tier. Only Standard and Pro.
  */
 const upscaleTiers: ToolTierConfig = {
   toolId: 'upscale',
@@ -237,8 +343,8 @@ const upscaleTiers: ToolTierConfig = {
     {
       ...TIER_BASE.standard,
       tagline: 'Fast upscaling, good detail',
-      modelId: 'google/gemini-2.5-flash-image',
-      modelLabel: 'Gemini 2.5 Flash Image',
+      modelId: getModelForTier('standard'),
+      modelLabel: getModelLabelForTier('standard'),
       credits: 1,
       estimatedTime: '~5s',
       isDefault: true,
@@ -246,8 +352,8 @@ const upscaleTiers: ToolTierConfig = {
     {
       ...TIER_BASE.pro,
       tagline: 'Native 2K/4K, maximum detail',
-      modelId: 'google/gemini-3-pro-image-preview',
-      modelLabel: 'Gemini 3 Pro Image',
+      modelId: getModelForTier('pro'),
+      modelLabel: getModelLabelForTier('pro'),
       credits: 4,
       estimatedTime: '~12s',
       badge: 'Sharpest',
@@ -313,6 +419,24 @@ export function getDefaultTier(tool: TieredToolId): TierDefinition | undefined {
   return (
     config.tiers.find(t => t.id === config.defaultTierId) ?? config.tiers[0]
   );
+}
+
+/**
+ * Get credit cost for a tier/tool combination.
+ * Returns the credit value from the tier definition, or 1 as fallback.
+ */
+export function getCreditCostForTier(
+  tier: string | undefined,
+  tool: TieredToolId
+): number {
+  if (!tier) {
+    const defaultTier = getDefaultTier(tool);
+    return defaultTier?.credits ?? 1;
+  }
+  const config = TOOL_TIER_CONFIG[tool];
+  if (!config) return 1;
+  const tierDef = config.tiers.find(t => t.id === tier);
+  return tierDef?.credits ?? 1;
 }
 
 /**

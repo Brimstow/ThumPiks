@@ -3,7 +3,8 @@
  * Standalone AI tools for image manipulation without the full editor
  */
 
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   Wand2,
@@ -12,20 +13,24 @@ import {
   Zap,
   Image as ImageIcon,
   ArrowRight,
-  Upload,
   Download,
   RefreshCw,
   Check,
   AlertCircle,
   Maximize2,
   X,
+  Pencil,
+  Move,
+  MousePointer2,
 } from 'lucide-react';
 import { useAIService } from '../../hooks/useAIService';
 import { useAIWorker } from '../../hooks/useAIWorker';
 import { config } from '../../config/environment';
+import { authPost } from '../../utils/api';
 import type { AIGenerateRequest } from '../../services/ai-providers';
 import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
 import type { ModelTierId } from '../../features/ai-tools';
+import ImageUploadZone from '../ui/ImageUploadZone';
 
 // ============================================
 // TYPES
@@ -37,7 +42,9 @@ type AIToolId =
   | 'remove-bg'
   | 'face-swap'
   | 'enhance'
-  | 'upscale';
+  | 'upscale'
+  | 'expand'
+  | 'object-removal';
 
 interface AITool {
   id: AIToolId;
@@ -78,6 +85,9 @@ const aspectRatios: {
 // ============================================
 
 const AIToolsPage: React.FC = () => {
+  // Navigation for opening results in editor
+  const navigate = useNavigate();
+
   // Use Web Worker if available, fallback to main thread
   const worker = useAIWorker();
 
@@ -129,15 +139,20 @@ const AIToolsPage: React.FC = () => {
   const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isFaceDragging, setIsFaceDragging] = useState(false);
+
+  // Expand/Outpaint state
+  const [expandDirection, setExpandDirection] = useState<'all' | 'top' | 'bottom' | 'left' | 'right'>('all');
+  const [expandPixels, setExpandPixels] = useState<number>(128);
+  const [expandPrompt, setExpandPrompt] = useState<string>('');
+
+  // Object Removal state
+  const [objectRemovalClicks, setObjectRemovalClicks] = useState<Array<{ x: number; y: number; label: 1 | 0 }>>([]);
+  const [objectRemovalMask, setObjectRemovalMask] = useState<string | null>(null);
+  const [objectRemovalStep, setObjectRemovalStep] = useState<'select' | 'confirm' | 'processing'>('select');
 
   // Model tier selection ("Intel Inside" pattern)
   // Default to 'standard' — will be validated against fetched config
   const [selectedTier, setSelectedTier] = useState<ModelTierId>('standard');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const faceInputRef = useRef<HTMLInputElement>(null);
 
   // Tool definitions
   const aiTools: AITool[] = [
@@ -230,94 +245,49 @@ const AIToolsPage: React.FC = () => {
       requiresImage: true,
       apiCost: '~$0.0015/image',
     },
+    {
+      id: 'expand',
+      name: 'AI Expand / Outpaint',
+      description:
+        'Extend your image canvas in any direction with AI-generated content',
+      icon: <Move className="w-6 h-6" />,
+      color: 'from-teal-500 to-cyan-500',
+      features: [
+        'Extend any direction',
+        'Context-aware fill',
+        'Seamless blending',
+        'Custom prompts',
+      ],
+      requiresImage: true,
+      apiCost: '2 credits/expand',
+    },
+    {
+      id: 'object-removal',
+      name: 'Object Removal',
+      description:
+        'Click on any object to remove it — AI fills the area with matching content',
+      icon: <MousePointer2 className="w-6 h-6" />,
+      color: 'from-rose-500 to-pink-500',
+      features: [
+        'Click to select',
+        'AI-powered removal',
+        'Context-aware fill',
+        'Clean results',
+      ],
+      requiresImage: true,
+      apiCost: '2 credits/removal',
+    },
   ];
 
-  // Handlers
-  const handleImageUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  // Handlers — image upload is now handled by the shared ImageUploadZone component
 
-      const reader = new FileReader();
-      reader.onload = event => {
-        setUploadedImage(event.target?.result as string);
-        setResultImage(null);
-      };
-      reader.readAsDataURL(file);
-    },
-    []
-  );
-
-  const handleFaceUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = event => {
-        setFaceSwapSource(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    },
-    []
-  );
-
-  // Drag and drop handlers for main image upload
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const file = e.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-
-    const reader = new FileReader();
-    reader.onload = event => {
-      setUploadedImage(event.target?.result as string);
+  const handleImageSelect = useCallback(
+    (dataUrl: string) => {
+      setUploadedImage(dataUrl);
       setResultImage(null);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  // Drag and drop handlers for face swap source
-  const handleFaceDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsFaceDragging(true);
-  }, []);
-
-  const handleFaceDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsFaceDragging(false);
-  }, []);
-
-  const handleFaceDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsFaceDragging(false);
-
-    const file = e.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-
-    const reader = new FileReader();
-    reader.onload = event => {
-      setFaceSwapSource(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  }, []);
+    },
+    []
+  );
 
   const handleGenerate = useCallback(async () => {
     if (!generatePrompt.trim() || ai.isLoading || isGenerating) return;
@@ -326,25 +296,14 @@ const AIToolsPage: React.FC = () => {
     setGenerateError(null);
 
     try {
-      // Resolve the model from the selected quality tier (backend-driven)
-      const resolvedModel = modelTiers.resolveModel('generate', selectedTier);
-
-      // Call backend API endpoint with cookies for authentication
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/generate`,
+      // Call backend AI generate endpoint with cookies for authentication
+      // Send ONLY tier parameter - let backend handle provider+model selection
+      const response = await authPost(
+        '/api/thumbnails/ai/generate',
         {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            prompt: generatePrompt,
-            style,
-            tier: selectedTier,
-            ...(resolvedModel ? { model: resolvedModel } : {}),
-            projectId: 'temp-project-id', // TODO: Get actual project ID from context
-          }),
+          prompt: generatePrompt,
+          style,
+          tier: selectedTier,
         }
       );
 
@@ -355,9 +314,9 @@ const AIToolsPage: React.FC = () => {
 
       const data = await response.json();
 
-      // Backend returns array of thumbnails, use the first one
-      if (data.thumbnails && data.thumbnails.length > 0) {
-        setResultImage(data.thumbnails[0].imageUrl);
+      // Backend returns { success, images: string[], model, provider }
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
       }
     } catch (error) {
       console.error('Generate failed:', error);
@@ -377,18 +336,11 @@ const AIToolsPage: React.FC = () => {
 
     try {
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/remove-background`,
+      const response = await authPost(
+        '/api/thumbnails/ai/remove-background',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Send HttpOnly cookies for auth
-          body: JSON.stringify({
-            image: uploadedImage,
-            backgroundColor: 'transparent',
-          }),
+          image: uploadedImage,
+          backgroundColor: 'transparent',
         }
       );
 
@@ -419,18 +371,11 @@ const AIToolsPage: React.FC = () => {
 
     try {
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/enhance`,
+      const response = await authPost(
+        '/api/thumbnails/ai/enhance',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Send HttpOnly cookies for auth
-          body: JSON.stringify({
-            image: uploadedImage,
-            enhancementType: enhanceType,
-          }),
+          image: uploadedImage,
+          enhancementType: enhanceType,
         }
       );
 
@@ -464,20 +409,13 @@ const AIToolsPage: React.FC = () => {
       const resolvedModel = modelTiers.resolveModel('upscale', selectedTier);
 
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/upscale`,
+      const response = await authPost(
+        '/api/thumbnails/ai/upscale',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Send HttpOnly cookies for auth
-          body: JSON.stringify({
-            image: uploadedImage,
-            scale: upscaleScale === 2 ? '2x' : '4x',
-            tier: selectedTier,
-            ...(resolvedModel ? { model: resolvedModel } : {}),
-          }),
+          image: uploadedImage,
+          scale: upscaleScale === 2 ? '2x' : '4x',
+          tier: selectedTier,
+          ...(resolvedModel ? { model: resolvedModel } : {}),
         }
       );
 
@@ -512,20 +450,13 @@ const AIToolsPage: React.FC = () => {
       const resolvedModel = modelTiers.resolveModel('face-swap', selectedTier);
 
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/face-swap`,
+      const response = await authPost(
+        '/api/thumbnails/ai/face-swap',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Send HttpOnly cookies for auth
-          body: JSON.stringify({
-            sourceImage: faceSwapSource,
-            targetImage: uploadedImage,
-            tier: selectedTier,
-            ...(resolvedModel ? { model: resolvedModel } : {}),
-          }),
+          sourceImage: faceSwapSource,
+          targetImage: uploadedImage,
+          tier: selectedTier,
+          ...(resolvedModel ? { model: resolvedModel } : {}),
         }
       );
 
@@ -548,6 +479,142 @@ const AIToolsPage: React.FC = () => {
     }
   }, [uploadedImage, faceSwapSource, selectedTier, ai.isLoading, isGenerating]);
 
+  const handleExpand = useCallback(async () => {
+    if (!uploadedImage || ai.isLoading || isGenerating) return;
+
+    setIsGenerating(true);
+    setGenerateError(null);
+
+    try {
+      // Call backend expand/outpaint endpoint (auth via HttpOnly cookie)
+      const response = await authPost(
+        '/api/thumbnails/ai/expand',
+        {
+          image: uploadedImage,
+          direction: expandDirection,
+          expandPixels: expandPixels,
+          prompt: expandPrompt || undefined,
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to expand image');
+      }
+
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
+      }
+    } catch (error) {
+      console.error('Expand failed:', error);
+      setGenerateError(
+        error instanceof Error ? error.message : 'Expand failed'
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [uploadedImage, expandDirection, expandPixels, expandPrompt, ai.isLoading, isGenerating]);
+
+  // Object Removal handlers
+  const handleObjectRemovalClick = useCallback((e: React.MouseEvent<HTMLImageElement>) => {
+    if (!uploadedImage || objectRemovalStep === 'processing') return;
+    
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    
+    // Calculate click position relative to actual image dimensions
+    const scaleX = img.naturalWidth / rect.width;
+    const scaleY = img.naturalHeight / rect.height;
+    
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+    
+    // Add click point (label: 1 = foreground/object to select)
+    setObjectRemovalClicks(prev => [...prev, { x, y, label: 1 }]);
+    setObjectRemovalMask(null); // Clear previous mask when new click added
+    setObjectRemovalStep('select');
+  }, [uploadedImage, objectRemovalStep]);
+
+  const handleGenerateMask = useCallback(async () => {
+    if (!uploadedImage || objectRemovalClicks.length === 0 || isGenerating) return;
+    
+    setIsGenerating(true);
+    setGenerateError(null);
+    
+    try {
+      // Call SAM segment endpoint in interactive mode
+      const response = await authPost('/api/thumbnails/ai/segment', {
+        image: uploadedImage,
+        mode: 'interactive',
+        clicks: objectRemovalClicks,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to detect object');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.masks && data.masks.length > 0) {
+        // Use the first (best) mask
+        setObjectRemovalMask(data.masks[0]);
+        setObjectRemovalStep('confirm');
+      } else {
+        throw new Error('No object detected at clicked location');
+      }
+    } catch (error) {
+      console.error('Object detection failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Object detection failed');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [uploadedImage, objectRemovalClicks, isGenerating]);
+
+  const handleRemoveObject = useCallback(async () => {
+    if (!uploadedImage || !objectRemovalMask || isGenerating) return;
+    
+    setIsGenerating(true);
+    setObjectRemovalStep('processing');
+    setGenerateError(null);
+    
+    try {
+      // Call inpaint endpoint with the mask to remove object
+      const response = await authPost('/api/thumbnails/ai/inpaint', {
+        image: uploadedImage,
+        mask: objectRemovalMask,
+        prompt: 'Remove the object and fill with surrounding background seamlessly',
+        tier: 'standard',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove object');
+      }
+      
+      const data = await response.json();
+      if (data.success && data.images && data.images.length > 0) {
+        setResultImage(data.images[0]);
+        // Reset object removal state
+        setObjectRemovalClicks([]);
+        setObjectRemovalMask(null);
+        setObjectRemovalStep('select');
+      }
+    } catch (error) {
+      console.error('Object removal failed:', error);
+      setGenerateError(error instanceof Error ? error.message : 'Object removal failed');
+      setObjectRemovalStep('confirm'); // Go back to confirm step on error
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [uploadedImage, objectRemovalMask, isGenerating]);
+
+  const handleClearObjectRemovalClicks = useCallback(() => {
+    setObjectRemovalClicks([]);
+    setObjectRemovalMask(null);
+    setObjectRemovalStep('select');
+  }, []);
+
   const handleInpaint = useCallback(async () => {
     if (!uploadedImage || !inpaintPrompt.trim() || ai.isLoading || isGenerating)
       return;
@@ -560,21 +627,14 @@ const AIToolsPage: React.FC = () => {
       const resolvedModel = modelTiers.resolveModel('inpaint', selectedTier);
 
       // Call backend OpenRouter API (auth via HttpOnly cookie)
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/inpaint`,
+      const response = await authPost(
+        '/api/thumbnails/ai/inpaint',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Send HttpOnly cookies for auth
-          body: JSON.stringify({
-            image: uploadedImage,
-            mask: '', // For now, we use prompt-only inpainting
-            prompt: inpaintPrompt,
-            tier: selectedTier,
-            ...(resolvedModel ? { model: resolvedModel } : {}),
-          }),
+          image: uploadedImage,
+          mask: '', // For now, we use prompt-only inpainting
+          prompt: inpaintPrompt,
+          tier: selectedTier,
+          ...(resolvedModel ? { model: resolvedModel } : {}),
         }
       );
 
@@ -606,6 +666,21 @@ const AIToolsPage: React.FC = () => {
     link.click();
   }, [resultImage, selectedTool]);
 
+  // Open AI result in the thumbnail editor
+  const handleOpenInEditor = useCallback(() => {
+    if (!resultImage) return;
+
+    const state = {
+      initialImage: resultImage,
+      source: 'ai-tools-page',
+      prompt: selectedTool === 'generate' ? generatePrompt : undefined,
+      style: selectedTool === 'generate' ? style : undefined,
+    };
+    // Backup to sessionStorage for page refresh resilience
+    sessionStorage.setItem('pendingEditorImage', JSON.stringify(state));
+    navigate('/dashboard/editor', { state });
+  }, [resultImage, selectedTool, generatePrompt, style, navigate]);
+
   const handleProcessTool = useCallback(() => {
     switch (selectedTool) {
       case 'generate':
@@ -626,6 +701,12 @@ const AIToolsPage: React.FC = () => {
       case 'face-swap':
         handleFaceSwap();
         break;
+      case 'expand':
+        handleExpand();
+        break;
+      case 'object-removal':
+        // Object removal uses a multi-step flow, handled by dedicated buttons
+        break;
       default:
         break;
     }
@@ -637,6 +718,7 @@ const AIToolsPage: React.FC = () => {
     handleEnhance,
     handleUpscale,
     handleFaceSwap,
+    handleExpand,
   ]);
 
   const currentTool = aiTools.find(t => t.id === selectedTool);
@@ -753,6 +835,12 @@ const AIToolsPage: React.FC = () => {
                 setInpaintPrompt('');
                 setGenerateError(null);
                 setSelectedTier('standard');
+                setExpandDirection('all');
+                setExpandPixels(128);
+                setExpandPrompt('');
+                setObjectRemovalClicks([]);
+                setObjectRemovalMask(null);
+                setObjectRemovalStep('select');
               }}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
@@ -769,56 +857,13 @@ const AIToolsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-300 mb-3">
                     Upload Image
                   </label>
-                  {uploadedImage ? (
-                    <div className="relative aspect-video bg-slate-800 rounded-xl overflow-hidden">
-                      <img
-                        src={uploadedImage}
-                        alt="Uploaded"
-                        className="w-full h-full object-contain"
-                      />
-                      <button
-                        onClick={() => {
-                          setUploadedImage(null);
-                          setResultImage(null);
-                        }}
-                        className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-lg hover:bg-black/80 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={`w-full aspect-video bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
-                        isDragging
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/70'
-                      }`}
-                    >
-                      <Upload
-                        className={`w-10 h-10 pointer-events-none ${isDragging ? 'text-blue-400' : 'text-slate-500'}`}
-                      />
-                      <span
-                        className={`text-sm pointer-events-none ${isDragging ? 'text-blue-300' : 'text-slate-400'}`}
-                      >
-                        {isDragging
-                          ? 'Drop your image here'
-                          : 'Click to upload or drag and drop'}
-                      </span>
-                      <span className="text-xs text-slate-500 pointer-events-none">
-                        PNG, JPG up to 10MB
-                      </span>
-                    </div>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageUpload}
+                  <ImageUploadZone
+                    currentImage={uploadedImage}
+                    onImageSelect={handleImageSelect}
+                    onRemove={() => {
+                      setUploadedImage(null);
+                      setResultImage(null);
+                    }}
                   />
                 </div>
               )}
@@ -915,54 +960,210 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Expand/Outpaint Tool Options */}
+              {selectedTool === 'expand' && uploadedImage && (
+                <div className="space-y-4">
+                  {/* Info box */}
+                  <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <Move className="w-5 h-5 text-teal-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-teal-300 mb-1">
+                          AI Expand / Outpaint
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Extend your image beyond its boundaries. The AI will generate
+                          matching content that blends seamlessly with the original.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Direction selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      Expand Direction
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['all', 'top', 'bottom', 'left', 'right'] as const).map(dir => (
+                        <button
+                          key={dir}
+                          onClick={() => setExpandDirection(dir)}
+                          className={`p-3 rounded-xl border text-sm transition-all capitalize ${
+                            expandDirection === dir
+                              ? 'bg-teal-500/20 border-teal-500 text-teal-400'
+                              : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                          } ${dir === 'all' ? 'col-span-3' : ''}`}
+                        >
+                          {dir === 'all' ? '↔ All Directions' : dir === 'top' ? '↑ Top' : dir === 'bottom' ? '↓ Bottom' : dir === 'left' ? '← Left' : '→ Right'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pixel amount slider */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      Expand Amount: {expandPixels}px
+                    </label>
+                    <input
+                      type="range"
+                      min="64"
+                      max="512"
+                      step="32"
+                      value={expandPixels}
+                      onChange={(e) => setExpandPixels(Number(e.target.value))}
+                      className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>64px</span>
+                      <span>512px</span>
+                    </div>
+                  </div>
+
+                  {/* Optional prompt */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      Guidance Prompt <span className="text-slate-500">(optional)</span>
+                    </label>
+                    <textarea
+                      value={expandPrompt}
+                      onChange={(e) => setExpandPrompt(e.target.value)}
+                      placeholder="Describe what should appear in the expanded area... (leave empty for auto-detection)"
+                      className="w-full h-20 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:border-teal-500 transition-colors text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Object Removal Tool Options */}
+              {selectedTool === 'object-removal' && uploadedImage && (
+                <div className="space-y-4">
+                  {/* Info box */}
+                  <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <MousePointer2 className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-medium text-rose-300 mb-1">
+                          Click to Remove Objects
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Click on the object you want to remove. You can add multiple clicks
+                          to better define the object. Then click "Detect Object" to preview,
+                          and "Remove" to complete.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Click-to-select image preview */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      Click on object to remove ({objectRemovalClicks.length} point{objectRemovalClicks.length !== 1 ? 's' : ''} selected)
+                    </label>
+                    <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
+                      <img
+                        src={uploadedImage}
+                        alt="Click to select object"
+                        className="w-full h-auto cursor-crosshair"
+                        onClick={handleObjectRemovalClick}
+                      />
+                      {/* Render click points */}
+                      {objectRemovalClicks.map((click, idx) => (
+                        <div
+                          key={idx}
+                          className="absolute w-4 h-4 -ml-2 -mt-2 rounded-full bg-rose-500 border-2 border-white shadow-lg pointer-events-none"
+                          style={{
+                            left: `${(click.x / (document.querySelector(`img[alt="Click to select object"]`) as HTMLImageElement)?.naturalWidth || 1) * 100}%`,
+                            top: `${(click.y / (document.querySelector(`img[alt="Click to select object"]`) as HTMLImageElement)?.naturalHeight || 1) * 100}%`,
+                          }}
+                        >
+                          <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs text-white bg-slate-800 px-1 rounded">
+                            {idx + 1}
+                          </span>
+                        </div>
+                      ))}
+                      {/* Mask overlay when generated */}
+                      {objectRemovalMask && (
+                        <div className="absolute inset-0 pointer-events-none">
+                          <img
+                            src={objectRemovalMask}
+                            alt="Mask preview"
+                            className="w-full h-full object-contain opacity-50"
+                            style={{ mixBlendMode: 'multiply', filter: 'hue-rotate(300deg) saturate(3)' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleClearObjectRemovalClicks}
+                      disabled={objectRemovalClicks.length === 0 || isGenerating}
+                      className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      Clear Points
+                    </button>
+                    {objectRemovalStep === 'select' && (
+                      <button
+                        onClick={handleGenerateMask}
+                        disabled={objectRemovalClicks.length === 0 || isGenerating}
+                        className="flex-1 py-3 rounded-xl bg-rose-500/20 border border-rose-500 text-rose-400 hover:bg-rose-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Detecting...
+                          </>
+                        ) : (
+                          'Detect Object'
+                        )}
+                      </button>
+                    )}
+                    {objectRemovalStep === 'confirm' && (
+                      <button
+                        onClick={handleRemoveObject}
+                        disabled={!objectRemovalMask || isGenerating}
+                        className="flex-1 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 text-white font-semibold hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Removing...
+                          </>
+                        ) : (
+                          'Remove Object'
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Step indicator */}
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                    <span className={objectRemovalStep === 'select' ? 'text-rose-400' : ''}>1. Click object</span>
+                    <span>→</span>
+                    <span className={objectRemovalStep === 'confirm' ? 'text-rose-400' : ''}>2. Detect</span>
+                    <span>→</span>
+                    <span className={objectRemovalStep === 'processing' ? 'text-rose-400' : ''}>3. Remove</span>
+                  </div>
+                </div>
+              )}
+
               {/* Face Swap Tool Options */}
               {selectedTool === 'face-swap' && uploadedImage && (
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-3">
                     Source Face
                   </label>
-                  {faceSwapSource ? (
-                    <div className="relative w-32 h-32 bg-slate-800 rounded-xl overflow-hidden">
-                      <img
-                        src={faceSwapSource}
-                        alt="Source face"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => setFaceSwapSource(null)}
-                        className="absolute top-1 right-1 p-1 bg-black/60 rounded-lg hover:bg-black/80"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => faceInputRef.current?.click()}
-                      onDragOver={handleFaceDragOver}
-                      onDragLeave={handleFaceDragLeave}
-                      onDrop={handleFaceDrop}
-                      className={`w-32 h-32 bg-slate-800/50 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isFaceDragging
-                          ? 'border-orange-500 bg-orange-500/10'
-                          : 'border-slate-700 hover:border-slate-600'
-                      }`}
-                    >
-                      <Users
-                        className={`w-6 h-6 ${isFaceDragging ? 'text-orange-400' : 'text-slate-500'}`}
-                      />
-                      <span
-                        className={`text-xs ${isFaceDragging ? 'text-orange-300' : 'text-slate-400'}`}
-                      >
-                        {isFaceDragging ? 'Drop here' : 'Upload face'}
-                      </span>
-                    </div>
-                  )}
-                  <input
-                    ref={faceInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFaceUpload}
+                  <ImageUploadZone
+                    variant="compact"
+                    icon="face"
+                    placeholder="Upload face"
+                    currentImage={faceSwapSource}
+                    onImageSelect={setFaceSwapSource}
+                    onRemove={() => setFaceSwapSource(null)}
                   />
                 </div>
               )}
@@ -999,33 +1200,35 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Process Button */}
-              <button
-                onClick={handleProcessTool}
-                disabled={
-                  ai.isLoading ||
-                  isGenerating ||
-                  (selectedTool === 'generate' && !generatePrompt.trim()) ||
-                  (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
-                  (currentTool.requiresImage && !uploadedImage) ||
-                  (selectedTool === 'face-swap' && !faceSwapSource)
-                }
-                className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
-              >
-                {ai.isLoading || isGenerating ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    {currentTool.icon}
-                    {selectedTool === 'generate'
-                      ? 'Generate Image'
-                      : `Apply ${currentTool.name}`}
-                  </>
-                )}
-              </button>
+              {/* Process Button (hidden for object-removal which has its own flow) */}
+              {selectedTool !== 'object-removal' && (
+                <button
+                  onClick={handleProcessTool}
+                  disabled={
+                    ai.isLoading ||
+                    isGenerating ||
+                    (selectedTool === 'generate' && !generatePrompt.trim()) ||
+                    (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
+                    (currentTool.requiresImage && !uploadedImage) ||
+                    (selectedTool === 'face-swap' && !faceSwapSource)
+                  }
+                  className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
+                >
+                  {ai.isLoading || isGenerating ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      {currentTool.icon}
+                      {selectedTool === 'generate'
+                        ? 'Generate Image'
+                        : `Apply ${currentTool.name}`}
+                    </>
+                  )}
+                </button>
+              )}
 
               {/* Error Display */}
               {(ai.error || generateError) && (
@@ -1093,13 +1296,22 @@ const AIToolsPage: React.FC = () => {
                   Result
                 </label>
                 {resultImage && (
-                  <button
-                    onClick={handleDownload}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleOpenInEditor}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition-colors"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Open in Editor
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </button>
+                  </div>
                 )}
               </div>
 

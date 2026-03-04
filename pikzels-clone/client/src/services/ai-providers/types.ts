@@ -135,6 +135,7 @@ export interface AISegmentResult extends AITaskResult {
   masks: {
     id: string;
     maskBase64: string;
+    maskUrl?: string;  // URL to mask image if not base64
     score: number;
     area: number;
     bbox: { x: number; y: number; width: number; height: number };

@@ -20,7 +20,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { config } from '../../../config/environment';
+import { authGet } from '../../../utils/api';
 import type {
   ModelTierId,
   TieredToolId,
@@ -105,16 +105,7 @@ async function fetchTierConfig(): Promise<AIToolModelsResponse> {
 
   inflightPromise = (async () => {
     try {
-      const response = await fetch(
-        `${config.apiBaseUrl}/api/thumbnails/ai/models`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-          },
-        }
-      );
+      const response = await authGet('/api/thumbnails/ai/models');
 
       if (!response.ok) {
         throw new Error(

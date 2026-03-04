@@ -11,6 +11,8 @@ import type {
   AIInpaintRequest,
   AIFaceSwapRequest,
   AIUpscaleRequest,
+  AISegmentRequest,
+  AISegmentResult,
   ReplicateConfig,
 } from './types';
 
@@ -26,6 +28,8 @@ const DEFAULT_MODELS = {
   upscale: 'nightmareai/real-esrgan:f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa',
   // FLUX Kontext for image editing
   imageEdit: 'black-forest-labs/flux-kontext-dev',
+  // SAM 2 for smart selection/segmentation
+  segment: 'meta/sam-2-hiera-large',
 };
 
 export class ReplicateProvider extends BaseAIProvider {
@@ -36,6 +40,7 @@ export class ReplicateProvider extends BaseAIProvider {
     'inpaint',
     'face-swap',
     'upscale',
+    'segment',
   ];
   
   private apiKey: string;
@@ -256,6 +261,145 @@ export class ReplicateProvider extends BaseAIProvider {
     };
     
     return this.runPrediction(this.models.upscale, input, taskId);
+  }
+  
+  /**
+   * Segment objects in image using SAM (Segment Anything Model)
+   * Returns masks for detected objects based on point/box prompts
+   */
+  async segment(request: AISegmentRequest): Promise<AISegmentResult> {
+    const taskId = this.generateTaskId();
+    const startTime = Date.now();
+    
+    try {
+      const imageBase64 = await this.imageToBase64(request.image);
+      
+      const input: Record<string, unknown> = {
+        image: `data:image/png;base64,${imageBase64}`,
+        // SAM 2 uses point_coords and point_labels for point prompts
+        // Format: [[x1, y1], [x2, y2], ...] and [1, 0, ...] (1=foreground, 0=background)
+      };
+      
+      // Convert points to SAM format if provided
+      if (request.points && request.points.length > 0) {
+        const pointCoords: number[][] = [];
+        const pointLabels: number[] = [];
+        
+        request.points.forEach(point => {
+          pointCoords.push([point.x, point.y]);
+          pointLabels.push(point.label === 'foreground' ? 1 : 0);
+        });
+        
+        input.point_coords = pointCoords;
+        input.point_labels = pointLabels;
+      }
+      
+      // Convert box to SAM format if provided
+      if (request.box) {
+        // SAM expects box as [x1, y1, x2, y2]
+        input.box = [
+          request.box.x,
+          request.box.y,
+          request.box.x + request.box.width,
+          request.box.y + request.box.height,
+        ];
+      }
+      
+      // Create prediction using SAM model
+      const createResponse = await fetch(`${this.baseUrl}/predictions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.models.segment,
+          input,
+        }),
+      });
+      
+      if (!createResponse.ok) {
+        const error = await createResponse.text();
+        return {
+          ...this.createErrorResult(taskId, `Failed to create SAM prediction: ${error}`),
+          masks: [],
+        } as AISegmentResult;
+      }
+      
+      let prediction = await createResponse.json();
+      
+      // Poll for completion
+      while (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const statusResponse = await fetch(prediction.urls.get, {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+          },
+        });
+        
+        prediction = await statusResponse.json();
+      }
+      
+      if (prediction.status === 'failed') {
+        return {
+          ...this.createErrorResult(taskId, prediction.error || 'SAM segmentation failed'),
+          masks: [],
+        } as AISegmentResult;
+      }
+      
+      // Parse SAM output - typically returns mask URLs or base64 masks
+      const output = prediction.output;
+      const masks: AISegmentResult['masks'] = [];
+      
+      // SAM 2 returns combined_mask and individual masks
+      if (output?.combined_mask) {
+        masks.push({
+          id: `${taskId}_combined`,
+          maskBase64: '', // Will be fetched from URL
+          maskUrl: output.combined_mask,
+          score: 1.0,
+          area: 0, // Would need to calculate from mask
+          bbox: request.box || { x: 0, y: 0, width: 0, height: 0 },
+        });
+      }
+      
+      // Handle array of masks if returned
+      if (Array.isArray(output)) {
+        output.forEach((maskUrl: string, index: number) => {
+          masks.push({
+            id: `${taskId}_${index}`,
+            maskBase64: '',
+            maskUrl: maskUrl,
+            score: 1.0 - index * 0.1, // Assume decreasing confidence
+            area: 0,
+            bbox: request.box || { x: 0, y: 0, width: 0, height: 0 },
+          });
+        });
+      }
+      
+      return {
+        success: true,
+        taskId,
+        status: 'completed',
+        progress: 100,
+        masks,
+        cost: this.estimateCost('segment'),
+        processingTime: Date.now() - startTime,
+        metadata: {
+          model: this.models.segment,
+          predictionId: prediction.id,
+        },
+      };
+    } catch (error) {
+      return {
+        ...this.createErrorResult(
+          taskId,
+          `SAM segment error: ${error instanceof Error ? error.message : String(error)}`
+        ),
+        masks: [],
+      } as AISegmentResult;
+    }
   }
   
   /**

@@ -17,9 +17,9 @@ const RETRY_DELAY = 3000; // 3 seconds
  * Supported Image Models:
  * - google/gemini-2.5-flash-image-preview (Nano Banana - fast, good quality)
  * - google/gemini-3-pro-image-preview (Nano Banana Pro - best quality)
- * - black-forest-labs/flux.2-pro (FLUX.2 Pro - high quality)
- * - black-forest-labs/flux.2-flex (FLUX.2 Flex - flexible)
- * - black-forest-labs/flux.2-klein-4b (FLUX.2 Klein - fast, cost-effective)
+ * - black-forest-labs/flux-pro (FLUX Pro - high quality)
+ * - black-forest-labs/flux-dev (FLUX Dev - flexible)
+ * - black-forest-labs/flux-schnell (FLUX Schnell - fast, cost-effective)
  * - sourceful/riverflow-v2-standard-preview
  *
  * @see https://openrouter.ai/docs/guides/overview/multimodal/image-generation
@@ -38,10 +38,9 @@ export class OpenRouterAIService {
     GPT_5_IMAGE: 'openai/gpt-5-image', // Premium OpenAI quality
     GPT_5_IMAGE_MINI: 'openai/gpt-5-image-mini', // Cheaper, still great
     // Black Forest Labs FLUX.2 family
-    FLUX_2_MAX: 'black-forest-labs/flux.2-max', // Top quality
-    FLUX_2_PRO: 'black-forest-labs/flux.2-pro', // Good balance
-    FLUX_2_FLEX: 'black-forest-labs/flux.2-flex', // Best for text/typography
-    FLUX_2_KLEIN: 'black-forest-labs/flux.2-klein-4b', // Fastest, cheapest
+    FLUX_PRO: 'black-forest-labs/flux-pro', // Top quality
+    FLUX_DEV: 'black-forest-labs/flux-dev', // Good balance
+    FLUX_SCHNELL: 'black-forest-labs/flux-schnell', // Fastest, cheapest
     // ByteDance Seedream
     SEEDREAM_4_5: 'bytedance-seed/seedream-4.5', // Good for portraits
     // Sourceful Riverflow (unified text-to-image and image-to-image)
@@ -278,13 +277,15 @@ export class OpenRouterAIService {
         stream: false,
       };
 
-      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
-      // ByteDance Seedream and some other models don't support this parameter
-      if (
+      // Add modalities based on model type
+      // FLUX models: image-only output, use ["image"]
+      // Gemini/GPT: text+image output, use ["image", "text"]
+      if (model.includes('flux')) {
+        requestBody.modalities = ['image'];
+      } else if (
         model.includes('gemini') ||
         model.includes('google/') ||
-        model.includes('gpt-') ||
-        model.includes('flux.2')
+        model.includes('gpt-')
       ) {
         requestBody.modalities = ['image', 'text'];
       }
@@ -797,13 +798,15 @@ export class OpenRouterAIService {
         stream: false,
       };
 
-      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
-      // ByteDance Seedream and some other models don't support this parameter
-      if (
+      // Add modalities based on model type
+      // FLUX models: image-only output, use ["image"]
+      // Gemini/GPT: text+image output, use ["image", "text"]
+      if (model.includes('flux')) {
+        requestBody.modalities = ['image'];
+      } else if (
         model.includes('gemini') ||
         model.includes('google/') ||
-        model.includes('gpt-') ||
-        model.includes('flux.2')
+        model.includes('gpt-')
       ) {
         requestBody.modalities = ['image', 'text'];
       }
@@ -883,13 +886,15 @@ export class OpenRouterAIService {
         stream: false,
       };
 
-      // Add modalities only for models that support it (Gemini, GPT-5, FLUX.2)
-      // ByteDance Seedream and some other models don't support this parameter
-      if (
+      // Add modalities based on model type
+      // FLUX models: image-only output, use ["image"]
+      // Gemini/GPT: text+image output, use ["image", "text"]
+      if (model.includes('flux')) {
+        requestBody.modalities = ['image'];
+      } else if (
         model.includes('gemini') ||
         model.includes('google/') ||
-        model.includes('gpt-') ||
-        model.includes('flux.2')
+        model.includes('gpt-')
       ) {
         requestBody.modalities = ['image', 'text'];
       }

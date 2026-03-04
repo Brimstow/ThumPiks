@@ -3,7 +3,7 @@
  * React hook for accessing AI service functionality
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   AIService, 
   getAIService, 
@@ -39,6 +39,14 @@ interface AIServiceState {
 export function useAIService(options: UseAIServiceOptions = {}) {
   const { config, autoInitialize = true } = options;
   
+  // Stabilize config reference to prevent infinite re-render loops
+  // when callers pass inline object literals
+  const configJSON = config ? JSON.stringify(config) : '';
+  const stableConfig = useMemo(
+    () => (configJSON ? JSON.parse(configJSON) : undefined),
+    [configJSON]
+  );
+  
   const serviceRef = useRef<AIService | null>(null);
   const [state, setState] = useState<AIServiceState>({
     isReady: false,
@@ -51,8 +59,8 @@ export function useAIService(options: UseAIServiceOptions = {}) {
   
   // Initialize service
   useEffect(() => {
-    if (config) {
-      serviceRef.current = configureAIService(config);
+    if (stableConfig) {
+      serviceRef.current = configureAIService(stableConfig);
     } else {
       serviceRef.current = getAIService();
     }
@@ -90,7 +98,7 @@ export function useAIService(options: UseAIServiceOptions = {}) {
       // If not auto-initializing, mark as ready immediately
       setState(s => ({ ...s, isReady: true }));
     }
-  }, [config, autoInitialize]);
+  }, [stableConfig, autoInitialize]);
   
   // Generic task executor
   const executeTask = useCallback(async <T extends AITaskResult>(

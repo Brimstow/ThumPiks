@@ -1,6 +1,7 @@
 import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
+import axios from 'axios';
 
 // Define type for TensorFlow.js
 type TensorFlow = any;
@@ -587,40 +588,22 @@ export class AIEnhancementService {
    * @returns Buffer containing the image data
    */
   private async fetchImageBuffer(imageUrl: string): Promise<Buffer> {
-    // For testing purposes, return a minimal buffer
     if (process.env.NODE_ENV === 'test') {
-      // Create a minimal buffer for testing
       return Buffer.from('test');
     }
 
-    // For placeholder images, we'll create a simple buffer
-    // In a real implementation, you would fetch the actual image
-    if (imageUrl.includes('placehold.co')) {
-      // Create a simple placeholder image buffer
-      return sharp({
-        create: {
-          width: 1280,
-          height: 720,
-          channels: 4,
-          background: { r: 128, g: 128, b: 128, alpha: 1 },
-        },
-      })
-        .png()
-        .toBuffer();
+    if (imageUrl.startsWith('data:')) {
+      const base64Data = imageUrl.split(',')[1] ?? '';
+      return Buffer.from(base64Data, 'base64');
     }
 
-    // For other images, you would fetch them from the URL
-    // This is a simplified implementation
-    return sharp({
-      create: {
-        width: 1280,
-        height: 720,
-        channels: 4,
-        background: { r: 128, g: 128, b: 128, alpha: 1 },
-      },
-    })
-      .png()
-      .toBuffer();
+    // Fetch all URLs including placehold.co - no more gray rectangles
+    const response = await axios.get<ArrayBuffer>(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      headers: { 'User-Agent': 'ThumPiks/1.0' },
+    });
+    return Buffer.from(response.data);
   }
 
   /**

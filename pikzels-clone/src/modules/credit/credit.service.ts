@@ -294,3 +294,53 @@ export async function deductCredits(
     throw error;
   }
 }
+
+/**
+ * Refund credits when an AI operation fails after deduction.
+ * Creates a refund transaction record for audit trail.
+ */
+export async function refundCredits(
+  userId: string,
+  amount: number,
+  reason: string
+): Promise<boolean> {
+  try {
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      logger.error('Refund failed: no subscription found', new Error('No subscription'), { userId, amount });
+      return false;
+    }
+
+    // Add credits back
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        creditsBalance: { increment: amount },
+        creditsUsed: { decrement: amount },
+      },
+    });
+
+    // Log refund transaction
+    await prisma.creditTransaction.create({
+      data: {
+        userId,
+        type: 'refund',
+        amount: amount, // Positive for refunds
+        description: `Refund: ${reason}`,
+      },
+    });
+
+    logger.info('Credits refunded', { userId, amount, reason });
+    return true;
+  } catch (error) {
+    logger.error('Failed to refund credits', error as Error, {
+      userId,
+      amount,
+    });
+    return false;
+  }
+}
