@@ -10,8 +10,6 @@ import {
   Home,
   Plus,
   Wand2,
-  Edit3,
-  Video,
   Folder,
   Palette,
   BarChart2,
@@ -23,11 +21,16 @@ import {
   GitBranch,
   LayoutTemplate,
   SearchCode,
+  Sparkles,
+  PenTool,
+  Video,
 } from 'lucide-react';
 import AccountDropdown from '../account/AccountDropdown';
 import NotificationsDropdown from '../notifications/NotificationsDropdown';
 import SearchModal from '../search/SearchModal';
 import { authGet } from '../../utils/api';
+import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
+import { OnboardingOverlay } from '../../features/onboarding';
 
 interface Subscription {
   creditsBalance: number;
@@ -35,7 +38,7 @@ interface Subscription {
 }
 
 const DashboardLayout: React.FC = () => {
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -99,26 +102,53 @@ const DashboardLayout: React.FC = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  const navItems = [
+  // Progressive disclosure: 5 core items always visible, 6 behind "More"
+  const coreNavItems = [
     { id: 'home', label: 'Home', icon: Home, path: '/dashboard' },
+    { id: 'quick-edit', label: 'Quick Edit', icon: Sparkles, path: '/dashboard/quick-edit' },
     { id: 'create', label: 'Create', icon: Plus, path: '/dashboard/create-plus' },
+    { id: 'editor', label: 'Editor', icon: PenTool, path: '/dashboard/editor' },
+    { id: 'video-editor', label: 'Video Editor', icon: Video, path: '/dashboard/video-editor' },
+    { id: 'projects', label: 'Projects', icon: Folder, path: '/dashboard/projects' },
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate, path: '/dashboard/templates' },
+  ];
+
+  const moreNavItems = [
     { id: 'ai-tools', label: 'AI Tools', icon: Wand2, path: '/dashboard/ai-tools' },
     { id: 'vision', label: 'Vision', icon: Eye, path: '/dashboard/vision' },
     { id: 'visual-search', label: 'Search', icon: SearchCode, path: '/dashboard/visual-search' },
     { id: 'ab-testing', label: 'A/B Test', icon: GitBranch, path: '/dashboard/ab-testing' },
-    { id: 'video-editor', label: 'Video Editor', icon: Video, path: '/dashboard/video-editor' },
-    { id: 'editor', label: 'Editor', icon: Edit3, path: '/dashboard/editor' },
-    { id: 'templates', label: 'Templates', icon: LayoutTemplate, path: '/dashboard/templates' },
-    { id: 'projects', label: 'Projects', icon: Folder, path: '/dashboard/projects' },
     { id: 'brand', label: 'Brand', icon: Palette, path: '/dashboard/brand' },
     { id: 'analytics', label: 'Analytics', icon: BarChart2, path: '/dashboard/analytics' },
   ];
 
+  // All items combined (used by mobile menu)
+  const allNavItems = [...coreNavItems, ...moreNavItems];
+
+  // "More" section expanded state — persisted
+  const [moreExpanded, setMoreExpanded] = useState(() => getDisclosurePref('sidebar.moreExpanded'));
+
+  const toggleMore = () => {
+    setMoreExpanded((prev) => {
+      const next = !prev;
+      setDisclosurePref('sidebar.moreExpanded', next);
+      return next;
+    });
+  };
+
+  // If user navigates to a "More" item, auto-expand the section
+  useEffect(() => {
+    const isMoreItemActive = moreNavItems.some((item) => isNavActive(item.path));
+    if (isMoreItemActive && !moreExpanded) {
+      setMoreExpanded(true);
+      setDisclosurePref('sidebar.moreExpanded', true);
+    }
+  }, [location.pathname, moreExpanded, moreNavItems]);
+
+  // Category nav — deduped (no Templates/Analytics since they're in sidebar)
   const categoryNavItems = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'My Thumbnails', path: '/dashboard/thumbnails' },
-    { label: 'Templates', path: '/dashboard/templates' },
-    { label: 'Analytics', path: '/dashboard/analytics' },
     { label: 'Trending', path: '/dashboard/trending' },
     { label: 'Pricing', path: '/dashboard/pricing' },
     { label: 'Help', path: '/dashboard/help' },
@@ -251,9 +281,9 @@ const DashboardLayout: React.FC = () => {
           {/* Divider */}
           <div className="h-px w-8 bg-slate-800 mx-auto"></div>
 
-          {/* Main Navigation */}
+          {/* Core Navigation */}
           <div className="flex flex-col items-stretch gap-2 w-full">
-            {navItems.map((item) => {
+            {coreNavItems.map((item) => {
               const isActive = isNavActive(item.path);
               return (
               <button
@@ -278,6 +308,58 @@ const DashboardLayout: React.FC = () => {
                 </div>
               </button>
             )})}
+
+            {/* "More" toggle */}
+            <button
+              onClick={toggleMore}
+              className="w-full h-8 rounded-xl flex items-center justify-start px-2 transition-colors hover:bg-[#202020] text-slate-500 hover:text-slate-300 mt-1"
+              aria-expanded={moreExpanded}
+              aria-label={moreExpanded ? 'Show fewer options' : 'Show more options'}
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div className="w-6 flex justify-center shrink-0">
+                  <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${moreExpanded ? 'rotate-90' : ''}`} />
+                </div>
+                {sidebarExpanded && (
+                  <span className="text-xs font-medium uppercase tracking-wider whitespace-nowrap">
+                    More
+                    {!moreExpanded && <span className="ml-1.5 text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">{moreNavItems.length}</span>}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            {/* More Navigation Items — collapsible */}
+            <div
+              className="flex flex-col items-stretch gap-2 overflow-hidden transition-all duration-200 ease-out"
+              style={{ maxHeight: moreExpanded ? `${moreNavItems.length * 48}px` : '0px', opacity: moreExpanded ? 1 : 0 }}
+            >
+              {moreNavItems.map((item) => {
+                const isActive = isNavActive(item.path);
+                return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.path)}
+                  className={`w-full h-10 rounded-xl flex items-center justify-start group px-2 transition-colors ${
+                    isActive 
+                      ? 'bg-[#2563ff] hover:bg-[#1d4fff] text-white' 
+                      : 'hover:bg-[#202020] text-slate-100'
+                  }`}
+                  aria-label={item.label}
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <div className="w-6 flex justify-center shrink-0">
+                      <item.icon className="w-5 h-5" />
+                    </div>
+                    {sidebarExpanded && (
+                      <span className="text-sm font-medium text-slate-100 whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )})}
+            </div>
           </div>
         </div>
 
@@ -343,8 +425,15 @@ const DashboardLayout: React.FC = () => {
         </div>
       </nav>
 
+      {/* Onboarding Overlay - shows for new users */}
+      <OnboardingOverlay />
+
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className={
+        location.pathname === '/dashboard/video-editor'
+          ? 'overflow-hidden'
+          : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8'
+      }>
         <Outlet />
       </main>
 
@@ -357,7 +446,7 @@ const DashboardLayout: React.FC = () => {
           />
           <nav className="fixed top-16 left-0 bottom-0 w-64 bg-slate-900 border-r border-slate-800 z-50 lg:hidden overflow-y-auto animate-in slide-in-from-left duration-200">
             <div className="p-4 space-y-2">
-              {navItems.map((item) => {
+              {allNavItems.map((item) => {
                 const isActive = isNavActive(item.path);
                 return (
                   <button

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen, Loader2, AlertCircle } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/environment';
+import { authGet } from '../../../utils/api';
 
 interface Project {
   id: string;
@@ -44,9 +44,7 @@ export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className 
         params.append('saved', 'true');
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/projects?${params.toString()}`, {
-        credentials: 'include'
-      });
+      const response = await authGet(`/api/projects?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch projects');
@@ -55,15 +53,9 @@ export const AllProjectsWidget: React.FC<AllProjectsWidgetProps> = ({ className 
       const data = await response.json();
       setProjects(data.projects || []);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching projects:', err);
-      setError(err.message || 'Failed to load projects');
-
-      // Development: Graceful fallback to mock data
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Using mock project data in development');
-        setProjects(getMockProjects());
-      }
+      setError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
       setLoading(false);
     }

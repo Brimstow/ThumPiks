@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Image, Loader2 } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/environment';
+import { authGet } from '../../../utils/api';
 
 interface Thumbnail {
   id: string;
@@ -22,9 +22,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
 
   const fetchRecentThumbnails = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/thumbnails?limit=3&sort=recent`, {
-        credentials: 'include',
-      });
+      const response = await authGet('/api/thumbnails?limit=3&sort=recent');
 
       if (!response.ok) {
         throw new Error('Failed to fetch thumbnails');
@@ -53,7 +51,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col" style={{ maxHeight: '480px' }}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-slate-50">Recent Thumbnails</h3>
         <button
@@ -79,8 +77,8 @@ export const RecentThumbnailsWidget: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">Create your first thumbnail to get started</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {thumbnails.map((thumbnail) => (
+        <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+          {thumbnails.slice(0, 6).map((thumbnail) => (
             <div
               key={thumbnail.id}
               onClick={() => navigate(`/dashboard/editor/${thumbnail.id}`)}
@@ -92,7 +90,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
                   alt={thumbnail.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/80x80/1e293b/94a3b8?text=Thumbnail';
+                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect fill="%231e293b" width="80" height="80"/%3E%3Ctext fill="%2394a3b8" font-family="Arial" font-size="10" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EThumbnail%3C/text%3E%3C/svg%3E';
                   }}
                 />
               </div>

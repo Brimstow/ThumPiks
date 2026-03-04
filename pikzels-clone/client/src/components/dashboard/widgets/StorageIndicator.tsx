@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HardDrive, Loader2, AlertCircle } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/environment';
+import { authGet, authPut } from '../../../utils/api';
 
 interface StorageInfo {
   usedGB: number;
@@ -26,9 +26,7 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/api/user/storage`, {
-        credentials: 'include'
-      });
+      const response = await authGet('/api/user/storage');
 
       if (!response.ok) {
         throw new Error('Failed to fetch storage info');
@@ -37,15 +35,9 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
       const data = await response.json();
       setStorage(data);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching storage info:', err);
-      setError(err.message || 'Failed to load storage info');
-
-      // Development: Graceful fallback to mock data
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Using mock storage data in development');
-        setStorage(getMockStorage());
-      }
+      setError(err instanceof Error ? err.message : 'Failed to load storage info');
     } finally {
       setLoading(false);
     }
@@ -55,11 +47,8 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
     if (!storage) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user/settings/auto-save`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !storage.autoSave })
+      const response = await authPut('/api/user/settings/auto-save', {
+        enabled: !storage.autoSave,
       });
 
       if (!response.ok) throw new Error('Failed to update auto-save');

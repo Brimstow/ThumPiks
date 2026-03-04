@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import ThumbnailEditor from './ThumbnailEditor';
 import BatchEditor from './BatchEditor';
 import ThumbnailFilters from './ThumbnailFilters';
 import AnalyticsDashboard from './AnalyticsDashboard';
@@ -58,7 +57,6 @@ const Dashboard: React.FC = () => {
   };
   const activeTab = getActiveTab();
   
-  const [editingThumbnail, setEditingThumbnail] = useState<Thumbnail | null>(null);
   const [creatingThumbnail, setCreatingThumbnail] = useState(false);
   const [selectedThumbnails, setSelectedThumbnails] = useState<Thumbnail[]>([]);
   const [batchEditing, setBatchEditing] = useState(false);
@@ -173,27 +171,6 @@ const Dashboard: React.FC = () => {
       console.error('Error during logout:', error);
     }
     navigate('/', { replace: true });
-  };
-
-  const handleSaveEdits = async (edits: any) => {
-    if (!editingThumbnail) return;
-
-    try {
-      const response = await authPost(`/api/thumbnails/${editingThumbnail.id}/edit`, { edits });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Update the thumbnail in our state
-        setThumbnails(thumbnails.map(t => 
-          t.id === editingThumbnail.id ? data.thumbnail : t
-        ));
-        setEditingThumbnail(null);
-      } else {
-        console.error('Failed to save edits');
-      }
-    } catch (error) {
-      console.error('Error saving edits:', error);
-    }
   };
 
   const handleBatchEdit = (edits: any) => {
@@ -736,7 +713,7 @@ const Dashboard: React.FC = () => {
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditingThumbnail(thumbnail);
+                                navigate(`/dashboard/editor/${thumbnail.id}`);
                               }}
                               className={`${theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'}`}
                               title="Edit"
@@ -821,7 +798,7 @@ const Dashboard: React.FC = () => {
                             Featured Thumbnail
                           </h4>
                           <button
-                            onClick={() => setEditingThumbnail(project.featuredThumbnail!)}
+                            onClick={() => navigate(`/dashboard/editor/${project.featuredThumbnail!.id}`)}
                             className={`text-xs ${theme === 'dark' ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-900'}`}
                           >
                             Edit
@@ -880,15 +857,6 @@ const Dashboard: React.FC = () => {
           <AnalyticsDashboard />
         )}
       </div>
-
-      {/* Thumbnail Editor Modal */}
-      {editingThumbnail && (
-        <ThumbnailEditor
-          thumbnail={editingThumbnail}
-          onClose={() => setEditingThumbnail(null)}
-          onSave={handleSaveEdits}
-        />
-      )}
 
       {/* Batch Editor Modal */}
       {batchEditing && (

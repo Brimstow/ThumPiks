@@ -5,7 +5,11 @@ import {
   ChevronDown,
   Eye,
   ArrowDown,
+  Layers,
 } from 'lucide-react';
+import { authGet } from '../../utils/api';
+import { useLayouts } from '../../features/composition-templates/useCompositionTemplates';
+import type { LayoutPreset, TemplateCategory } from '../../features/composition-templates/types';
 
 interface Template {
   id: string;
@@ -27,6 +31,17 @@ interface Template {
   createdAt: Date;
 }
 
+// Layout category pills for the composition section
+const LAYOUT_CATEGORIES: { id: TemplateCategory | 'all'; name: string }[] = [
+  { id: 'all', name: 'All Layouts' },
+  { id: 'split-screen', name: 'Split Screen' },
+  { id: 'person-bg', name: 'Person + BG' },
+  { id: 'collage', name: 'Collage' },
+  { id: 'reaction', name: 'Reaction' },
+  { id: 'cinematic', name: 'Cinematic' },
+  { id: 'minimal', name: 'Minimal' },
+];
+
 const TemplatesPage: React.FC = () => {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +50,21 @@ const TemplatesPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'popular' | 'recent' | 'downloads'>('popular');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+
+  // Composition layouts from API
+  const {
+    filteredTemplates: compositionLayouts,
+    categoryFilter: layoutCategory,
+    setCategoryFilter: setLayoutCategory,
+    isLoading: layoutsLoading,
+    selectTemplate: selectLayout,
+  } = useLayouts();
+
+  const handleLayoutClick = (layout: LayoutPreset) => {
+    selectLayout(layout.id);
+    // TODO: Navigate to editor with selected layout or open layout detail
+    console.log('Layout selected:', layout.name);
+  };
 
   // Mock data for carousel
   const carouselItem = {
@@ -89,7 +119,7 @@ const TemplatesPage: React.FC = () => {
         params.append('sortOrder', 'desc');
       }
 
-      const response = await fetch(`/api/templates?${params.toString()}`);
+      const response = await authGet(`/api/templates?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch templates');
@@ -139,7 +169,7 @@ const TemplatesPage: React.FC = () => {
   // Map template data to display format
   const displayTemplates = templates.map(template => ({
     id: template.id,
-    image: template.Thumbnail?.imageUrl || 'https://via.placeholder.com/400x225',
+    image: template.Thumbnail?.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225"%3E%3Crect fill="%231e293b" width="400" height="225"/%3E%3Ctext fill="%2394a3b8" font-family="Arial" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ETemplate%3C/text%3E%3C/svg%3E',
     title: template.name,
     creator: template.User?.name || 'Unknown',
     views: template.downloads.toString(),
@@ -210,6 +240,85 @@ const TemplatesPage: React.FC = () => {
           <button className="h-2.5 w-2.5 rounded-full bg-slate-700 hover:bg-slate-500 transition-all"></button>
         </div>
       </div>
+
+      {/* ─── Composition Layouts Section ─── */}
+      <div className="mb-14">
+        <div className="flex items-center gap-3 mb-1">
+          <Layers className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-semibold text-slate-100 tracking-tight">Layouts</h2>
+        </div>
+        <p className="text-slate-400 text-sm mb-5 ml-8">
+          Pick a layout, drop your images in, and get a finished thumbnail instantly.
+        </p>
+
+        {/* Layout Category Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide ml-8">
+          {LAYOUT_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setLayoutCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                layoutCategory === cat.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-700'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Layout Cards */}
+        {layoutsLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+        ) : compositionLayouts.length === 0 ? (
+          <p className="text-slate-500 text-sm text-center py-8">No layouts found for this category.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {compositionLayouts.map((layout) => (
+              <div
+                key={layout.id}
+                onClick={() => handleLayoutClick(layout)}
+                className="group cursor-pointer rounded-xl border border-slate-800 bg-slate-900/60 hover:border-blue-500/50 hover:bg-slate-800/80 transition-all p-3"
+              >
+                {/* Wireframe SVG Preview */}
+                <div
+                  className="aspect-video w-full rounded-lg overflow-hidden bg-slate-950 mb-3 flex items-center justify-center"
+                  dangerouslySetInnerHTML={{ __html: layout.wireframeSvg }}
+                />
+
+                {/* Layout Info */}
+                <h3 className="text-sm font-semibold text-slate-100 group-hover:text-blue-400 transition-colors truncate">
+                  {layout.name}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                  {layout.description}
+                </p>
+
+                {/* Meta row */}
+                <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <Layers className="w-3 h-3" />
+                    {layout.slots.length} slot{layout.slots.length !== 1 ? 's' : ''}
+                  </span>
+                  {layout.textSlots.length > 0 && (
+                    <span>+ {layout.textSlots.length} text</span>
+                  )}
+                  {layout.builtIn && (
+                    <span className="ml-auto bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                      BUILT-IN
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Thumbnail Templates Section ─── */}
 
       {/* Filters & Sorting */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">

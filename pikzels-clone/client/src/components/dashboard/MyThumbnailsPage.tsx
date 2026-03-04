@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw } from 'lucide-react';
 import { IS_DEVELOPMENT, API_BASE_URL } from '../../config/environment';
 import { authGet } from '../../utils/api';
@@ -129,6 +130,7 @@ const ThumbnailSkeleton: React.FC<{ spanClass: string }> = ({ spanClass }) => (
 // ═══════════════════════════════════════════════════════════════════
 
 const MyThumbnailsPage: React.FC = () => {
+  const navigate = useNavigate();
   // State
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -430,6 +432,7 @@ const MyThumbnailsPage: React.FC = () => {
                     </span>
                     <div className="flex gap-2">
                       <button 
+                        onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/editor/${thumbnail.id}`); }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
                         title="Edit thumbnail"
                       >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Image, CheckCircle2, Eye, Calendar, ChevronDown, Download, Lightbulb, ArrowUp, RefreshCw, AlertCircle } from 'lucide-react';
 import { config } from '../../config/environment';
+import { authGet } from '../../utils/api';
 
 // ============================================
 // TYPESCRIPT INTERFACES
@@ -78,13 +79,7 @@ const AnalyticsPage = () => {
       setError(null);
 
       // Fetch dashboard analytics data
-      const analyticsResponse = await fetch(`${config.apiBaseUrl}/api/analytics/dashboard`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const analyticsResponse = await authGet('/api/analytics/dashboard');
 
       if (!analyticsResponse.ok) {
         throw new Error('Failed to fetch analytics data');
@@ -94,13 +89,7 @@ const AnalyticsPage = () => {
       setAnalyticsData(analyticsResult.userAnalytics);
 
       // Fetch top performers
-      const performersResponse = await fetch(`${config.apiBaseUrl}/api/analytics/top-performers?limit=10`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const performersResponse = await authGet('/api/analytics/top-performers?limit=10');
 
       if (performersResponse.ok) {
         const performersResult = await performersResponse.json();
@@ -133,10 +122,7 @@ const AnalyticsPage = () => {
   // CSV Export handler
   const handleExportCSV = async () => {
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/analytics/export/csv`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      const response = await authGet('/api/analytics/export/csv');
 
       if (!response.ok) {
         throw new Error('Failed to export CSV');

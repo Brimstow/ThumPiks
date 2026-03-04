@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, Image, MousePointer2, Layout, Eye, FolderOpen, TrendingUp } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/environment';
+import { authGet } from '../../../utils/api';
 
 interface UserStats {
   thumbnailsCreated: number;
@@ -22,9 +22,7 @@ export const StatsWidget: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/stats`, {
-        credentials: 'include',
-      });
+      const response = await authGet('/api/analytics/stats');
 
       if (!response.ok) {
         throw new Error('Failed to fetch stats');
@@ -55,7 +53,7 @@ export const StatsWidget: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
+    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col">
       <h3 className="text-lg font-semibold text-slate-50 mb-4">Your Stats</h3>
 
       {loading ? (
