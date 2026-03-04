@@ -1,39 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authGet } from '../utils/api';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const navigate = useNavigate();
+  const { isAuthenticated, loading } = useAuth();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Check auth via HttpOnly cookie
-        const response = await authGet('/api/user/profile');
-
-        if (response.ok) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  // Show loading indicator while checking auth
-  if (isLoading) {
+  // Show loading indicator while AuthContext checks auth (once, on app mount)
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
         <div className="text-gray-900 dark:text-white">Loading...</div>
@@ -43,14 +20,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    navigate('/login', { replace: true });
-    return (
-      <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
-        <div className="text-gray-900 dark:text-white">
-          Redirecting to login...
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

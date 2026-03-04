@@ -6,7 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import config from '../config/environment';
+import { authGet, authPost, setTokenExpiration } from '../utils/api';
 
 interface User {
   id: string;
@@ -43,16 +43,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Cookies are sent automatically with credentials: 'include'
-        const response = await fetch(`${config.apiBaseUrl}/api/user/profile`, {
-          credentials: 'include',
-        });
+        // Use authGet so expired access tokens trigger automatic refresh
+        // via the refresh token cookie (valid 7 days)
+        const response = await authGet('/api/user/profile');
 
         if (response.ok) {
           const data = await response.json();
           setUser(data.user);
+          // Initialize token expiration for proactive refresh (15 minutes from now)
+          // This handles the case when user returns with existing session cookie
+          setTokenExpiration(900);
         }
-      } catch (error) {
+      } catch {
         // User not authenticated, ignore error
       } finally {
         setLoading(false);
@@ -64,20 +66,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
+      const response = await authPost('/api/auth/login', { email, password });
       const data = await response.json();
 
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Initialize token expiration for proactive refresh (15 minutes)
+        setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Login failed' };
@@ -89,20 +85,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const register = async (email: string, password: string, name: string, username: string) => {
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/register`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, name, password }),
-      });
-
+      const response = await authPost('/api/auth/register', { username, email, name, password });
       const data = await response.json();
 
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Initialize token expiration for proactive refresh (15 minutes)
+        setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Registration failed' };
@@ -115,13 +105,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const logout = async () => {
     try {
       // Call backend logout to clear HttpOnly cookies
-      await fetch(`${config.apiBaseUrl}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch (error) {
+      await authPost('/api/auth/logout', {});
+    } catch {
       // Ignore error, clear local state anyway
     }
+    // Clear token expiration tracking
+    setTokenExpiration(0);
     setUser(null);
     navigate('/', { replace: true });
   };
