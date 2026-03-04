@@ -36,6 +36,7 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [timeline, setTimeline] = useState<TimelineFrame[]>([]);
   const [isReady, setIsReady] = useState(false);
+  const [videoSrc, setVideoSrc] = useState<string>('');
 
   // Initialize service
   useEffect(() => {
@@ -70,6 +71,8 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
     
     const meta = await serviceRef.current.loadFromUrl(url);
     setMetadata(meta);
+    const el = serviceRef.current.getVideoElement();
+    if (el) setVideoSrc(el.src);
     return meta;
   }, []);
 
@@ -78,6 +81,8 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
     
     const meta = await serviceRef.current.loadFromFile(file);
     setMetadata(meta);
+    const el = serviceRef.current.getVideoElement();
+    if (el) setVideoSrc(el.src);
     return meta;
   }, []);
 
@@ -149,10 +154,15 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
     return serviceRef.current?.getVideoElement() || null;
   }, []);
 
+  const setVideoElement = useCallback((el: HTMLVideoElement): void => {
+    serviceRef.current?.setVideoElement(el);
+  }, []);
+
   const dispose = useCallback((): void => {
     serviceRef.current?.dispose();
     setMetadata(null);
     setTimeline([]);
+    setVideoSrc('');
   }, []);
 
   return {
@@ -161,6 +171,7 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
     isReady,
     metadata,
     timeline,
+    videoSrc,
 
     // Video loading
     loadVideo,
@@ -183,6 +194,7 @@ export function useVideoService(options: UseVideoServiceOptions = {}) {
 
     // Utilities
     getVideoElement,
+    setVideoElement,
     dispose,
 
     // Direct service access

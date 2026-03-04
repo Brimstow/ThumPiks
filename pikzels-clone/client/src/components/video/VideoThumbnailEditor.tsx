@@ -22,15 +22,25 @@ import {
   ChevronRight,
   Zap,
   Activity,
-  Eye,
   Star,
   Download,
   Grid3x3,
-  Maximize2,
-  Settings,
-  Clock,
   Film,
+  Link,
+  Upload,
+  Loader2,
+  AlertCircle,
+  X,
 } from 'lucide-react';
+import {
+  detectPlatformLocally,
+  isDirectVideoUrl,
+  getPlatformLabel,
+  getVideoSrcUrl,
+  fetchVideoInfo,
+  type VideoUrlInfo,
+} from '../../services/videoUrlService';
+import { useVideoExtractorStore } from '../../stores/videoExtractorStore';
 
 // ============================================================================
 // Type Definitions (Algebraic Data Types)
@@ -150,7 +160,7 @@ const analyzeFrame = (canvas: HTMLCanvasElement): FrameAnalysis => {
 // Custom Hooks (Higher-Order Functions)
 // ============================================================================
 
-const useVideoState = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
+const useVideoState = (videoRef: React.RefObject<HTMLVideoElement | null>, videoSrc: string) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -182,6 +192,11 @@ const useVideoState = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
     video.addEventListener('pause', handlePause);
     video.addEventListener('ratechange', handleRateChange);
 
+    // If metadata already loaded before listeners were attached
+    if (video.readyState >= 1) {
+      handleLoadedMetadata();
+    }
+
     return () => {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -189,7 +204,7 @@ const useVideoState = (videoRef: React.RefObject<HTMLVideoElement | null>) => {
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('ratechange', handleRateChange);
     };
-  }, [videoRef]);
+  }, [videoRef, videoSrc]);
 
   return { isPlaying, currentTime, duration, playbackRate, metadata };
 };
@@ -272,16 +287,66 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // State management
-  const [videoSrc, setVideoSrc] = useState<string>(videoUrl || '');
+  // Persisted state from store (shared with VideoFrameExtractor)
+  const {
+    sourceTab: inputMode,
+    setSourceTab: setInputMode,
+    urlInput,
+    setUrlInput,
+    videoSrc: storedVideoSrc,
+    setVideoLoaded,
+    extractedFrames: storedFrames,
+    addExtractedFrame,
+    clearVideo,
+  } = useVideoExtractorStore();
+  
+  // Local video source (initialize from store or prop)
+  const [videoSrc, setVideoSrc] = useState<string>(videoUrl || storedVideoSrc || '');
+  
+  // Local transient state (UI-specific, doesn't need persistence)
+  const [videoInfo, setVideoInfo] = useState<VideoUrlInfo | null>(null);
   const [markers, setMarkers] = useState<MarkerPoint[]>([]);
-  const [extractedFrames, setExtractedFrames] = useState<ExtractedFrame[]>([]);
+  const [localExtractedFrames, setLocalExtractedFrames] = useState<ExtractedFrame[]>([]);
   const [selectedFrames, setSelectedFrames] = useState<Set<string>>(new Set());
   const [showGrid, setShowGrid] = useState(false);
   const [autoAnalyzeMode, setAutoAnalyzeMode] = useState(false);
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  
+  // Sync local video source with store when it changes
+  useEffect(() => {
+    if (storedVideoSrc && storedVideoSrc !== videoSrc) {
+      setVideoSrc(storedVideoSrc);
+    }
+  }, [storedVideoSrc]);
+  
+  // Convert stored frames to local format on mount
+  useEffect(() => {
+    if (storedFrames.length > 0 && localExtractedFrames.length === 0) {
+      const converted: ExtractedFrame[] = storedFrames.map((sf, idx) => ({
+        id: `stored-frame-${idx}-${sf.timestamp}`,
+        timestamp: {
+          seconds: sf.timestamp,
+          frame: Math.floor(sf.timestamp * 30), // Approximate 30fps
+        },
+        dataUrl: sf.dataUrl,
+        qualityScore: 0, // Not stored, default
+        aiAnalysis: {
+          sharpness: 0,
+          brightness: 0,
+          contrast: 0,
+          faceDetected: false,
+          textDetected: false,
+          actionScore: 0,
+        },
+        starred: false,
+      }));
+      setLocalExtractedFrames(converted);
+    }
+  }, [storedFrames]);
 
   // Custom hooks
-  const { isPlaying, currentTime, duration, playbackRate, metadata } = useVideoState(videoRef);
+  const { isPlaying, currentTime, duration, playbackRate, metadata } = useVideoState(videoRef, videoSrc);
 
   // Playback controls (Pure functions wrapped in useCallback)
   const togglePlayPause = useCallback(() => {
@@ -356,8 +421,18 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
       starred: false,
     };
 
-    setExtractedFrames(prev => [...prev, newFrame].sort((a, b) => a.timestamp.seconds - b.timestamp.seconds));
-  }, [currentTime, metadata]);
+    // Add to local state for UI
+    setLocalExtractedFrames(prev => [...prev, newFrame].sort((a, b) => a.timestamp.seconds - b.timestamp.seconds));
+    
+    // Sync to store for persistence (shared with VideoFrameExtractor)
+    addExtractedFrame({
+      timestamp: currentTime,
+      dataUrl,
+      width: canvas.width,
+      height: canvas.height,
+      blob: new Blob(), // Placeholder - store uses dataUrl
+    });
+  }, [currentTime, metadata, addExtractedFrame]);
 
   // Auto-analyze: Extract frames at key moments
   const autoAnalyzeVideo = useCallback(async () => {
@@ -393,18 +468,18 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
 
   // Star frame
   const toggleFrameStar = useCallback((frameId: string) => {
-    setExtractedFrames(prev =>
+    setLocalExtractedFrames(prev =>
       prev.map(f => f.id === frameId ? { ...f, starred: !f.starred } : f)
     );
   }, []);
 
   // Export selected frames
   const exportFrames = useCallback(() => {
-    const selected = extractedFrames.filter(f => selectedFrames.has(f.id));
+    const selected = localExtractedFrames.filter(f => selectedFrames.has(f.id));
     if (onFramesExtracted) {
       onFramesExtracted(selected);
     }
-  }, [extractedFrames, selectedFrames, onFramesExtracted]);
+  }, [localExtractedFrames, selectedFrames, onFramesExtracted]);
 
   // Keyboard controls
   useKeyboardControls(videoRef, {
@@ -419,7 +494,49 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
     if (!file) return;
     const url = URL.createObjectURL(file);
     setVideoSrc(url);
-  }, []);
+    setVideoInfo(null);
+    setUrlError(null);
+    // Sync to store
+    setVideoLoaded(true, url, null);
+  }, [setVideoLoaded]);
+
+  // URL load handler
+  const handleUrlLoad = useCallback(async () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+
+    setUrlError(null);
+    setUrlLoading(true);
+
+    try {
+      const detected = detectPlatformLocally(trimmed);
+      const isDirect = isDirectVideoUrl(trimmed);
+
+      if (!detected && !isDirect) {
+        setUrlError('Unsupported URL. Paste a YouTube, TikTok, Vimeo, or direct video URL.');
+        setUrlLoading(false);
+        return;
+      }
+
+      const info = await fetchVideoInfo(trimmed);
+      if (!info.supported) {
+        setUrlError('This URL is not supported or the video is unavailable.');
+        setUrlLoading(false);
+        return;
+      }
+
+      const src = getVideoSrcUrl(trimmed);
+      setVideoInfo(info);
+      setVideoSrc(src);
+      setUrlError(null);
+      // Sync to store
+      setVideoLoaded(true, src, null);
+    } catch {
+      setUrlError('Failed to load video. Check the URL and try again.');
+    } finally {
+      setUrlLoading(false);
+    }
+  }, [urlInput, setVideoLoaded]);
 
   // Computed values
   const currentFrame = useMemo(
@@ -433,7 +550,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col bg-slate-950 text-slate-100" style={{ height: 'calc(100vh - 116px)' }}>
       {/* Hidden canvas for frame extraction */}
       <canvas ref={canvasRef} className="hidden" />
 
@@ -469,34 +586,131 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
         {/* Main Video Area */}
         <div className="flex-1 flex flex-col">
           {/* Video Player */}
-          <div className="flex-1 flex items-center justify-center bg-black relative">
+          <div className="flex-1 min-h-0 flex items-center justify-center bg-black relative overflow-hidden">
             {!videoSrc ? (
-              <div className="text-center">
-                <Film className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400 mb-4">No video loaded</p>
-                <label className="px-6 py-3 rounded-xl bg-blue-500 text-white font-semibold cursor-pointer hover:bg-blue-600 transition-colors inline-block">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  Upload Video
-                </label>
+              <div className="w-full max-w-lg px-6">
+                {/* Tab switcher */}
+                <div className="flex rounded-xl bg-slate-800/60 p-1 mb-6">
+                  <button
+                    onClick={() => { setInputMode('file'); setUrlError(null); }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      inputMode === 'file'
+                        ? 'bg-slate-700 text-slate-100'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload File
+                  </button>
+                  <button
+                    onClick={() => { setInputMode('url'); setUrlError(null); }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      inputMode === 'url'
+                        ? 'bg-slate-700 text-slate-100'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Link className="w-4 h-4" />
+                    Video URL
+                  </button>
+                </div>
+
+                {inputMode === 'file' ? (
+                  <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-slate-700 rounded-xl cursor-pointer hover:border-blue-500/60 hover:bg-blue-500/5 transition-all group">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Film className="w-10 h-10 text-slate-600 group-hover:text-blue-400 mb-3 transition-colors" />
+                    <span className="text-slate-400 group-hover:text-slate-200 font-medium transition-colors">
+                      Click to upload a video file
+                    </span>
+                    <span className="text-slate-600 text-xs mt-1">MP4, WebM, MOV, AVI supported</span>
+                  </label>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-slate-400 text-sm text-center mb-4">
+                      Paste a video URL to load and extract frames
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={urlInput}
+                        onChange={e => setUrlInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleUrlLoad()}
+                        placeholder="https://youtube.com/watch?v=... or direct .mp4 URL"
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleUrlLoad}
+                        disabled={urlLoading || !urlInput.trim()}
+                        className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors flex items-center gap-2 whitespace-nowrap"
+                      >
+                        {urlLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Link className="w-4 h-4" />
+                        )}
+                        {urlLoading ? 'Loading…' : 'Load'}
+                      </button>
+                    </div>
+                    {urlError && (
+                      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{urlError}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {['YouTube', 'TikTok', 'Vimeo', 'Direct MP4'].map(p => (
+                        <span key={p} className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-500 text-xs border border-slate-700">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <video
-                ref={videoRef}
-                src={videoSrc}
-                className="max-w-full max-h-full"
-                preload="metadata"
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  className="max-w-full max-h-full"
+                  preload="metadata"
+                  crossOrigin="anonymous"
+                />
+                {/* Change source button */}
+                <button
+                  onClick={() => { 
+                    setVideoSrc(''); 
+                    setVideoInfo(null); 
+                    setUrlInput(''); 
+                    setUrlError(null);
+                    // Clear store state
+                    clearVideo();
+                  }}
+                  className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-slate-400 hover:text-slate-100 hover:bg-black/80 transition-colors"
+                  title="Change video"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
             )}
 
             {/* Timecode Overlay */}
             {videoSrc && (
               <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/80 backdrop-blur font-mono text-sm">
                 {formatTimecode(currentTime)}
+              </div>
+            )}
+
+            {/* Video info badge (URL mode) */}
+            {videoSrc && videoInfo?.title && (
+              <div className="absolute bottom-3 left-3 right-12 px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur text-xs text-slate-300 truncate">
+                {getPlatformLabel(videoInfo.platform)} · {videoInfo.title}
               </div>
             )}
           </div>
@@ -687,7 +901,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
                   Extracted Frames
                 </h2>
-                <span className="text-xs text-slate-500">{extractedFrames.length} frames</span>
+                <span className="text-xs text-slate-500">{localExtractedFrames.length} frames</span>
               </div>
               {selectedFrames.size > 0 && (
                 <button
@@ -702,13 +916,13 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
 
             {/* Frame List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {extractedFrames.length === 0 ? (
+              {localExtractedFrames.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 text-sm">
                   <Camera className="w-12 h-12 mx-auto mb-3 opacity-30" />
                   No frames captured yet
                 </div>
               ) : (
-                extractedFrames.map(frame => (
+                localExtractedFrames.map(frame => (
                   <div
                     key={frame.id}
                     className={`group relative rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${

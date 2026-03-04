@@ -36,6 +36,8 @@ export class VideoService implements IVideoService {
   private currentVideo: Uint8Array | null = null;
   private currentMetadata: VideoMetadata | null = null;
   private videoElement: HTMLVideoElement | null = null;
+  /** Original URL kept for lazy-loading the full blob into FFmpeg later */
+  private sourceUrl: string | null = null;
   
   private onProgress?: (state: VideoProcessingState) => void;
 
@@ -75,6 +77,10 @@ export class VideoService implements IVideoService {
 
     try {
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+      
+      // Use local worker.js from public/ffmpeg for same-origin requirement
+      // This enables SharedArrayBuffer support with COOP/COEP headers
+      const workerURL = new URL('/ffmpeg/worker.js', window.location.origin).href;
 
       // Set up progress logging
       this.ffmpeg.on('log', ({ message }) => {
@@ -93,6 +99,7 @@ export class VideoService implements IVideoService {
       await this.ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        classWorkerURL: workerURL,
       });
 
       this.ready = true;
@@ -131,56 +138,40 @@ export class VideoService implements IVideoService {
   }
 
   async loadFromUrl(url: string): Promise<VideoMetadata> {
-    await this.initialize();
+    // Don't initialize FFmpeg yet – defer until actually needed for
+    // high-quality extraction or clip operations.  This lets the video
+    // start playing immediately via the streaming proxy.
 
     this.updateProgress({
       isLoading: true,
       stage: 'loading',
-      message: 'Downloading video...',
+      message: 'Loading video...',
       progress: 0,
     });
 
-    // Check if it's a social media URL that needs proxy
+    // Remember the original URL so we can lazy-load the full blob later
+    // when an FFmpeg operation (extractFrames, extractClip) is requested.
+    this.sourceUrl = url;
+
+    // Build the streaming URL – same pattern used by VideoThumbnailEditor
     const platformInfo = this.detectPlatform(url);
-    let videoUrl = url;
+    let videoSrc: string;
 
     if (platformInfo) {
-      const proxyEndpoint = platformRegistry.getProxyEndpoint(platformInfo.platform);
-      if (proxyEndpoint) {
-        // Fetch video through proxy endpoint on backend
-        const proxyUrl = `${API_BASE_URL}${proxyEndpoint}?url=${encodeURIComponent(url)}`;
-        
-        this.updateProgress({
-          isLoading: true,
-          stage: 'loading',
-          message: `Fetching from ${platformInfo.platform}...`,
-          progress: 10,
-        });
-        
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.error || `Failed to fetch video from ${platformInfo.platform}`
-          );
-        }
-        
-        this.updateProgress({
-          isLoading: true,
-          stage: 'loading',
-          message: 'Downloading video data...',
-          progress: 50,
-        });
-        
-        const blob = await response.blob();
-        this.currentVideo = new Uint8Array(await blob.arrayBuffer());
-      }
+      // Platform URL → proxy through /api/video/stream with Range support
+      videoSrc = `${API_BASE_URL}/api/video/stream?url=${encodeURIComponent(url)}`;
+      this.updateProgress({
+        isLoading: true,
+        stage: 'loading',
+        message: `Loading from ${platformInfo.platform}...`,
+        progress: 30,
+      });
     } else {
-      // Direct URL
-      this.currentVideo = await fetchFile(url);
+      // Direct URL (mp4 link, etc.) – use as-is
+      videoSrc = url;
     }
 
-    return this.analyzeVideo();
+    return this.analyzeVideoFromSrc(videoSrc);
   }
 
   async loadFromFile(file: File): Promise<VideoMetadata> {
@@ -257,6 +248,94 @@ export class VideoService implements IVideoService {
     });
   }
 
+  /**
+   * Streaming-first analysis: creates a video element pointed at a URL
+   * (typically the /api/video/stream proxy) so playback + canvas-based
+   * frame extraction work immediately without downloading the full file.
+   */
+  private analyzeVideoFromSrc(videoSrc: string): Promise<VideoMetadata> {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      // 'auto' lets the browser buffer enough data for high-quality seeking
+      // ('metadata' only downloads enough for dimensions/duration, causing
+      // blurry/partial frames when seeking for extraction)
+      video.preload = 'auto';
+      // Required so canvas.toDataURL works on cross-origin streams
+      video.crossOrigin = 'anonymous';
+
+      video.onloadedmetadata = () => {
+        this.videoElement = video;
+        this.currentMetadata = {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+          fps: 30,
+          codec: 'h264',
+          fileSize: 0, // unknown until full download
+          mimeType: 'video/mp4',
+        };
+
+        this.updateProgress({
+          isLoading: false,
+          stage: 'complete',
+          message: 'Video loaded',
+          progress: 100,
+        });
+
+        resolve(this.currentMetadata);
+      };
+
+      video.onerror = () => {
+        reject(new Error('Failed to load video from stream'));
+      };
+
+      video.src = videoSrc;
+    });
+  }
+
+  /**
+   * Lazily downloads the full video blob and loads it into FFmpeg.
+   * Called on-demand by extractFrames() / extractClip() which need FFmpeg.
+   */
+  private async ensureFFmpegLoaded(): Promise<void> {
+    if (this.currentVideo) return; // already loaded
+
+    await this.initialize();
+
+    if (!this.sourceUrl) {
+      throw new Error('No source URL available for FFmpeg download');
+    }
+
+    this.updateProgress({
+      isLoading: true,
+      stage: 'loading',
+      message: 'Downloading full video for processing...',
+      progress: 0,
+    });
+
+    const platformInfo = this.detectPlatform(this.sourceUrl);
+    if (platformInfo) {
+      const streamUrl = `${API_BASE_URL}/api/video/stream?url=${encodeURIComponent(this.sourceUrl)}`;
+      const response = await fetch(streamUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download video for processing`);
+      }
+      const blob = await response.blob();
+      this.currentVideo = new Uint8Array(await blob.arrayBuffer());
+    } else {
+      this.currentVideo = await fetchFile(this.sourceUrl);
+    }
+
+    await this.ffmpeg.writeFile('input.mp4', this.currentVideo);
+
+    this.updateProgress({
+      isLoading: false,
+      stage: 'complete',
+      message: 'Video ready for processing',
+      progress: 100,
+    });
+  }
+
   // ============================================
   // FRAME EXTRACTION
   // ============================================
@@ -273,11 +352,12 @@ export class VideoService implements IVideoService {
   }
 
   async extractFrames(options: FrameExtractionOptions): Promise<ExtractedFrame[]> {
-    if (!this.currentVideo || !this.currentMetadata) {
+    if (!this.currentMetadata) {
       throw new Error('No video loaded');
     }
 
-    await this.initialize();
+    // Ensure the full blob is downloaded and FFmpeg is ready
+    await this.ensureFFmpegLoaded();
 
     const { timestamps, width, height, format = 'png', quality = 90 } = options;
     const frames: ExtractedFrame[] = [];
@@ -351,48 +431,93 @@ export class VideoService implements IVideoService {
   // FAST FRAME EXTRACTION (Canvas-based)
   // ============================================
 
+  /**
+   * Wait until the video element has a fully composited frame ready.
+   * Uses requestVideoFrameCallback (fires after the frame is actually
+   * decoded and sent to the compositor) with a fallback to seeked +
+   * double-requestAnimationFrame for older browsers.
+   */
+  private waitForFrameReady(video: HTMLVideoElement): Promise<void> {
+    return new Promise((resolve) => {
+      const rvfc = (video as HTMLVideoElement & {
+        requestVideoFrameCallback?: (cb: () => void) => void;
+      }).requestVideoFrameCallback;
+
+      if (typeof rvfc === 'function') {
+        // Best path – fires only after the frame is composited
+        rvfc.call(video, () => resolve());
+      } else {
+        // Fallback: wait for seeked, then two animation frames to let
+        // the decoder fully composite the frame
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        };
+        video.addEventListener('seeked', onSeeked);
+      }
+    });
+  }
+
   async extractFrameFast(timestamp: number): Promise<ExtractedFrame> {
     if (!this.videoElement || !this.currentMetadata) {
       throw new Error('No video loaded');
     }
 
+    const video = this.videoElement;
+
+    // Register the frame-ready listener BEFORE seeking to avoid a race
+    // condition where the seeked event fires before we're listening.
+    const frameReady = this.waitForFrameReady(video);
+    video.currentTime = timestamp;
+    await frameReady;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+
+    // Use createImageBitmap when available for highest-fidelity capture
+    // (bypasses potential video element rendering scaling artifacts)
+    let source: CanvasImageSource = video;
+    let bitmap: ImageBitmap | null = null;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(video);
+        source = bitmap;
+      } catch {
+        // Fall back to drawing directly from the video element
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) {
+      bitmap?.close();
+      throw new Error('Failed to get canvas context');
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, w, h, 0, 0, w, h);
+
+    bitmap?.close();
+
     return new Promise((resolve, reject) => {
-      const video = this.videoElement!;
-      
-      const handleSeeked = () => {
-        video.removeEventListener('seeked', handleSeeked);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to create blob'));
           return;
         }
-
-        ctx.drawImage(video, 0, 0);
-        
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('Failed to create blob'));
-            return;
-          }
-
-          const dataUrl = canvas.toDataURL('image/png');
-          resolve({
-            timestamp,
-            dataUrl,
-            blob,
-            width: canvas.width,
-            height: canvas.height,
-          });
-        }, 'image/png');
-      };
-
-      video.addEventListener('seeked', handleSeeked);
-      video.currentTime = timestamp;
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve({
+          timestamp,
+          dataUrl,
+          blob,
+          width: w,
+          height: h,
+        });
+      }, 'image/png');
     });
   }
 
@@ -466,11 +591,12 @@ export class VideoService implements IVideoService {
   // ============================================
 
   async extractClip(options: ClipExtractionOptions): Promise<ExtractedClip> {
-    if (!this.currentVideo) {
+    if (!this.currentMetadata) {
       throw new Error('No video loaded');
     }
 
-    await this.initialize();
+    // Ensure the full blob is downloaded and FFmpeg is ready
+    await this.ensureFFmpegLoaded();
 
     const {
       startTime,
@@ -557,11 +683,15 @@ export class VideoService implements IVideoService {
 
   dispose(): void {
     if (this.videoElement) {
-      URL.revokeObjectURL(this.videoElement.src);
+      // Only revoke blob: URLs – streaming URLs are not object URLs
+      if (this.videoElement.src.startsWith('blob:')) {
+        URL.revokeObjectURL(this.videoElement.src);
+      }
       this.videoElement = null;
     }
     this.currentVideo = null;
     this.currentMetadata = null;
+    this.sourceUrl = null;
   }
 
   // ============================================
@@ -613,6 +743,16 @@ export class VideoService implements IVideoService {
 
   getVideoElement(): HTMLVideoElement | null {
     return this.videoElement;
+  }
+
+  /**
+   * Replace the internal video element with an externally-rendered one.
+   * This lets a React component render the visible <video> and then hand it
+   * to the service so extractFrameFast / generateTimeline operate on the
+   * same element the user sees.
+   */
+  setVideoElement(el: HTMLVideoElement): void {
+    this.videoElement = el;
   }
 }
 

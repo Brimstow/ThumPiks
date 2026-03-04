@@ -3,12 +3,11 @@
  * Extract frames from videos to use as thumbnails
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useVideoService } from '../../../hooks/useVideoService';
+import { useVideoExtractorStore, selectSelectedFrame, selectExtractedFrames } from '../../../stores/videoExtractorStore';
 import type { 
   ExtractedFrame,
-  VideoMetadata,
-  TimelineFrame,
 } from '../../../services/video';
 import './VideoFrameExtractor.css';
 
@@ -166,24 +165,53 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
   className = '',
 }) => {
   const video = useVideoService({ autoInitialize: false });
+  const {
+    detectPlatform,
+    loadFromFile,
+    loadFromUrl,
+    generateTimeline,
+    extractFrameFast,
+    getVideoElement,
+    setVideoElement,
+    dispose: disposeVideo,
+    isLoading: videoIsLoading,
+    message: videoMessage,
+    progress: videoProgress,
+    metadata: videoMetadata,
+    videoSrc: serviceVideoSrc,
+  } = video;
+
+  // Persisted state from Zustand store
+  const {
+    sourceTab,
+    setSourceTab,
+    urlInput,
+    setUrlInput,
+    detectedPlatform,
+    setDetectedPlatform,
+    isVideoLoaded,
+    setVideoLoaded,
+    currentTime,
+    setCurrentTime: setStoreCurrentTime,
+    timeline: storeTimeline,
+    setTimeline: setStoreTimeline,
+    addExtractedFrame,
+    removeExtractedFrame: removeStoreFrame,
+    setSelectedFrame: setStoreSelectedFrame,
+    clearVideo,
+  } = useVideoExtractorStore();
   
-  // Source state
-  const [sourceTab, setSourceTab] = useState<SourceTab>('file');
-  const [urlInput, setUrlInput] = useState('');
-  const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
+  // Derived state from store
+  const extractedFrames = useVideoExtractorStore(selectExtractedFrames);
+  const selectedFrame = useVideoExtractorStore(selectSelectedFrame);
   
-  // Video state
-  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  // Local transient state (doesn't need persistence)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  
-  // Extracted frames
-  const [extractedFrames, setExtractedFrames] = useState<ExtractedFrame[]>([]);
-  const [selectedFrame, setSelectedFrame] = useState<ExtractedFrame | null>(null);
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
 
@@ -196,9 +224,9 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
     setUrlInput(url);
     
     // Detect platform
-    const platformInfo = video.detectPlatform(url);
+    const platformInfo = detectPlatform(url);
     setDetectedPlatform(platformInfo?.platform || null);
-  }, [video]);
+  }, [detectPlatform, setUrlInput, setDetectedPlatform]);
 
   // ============================================
   // VIDEO LOADING
@@ -209,59 +237,59 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
     if (!file) return;
 
     try {
-      await video.loadFromFile(file);
-      setIsVideoLoaded(true);
-      setCurrentTime(0);
-      setExtractedFrames([]);
-      setSelectedFrame(null);
+      const meta = await loadFromFile(file);
+      setVideoLoaded(true, serviceVideoSrc || undefined, meta);
       
       // Generate timeline after video loads
-      if (video.metadata) {
-        await video.generateTimeline({
+      if (meta) {
+        const timelineFrames = await generateTimeline({
           frameCount: 10,
           thumbnailWidth: 120,
           thumbnailHeight: 68,
         });
+        if (timelineFrames) {
+          setStoreTimeline(timelineFrames);
+        }
       }
     } catch (error) {
       console.error('Failed to load video file:', error);
     }
-  }, [video]);
+  }, [loadFromFile, generateTimeline, setVideoLoaded, setStoreTimeline, serviceVideoSrc]);
 
   const handleUrlLoad = useCallback(async () => {
     if (!urlInput.trim()) return;
 
     try {
-      await video.loadFromUrl(urlInput);
-      setIsVideoLoaded(true);
-      setCurrentTime(0);
-      setExtractedFrames([]);
-      setSelectedFrame(null);
+      const meta = await loadFromUrl(urlInput);
+      setVideoLoaded(true, serviceVideoSrc || undefined, meta);
       
       // Generate timeline after video loads
-      if (video.metadata) {
-        await video.generateTimeline({
+      if (meta) {
+        const timelineFrames = await generateTimeline({
           frameCount: 10,
           thumbnailWidth: 120,
           thumbnailHeight: 68,
         });
+        if (timelineFrames) {
+          setStoreTimeline(timelineFrames);
+        }
       }
     } catch (error) {
       console.error('Failed to load video from URL:', error);
     }
-  }, [urlInput, video]);
+  }, [urlInput, loadFromUrl, generateTimeline, setVideoLoaded, setStoreTimeline, serviceVideoSrc]);
 
   // ============================================
   // PLAYBACK CONTROL
   // ============================================
 
   const updatePlaybackTime = useCallback(() => {
-    const videoEl = video.getVideoElement();
+    const videoEl = getVideoElement();
     if (videoEl && isPlaying) {
-      setCurrentTime(videoEl.currentTime);
+      setStoreCurrentTime(videoEl.currentTime);
       animationRef.current = requestAnimationFrame(updatePlaybackTime);
     }
-  }, [video, isPlaying]);
+  }, [getVideoElement, isPlaying, setStoreCurrentTime]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -275,7 +303,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
   }, [isPlaying, updatePlaybackTime]);
 
   const togglePlayback = useCallback(() => {
-    const videoEl = video.getVideoElement();
+    const videoEl = getVideoElement();
     if (!videoEl) return;
 
     if (isPlaying) {
@@ -284,38 +312,38 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
       videoEl.play();
     }
     setIsPlaying(!isPlaying);
-  }, [video, isPlaying]);
+  }, [getVideoElement, isPlaying]);
 
   const seekTo = useCallback((time: number) => {
-    const videoEl = video.getVideoElement();
+    const videoEl = getVideoElement();
     if (videoEl) {
       videoEl.currentTime = time;
-      setCurrentTime(time);
+      setStoreCurrentTime(time);
     }
-  }, [video]);
+  }, [getVideoElement, setStoreCurrentTime]);
 
   const seekRelative = useCallback((delta: number) => {
-    const videoEl = video.getVideoElement();
-    if (videoEl && video.metadata) {
-      const newTime = Math.max(0, Math.min(videoEl.currentTime + delta, video.metadata.duration));
+    const videoEl = getVideoElement();
+    if (videoEl && videoMetadata) {
+      const newTime = Math.max(0, Math.min(videoEl.currentTime + delta, videoMetadata.duration));
       seekTo(newTime);
     }
-  }, [video, seekTo]);
+  }, [getVideoElement, videoMetadata, seekTo]);
 
   // ============================================
   // TIMELINE INTERACTION
   // ============================================
 
   const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || !video.metadata) return;
+    if (!timelineRef.current || !videoMetadata) return;
 
     const rect = timelineRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    const time = percentage * video.metadata.duration;
+    const time = percentage * videoMetadata.duration;
     
     seekTo(time);
-  }, [video.metadata, seekTo]);
+  }, [videoMetadata, seekTo]);
 
   const handleTimelineFrameClick = useCallback((timestamp: number) => {
     seekTo(timestamp);
@@ -326,32 +354,32 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
   // ============================================
 
   const extractCurrentFrame = useCallback(async () => {
-    if (!isVideoLoaded || video.isLoading) return;
+    if (!isVideoLoaded || videoIsLoading) return;
 
     try {
-      const frame = await video.extractFrameFast(currentTime);
-      setExtractedFrames(prev => [...prev, frame]);
-      setSelectedFrame(frame);
+      const frame = await extractFrameFast(currentTime);
+      addExtractedFrame(frame);
     } catch (error) {
       console.error('Failed to extract frame:', error);
     }
-  }, [isVideoLoaded, video, currentTime]);
+  }, [isVideoLoaded, videoIsLoading, extractFrameFast, currentTime, addExtractedFrame]);
 
-  const removeExtractedFrame = useCallback((index: number) => {
-    setExtractedFrames(prev => {
-      const updated = [...prev];
-      const removed = updated.splice(index, 1)[0];
-      if (selectedFrame === removed) {
-        setSelectedFrame(updated[0] || null);
-      }
-      return updated;
-    });
-  }, [selectedFrame]);
+  const removeExtractedFrame = useCallback((timestamp: number) => {
+    removeStoreFrame(timestamp);
+  }, [removeStoreFrame]);
 
-  const handleFrameSelect = useCallback((frame: ExtractedFrame) => {
-    setSelectedFrame(frame);
-    onFrameSelect(frame);
-  }, [onFrameSelect]);
+  const handleFrameSelect = useCallback((frame: ExtractedFrame | { timestamp: number; dataUrl: string; width: number; height: number }) => {
+    setStoreSelectedFrame(frame.timestamp);
+    // Convert to ExtractedFrame format for the callback
+    const extractedFrame: ExtractedFrame = {
+      timestamp: frame.timestamp,
+      dataUrl: frame.dataUrl,
+      width: frame.width,
+      height: frame.height,
+      blob: new Blob(), // Placeholder - not used in callback
+    };
+    onFrameSelect(extractedFrame);
+  }, [onFrameSelect, setStoreSelectedFrame]);
 
   const handleAddToCanvas = useCallback(() => {
     if (selectedFrame && onAddToCanvas) {
@@ -359,7 +387,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
     }
   }, [selectedFrame, onAddToCanvas]);
 
-  const downloadFrame = useCallback((frame: ExtractedFrame) => {
+  const downloadFrame = useCallback((frame: { timestamp: number; dataUrl: string }) => {
     const a = document.createElement('a');
     a.href = frame.dataUrl;
     a.download = `frame-${formatTime(frame.timestamp).replace(/[:.]/g, '-')}.png`;
@@ -372,17 +400,29 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
 
   useEffect(() => {
     return () => {
-      video.dispose();
+      disposeVideo();
     };
-  }, [video]);
+  }, [disposeVideo]);
+
+  // After the visible <video> renders, hand it to the service so that
+  // extractFrameFast / generateTimeline / playback controls all operate
+  // on the same element the user sees (fixes the dual-element bug).
+  useEffect(() => {
+    if (isVideoLoaded && videoRef.current) {
+      setVideoElement(videoRef.current);
+    }
+  }, [isVideoLoaded, serviceVideoSrc, setVideoElement]);
 
   // ============================================
   // RENDER
   // ============================================
 
-  const duration = video.metadata?.duration || 0;
+  const duration = videoMetadata?.duration || 0;
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
   const PlatformIcon = detectedPlatform ? PlatformIcons[detectedPlatform] : null;
+  
+  // Use store timeline, fallback to service timeline
+  const videoTimeline = storeTimeline.length > 0 ? storeTimeline : [];
 
   return (
     <div className={`vfe ${className}`}>
@@ -428,12 +468,12 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
               <button
                 className="vfe-upload-button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={video.isLoading}
+                disabled={videoIsLoading}
               >
-                {video.isLoading ? (
+                {videoIsLoading ? (
                   <>
                     <Icons.Loader />
-                    <span>{video.message || 'Loading...'}</span>
+                    <span>{videoMessage || 'Loading...'}</span>
                   </>
                 ) : (
                   <>
@@ -468,12 +508,12 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
               <button
                 className="vfe-url-button"
                 onClick={handleUrlLoad}
-                disabled={!urlInput.trim() || video.isLoading}
+                disabled={!urlInput.trim() || videoIsLoading}
               >
-                {video.isLoading ? (
+                {videoIsLoading ? (
                   <>
                     <Icons.Loader />
-                    <span>{video.message || 'Loading...'}</span>
+                    <span>{videoMessage || 'Loading...'}</span>
                   </>
                 ) : (
                   <>
@@ -493,23 +533,20 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
       )}
 
       {/* Video Player */}
-      {isVideoLoaded && video.metadata && (
+      {isVideoLoaded && videoMetadata && (
         <div className="vfe-player">
           {/* Video Preview */}
           <div ref={videoContainerRef} className="vfe-video-container">
-            {(() => {
-              const videoEl = video.getVideoElement();
-              if (videoEl) {
-                return (
-                  <video
-                    src={videoEl.src}
-                    className="vfe-video"
-                    onClick={togglePlayback}
-                  />
-                );
-              }
-              return null;
-            })()}
+            {serviceVideoSrc && (
+              <video
+                ref={videoRef}
+                src={serviceVideoSrc}
+                crossOrigin="anonymous"
+                preload="auto"
+                className="vfe-video"
+                onClick={togglePlayback}
+              />
+            )}
             
             {/* Play/Pause Overlay */}
             <div className="vfe-video-overlay" onClick={togglePlayback}>
@@ -524,17 +561,17 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
           {/* Video Info */}
           <div className="vfe-video-info">
             <span className="vfe-info-item">
-              {video.metadata.width}×{video.metadata.height}
+              {videoMetadata.width}×{videoMetadata.height}
             </span>
             <span className="vfe-info-separator">•</span>
             <span className="vfe-info-item">
-              {formatDuration(video.metadata.duration)}
+              {formatDuration(videoMetadata.duration)}
             </span>
-            {video.metadata.fileSize > 0 && (
+            {videoMetadata.fileSize > 0 && (
               <>
                 <span className="vfe-info-separator">•</span>
                 <span className="vfe-info-item">
-                  {formatFileSize(video.metadata.fileSize)}
+                  {formatFileSize(videoMetadata.fileSize)}
                 </span>
               </>
             )}
@@ -543,9 +580,9 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
           {/* Timeline */}
           <div className="vfe-timeline-section">
             {/* Timeline Thumbnails */}
-            {video.timeline.length > 0 && (
+            {videoTimeline.length > 0 && (
               <div className="vfe-timeline-thumbnails">
-                {video.timeline.map((frame, index) => (
+                {videoTimeline.map((frame, index) => (
                   <button
                     key={index}
                     className="vfe-timeline-thumb"
@@ -608,7 +645,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
             <button
               className="vfe-control-btn vfe-control-btn--capture"
               onClick={extractCurrentFrame}
-              disabled={video.isLoading}
+              disabled={videoIsLoading}
               title="Capture current frame"
             >
               <Icons.Camera />
@@ -617,15 +654,15 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
           </div>
 
           {/* Progress Indicator */}
-          {video.isLoading && (
+          {videoIsLoading && (
             <div className="vfe-progress">
               <div className="vfe-progress-bar">
                 <div
                   className="vfe-progress-fill"
-                  style={{ width: `${video.progress}%` }}
+                  style={{ width: `${videoProgress}%` }}
                 />
               </div>
-              <span className="vfe-progress-text">{video.message}</span>
+              <span className="vfe-progress-text">{videoMessage}</span>
             </div>
           )}
         </div>
@@ -642,10 +679,10 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
           </div>
 
           <div className="vfe-extracted-grid">
-            {extractedFrames.map((frame, index) => (
+            {extractedFrames.map((frame) => (
               <div
-                key={index}
-                className={`vfe-frame-card ${selectedFrame === frame ? 'vfe-frame-card--selected' : ''}`}
+                key={frame.timestamp}
+                className={`vfe-frame-card ${selectedFrame?.timestamp === frame.timestamp ? 'vfe-frame-card--selected' : ''}`}
                 onClick={() => handleFrameSelect(frame)}
               >
                 <img
@@ -660,13 +697,13 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
                   className="vfe-frame-remove"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeExtractedFrame(index);
+                    removeExtractedFrame(frame.timestamp);
                   }}
                   title="Remove frame"
                 >
                   <Icons.X />
                 </button>
-                {selectedFrame === frame && (
+                {selectedFrame?.timestamp === frame.timestamp && (
                   <div className="vfe-frame-selected-badge">
                     <Icons.Check />
                   </div>
@@ -704,14 +741,9 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
         <button
           className="vfe-reset-btn"
           onClick={() => {
-            video.dispose();
-            setIsVideoLoaded(false);
+            disposeVideo();
+            clearVideo();
             setIsPlaying(false);
-            setCurrentTime(0);
-            setExtractedFrames([]);
-            setSelectedFrame(null);
-            setUrlInput('');
-            setDetectedPlatform(null);
           }}
         >
           Load Different Video

@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { Readable } from 'stream';
 import { logger } from '../../utils/logger';
+import { ytDlpUtil, YtDlpVideoInfo } from './yt-dlp.util';
+import { extractFramesFromVideo } from './ffmpeg-frames.util';
 
 export interface VideoInfo {
   title: string;
@@ -10,16 +12,25 @@ export interface VideoInfo {
   platform: string;
   videoId: string;
   streamUrl?: string;
+  uploader?: string;
 }
 
 export interface PlatformConfig {
   name: string;
   urlPatterns: RegExp[];
   extractVideoId: (url: string) => string | null;
-  getVideoInfo: (videoId: string) => Promise<VideoInfo>;
-  getVideoStream: (videoId: string, quality?: string) => Promise<Readable>;
 }
 
+/**
+ * Video Proxy Service
+ * 
+ * Uses yt-dlp for unified video fetching across 1000+ platforms:
+ * - YouTube, Instagram, TikTok, Twitter/X, Twitch, Facebook, Vimeo, Reddit, etc.
+ * 
+ * Architecture:
+ * - Tier 1: yt-dlp (primary) - handles all platforms with unified interface
+ * - Tier 2: Platform storyboards (fallback) - for quick preview without download
+ */
 class VideoProxyService {
   private platforms: Map<string, PlatformConfig> = new Map();
 
@@ -44,12 +55,6 @@ class VideoProxyService {
         }
         return null;
       },
-      getVideoInfo: async (videoId: string) => {
-        return this.getYouTubeVideoInfo(videoId);
-      },
-      getVideoStream: async (videoId: string, quality?: string) => {
-        return this.getYouTubeVideoStream(videoId, quality);
-      },
     });
 
     // TikTok platform
@@ -67,12 +72,6 @@ class VideoProxyService {
         }
         return null;
       },
-      getVideoInfo: async (videoId: string) => {
-        return this.getTikTokVideoInfo(videoId);
-      },
-      getVideoStream: async (videoId: string) => {
-        return this.getTikTokVideoStream(videoId);
-      },
     });
 
     // Instagram platform
@@ -87,12 +86,6 @@ class VideoProxyService {
           if (match?.[1]) return match[1];
         }
         return null;
-      },
-      getVideoInfo: async (videoId: string) => {
-        return this.getInstagramVideoInfo(videoId);
-      },
-      getVideoStream: async (videoId: string) => {
-        return this.getInstagramVideoStream(videoId);
       },
     });
 
@@ -109,11 +102,22 @@ class VideoProxyService {
         }
         return null;
       },
-      getVideoInfo: async (videoId: string) => {
-        return this.getTwitterVideoInfo(videoId);
-      },
-      getVideoStream: async (videoId: string) => {
-        return this.getTwitterVideoStream(videoId);
+    });
+
+    // Twitch platform
+    this.registerPlatform({
+      name: 'twitch',
+      urlPatterns: [
+        /(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
+        /(?:https?:\/\/)?clips\.twitch\.tv\/(\w+)/,
+        /(?:https?:\/\/)?(?:www\.)?twitch\.tv\/\w+\/clip\/(\w+)/,
+      ],
+      extractVideoId: (url: string) => {
+        for (const pattern of this.platforms.get('twitch')!.urlPatterns) {
+          const match = url.match(pattern);
+          if (match?.[1]) return match[1];
+        }
+        return null;
       },
     });
 
@@ -131,11 +135,38 @@ class VideoProxyService {
         }
         return null;
       },
-      getVideoInfo: async (videoId: string) => {
-        return this.getVimeoVideoInfo(videoId);
+    });
+
+    // Facebook platform
+    this.registerPlatform({
+      name: 'facebook',
+      urlPatterns: [
+        /(?:https?:\/\/)?(?:www\.)?facebook\.com\/.*\/videos\/(\d+)/,
+        /(?:https?:\/\/)?(?:www\.)?facebook\.com\/watch\/?\?v=(\d+)/,
+        /(?:https?:\/\/)?fb\.watch\/(\w+)/,
+      ],
+      extractVideoId: (url: string) => {
+        for (const pattern of this.platforms.get('facebook')!.urlPatterns) {
+          const match = url.match(pattern);
+          if (match?.[1]) return match[1];
+        }
+        return null;
       },
-      getVideoStream: async (videoId: string) => {
-        return this.getVimeoVideoStream(videoId);
+    });
+
+    // Reddit platform
+    this.registerPlatform({
+      name: 'reddit',
+      urlPatterns: [
+        /(?:https?:\/\/)?(?:www\.)?reddit\.com\/r\/\w+\/comments\/(\w+)/,
+        /(?:https?:\/\/)?(?:v\.)?redd\.it\/(\w+)/,
+      ],
+      extractVideoId: (url: string) => {
+        for (const pattern of this.platforms.get('reddit')!.urlPatterns) {
+          const match = url.match(pattern);
+          if (match?.[1]) return match[1];
+        }
+        return null;
       },
     });
   }
@@ -155,44 +186,47 @@ class VideoProxyService {
     return null;
   }
 
+  /**
+   * Get video info using yt-dlp
+   * Works for all 1000+ supported platforms
+   */
   async getVideoInfo(url: string): Promise<VideoInfo> {
     const detected = this.detectPlatform(url);
-    if (!detected) {
-      throw new Error('Unsupported video URL or platform');
-    }
-
-    const platform = this.platforms.get(detected.platform);
-    if (!platform) {
-      throw new Error(`Platform ${detected.platform} not found`);
-    }
-
+    
     try {
-      return await platform.getVideoInfo(detected.videoId);
+      // Use yt-dlp for all platforms
+      const ytInfo = await ytDlpUtil.getVideoInfo(url);
+      return this.convertYtDlpInfo(ytInfo, detected);
     } catch (error) {
-      logger.error(`Failed to get video info for ${url}`, error as Error);
+      logger.error(`yt-dlp failed for ${url}`, error as Error);
+      
+      // Fallback: Return basic info for YouTube using storyboard API
+      if (detected?.platform === 'youtube') {
+        return this.getYouTubeStoryboardInfo(detected.videoId);
+      }
+      
       throw error;
     }
   }
 
+  /**
+   * Get video stream using yt-dlp
+   * Works for all 1000+ supported platforms
+   */
   async getVideoStream(
     url: string,
     quality?: string
   ): Promise<{ stream: Readable; info: VideoInfo }> {
     const detected = this.detectPlatform(url);
-    if (!detected) {
-      throw new Error('Unsupported video URL or platform');
-    }
-
-    const platform = this.platforms.get(detected.platform);
-    if (!platform) {
-      throw new Error(`Platform ${detected.platform} not found`);
-    }
-
+    
     try {
-      const [info, stream] = await Promise.all([
-        platform.getVideoInfo(detected.videoId),
-        platform.getVideoStream(detected.videoId, quality),
+      // Get info and stream in parallel
+      const [ytInfo, stream] = await Promise.all([
+        ytDlpUtil.getVideoInfo(url),
+        ytDlpUtil.getVideoStream(url, quality === 'worst' ? 'worst' : 'best'),
       ]);
+      
+      const info = this.convertYtDlpInfo(ytInfo, detected);
       return { stream, info };
     } catch (error) {
       logger.error(`Failed to get video stream for ${url}`, error as Error);
@@ -200,30 +234,68 @@ class VideoProxyService {
     }
   }
 
+  /**
+   * Check if URL is supported by any platform
+   * Uses yt-dlp which supports 1000+ sites
+   */
+  async isSupported(url: string): Promise<boolean> {
+    // First check our known platforms
+    if (this.detectPlatform(url)) {
+      return true;
+    }
+    
+    // Then check yt-dlp for other supported sites
+    try {
+      return await ytDlpUtil.isSupported(url);
+    } catch {
+      return false;
+    }
+  }
+
   getSupportedPlatforms(): string[] {
     return Array.from(this.platforms.keys());
   }
 
-  // Platform-specific implementations
+  /**
+   * Convert yt-dlp info to our VideoInfo format
+   */
+  private convertYtDlpInfo(
+    ytInfo: YtDlpVideoInfo,
+    detected: { platform: string; videoId: string } | null
+  ): VideoInfo {
+    return {
+      title: ytInfo.title,
+      ...(ytInfo.duration !== undefined ? { duration: ytInfo.duration } : {}),
+      ...(ytInfo.thumbnail ? { thumbnail: ytInfo.thumbnail } : {}),
+      format: 'mp4',
+      platform: detected?.platform || ytInfo.extractor_key.toLowerCase(),
+      videoId: detected?.videoId || ytInfo.id,
+      ...(ytInfo.uploader ? { uploader: ytInfo.uploader } : {}),
+    };
+  }
 
-  private async getYouTubeVideoInfo(videoId: string): Promise<VideoInfo> {
+  /**
+   * Fallback: Get YouTube video info using storyboard/thumbnail API
+   * No authentication required, instant response
+   */
+  private async getYouTubeStoryboardInfo(videoId: string): Promise<VideoInfo> {
+    logger.info(`Using YouTube storyboard fallback for ${videoId}`);
+    
+    // Try to get basic info from oEmbed API
     try {
-      // Use YouTube oEmbed API for basic info (no API key required)
       const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-      const response = await axios.get(oembedUrl);
-
+      const response = await axios.get(oembedUrl, { timeout: 5000 });
+      
       return {
         title: response.data.title || `YouTube Video ${videoId}`,
         thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
         format: 'mp4',
         platform: 'youtube',
         videoId,
+        uploader: response.data.author_name,
       };
-    } catch (error) {
-      logger.warn(`Failed to get YouTube oEmbed info for ${videoId}`, {
-        error: (error as Error).message,
-      });
-      // Return basic info on failure
+    } catch {
+      // Even oEmbed failed, return minimal info
       return {
         title: `YouTube Video ${videoId}`,
         thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
@@ -234,185 +306,146 @@ class VideoProxyService {
     }
   }
 
-  private async getYouTubeVideoStream(
-    videoId: string,
-    _quality?: string
-  ): Promise<Readable> {
-    // For YouTube, we need to use a third-party service or ytdl-core
-    // This is a simplified implementation using Invidious (open-source YouTube frontend)
-    const invidiousInstances = [
-      'https://inv.nadeko.net',
-      'https://invidious.snopyta.org',
-      'https://yewtu.be',
-    ];
+  /**
+   * Get selectable video frames for Frame Picker
+   * Extracts real frames from the video at evenly-spaced timestamps using
+   * ffmpeg (via stream URL from yt-dlp). Returns base64 data URLs at 1280×720.
+   * Falls back to YouTube static thumbnails if ffmpeg extraction fails.
+   */
+  async getVideoFrames(url: string): Promise<{
+    frames: { url: string; label: string; width?: number; height?: number }[];
+    videoInfo: { title: string; videoId: string; platform: string; duration?: number; uploader?: string };
+  }> {
+    const detected = this.detectPlatform(url);
 
-    for (const instance of invidiousInstances) {
+    // Step 1: Get video info + stream URL via yt-dlp
+    const ytInfo = await ytDlpUtil.getVideoInfo(url);
+    const info = this.convertYtDlpInfo(ytInfo, detected);
+
+    const videoInfo: { title: string; videoId: string; platform: string; duration?: number; uploader?: string } = {
+      title: info.title,
+      videoId: info.videoId,
+      platform: info.platform,
+    };
+    if (info.duration != null) videoInfo.duration = info.duration;
+    if (info.uploader) videoInfo.uploader = info.uploader;
+
+    // Step 2: Try real frame extraction via ffmpeg
+    if (info.duration && info.duration > 0) {
       try {
-        const apiUrl = `${instance}/api/v1/videos/${videoId}`;
-        const response = await axios.get(apiUrl, { timeout: 10000 });
+        const streamUrl = await ytDlpUtil.getStreamUrl(url, 'best');
 
-        // Find a suitable format
-        const formats = response.data.formatStreams || [];
-        const adaptiveFormats = response.data.adaptiveFormats || [];
-        const allFormats = [...formats, ...adaptiveFormats];
+        logger.info(`Extracting real frames from ${info.platform} video`, {
+          videoId: info.videoId,
+          duration: info.duration,
+        });
 
-        // Prefer mp4 with video+audio
-        const mp4Format = allFormats.find(
-          (f: any) =>
-            f.container === 'mp4' &&
-            f.type?.includes('video') &&
-            !f.type?.includes('audio/mp4')
+        const extracted = await extractFramesFromVideo(
+          streamUrl,
+          info.duration,
+          info.videoId,  // cache key — same video = instant return
+          8,             // 8 frames
+          1280,          // 1280×720
+          720,
         );
 
-        const streamUrl = mp4Format?.url || formats[0]?.url;
+        const frames = extracted.map((f) => ({
+          url: `data:image/jpeg;base64,${f.buffer.toString('base64')}`,
+          label: f.label,
+          width: 1280,
+          height: 720,
+        }));
 
-        if (streamUrl) {
-          const videoResponse = await axios.get(streamUrl, {
-            responseType: 'stream',
-            timeout: 30000,
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          });
-          return videoResponse.data;
+        return { frames, videoInfo };
+      } catch (ffmpegError) {
+        logger.warn(
+          `FFmpeg frame extraction failed for ${url}, falling back to thumbnails`,
+          ffmpegError as Error,
+        );
+        // Fall through to thumbnail fallback
+      }
+    }
+
+    // Step 3: Fallback — use platform thumbnails
+    const frames: { url: string; label: string; width?: number; height?: number }[] = [];
+
+    if (detected?.platform === 'youtube') {
+      const videoId = detected.videoId;
+      const ytFrames = [
+        { suffix: 'maxresdefault', label: 'Official Thumbnail (HD)', w: 1280, h: 720 },
+        { suffix: 'sddefault', label: 'Official Thumbnail (SD)', w: 640, h: 480 },
+        { suffix: '1', label: 'Frame — Early', w: 480, h: 360 },
+        { suffix: '2', label: 'Frame — Middle', w: 480, h: 360 },
+        { suffix: '3', label: 'Frame — Late', w: 480, h: 360 },
+        { suffix: 'hqdefault', label: 'High Quality Default', w: 480, h: 360 },
+      ];
+
+      const checks = await Promise.allSettled(
+        ytFrames.map(async (f) => {
+          const frameUrl = `https://img.youtube.com/vi/${videoId}/${f.suffix}.jpg`;
+          const resp = await axios.head(frameUrl, { timeout: 3000 });
+          if (resp.status === 200) {
+            return { url: frameUrl, label: f.label, width: f.w, height: f.h };
+          }
+          throw new Error('not found');
+        })
+      );
+
+      for (const result of checks) {
+        if (result.status === 'fulfilled') {
+          frames.push(result.value);
         }
-      } catch (error) {
-        logger.warn(`Invidious instance ${instance} failed`, {
-          error: (error as Error).message,
-        });
-        continue;
+      }
+    } else if (ytInfo.thumbnails && ytInfo.thumbnails.length > 0) {
+      const seen = new Set<string>();
+      const sorted = [...ytInfo.thumbnails]
+        .filter((t) => t.url && !t.url.includes('storyboard'))
+        .sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)));
+
+      for (const t of sorted) {
+        if (seen.has(t.url)) continue;
+        seen.add(t.url);
+        const frame: { url: string; label: string; width?: number; height?: number } = {
+          url: t.url,
+          label: t.id || `${t.width || '?'}x${t.height || '?'}`,
+        };
+        if (t.width != null) frame.width = t.width;
+        if (t.height != null) frame.height = t.height;
+        frames.push(frame);
+        if (frames.length >= 8) break;
       }
     }
 
-    throw new Error(
-      'Failed to get YouTube video stream. All instances unavailable.'
-    );
-  }
-
-  private async getTikTokVideoInfo(videoId: string): Promise<VideoInfo> {
-    // TikTok video info - basic implementation
-    return {
-      title: `TikTok Video ${videoId}`,
-      format: 'mp4',
-      platform: 'tiktok',
-      videoId,
-    };
-  }
-
-  private async getTikTokVideoStream(videoId: string): Promise<Readable> {
-    // TikTok requires more complex handling due to their anti-bot measures
-    // This is a placeholder - in production, use a service like tikwm.com or similar
-    const tikwmUrl = `https://www.tikwm.com/api/?url=https://www.tiktok.com/@user/video/${videoId}`;
-
-    try {
-      const response = await axios.get(tikwmUrl, { timeout: 15000 });
-      const videoUrl = response.data?.data?.play;
-
-      if (videoUrl) {
-        const videoResponse = await axios.get(videoUrl, {
-          responseType: 'stream',
-          timeout: 30000,
-        });
-        return videoResponse.data;
-      }
-    } catch (error) {
-      logger.error('TikTok stream failed', error as Error);
+    if (ytInfo.thumbnail && !frames.some((f) => f.url === ytInfo.thumbnail)) {
+      frames.unshift({ url: ytInfo.thumbnail, label: 'Primary Thumbnail' });
     }
 
-    throw new Error(
-      'Failed to get TikTok video stream. Platform may require additional configuration.'
-    );
+    return { frames, videoInfo };
   }
 
-  private async getInstagramVideoInfo(videoId: string): Promise<VideoInfo> {
-    return {
-      title: `Instagram Video ${videoId}`,
-      format: 'mp4',
-      platform: 'instagram',
-      videoId,
-    };
-  }
-
-  private async getInstagramVideoStream(videoId: string): Promise<Readable> {
-    // Instagram requires authentication for most content
-    // This is a placeholder implementation
-    throw new Error(
-      `Instagram video streaming requires authentication. Video ID: ${videoId}`
-    );
-  }
-
-  private async getTwitterVideoInfo(videoId: string): Promise<VideoInfo> {
-    return {
-      title: `Twitter/X Video ${videoId}`,
-      format: 'mp4',
-      platform: 'twitter',
-      videoId,
-    };
-  }
-
-  private async getTwitterVideoStream(videoId: string): Promise<Readable> {
-    // Twitter/X requires API access
-    throw new Error(
-      `Twitter/X video streaming requires API authentication. Video ID: ${videoId}`
-    );
-  }
-
-  private async getVimeoVideoInfo(videoId: string): Promise<VideoInfo> {
-    try {
-      const oembedUrl = `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${videoId}`;
-      const response = await axios.get(oembedUrl, { timeout: 10000 });
-
-      return {
-        title: response.data.title || `Vimeo Video ${videoId}`,
-        thumbnail: response.data.thumbnail_url,
-        duration: response.data.duration,
-        format: 'mp4',
-        platform: 'vimeo',
-        videoId,
-      };
-    } catch (error) {
-      return {
-        title: `Vimeo Video ${videoId}`,
-        format: 'mp4',
-        platform: 'vimeo',
-        videoId,
-      };
+  /**
+   * Get YouTube storyboard frames (pre-generated preview images)
+   * Useful for quick preview without downloading the video
+   */
+  async getYouTubeStoryboardFrames(videoId: string): Promise<string[]> {
+    // YouTube storyboard sprite URLs
+    // These are pre-generated preview images at regular intervals
+    const storyboardUrls: string[] = [];
+    
+    // L1 = low quality, L2 = medium quality storyboards
+    for (let i = 0; i < 4; i++) {
+      storyboardUrls.push(
+        `https://i.ytimg.com/sb/${videoId}/storyboard3_L2/M${i}.jpg`
+      );
     }
-  }
-
-  private async getVimeoVideoStream(videoId: string): Promise<Readable> {
-    // Vimeo player config endpoint
-    try {
-      const configUrl = `https://player.vimeo.com/video/${videoId}/config`;
-      const response = await axios.get(configUrl, {
-        timeout: 10000,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          Referer: 'https://vimeo.com/',
-        },
-      });
-
-      const progressiveFiles = response.data?.request?.files?.progressive || [];
-      const bestQuality = progressiveFiles.sort(
-        (a: any, b: any) => (b.width || 0) - (a.width || 0)
-      )[0];
-
-      if (bestQuality?.url) {
-        const videoResponse = await axios.get(bestQuality.url, {
-          responseType: 'stream',
-          timeout: 30000,
-        });
-        return videoResponse.data;
-      }
-    } catch (error) {
-      logger.error('Vimeo stream failed', error as Error);
+    
+    // Also include standard thumbnails as fallback
+    const thumbnailQualities = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault', 'default'];
+    for (const quality of thumbnailQualities) {
+      storyboardUrls.push(`https://img.youtube.com/vi/${videoId}/${quality}.jpg`);
     }
-
-    throw new Error(
-      'Failed to get Vimeo video stream. Video may be private or unavailable.'
-    );
+    
+    return storyboardUrls;
   }
 }
 
