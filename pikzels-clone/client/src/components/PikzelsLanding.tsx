@@ -375,13 +375,20 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 max-w-2xl mx-auto mb-12">
               <div className="flex gap-4 mb-6">
                 <button 
-                  className={`flex-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors ${
+                  className={`flex-1 px-4 py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${
                     includeFace ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                   }`}
                   onClick={() => setShowFaceModal(true)}
+                  title="Add your face to the thumbnail"
+                  aria-describedby="include-face-desc"
                 >
-                  <Plus className="w-4 h-4" />
-                  {faceImage ? 'Face added ✓' : 'Include face'}
+                  <span className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    {faceImage ? 'Face added ✓' : 'Include face'}
+                  </span>
+                  <span id="include-face-desc" className="text-xs opacity-70 font-normal">
+                    Put your face in the thumbnail
+                  </span>
                 </button>
                 <button className="flex-1 bg-gray-800 text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
                   See example
@@ -1367,8 +1374,23 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
                 <p className="text-xs text-gray-500 text-center mt-6">
                   By signing up, you agree to our{' '}
-                  <span className="text-gray-400">Terms of Service</span> and{' '}
-                  <span className="text-gray-400">Privacy Policy</span>
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-400 hover:text-white underline transition-colors"
+                  >
+                    Terms of Service
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-400 hover:text-white underline transition-colors"
+                  >
+                    Privacy Policy
+                  </a>
                 </p>
               </div>
             </motion.div>

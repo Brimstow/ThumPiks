@@ -7,6 +7,33 @@ import config from '../config/environment';
 // Track if a token refresh is already in progress to prevent multiple simultaneous refreshes
 let refreshPromise: Promise<boolean> | null = null;
 
+// Track token expiration time for proactive refresh
+let accessTokenExpiresAt: number = 0;
+const PROACTIVE_REFRESH_BUFFER_MS = 60 * 1000; // Refresh 1 minute before expiration
+
+/**
+ * Get the access token expiration time from cookie (if available)
+ * Note: We can't read HttpOnly cookies from JS, so we track when we last got a token
+ */
+function getTokenExpirationTime(): number {
+  return accessTokenExpiresAt;
+}
+
+/**
+ * Set the access token expiration time (called after successful login/refresh)
+ */
+export function setTokenExpiration(expiresInSeconds: number): void {
+  accessTokenExpiresAt = Date.now() + (expiresInSeconds * 1000);
+}
+
+/**
+ * Check if token needs proactive refresh
+ */
+function needsProactiveRefresh(): boolean {
+  if (accessTokenExpiresAt === 0) return false;
+  return Date.now() > accessTokenExpiresAt - PROACTIVE_REFRESH_BUFFER_MS;
+}
+
 /**
  * Refresh the access token using the refresh token stored in HttpOnly cookies
  * Returns true if refresh was successful, false otherwise
@@ -23,6 +50,8 @@ async function refreshAccessToken(): Promise<boolean> {
 
     if (response.ok) {
       // New tokens are set in HttpOnly cookies automatically by the server
+      // Update expiration time (15 minutes from now)
+      setTokenExpiration(900);
       return true;
     }
     
@@ -40,6 +69,8 @@ async function refreshAccessToken(): Promise<boolean> {
  * 1. Attempts to refresh the access token using the refresh token
  * 2. Retries the original request with the new token
  * 3. Redirects to login if refresh fails (refresh token also expired)
+ * 
+ * Also performs proactive refresh before token expires during active usage
  */
 export async function authFetch(
   endpoint: string,
@@ -54,6 +85,17 @@ export async function authFetch(
   // Set JSON content type by default if not already set and body is present
   if (options.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  // Proactive token refresh: refresh before expiration during active usage
+  // Skip if already refreshing or if this IS the refresh endpoint
+  if (!refreshPromise && !endpoint.includes('/auth/refresh-token') && needsProactiveRefresh()) {
+    refreshPromise = refreshAccessToken();
+    try {
+      await refreshPromise;
+    } finally {
+      refreshPromise = null;
+    }
   }
 
   // Make the initial request
@@ -85,13 +127,9 @@ export async function authFetch(
           credentials: 'include',
           cache: options.cache || 'default',
         });
-      } else {
-        // Refresh failed - redirect to login
-        // Only redirect if we're not already on the login page
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/login?session_expired=true';
-        }
       }
+      // If refresh failed, return the original 401 response.
+      // The caller (AuthContext, ProtectedRoute) decides what to do.
     } finally {
       // Clear the refresh promise so future requests can trigger a new refresh
       refreshPromise = null;

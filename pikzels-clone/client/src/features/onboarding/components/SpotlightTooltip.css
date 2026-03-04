@@ -1,0 +1,90 @@
+/**
+ * SpotlightTooltip Styles
+ * 
+ * Highlighted tooltip for contextual help.
+ */
+
+.spotlight-tooltip {
+  max-width: 280px;
+  padding: 12px 14px;
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  box-shadow: 
+    0 0 0 1px rgba(99, 102, 241, 0.1),
+    0 10px 40px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(99, 102, 241, 0.15);
+  z-index: 1000;
+  animation: spotlight-in 0.2s ease-out;
+}
+
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.spotlight-tooltip__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.spotlight-tooltip__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.spotlight-tooltip__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.spotlight-tooltip__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+.spotlight-tooltip__body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #94a3b8;
+  margin: 0 0 10px 0;
+}
+
+.spotlight-tooltip__action {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  background: #6366f1;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.spotlight-tooltip__action:hover {
+  background: #4f46e5;
+}
+
+.spotlight-tooltip__arrow {
+  fill: #1e293b;
+}

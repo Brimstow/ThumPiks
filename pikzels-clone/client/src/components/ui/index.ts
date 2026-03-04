@@ -42,6 +42,10 @@ export type { SliderProps } from './Slider';
 export { default as Panel, PanelSection, PanelGroup } from './Panel';
 export type { PanelProps, PanelSectionProps, PanelGroupProps } from './Panel';
 
+// Image Upload Components
+export { default as ImageUploadZone } from './ImageUploadZone';
+export type { ImageUploadZoneProps } from './ImageUploadZone';
+
 // Re-export common types
 export type {
   // Common size variants

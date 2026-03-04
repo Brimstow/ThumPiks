@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import LandingPage from './components/LandingPage';
@@ -32,8 +32,9 @@ import AIToolsPage from './components/dashboard/AIToolsPage';
 import VisionToolPage from './components/dashboard/VisionToolPage';
 import VisualSearchPage from './components/dashboard/VisualSearchPage';
 import ABTestingPage from './components/dashboard/ABTestingPage';
+import QuickEditView from './components/dashboard/QuickEditView';
 import ErrorBoundary from './components/ErrorBoundary';
-import ThumbnailEditor from './components/ThumbnailEditor';
+// ThumbnailEditorPage removed - legacy route now redirects to unified editor
 import BatchEditor from './components/BatchEditor';
 import CanvasEditorPage from './pages/CanvasEditorPage';
 import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
@@ -112,6 +113,12 @@ const TestPage = () => (
     </div>
   </div>
 );
+
+// Redirect component for legacy /thumbnails/edit/:id route
+const RedirectToEditor = () => {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/dashboard/editor/${id}`} replace />;
+};
 
 function App() {
   useEffect(() => {
@@ -199,6 +206,7 @@ function App() {
                 <Route path="account/:section" element={<AccountPage />} />
                 <Route path="video-editor" element={<VideoEditorPage />} />
                 <Route path="create-plus" element={<CreatePlusPage />} />
+                <Route path="quick-edit" element={<ErrorBoundary><QuickEditView /></ErrorBoundary>} />
               </Route>
 
               {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}
@@ -267,11 +275,12 @@ function App() {
                 <Route index element={<ProjectsPage />} />
                 <Route path=":id" element={<ProjectDetail />} />
               </Route>
+              {/* Legacy Thumbnail Edit Route - Redirect to Unified Editor */}
               <Route
                 path="/thumbnails/edit/:id"
                 element={
                   <ProtectedRoute>
-                    <ThumbnailEditor />
+                    <RedirectToEditor />
                   </ProtectedRoute>
                 }
               />

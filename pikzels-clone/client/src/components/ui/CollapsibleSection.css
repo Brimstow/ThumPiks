@@ -1,0 +1,156 @@
+/* ============================================================================
+   CollapsibleSection — Progressive Disclosure Component
+   ============================================================================ */
+
+.collapsible-section {
+  width: 100%;
+}
+
+.collapsible-section__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.collapsible-section__toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* Chevron rotation */
+.collapsible-section__chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease-out;
+  opacity: 0.6;
+}
+
+.collapsible-section__chevron--open {
+  transform: rotate(90deg);
+}
+
+/* Optional icon slot */
+.collapsible-section__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.collapsible-section__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Label */
+.collapsible-section__label {
+  flex: 1;
+  text-align: left;
+}
+
+/* Badge (count of hidden items) */
+.collapsible-section__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(37, 99, 255, 0.2);
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Content wrapper — animated height */
+.collapsible-section__content-wrapper {
+  overflow: hidden;
+  transition: height 200ms ease-out;
+}
+
+/* Content inner */
+.collapsible-section__content {
+  padding-top: 4px;
+}
+
+/* ============================================================================
+   Variant: Sidebar "More" section
+   ============================================================================ */
+
+.collapsible-section--sidebar .collapsible-section__toggle {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.collapsible-section--sidebar .collapsible-section__content {
+  padding-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ============================================================================
+   Variant: Editor tools "More Tools"
+   ============================================================================ */
+
+.collapsible-section--tools .collapsible-section__toggle {
+  padding: 6px 8px;
+  border-top: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
+  border-radius: 0;
+  margin-top: 4px;
+}
+
+.collapsible-section--tools .collapsible-section__content {
+  padding-top: 2px;
+}
+
+/* ============================================================================
+   Variant: Panel "Advanced" section (layers, adjustments)
+   ============================================================================ */
+
+.collapsible-section--panel .collapsible-section__toggle {
+  padding: 8px 12px;
+  border-top: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
+  border-radius: 0;
+  margin-top: 8px;
+}
+
+.collapsible-section--panel .collapsible-section__content {
+  padding: 8px 12px 4px;
+}
+
+/* ============================================================================
+   Variant: Dashboard "Customize" section
+   ============================================================================ */
+
+.collapsible-section--dashboard .collapsible-section__toggle {
+  padding: 10px 0;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #64748b;
+}
+
+.collapsible-section--dashboard .collapsible-section__toggle:hover {
+  color: #94a3b8;
+  background: transparent;
+}
+
+.collapsible-section--dashboard .collapsible-section__content {
+  padding-top: 8px;
+}

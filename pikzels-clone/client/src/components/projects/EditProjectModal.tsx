@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui';
 import { Input } from '@/components/ui';
+import { authGet, authPut } from '../../utils/api';
 
 interface Project {
   id: string;
@@ -40,9 +41,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({
 
     setLoadingProject(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        credentials: 'include',
-      });
+      const response = await authGet(`/api/projects/${projectId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch project');
       }
@@ -67,17 +66,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-          folderType,
-        }),
+      const response = await authPut(`/api/projects/${projectId}`, {
+        name: name.trim(),
+        description: description.trim(),
+        folderType,
       });
 
       if (!response.ok) {

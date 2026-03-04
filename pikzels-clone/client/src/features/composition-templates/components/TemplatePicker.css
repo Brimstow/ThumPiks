@@ -1,0 +1,206 @@
+/* ============================================
+   COMPOSITION TEMPLATE PICKER
+   Grid-based template browser with category filtering
+   ============================================ */
+
+.comp-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--editor-bg-darker, #141418);
+  border-radius: 0;
+  border: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Header */
+.comp-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.comp-picker-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--editor-text-primary, #f0f0f0);
+  margin: 0;
+}
+
+.comp-picker-title svg {
+  color: var(--editor-accent, #a78bfa);
+}
+
+.comp-picker-clear {
+  background: transparent;
+  border: 1px solid var(--editor-border-default, rgba(255, 255, 255, 0.1));
+  color: var(--editor-text-secondary, #aaa);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.comp-picker-clear:hover {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+/* Search */
+.comp-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--editor-bg-medium, #222);
+  border: 1px solid var(--editor-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.comp-picker-search svg {
+  flex-shrink: 0;
+  color: var(--editor-text-tertiary, rgba(255, 255, 255, 0.35));
+}
+
+.comp-picker-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--editor-text-primary, #f0f0f0);
+  font-family: inherit;
+}
+
+.comp-picker-search-input::placeholder {
+  color: var(--editor-text-tertiary, rgba(255, 255, 255, 0.35));
+}
+
+/* Category pills */
+.comp-picker-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.comp-picker-pill {
+  background: var(--editor-bg-medium, #222);
+  border: 1px solid var(--editor-border-default, rgba(255, 255, 255, 0.08));
+  color: var(--editor-text-secondary, #aaa);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.comp-picker-pill:hover {
+  border-color: var(--editor-accent, #a78bfa);
+  color: var(--editor-accent, #a78bfa);
+}
+
+.comp-picker-pill--active {
+  background: var(--editor-accent, #a78bfa);
+  border-color: var(--editor-accent, #a78bfa);
+  color: #fff;
+}
+
+.comp-picker-pill--active:hover {
+  background: var(--editor-accent, #a78bfa);
+  color: #fff;
+  filter: brightness(1.1);
+}
+
+/* Grid */
+.comp-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+.comp-picker-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.comp-picker-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.comp-picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--editor-text-tertiary, rgba(255, 255, 255, 0.35));
+  font-size: 12px;
+  padding: 20px 0;
+}
+
+/* Card */
+.comp-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--editor-bg-medium, #1e1e24);
+  border: 1px solid var(--editor-border-default, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.comp-picker-card:hover,
+.comp-picker-card--hover {
+  border-color: var(--editor-accent, #a78bfa);
+  box-shadow: 0 0 0 1px var(--editor-accent, #a78bfa);
+}
+
+.comp-picker-card--selected {
+  border-color: var(--editor-accent, #a78bfa);
+  background: rgba(167, 139, 250, 0.08);
+  box-shadow: 0 0 0 2px var(--editor-accent, #a78bfa);
+}
+
+.comp-picker-card-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0e0e12;
+}
+
+.comp-picker-card-preview svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.comp-picker-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 2px 2px;
+}
+
+.comp-picker-card-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--editor-text-primary, #f0f0f0);
+  line-height: 1.3;
+}
+
+.comp-picker-card-slots {
+  font-size: 10px;
+  color: var(--editor-text-tertiary, rgba(255, 255, 255, 0.4));
+}

@@ -1,0 +1,121 @@
+/**
+ * QuickEditOptionCard Styles
+ * 
+ * Accent-colored card with gradient background and hover effects.
+ */
+
+.quick-edit-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.quick-edit-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.quick-edit-card:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5);
+}
+
+/* Purple accent */
+.quick-edit-card--purple {
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.quick-edit-card--purple:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.quick-edit-card--purple .quick-edit-card__icon {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.quick-edit-card--purple .quick-edit-card__title {
+  color: #c4b5fd;
+}
+
+/* Amber accent */
+.quick-edit-card--amber {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.quick-edit-card--amber:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.quick-edit-card--amber .quick-edit-card__icon {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.quick-edit-card--amber .quick-edit-card__title {
+  color: #fcd34d;
+}
+
+/* Emerald accent */
+.quick-edit-card--emerald {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.quick-edit-card--emerald:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.quick-edit-card--emerald .quick-edit-card__icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.quick-edit-card--emerald .quick-edit-card__title {
+  color: #6ee7b7;
+}
+
+/* Icon container */
+.quick-edit-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.quick-edit-card__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Content */
+.quick-edit-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.quick-edit-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.quick-edit-card__subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  line-height: 1.4;
+}
