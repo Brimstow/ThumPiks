@@ -54,9 +54,7 @@ module.exports = {
   // CORS settings for dashboard API
   dashboardCorsOrigins: [
     'http://localhost:8556',  // Frontend dev server
-    'http://localhost:3000',  // Alternative React dev server
     'http://127.0.0.1:8556', // IP variant
-    'http://127.0.0.1:3000'  // IP variant
   ],
   
   // Bind dashboard to all interfaces (0.0.0.0) instead of just localhost

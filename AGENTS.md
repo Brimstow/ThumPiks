@@ -163,6 +163,195 @@ IF changes are lost:
 6. ❌ **Committing without checking for pre-commit hooks** - ALWAYS check first!
 7. ❌ **Using --no-verify without permission** - Ask user explicitly!
 8. ❌ **Not warning about potential data loss** - User's work is SACRED!
+9. ❌ **Violating DRY (Don't Repeat Yourself) principle** - See section below!
+10. ❌ **Starting servers without checking if ports are in use** - See Server Lifecycle section!
+
+---
+
+## 🖥️ SERVER LIFECYCLE MANAGEMENT (CONDITIONAL REFERENCE)
+
+**Parameters loaded on-demand. Execute ONLY when task requires server operations.**
+
+### Conditional Execution Logic
+
+```
+IF (task requires server restart/rebuild/test):
+    → Use the ports and commands below as parameters
+    → Execute with explicit user permission
+ELSE:
+    → Ignore this entire section
+    → Do not execute any server commands
+```
+
+### Parameters (Use Only When Needed)
+
+**Ports:**
+| Service  | Port | URL                    |
+| -------- | ---- | ---------------------- |
+| Frontend | 8556 | http://localhost:8556  |
+| Backend  | 8550 | http://localhost:8550  |
+| Redis    | 8520 | redis://localhost:8520 |
+
+**Commands:**
+```bash
+npm run stop:all      # Stop all servers
+npm run build:all     # Build all services  
+npm run start:all     # Start all servers
+```
+
+**Full restart sequence (when needed):**
+```bash
+npm run stop:all && npm run build:all && npm run start:all
+```
+
+### When to Apply These Parameters
+
+**✅ USE these parameters when:**
+- User explicitly requests rebuild/restart
+- Testing with Playwright MCP (use correct port)
+- Port conflict errors occur (EADDRINUSE)
+- User reports stale content or "site not loading"
+
+**🚫 IGNORE these parameters when:**
+- Task is code-only (editing, reading, searching)
+- Task is documentation or planning
+- No server interaction required
+- User hasn't requested any server operations
+
+### Verification (When Executed)
+
+After server restart, confirm:
+1. Login page appears → Cache cleared, frontend rebuilt
+2. No console errors → Check DevTools
+3. Correct port responded → `http://localhost:8556`
+
+---
+
+## 📐 DRY PRINCIPLE (Don't Repeat Yourself) - MANDATORY
+
+**This rule prevents configuration duplication and maintenance nightmares.**
+
+### The Golden Rule
+
+**NEVER duplicate configuration values across multiple locations. Always use a single source of truth.**
+
+### Real-World Incident (February 2026)
+
+**What Happened:**  
+Model tier configuration had the same model IDs hardcoded **9 times** across 4 tool configurations:
+- `google/gemini-2.5-flash-image` appeared 5 times
+- `google/gemini-3-pro-image-preview` appeared 4 times
+- `black-forest-labs/flux-schnell` (non-existent model) appeared 2 times
+
+When Windsurf AI tried to update the Flash tier model, it had to change multiple locations and **missed updating 2 places**, leaving broken FLUX references.
+
+**Impact:**  
+- Flash tier didn't generate images (API errors)
+- Inconsistent configuration across tools
+- High maintenance burden
+- Error-prone updates
+
+**Resolution:**  
+Refactored to use centralized provider configuration:
+```typescript
+// SINGLE SOURCE OF TRUTH
+const TIER_PROVIDER_MAP = {
+  flash: 'comet',      // Change ONE line to switch ALL Flash tiers
+  standard: 'openrouter',
+  pro: 'openrouter',
+};
+
+// Helper functions resolve models from central config
+modelId: getModelForTier('flash')  // ✅ DRY compliant
+// NOT: modelId: 'flux-schnell'     // ❌ Hardcoded duplication
+```
+
+### DRY Violation Patterns to Avoid
+
+#### ❌ BAD: Hardcoded Duplication
+```typescript
+// Tool 1
+const tool1Config = {
+  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Hardcoded
+};
+
+// Tool 2
+const tool2Config = {
+  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Duplicated!
+};
+
+// Tool 3
+const tool3Config = {
+  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Duplicated!
+};
+```
+
+**Problems:**
+- Need to update 3+ places when changing model
+- Easy to miss locations (inconsistency)
+- No compile-time guarantee of consistency
+
+#### ✅ GOOD: Centralized Configuration
+```typescript
+// Single source of truth
+const FLASH_MODEL = 'google/gemini-2.5-flash-image';
+
+// All tools reference the central value
+const tool1Config = { flash: { modelId: FLASH_MODEL } };
+const tool2Config = { flash: { modelId: FLASH_MODEL } };
+const tool3Config = { flash: { modelId: FLASH_MODEL } };
+```
+
+#### ✅ BETTER: Provider-Tier Mapping
+```typescript
+// Centralized provider-tier mapping
+const TIER_PROVIDERS = {
+  flash: 'comet',
+  standard: 'openrouter',
+  pro: 'openrouter',
+};
+
+// Helper function resolves model dynamically
+function getModelForTier(tier: TierId): string {
+  const provider = TIER_PROVIDERS[tier];
+  return PROVIDER_MODELS[provider][tier];
+}
+
+// All tools use the helper
+const tool1Config = { flash: { modelId: getModelForTier('flash') } };
+```
+
+### When to Apply DRY
+
+Apply DRY principle when you see:
+
+1. **Same value repeated 2+ times** - Extract to constant/function
+2. **Configuration data** - Use centralized config objects
+3. **Model IDs, API keys, endpoints** - Single source of truth
+4. **Tier definitions, pricing, credits** - Centralized tier catalog
+5. **Provider mappings** - Central routing configuration
+
+### Enforcement Checklist
+
+Before committing configuration changes:
+
+- [ ] Is this value used in multiple places?
+- [ ] Did I update ALL occurrences?
+- [ ] Can I extract this to a constant/function?
+- [ ] Is there a single source of truth for this data?
+- [ ] Would changing one line update all usages?
+
+### Exception: When Duplication is OK
+
+**Special Cases** (document why):
+- Tool-specific overrides (e.g., face-swap uses Seedream, not generic Flash model)
+- Performance-critical inline values (rare)
+- Third-party API responses (can't control format)
+
+**ALWAYS add a comment explaining the exception:**
+```typescript
+modelId: 'bytedance-seed/seedream-4.5',  // Special case: Seedream optimized for faces
+```
 
 ---
 

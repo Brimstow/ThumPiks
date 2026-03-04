@@ -18,8 +18,17 @@ export default defineConfig({
   server: {
     port: 8556,
     strictPort: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
     proxy: {
       '/api': {
+        target: 'http://localhost:8550',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/processed-images': {
         target: 'http://localhost:8550',
         changeOrigin: true,
         secure: false,

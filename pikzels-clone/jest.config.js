@@ -25,7 +25,7 @@ module.exports = {
   ],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   // Transform ES modules from node_modules that Jest can't handle
-  transformIgnorePatterns: ['node_modules/(?!(uuid|node-fetch|.*\\.mjs$))'],
+  transformIgnorePatterns: ['node_modules/(?!(uuid|node-fetch|youtubei\\.js|.*\\.mjs$))'],
   testTimeout: 10000,
   // Detect open handles but don't force exit (Jest 29 handles this better)
   detectOpenHandles: false,
