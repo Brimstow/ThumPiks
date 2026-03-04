@@ -3,14 +3,29 @@ import { AuthRequest } from '../../types/auth';
 import { ThumbnailService } from './thumbnail.service';
 import { ImageProcessingService } from './image-processing.service';
 import { OpenRouterAIService } from './openrouter-ai.service';
+import { ReplicateAIService } from './replicate-ai.service';
+import { CometAIService } from './comet-ai.service';
+import { ZenmuxAIService } from './zenmux-ai.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
 import {
   resolveModelFromTier,
   buildTierAPIResponse,
+  getCreditCostForTier,
+  getProviderForTier,
+  getDefaultTier,
 } from './model-tiers.config';
+import { deductCredits, refundCredits } from '../credit/credit.service';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
+import { systemMonitoringService } from '../admin/system-monitoring.service';
+
+// Single source of truth for valid thumbnail styles
+const VALID_STYLES = [
+  'bold', 'minimalist', 'dramatic', 'cinematic',
+  'professional', 'creative', 'gaming',
+  'vibrant', 'retro', 'neon', 'natural',
+] as const;
 
 // Create shared instances that can be overridden for testing
 let sharedPrisma: PrismaClient;
@@ -62,9 +77,42 @@ const getImageProcessingService = () => {
 // Initialize OpenRouter AI service for image generation
 const openRouterService = new OpenRouterAIService();
 
+// Initialize Replicate AI service for computer vision tasks (segment, remove-bg, upscale, expand)
+const replicateService = new ReplicateAIService();
+
+// Initialize Comet AI service for FLUX models
+const cometService = new CometAIService();
+
+// Initialize ZenMux AI service for Gemini models via Vertex AI
+const zenmuxService = new ZenmuxAIService();
+
 // Tier types and resolveModelFromTier imported from ./model-tiers.config
 // That file is the SINGLE SOURCE OF TRUTH for all tier metadata.
 // To swap a model, change ONE line there. Zero frontend changes needed.
+
+/**
+ * Ensure an image value is a base64 data URL.
+ * If it's already a data URL, return as-is.
+ * If it's an HTTP(S) URL, fetch and convert to base64.
+ * This prevents sending raw URLs to AI providers that expect base64.
+ */
+async function ensureBase64(image: string): Promise<string> {
+  if (image.startsWith('data:')) return image;
+  if (image.startsWith('http://') || image.startsWith('https://')) {
+    try {
+      const resp = await fetch(image);
+      if (!resp.ok) throw new Error(`Failed to fetch image (${resp.status})`);
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      const contentType = resp.headers.get('content-type') || 'image/jpeg';
+      return `data:${contentType};base64,${buffer.toString('base64')}`;
+    } catch (err) {
+      console.error('[ensureBase64] Failed to convert URL to base64:', err);
+      throw new Error('Could not fetch the image URL. Please try with a different image.');
+    }
+  }
+  // Assume raw base64 string
+  return `data:image/png;base64,${image}`;
+}
 
 // AI service wrapper with proper interface
 const aiService = {
@@ -77,14 +125,19 @@ const aiService = {
     model?: string;
   }) => {
     try {
+      console.log('[AI Service] Generating with model:', options.model || 'default');
       const images = await openRouterService.generateImages(
         options.prompt,
         options.model || undefined, // Use tier-selected model or fall back to default
         options.style || 'thumbnail'
       );
+      console.log('[AI Service] Generated images:', images.length);
+      if (images.length === 0) {
+        console.warn('[AI Service] OpenRouter returned 0 images!');
+      }
       return images;
     } catch (error) {
-      console.error('AI thumbnail generation error:', error);
+      console.error('[AI Service] Thumbnail generation error:', error);
       return [];
     }
   },
@@ -369,19 +422,9 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     }
 
     // Validate style if provided
-    const validStyles = [
-      'bold',
-      'minimalist',
-      'dramatic',
-      'cinematic',
-      'professional',
-      'creative',
-      'gaming',
-    ];
-    if (style && !validStyles.includes(style.toLowerCase())) {
+    if (style && !VALID_STYLES.includes(style.toLowerCase())) {
       return res.status(400).json({
-        error:
-          'Invalid style. Must be one of: bold, minimalist, dramatic, cinematic, professional, creative, gaming',
+        error: `Invalid style. Must be one of: ${VALID_STYLES.join(', ')}`,
       });
     }
 
@@ -493,9 +536,26 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails,
         });
       } catch (aiError) {
+        const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
+        const errorStack = aiError instanceof Error ? aiError.stack : undefined;
+        
         console.error(
           'Error generating thumbnails with AI, falling back to placeholders:',
           aiError
+        );
+
+        // Log to admin monitoring system for tracking
+        await systemMonitoringService.logError(
+          'error',
+          `AI thumbnail generation failed for user ${req.user.id}: ${errorMessage}`,
+          errorStack,
+          {
+            userId: req.user.id,
+            prompt: prompt.substring(0, 100),
+            style: style || 'bold',
+            endpoint: 'generateThumbnails',
+            fallbackUsed: 'placeholder',
+          }
         );
 
         // Fallback to placeholder images if AI generation fails
@@ -512,8 +572,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
               style: style || 'bold',
               variation: i,
               aiGenerated: false,
-              aiError:
-                aiError instanceof Error ? aiError.message : String(aiError),
+              aiError: errorMessage,
             },
             projectId: validProjectId,
             userId: req.user.id,
@@ -522,12 +581,28 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         }
 
         return res.status(201).json({
-          message: 'Thumbnails generated with placeholders (AI service error)',
+          message: 'We could not generate AI images at this time. Placeholder images have been created instead.',
           thumbnails,
-          aiError: aiError instanceof Error ? aiError.message : String(aiError),
+          aiError: errorMessage,
+          aiErrorCode: 'AI_GENERATION_FAILED',
+          userAction: 'Please try again later or contact support if the issue persists.',
         });
       }
     } else {
+      // Log to admin monitoring - AI service not configured is a critical setup issue
+      await systemMonitoringService.logError(
+        'critical',
+        'AI service not configured - OPENROUTER_API_KEY missing',
+        undefined,
+        {
+          userId: req.user.id,
+          prompt: prompt.substring(0, 100),
+          endpoint: 'generateThumbnails',
+          fallbackUsed: 'placeholder',
+          configIssue: 'OPENROUTER_API_KEY not set',
+        }
+      );
+
       // Fallback to placeholder images if AI service is not configured
       const imageUrl = `https://placehold.co/1280x720/${Math.floor(Math.random() * 16777215).toString(16)}/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`;
 
@@ -551,10 +626,11 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
       }
 
       return res.status(201).json({
-        message:
-          'Thumbnails generated with placeholders (AI service not configured)',
+        message: 'AI image generation is temporarily unavailable. Placeholder images have been created.',
         thumbnails,
         aiNotConfigured: true,
+        aiErrorCode: 'AI_SERVICE_UNAVAILABLE',
+        userAction: 'Please try again later. Our team has been notified.',
       });
     }
   } catch (error) {
@@ -694,7 +770,10 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
 
     // Style transfer logic here
     const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
-      parameters: { styleTransfer: true },
+      parameters: {
+        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        styleTransfer: true,
+      },
     });
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
@@ -732,7 +811,10 @@ export const applyImageEnhancement = async (
 
     // Image enhancement logic here
     const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
-      parameters: { imageEnhancement: true },
+      parameters: {
+        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        imageEnhancement: true,
+      },
     });
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
@@ -803,28 +885,19 @@ export const accessSharedThumbnail = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Share token is required' });
     }
 
-    // Find thumbnail by share token
-    // Note: This is a simplified approach. In a real implementation, you might want to:
-    // 1. Add a dedicated shareToken field to the database schema
-    // 2. Or use a more robust method to query JSON fields
-    const thumbnails = await getPrisma().thumbnail.findMany({
+    // Find thumbnail by share token using JSON path filter
+    const thumbnail = await getPrisma().thumbnail.findFirst({
       where: {
-        // This is a workaround for querying JSON fields
-        // In a production environment, you'd want a dedicated field for share tokens
+        parameters: {
+          path: ['shareToken'],
+          equals: token,
+        },
+        deletedAt: null,
       },
       include: {
         Project_Thumbnail_projectIdToProject: true,
       },
     });
-
-    // Filter by share token in application code
-    const thumbnail = thumbnails.find(
-      t =>
-        t.parameters &&
-        typeof t.parameters === 'object' &&
-        'shareToken' in t.parameters &&
-        t.parameters.shareToken === token
-    );
 
     if (!thumbnail) {
       return res.status(404).json({ error: 'Shared thumbnail not found' });
@@ -1015,36 +1088,174 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Resolve model: direct override takes priority, then tier-based lookup, then default
+    // Resolve model: direct override takes priority, then tier-based lookup, then default tier
+    const effectiveTier = tier || getDefaultTier('inpaint')?.id || 'standard';
     const resolvedModel =
-      modelOverride || resolveModelFromTier(tier, 'inpaint');
+      modelOverride || resolveModelFromTier(effectiveTier, 'inpaint');
     const model = resolvedModel || openRouterService.getModelForTool('inpaint');
     console.log(
-      `[AI Inpaint] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
+      `[AI Inpaint] Using model: ${model} (tier: ${effectiveTier}, override: ${modelOverride || 'none'})`
     );
 
-    const imageUrls = await openRouterService.inpaintImage(
-      image,
-      mask || '',
-      prompt,
-      resolvedModel || undefined
+    // Credit check & deduction (before API call)
+    const creditCost = getCreditCostForTier(tier, 'inpaint');
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI inpaint - ${tier || 'default'} tier`
     );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
 
-    // Emit analytics event
-    emitAnalyticsEvent(req.user.id, 'ai-tool', 'inpaint', 'ai-inpaint', {
-      model,
-      promptLength: prompt.length,
-    });
+    try {
+      // Ensure image is base64 — frontend may send HTTP URLs (YouTube fallback, Cloudinary, etc.)
+      const imageBase64 = await ensureBase64(image);
 
-    return res.status(200).json({
-      success: true,
-      images: imageUrls,
-      model,
-    });
+      const imageUrls = await openRouterService.inpaintImage(
+        imageBase64,
+        mask || '',
+        prompt,
+        resolvedModel || undefined
+      );
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'inpaint', 'ai-inpaint', {
+        model,
+        promptLength: prompt.length,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, `AI inpaint failed`);
+      throw apiError;
+    }
   } catch (error) {
     console.error('Error in AI inpaint:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'AI inpaint failed',
+    });
+  }
+};
+
+/**
+ * Generate images from text prompt
+ * Model: tier-based (Flash/Standard/Pro) via model-tiers.config
+ */
+export const aiGenerate = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { prompt, style, tier, model: modelOverride } = req.body;
+
+    console.log('[AI Generate] Request body:', { prompt: prompt?.substring(0, 50), style, tier, modelOverride });
+
+    if (!prompt) {
+      return res.status(400).json({
+        error: 'Prompt is required',
+      });
+    }
+
+    // Determine which provider to use based on tier
+    const provider = tier ? getProviderForTier(tier) : 'openrouter';
+    console.log(
+      `[AI Generate] Resolved provider: ${provider} (tier: ${tier || 'none'})`
+    );
+
+    // Check if the required provider is configured
+    if (provider === 'comet' && !cometService.isConfigured()) {
+      return res.status(503).json({
+        error: 'Comet AI service not configured. Please set COMET_API_KEY.',
+      });
+    }
+    if (provider === 'zenmux' && !zenmuxService.isConfigured()) {
+      return res.status(503).json({
+        error: 'ZenMux AI service not configured. Please set ZENMUX_API_KEY.',
+      });
+    }
+    if (provider === 'openrouter' && !openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    // Resolve model: direct override takes priority, then tier-based lookup, then default
+    const resolvedModel =
+      modelOverride || resolveModelFromTier(tier, 'generate');
+    const model = resolvedModel || openRouterService.getModelForTool('generate');
+    console.log(
+      `[AI Generate] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
+    );
+
+    // Credit check & deduction (before API call)
+    const creditCost = getCreditCostForTier(tier, 'generate');
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI generate - ${tier || 'default'} tier`
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
+    try {
+      let imageUrls: string[];
+
+      // Route to the appropriate provider
+      if (provider === 'comet') {
+        imageUrls = await cometService.generateImages(
+          prompt,
+          style || 'thumbnail'
+        );
+      } else if (provider === 'zenmux') {
+        imageUrls = await zenmuxService.generateImages(
+          prompt,
+          style || 'thumbnail'
+        );
+      } else {
+        imageUrls = await openRouterService.generateImages(
+          prompt,
+          resolvedModel || undefined,
+          style || 'thumbnail'
+        );
+      }
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'generate', 'ai-generate', {
+        model,
+        promptLength: prompt.length,
+        style: style || 'thumbnail',
+        provider,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+        provider,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, `AI generate failed`);
+      throw apiError;
+    }
+  } catch (error) {
+    console.error('Error in AI generate:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI generate failed',
     });
   }
 };
@@ -1088,23 +1299,47 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
       `[AI Face Swap] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
     );
 
-    const imageUrls = await openRouterService.faceSwapImage(
-      sourceImage,
-      targetImage,
-      prompt || '',
-      resolvedModel || undefined
+    // Credit check & deduction (before API call)
+    const creditCost = getCreditCostForTier(tier, 'face-swap');
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI face-swap - ${tier || 'default'} tier`
     );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
 
-    // Emit analytics event
-    emitAnalyticsEvent(req.user.id, 'ai-tool', 'face-swap', 'ai-face-swap', {
-      model,
-    });
+    try {
+      // Ensure images are base64 — frontend may send HTTP URLs
+      const sourceBase64 = await ensureBase64(sourceImage);
+      const targetBase64 = await ensureBase64(targetImage);
 
-    return res.status(200).json({
-      success: true,
-      images: imageUrls,
-      model,
-    });
+      const imageUrls = await openRouterService.faceSwapImage(
+        sourceBase64,
+        targetBase64,
+        prompt || '',
+        resolvedModel || undefined
+      );
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'face-swap', 'ai-face-swap', {
+        model,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, `AI face-swap failed`);
+      throw apiError;
+    }
   } catch (error) {
     console.error('Error in AI face swap:', error);
     return res.status(500).json({
@@ -1115,7 +1350,7 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
 
 /**
  * Upscale - increase image resolution with AI enhancement
- * Model: black-forest-labs/flux.2-max (configurable via OPENROUTER_MODEL_UPSCALE)
+ * Provider: Replicate (Real-ESRGAN) with OpenRouter fallback
  */
 export const aiUpscale = async (req: AuthRequest, res: Response) => {
   try {
@@ -1138,38 +1373,81 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!openRouterService.isConfigured()) {
+    // Prefer Replicate for upscale (purpose-built Real-ESRGAN model)
+    const useReplicate = replicateService.isConfigured() && !modelOverride && !tier;
+    const useOpenRouter = openRouterService.isConfigured();
+
+    if (!useReplicate && !useOpenRouter) {
       return res.status(503).json({
-        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+        error: 'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
       });
     }
 
-    // Resolve model: direct override takes priority, then tier-based lookup, then default
-    const resolvedModel =
-      modelOverride || resolveModelFromTier(tier, 'upscale');
-    const model = resolvedModel || openRouterService.getModelForTool('upscale');
+    const provider = useReplicate ? 'replicate' : 'openrouter';
+    let model: string;
+
+    if (useReplicate) {
+      model = replicateService.getModelForTool('upscale');
+    } else {
+      const resolvedModel =
+        modelOverride || resolveModelFromTier(tier, 'upscale');
+      model = resolvedModel || openRouterService.getModelForTool('upscale');
+    }
+
     console.log(
-      `[AI Upscale] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'}), scale: ${scale}`
+      `[AI Upscale] Using provider: ${provider}, model: ${model}, scale: ${scale}`
     );
 
-    const imageUrls = await openRouterService.upscaleImage(
-      image,
-      scale,
-      resolvedModel || undefined
+    // Credit check & deduction
+    const creditCost = useReplicate ? 1 : getCreditCostForTier(tier, 'upscale');
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI upscale - ${provider}`
     );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
 
-    // Emit analytics event
-    emitAnalyticsEvent(req.user.id, 'ai-tool', 'upscale', 'ai-upscale', {
-      model,
-      scale,
-    });
+    try {
+      // Ensure image is base64 — frontend may send HTTP URLs
+      const imageBase64 = await ensureBase64(image);
+      let imageUrls: string[];
 
-    return res.status(200).json({
-      success: true,
-      images: imageUrls,
-      model,
-      scale,
-    });
+      if (useReplicate) {
+        const scaleNum = scale === '4x' ? 4 : 2;
+        const resultUrl = await replicateService.upscale(imageBase64, scaleNum);
+        imageUrls = [resultUrl];
+      } else {
+        imageUrls = await openRouterService.upscaleImage(
+          imageBase64,
+          scale,
+          modelOverride || undefined
+        );
+      }
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'upscale', 'ai-upscale', {
+        model,
+        scale,
+        provider,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+        scale,
+        provider,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, `AI upscale failed`);
+      throw apiError;
+    }
   } catch (error) {
     console.error('Error in AI upscale:', error);
     return res.status(500).json({
@@ -1180,7 +1458,7 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
 
 /**
  * Remove background - extract subject from background
- * Model: google/gemini-3-pro-image-preview (uses inpaint model)
+ * Provider: Replicate (RMBG 2.0) with OpenRouter fallback
  */
 export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
   try {
@@ -1196,34 +1474,73 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!openRouterService.isConfigured()) {
+    // Prefer Replicate for remove-bg (purpose-built RMBG 2.0 model)
+    const useReplicate = replicateService.isConfigured();
+    const useOpenRouter = openRouterService.isConfigured();
+
+    if (!useReplicate && !useOpenRouter) {
       return res.status(503).json({
-        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+        error: 'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
       });
     }
 
-    const model = openRouterService.getModelForTool('inpaint');
-    console.log(`[AI Remove Background] Using model: ${model}`);
+    const provider = useReplicate ? 'replicate' : 'openrouter';
+    const model = useReplicate
+      ? replicateService.getModelForTool('removeBg')
+      : openRouterService.getModelForTool('inpaint');
+    console.log(`[AI Remove Background] Using provider: ${provider}, model: ${model}`);
 
-    const imageUrls = await openRouterService.removeBackground(
-      image,
-      backgroundColor
-    );
-
-    // Emit analytics event
-    emitAnalyticsEvent(
+    // Credit check & deduction - flat 1 credit (non-tiered tool)
+    const creditCost = 1;
+    const deducted = await deductCredits(
       req.user.id,
-      'ai-tool',
-      'remove-background',
-      'ai-remove-background',
-      { model, backgroundColor }
+      creditCost,
+      'AI remove-background'
     );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
 
-    return res.status(200).json({
-      success: true,
-      images: imageUrls,
-      model,
-    });
+    try {
+      // Ensure image is base64 — frontend may send HTTP URLs
+      const imageBase64 = await ensureBase64(image);
+      let imageUrls: string[];
+
+      if (useReplicate) {
+        // Replicate returns a single URL to transparent PNG
+        const resultUrl = await replicateService.removeBackground(imageBase64);
+        imageUrls = [resultUrl];
+      } else {
+        // Fallback to OpenRouter prompt-based removal
+        imageUrls = await openRouterService.removeBackground(
+          imageBase64,
+          backgroundColor
+        );
+      }
+
+      // Emit analytics event
+      emitAnalyticsEvent(
+        req.user.id,
+        'ai-tool',
+        'remove-background',
+        'ai-remove-background',
+        { model, backgroundColor, provider }
+      );
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+        provider,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, 'AI remove-background failed');
+      throw apiError;
+    }
   } catch (error) {
     console.error('Error in AI remove background:', error);
     return res.status(500).json({
@@ -1268,27 +1585,617 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
     const model = openRouterService.getModelForTool('inpaint');
     console.log(`[AI Enhance] Using model: ${model}, type: ${enhancementType}`);
 
-    const imageUrls = await openRouterService.enhanceImage(
-      image,
-      enhancementType
+    // Credit check & deduction - flat 1 credit (non-tiered tool)
+    const creditCost = 1;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      'AI enhance'
     );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
 
-    // Emit analytics event
-    emitAnalyticsEvent(req.user.id, 'ai-tool', 'enhance', 'ai-enhance', {
-      model,
-      enhancementType,
-    });
+    try {
+      // Ensure image is base64 — frontend may send HTTP URLs
+      const imageBase64 = await ensureBase64(image);
 
-    return res.status(200).json({
-      success: true,
-      images: imageUrls,
-      model,
-      enhancementType,
-    });
+      const imageUrls = await openRouterService.enhanceImage(
+        imageBase64,
+        enhancementType
+      );
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'enhance', 'ai-enhance', {
+        model,
+        enhancementType,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: imageUrls,
+        model,
+        enhancementType,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, 'AI enhance failed');
+      throw apiError;
+    }
   } catch (error) {
     console.error('Error in AI enhance:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'AI enhance failed',
+    });
+  }
+};
+
+// =============================================================================
+// REPLICATE AI TOOL ENDPOINTS - Computer vision tasks via Replicate
+// =============================================================================
+
+/**
+ * Segment objects in an image using SAM 2 (Segment Anything Model)
+ * Provider: Replicate
+ * 
+ * Supports two modes:
+ * - 'auto': Auto-segmentation with grid (meta/sam-2) - returns all detected objects
+ * - 'interactive': Click-to-select (meta/sam-2-video) - returns mask for clicked object
+ * 
+ * Body: { 
+ *   image: base64, 
+ *   mode?: 'auto' | 'interactive',  // default: 'auto'
+ *   clicks?: Array<{x, y, label}>,  // required for interactive mode
+ *   options?: { pointsPerSide?, predIouThresh?, stabilityScoreThresh?, useM2m? }  // auto mode options
+ * }
+ */
+export const aiSegment = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, mode = 'auto', clicks, options } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    // Validate mode
+    if (mode !== 'auto' && mode !== 'interactive') {
+      return res.status(400).json({
+        error: 'Invalid mode. Must be "auto" or "interactive"',
+      });
+    }
+
+    // Interactive mode requires clicks
+    if (mode === 'interactive' && (!clicks || clicks.length === 0)) {
+      return res.status(400).json({
+        error: 'Interactive mode requires at least one click point',
+      });
+    }
+
+    if (!replicateService.isConfigured()) {
+      return res.status(503).json({
+        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+      });
+    }
+
+    const modelType = mode === 'interactive' ? 'segmentInteractive' : 'segment';
+    const model = replicateService.getModelForTool(modelType);
+    console.log(`[AI Segment] Mode: ${mode}, Model: ${model}, Clicks: ${clicks?.length || 0}`);
+
+    // Credit check & deduction - flat 1 credit (non-tiered tool)
+    const creditCost = 1;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI segment (SAM ${mode})`
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
+    try {
+      if (mode === 'interactive') {
+        // Interactive mode: click-to-select
+        const result = await replicateService.segmentInteractive(image, clicks);
+
+        // Emit analytics event
+        emitAnalyticsEvent(req.user.id, 'ai-tool', 'segment', 'ai-segment-interactive', {
+          model,
+          clickCount: clicks.length,
+          maskCount: result.masks.length,
+        });
+
+        return res.status(200).json({
+          success: true,
+          mode: 'interactive',
+          masks: result.masks,
+          model,
+          predictionId: result.predictionId,
+        });
+      } else {
+        // Auto mode: grid-based detection of all objects
+        const result = await replicateService.segment(image, options);
+
+        // Emit analytics event
+        emitAnalyticsEvent(req.user.id, 'ai-tool', 'segment', 'ai-segment-auto', {
+          model,
+          maskCount: result.masks.length,
+          pointsPerSide: options?.pointsPerSide || 32,
+        });
+
+        return res.status(200).json({
+          success: true,
+          mode: 'auto',
+          masks: result.masks,
+          combinedMask: result.combinedMask,
+          model,
+          predictionId: result.predictionId,
+        });
+      }
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, 'AI segment failed');
+      throw apiError;
+    }
+  } catch (error) {
+    console.error('Error in AI segment:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI segment failed',
+    });
+  }
+};
+
+// =============================================================================
+// AI DECOMPOSE - Auto-decompose image into isolated layers using SAM
+// =============================================================================
+
+/**
+ * Decompose an image into isolated semantic layers using SAM auto-segmentation.
+ * Each detected object becomes a separate RGBA layer that can be independently
+ * edited, moved, or styled in the Advanced Editor.
+ * 
+ * Body: { image: base64, maxLayers?: number (default 8) }
+ * Returns: { success, layers: Array<{ name, imageBase64, bounds, score }>, predictionId }
+ */
+export const aiDecompose = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { image, maxLayers = 8 } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    if (!replicateService.isConfigured()) {
+      return res.status(503).json({
+        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+      });
+    }
+
+    // Credit check & deduction - 3 credits (heavier operation than single segment)
+    const creditCost = 3;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      'AI decompose (auto-layer extraction)'
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
+    try {
+      const result = await replicateService.decompose(image, maxLayers);
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'decompose', 'ai-decompose', {
+        layerCount: result.layers.length,
+        maxLayers,
+      });
+
+      return res.status(200).json({
+        success: true,
+        layers: result.layers,
+        predictionId: result.predictionId,
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, 'AI decompose failed');
+      throw apiError;
+    }
+  } catch (error) {
+    console.error('Error in AI decompose:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI decompose failed',
+    });
+  }
+};
+
+/**
+ * Expand/Outpaint - Extend canvas in any direction with AI-generated content
+ * Provider: Replicate (purpose-built outpainting model)
+ * 
+ * @body image - Base64-encoded source image
+ * @body prompt - Description of what to fill in expanded areas (optional)
+ * @body direction - Expansion direction: 'left' | 'right' | 'top' | 'bottom' | 'all'
+ * @body expandPixels - How many pixels to expand (64-512, default 256)
+ */
+export const aiExpand = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      image,
+      prompt = '',
+      direction = 'all',
+      expandPixels = 256,
+    } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        error: 'Image is required',
+      });
+    }
+
+    // Validate direction
+    const validDirections = ['left', 'right', 'top', 'bottom', 'all'] as const;
+    if (!validDirections.includes(direction)) {
+      return res.status(400).json({
+        error: `Direction must be one of: ${validDirections.join(', ')}`,
+      });
+    }
+
+    // Validate expandPixels range
+    const pixels = Math.min(512, Math.max(64, Number(expandPixels) || 256));
+
+    // Expand uses Replicate exclusively (purpose-built outpainting model)
+    if (!replicateService.isConfigured()) {
+      return res.status(503).json({
+        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+      });
+    }
+
+    const model = replicateService.getModelForTool('expand');
+
+    console.log(
+      `[AI Expand] direction: ${direction}, pixels: ${pixels}, model: ${model}`
+    );
+
+    // Credit check & deduction - 2 credits (similar complexity to upscale)
+    const creditCost = 2;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      `AI expand - ${direction}`
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
+    try {
+      // Ensure image is base64 — frontend may send HTTP URLs
+      const imageBase64 = await ensureBase64(image);
+
+      const resultUrl = await replicateService.expand(
+        imageBase64,
+        prompt,
+        direction as 'left' | 'right' | 'top' | 'bottom' | 'all',
+        pixels
+      );
+
+      // Emit analytics event
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'expand', 'ai-expand', {
+        model,
+        direction,
+        expandPixels: pixels,
+        hasPrompt: !!prompt,
+      });
+
+      return res.status(200).json({
+        success: true,
+        images: [resultUrl],
+        model,
+        direction,
+        expandPixels: pixels,
+        provider: 'replicate',
+      });
+    } catch (apiError) {
+      // Refund credits on API failure
+      await refundCredits(req.user.id, creditCost, 'AI expand failed');
+      throw apiError;
+    }
+  } catch (error) {
+    console.error('Error in AI expand:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI expand failed',
+    });
+  }
+};
+
+// =============================================================================
+// TRASH / RESTORE ENDPOINTS - Soft-delete lifecycle management
+// =============================================================================
+
+/**
+ * Get user's deleted (trashed) thumbnails
+ */
+export const getDeletedThumbnails = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const thumbnails = await getThumbnailService().getDeletedThumbnails(req.user.id);
+
+    return res.status(200).json({
+      message: 'Deleted thumbnails retrieved',
+      thumbnails,
+      count: thumbnails.length,
+    });
+  } catch (error) {
+    console.error('Error fetching deleted thumbnails:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Restore a soft-deleted thumbnail
+ */
+export const restoreThumbnail = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ error: 'Thumbnail ID is required' });
+    }
+
+    // Fetch including deleted
+    const thumbnail = await getThumbnailService().getThumbnailById(id, true);
+
+    if (!thumbnail) {
+      return res.status(404).json({ error: 'Thumbnail not found' });
+    }
+
+    if (thumbnail.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (!thumbnail.deletedAt) {
+      return res.status(400).json({ error: 'Thumbnail is not deleted' });
+    }
+
+    const restored = await getThumbnailService().restoreThumbnail(id);
+
+    return res.status(200).json({
+      message: 'Thumbnail restored successfully',
+      thumbnail: restored,
+    });
+  } catch (error) {
+    console.error('Error restoring thumbnail:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Permanently delete a soft-deleted thumbnail (hard delete)
+ */
+export const hardDeleteThumbnail = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ error: 'Thumbnail ID is required' });
+    }
+
+    const thumbnail = await getThumbnailService().getThumbnailById(id, true);
+
+    if (!thumbnail) {
+      return res.status(404).json({ error: 'Thumbnail not found' });
+    }
+
+    if (thumbnail.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const deleted = await getThumbnailService().hardDeleteThumbnail(id);
+
+    return res.status(200).json({
+      message: 'Thumbnail permanently deleted',
+      thumbnail: deleted,
+    });
+  } catch (error: any) {
+    if (error.message === 'Thumbnail must be soft-deleted first') {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Error hard-deleting thumbnail:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Generate AI-powered text suggestions for thumbnail titles
+ * Uses OpenRouter chat completions (text-only, no image generation)
+ * Cost: 1 credit per generation
+ * Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number }
+ */
+export const aiGenerateText = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60 } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    if (!openRouterService.isConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+      });
+    }
+
+    // Credit check & deduction (1 credit for text generation)
+    const creditCost = 1;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      'AI text generation'
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
+    try {
+      // Build the system prompt for title generation
+      const toneInstructions: Record<string, string> = {
+        clickbait: 'Maximum clicks & curiosity. Use power words, numbers, emotional triggers. Create FOMO.',
+        professional: 'Clean, authoritative, trustworthy. No hype, just clear value propositions.',
+        casual: 'Friendly, relatable, conversational. Like talking to a friend.',
+        dramatic: 'High emotion, urgency, impact. Create suspense and excitement.',
+        educational: 'Informative, clear, structured. Focus on learning outcomes and value.',
+      };
+
+      const styleTypes = ['bold', 'question', 'listicle', 'emotional', 'curiosity'];
+
+      const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
+
+Rules:
+- Each suggestion must be ${maxLength} characters or fewer
+- Text must be readable at thumbnail size (short, impactful)
+- Use UPPERCASE for key words to simulate thumbnail text styling
+- Tone: ${toneInstructions[tone] || toneInstructions.clickbait}
+${context ? `- Context: ${context}` : ''}
+
+For each suggestion, assign one of these styles: ${styleTypes.join(', ')}
+Also assign a click-worthiness score from 0.0 to 1.0.
+
+Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
+[{"text": "YOU WON'T BELIEVE This!", "style": "curiosity", "score": 0.92}]`;
+
+      // Use a text-only model via OpenRouter chat completions
+      const textModel = 'google/gemini-2.5-flash';
+
+      const apiUrl = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
+      const response = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
+          'X-Title': 'ThumPiks AI Text Generator',
+        },
+        body: JSON.stringify({
+          model: textModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.9,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData: any = await response.json().catch(() => ({}));
+        await refundCredits(req.user.id, creditCost, 'AI text generation failed');
+        throw new Error(errData.error?.message || `OpenRouter API error (${response.status})`);
+      }
+
+      const data = await response.json() as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = data.choices?.[0]?.message?.content || '';
+
+      // Parse the JSON response
+      let suggestions: Array<{ text: string; style: string; score: number }>;
+      try {
+        // Strip markdown code fences if present
+        const cleaned = content.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+        suggestions = JSON.parse(cleaned);
+
+        if (!Array.isArray(suggestions)) {
+          throw new Error('Response is not an array');
+        }
+
+        // Validate and sanitize
+        suggestions = suggestions
+          .filter(s => s && typeof s.text === 'string' && s.text.trim().length > 0)
+          .slice(0, count)
+          .map(s => ({
+            text: s.text.trim().slice(0, maxLength + 20), // Allow slight overflow
+            style: styleTypes.includes(s.style) ? s.style : 'bold',
+            score: typeof s.score === 'number' ? Math.min(1, Math.max(0, s.score)) : 0.8,
+          }));
+      } catch {
+        // If JSON parsing fails, try to extract text lines
+        const lines = content.split('\n').filter((l: string) => l.trim().length > 0 && l.trim().length <= maxLength + 20);
+        suggestions = lines.slice(0, count).map((line: string, i: number) => ({
+          text: line.replace(/^\d+[\.\)]\s*/, '').replace(/^["']|["']$/g, '').trim(),
+          style: styleTypes[i % styleTypes.length] as string,
+          score: 0.75,
+        }));
+      }
+
+      if (suggestions.length === 0) {
+        await refundCredits(req.user.id, creditCost, 'AI text generation returned no results');
+        return res.status(500).json({ error: 'No valid suggestions generated. Please try again.' });
+      }
+
+      // Emit analytics
+      emitAnalyticsEvent(req.user.id, 'ai-tool', 'generate-text', 'ai-text', {
+        promptLength: prompt.length,
+        tone,
+        suggestionsCount: suggestions.length,
+      });
+
+      return res.status(200).json({
+        success: true,
+        suggestions,
+        model: textModel,
+        creditCost,
+      });
+    } catch (apiError) {
+      await refundCredits(req.user.id, creditCost, 'AI text generation failed');
+      throw apiError;
+    }
+  } catch (error) {
+    console.error('Error in AI text generation:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'AI text generation failed',
     });
   }
 };

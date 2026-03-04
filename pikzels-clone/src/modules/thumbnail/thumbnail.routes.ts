@@ -18,12 +18,21 @@ import {
   getAvailableStyles,
   getAvailableEnhancements,
   // AI Tool endpoints (OpenRouter with tool-specific models)
+  aiGenerate,
+  aiGenerateText,
   aiInpaint,
   aiFaceSwap,
   aiUpscale,
   aiRemoveBackground,
   aiEnhance,
+  aiSegment,
+  aiDecompose,
+  aiExpand,
   getAIToolModels,
+  // Trash / Restore endpoints
+  getDeletedThumbnails,
+  restoreThumbnail,
+  hardDeleteThumbnail,
 } from './thumbnail.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import { cacheMiddleware, invalidateCacheMiddleware } from '../../middleware/cache.middleware';
@@ -66,6 +75,19 @@ router.delete('/:id', invalidateCacheMiddleware([
 // Download thumbnail route
 router.get('/:id/download', (req, res) => downloadThumbnail(req as unknown as AuthRequest, res));
 
+// Trash / Restore routes
+router.get('/trash', (req, res) => getDeletedThumbnails(req as unknown as AuthRequest, res));
+router.post('/:id/restore', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+  CacheKeys.userThumbnails('*'),
+]), (req, res) => restoreThumbnail(req as unknown as AuthRequest, res));
+router.delete('/:id/permanent', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+  CacheKeys.userThumbnails('*'),
+]), (req, res) => hardDeleteThumbnail(req as unknown as AuthRequest, res));
+
 // Apply edits to thumbnail route - invalidate cache after edits
 router.post('/:id/edit', invalidateCacheMiddleware([
   `api:*:/thumbnails:*`,
@@ -103,18 +125,23 @@ router.get('/ai/styles', cacheMiddleware({ ttl: 3600 }), (req, res) => getAvaila
 router.get('/ai/enhancements', cacheMiddleware({ ttl: 3600 }), (req, res) => getAvailableEnhancements(req as AuthRequest, res));
 
 // =============================================================================
-// AI TOOL ROUTES - OpenRouter with tool-specific models
+// AI TOOL ROUTES - Multi-provider with tool-specific models
 // =============================================================================
-// These routes use dedicated AI models for each operation:
-// - Inpaint: google/gemini-3-pro-image-preview (contextual editing)
-// - Face Swap: bytedance-seed/seedream-4.5 (portrait optimization)
-// - Upscale: black-forest-labs/flux.2-max (detail preservation)
-// - Remove Background: google/gemini-3-pro-image-preview
-// - Enhance: google/gemini-3-pro-image-preview
+// Provider routing:
+// - Replicate: segment (SAM 2), remove-bg (RMBG 2.0), upscale (Real-ESRGAN)
+// - OpenRouter: generate, inpaint (Gemini 3 Pro), face-swap (Seedream 4.5), enhance
+// - Fallback: remove-bg and upscale fall back to OpenRouter if Replicate unavailable
 // =============================================================================
 
 // Get AI tool model configurations (which model is used for each tool)
 router.get('/ai/models', cacheMiddleware({ ttl: 3600 }), (req, res) => getAIToolModels(req as AuthRequest, res));
+
+// Generate - Text-to-image generation (invalidates thumbnail cache)
+// Body: { prompt: string, style?: string, tier?: string, model?: string, aspectRatio?: string }
+router.post('/ai/generate', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+]), (req, res) => aiGenerate(req as AuthRequest, res));
 
 // Inpaint - Edit specific areas of an image (invalidates thumbnail cache)
 // Body: { image: base64, mask?: base64, prompt: string }
@@ -150,5 +177,30 @@ router.post('/ai/enhance', invalidateCacheMiddleware([
   `api:*:/thumbnails:*`,
   `thumbnail:*`,
 ]), (req, res) => aiEnhance(req as AuthRequest, res));
+
+// Generate Text - AI-powered title/text suggestions (no cache invalidation needed)
+// Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number }
+router.post('/ai/generate-text', (req, res) => aiGenerateText(req as AuthRequest, res));
+
+// Segment - SAM 2 object segmentation via Replicate (invalidates thumbnail cache)
+// Body: { image: base64, points?: Array<{x, y, label}>, box?: [x1, y1, x2, y2] }
+router.post('/ai/segment', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+]), (req, res) => aiSegment(req as AuthRequest, res));
+
+// Decompose - Auto-decompose image into isolated layers using SAM (invalidates thumbnail cache)
+// Body: { image: base64, maxLayers?: number }
+router.post('/ai/decompose', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+]), (req, res) => aiDecompose(req as AuthRequest, res));
+
+// Expand - Outpaint/extend canvas in any direction (invalidates thumbnail cache)
+// Body: { image: base64, prompt?: string, direction?: 'left'|'right'|'top'|'bottom'|'all', expandPixels?: number }
+router.post('/ai/expand', invalidateCacheMiddleware([
+  `api:*:/thumbnails:*`,
+  `thumbnail:*`,
+]), (req, res) => aiExpand(req as AuthRequest, res));
 
 export default router;

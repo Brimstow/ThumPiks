@@ -1,8 +1,10 @@
 import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
+import axios from 'axios';
+import { getStorageService } from '../storage';
 
-// Ensure the processed images directory exists
+// Local fallback directory (used when Cloudinary unavailable)
 const processedImagesDir = path.join(__dirname, '../../../processed-images');
 if (typeof fs !== 'undefined' && fs.mkdir) {
   fs.mkdir(processedImagesDir, { recursive: true }).catch(console.error);
@@ -132,22 +134,24 @@ export class ImageProcessingService {
       }
 
       // Apply flip
+      // Sharp: flop() = horizontal flip (mirror left-right), flip() = vertical flip (mirror top-bottom)
       if (edits.flipHorizontal || edits.flipVertical) {
         if (edits.flipHorizontal && edits.flipVertical) {
-          processedImage = processedImage.flip(true).flop(true);
+          processedImage = processedImage.flop().flip();
         } else if (edits.flipHorizontal) {
-          processedImage = processedImage.flip(true);
+          processedImage = processedImage.flop();
         } else if (edits.flipVertical) {
-          processedImage = processedImage.flop(true);
+          processedImage = processedImage.flip();
         }
       }
 
       // Apply crop
       if (edits.crop) {
         const { x, y, width, height } = edits.crop;
-        // Convert percentages to pixels (assuming 1280x720 base image)
-        const imgWidth = 1280;
-        const imgHeight = 720;
+        // Use actual image dimensions for accurate crop
+        const imgMeta = await sharp(imageBuffer).metadata();
+        const imgWidth = imgMeta.width ?? 1280;
+        const imgHeight = imgMeta.height ?? 720;
         const cropX = Math.round((x / 100) * imgWidth);
         const cropY = Math.round((y / 100) * imgHeight);
         const cropWidth = Math.round((width / 100) * imgWidth);
@@ -209,15 +213,112 @@ export class ImageProcessingService {
         }
       }
 
-      // Note: In a real implementation, we would apply text overlays, drawing paths, watermarks, and preset templates here
-      // For now, we're just updating the data structure to support preset templates
+      // Apply text overlays via SVG composite
+      if (edits.textOverlays && edits.textOverlays.length > 0) {
+        const meta = await sharp(imageBuffer).metadata();
+        const imgWidth = meta.width ?? 1280;
+        const imgHeight = meta.height ?? 720;
 
-      // Generate output filename
+        for (const overlay of edits.textOverlays) {
+          if (!overlay.text) continue;
+
+          const fontSize = overlay.fontSize ?? 48;
+          const color = overlay.color ?? '#FFFFFF';
+          const fontFamily = overlay.fontFamily ?? 'Arial, sans-serif';
+          const fontWeight = overlay.fontWeight ?? 'bold';
+          const strokeColor = overlay.stroke?.color ?? null;
+          const strokeWidth = overlay.stroke?.width ?? 0;
+          const shadowColor = overlay.shadow?.color ?? null;
+          const shadowBlur = overlay.shadow?.blur ?? 4;
+          const shadowOffsetX = overlay.shadow?.offsetX ?? 2;
+          const shadowOffsetY = overlay.shadow?.offsetY ?? 2;
+
+          // Determine Y position based on named position or explicit y
+          let yPos: number;
+          if (overlay.y !== undefined) {
+            yPos = Math.round((overlay.y / 100) * imgHeight);
+          } else {
+            switch (overlay.position) {
+              case 'top':    yPos = Math.round(fontSize * 1.5); break;
+              case 'center': yPos = Math.round(imgHeight / 2); break;
+              case 'bottom': default: yPos = imgHeight - Math.round(fontSize * 1.5); break;
+            }
+          }
+
+          // Determine X position
+          let xPos: number;
+          if (overlay.x !== undefined) {
+            xPos = Math.round((overlay.x / 100) * imgWidth);
+          } else {
+            xPos = Math.round(imgWidth / 2);
+          }
+
+          const textAnchor = overlay.align === 'left' ? 'start' : overlay.align === 'right' ? 'end' : 'middle';
+
+          // Build SVG filters for shadow
+          const filterId = `shadow_${Date.now()}`;
+          const filterDef = shadowColor
+            ? `<defs>
+                <filter id="${filterId}" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="${shadowOffsetX}" dy="${shadowOffsetY}" stdDeviation="${shadowBlur / 2}"
+                    flood-color="${shadowColor}" flood-opacity="0.8"/>
+                </filter>
+              </defs>`
+            : '';
+
+          const filterAttr = shadowColor ? `filter="url(#${filterId})"` : '';
+          const strokeAttr = strokeColor && strokeWidth > 0
+            ? `stroke="${strokeColor}" stroke-width="${strokeWidth}" paint-order="stroke"`
+            : '';
+
+          const svg = `<svg width="${imgWidth}" height="${imgHeight}" xmlns="http://www.w3.org/2000/svg">
+            ${filterDef}
+            <text
+              x="${xPos}"
+              y="${yPos}"
+              font-family="${fontFamily}"
+              font-size="${fontSize}"
+              font-weight="${fontWeight}"
+              fill="${color}"
+              text-anchor="${textAnchor}"
+              dominant-baseline="middle"
+              ${strokeAttr}
+              ${filterAttr}
+            >${overlay.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+          </svg>`;
+
+          processedImage = processedImage.composite([{
+            input: Buffer.from(svg),
+            gravity: 'northwest',
+          }]);
+        }
+      }
+
+      // Convert to buffer for upload
+      const processedBuffer = await processedImage.png().toBuffer();
+
+      // Try Cloudinary upload first, fall back to local storage
+      try {
+        const storage = getStorageService();
+        const isAvailable = await storage.isAvailable();
+
+        if (isAvailable) {
+          const uploadResult = await storage.uploadProcessedImage(
+            processedBuffer,
+            thumbnailId
+          );
+          console.log(`☁️ Processed image uploaded to Cloudinary: ${uploadResult.publicId}`);
+          return uploadResult.secureUrl;
+        }
+      } catch (cloudinaryError) {
+        console.warn('Cloudinary upload failed, falling back to local storage:', cloudinaryError);
+      }
+
+      // Fallback: Save locally (for development or if Cloudinary unavailable)
       const outputFilename = `processed_${thumbnailId}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
-
-      // Save the processed image
-      await processedImage.png().toFile(outputPath);
+      await fs.writeFile(outputPath, processedBuffer);
+      console.log(`💾 Processed image saved locally: ${outputPath}`);
 
       return outputPath;
     } catch (error) {
@@ -272,40 +373,22 @@ export class ImageProcessingService {
    * @returns Buffer containing the image data
    */
   private async fetchImageBuffer(imageUrl: string): Promise<Buffer> {
-    // For testing purposes, return a minimal buffer
     if (process.env.NODE_ENV === 'test') {
-      // Create a minimal buffer for testing
       return Buffer.from('test');
     }
 
-    // For placeholder images, we'll create a simple buffer
-    // In a real implementation, you would fetch the actual image
-    if (imageUrl.includes('placehold.co')) {
-      // Create a simple placeholder image buffer
-      return sharp({
-        create: {
-          width: 1280,
-          height: 720,
-          channels: 4,
-          background: { r: 128, g: 128, b: 128, alpha: 1 },
-        },
-      })
-        .png()
-        .toBuffer();
+    if (imageUrl.startsWith('data:')) {
+      const base64Data = imageUrl.split(',')[1] ?? '';
+      return Buffer.from(base64Data, 'base64');
     }
 
-    // For other images, you would fetch them from the URL
-    // This is a simplified implementation
-    return sharp({
-      create: {
-        width: 1280,
-        height: 720,
-        channels: 4,
-        background: { r: 128, g: 128, b: 128, alpha: 1 },
-      },
-    })
-      .png()
-      .toBuffer();
+    // Fetch all URLs including placehold.co - no more gray rectangles
+    const response = await axios.get<ArrayBuffer>(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      headers: { 'User-Agent': 'ThumPiks/1.0' },
+    });
+    return Buffer.from(response.data);
   }
 
   /**

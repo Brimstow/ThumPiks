@@ -41,11 +41,14 @@ export class ThumbnailService {
     parameters: any;
     projectId: string;
     userId: string;
+    storagePublicId?: string;
+    storageProvider?: string;
   }) {
     const thumbnail = await this.prisma.thumbnail.create({
       data: {
         id: uuidv4(),
         ...data,
+        storageProvider: data.storageProvider || 'cloudinary',
       },
     });
 
@@ -91,8 +94,8 @@ export class ThumbnailService {
     return this.cache.getOrSet(
       cacheKey,
       async () => {
-        // Build where clause for filtering
-        const where: any = { userId };
+        // Build where clause for filtering (exclude soft-deleted)
+        const where: any = { userId, deletedAt: null };
 
         // Apply project filter
         if (filters?.projectId) {
@@ -149,18 +152,25 @@ export class ThumbnailService {
     );
   }
 
-  async getThumbnailById(id: string) {
+  async getThumbnailById(id: string, includeDeleted = false) {
     const cacheKey = `thumbnail:${id}`;
 
     return this.cache.getOrSet(
       cacheKey,
       async () => {
-        return this.prisma.thumbnail.findUnique({
+        const thumbnail = await this.prisma.thumbnail.findUnique({
           where: { id },
           include: {
             Project_Thumbnail_projectIdToProject: true,
           },
         });
+
+        // Filter out soft-deleted unless explicitly requested
+        if (thumbnail && thumbnail.deletedAt && !includeDeleted) {
+          return null;
+        }
+
+        return thumbnail;
       },
       600 // Cache for 10 minutes (individual thumbnails change less frequently)
     );
@@ -173,6 +183,8 @@ export class ThumbnailService {
       imageUrl: string;
       prompt: string;
       parameters: any;
+      storagePublicId: string;
+      storageProvider: string;
     }>
   ) {
     // Get thumbnail info for cache invalidation
@@ -224,14 +236,15 @@ export class ThumbnailService {
   }
 
   async deleteThumbnail(id: string) {
-    // Get thumbnail info for cache invalidation and events
+    // Soft-delete: mark with deletedAt timestamp instead of removing
     const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
-      select: { userId: true, projectId: true, imageUrl: true },
+      select: { userId: true, projectId: true, imageUrl: true, storagePublicId: true },
     });
 
-    const thumbnail = await this.prisma.thumbnail.delete({
+    const thumbnail = await this.prisma.thumbnail.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
 
     // 🚀 EVENT-DRIVEN: Emit thumbnail deleted event
@@ -242,6 +255,7 @@ export class ThumbnailService {
         {
           thumbnailId: id,
           filePath: existingThumbnail.imageUrl,
+          softDelete: true,
         }
       );
 
@@ -253,6 +267,7 @@ export class ThumbnailService {
         id,
         {
           projectId: existingThumbnail.projectId,
+          softDelete: true,
         }
       );
     }
@@ -264,8 +279,76 @@ export class ThumbnailService {
       await this.invalidateProjectCache(existingThumbnail.projectId);
     }
 
-    console.log(`🗑️ Thumbnail deleted: ${id}`);
+    console.log(`🗑️ Thumbnail soft-deleted: ${id} (recoverable for 30 days)`);
     return thumbnail;
+  }
+
+  async restoreThumbnail(id: string) {
+    const thumbnail = await this.prisma.thumbnail.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+
+    // Invalidate caches
+    await this.cache.del(`thumbnail:${id}`);
+    await this.invalidateUserThumbnailsCache(thumbnail.userId);
+    await this.invalidateProjectCache(thumbnail.projectId);
+
+    console.log(`♻️ Thumbnail restored: ${id}`);
+    return thumbnail;
+  }
+
+  async hardDeleteThumbnail(id: string) {
+    // Permanently delete from DB and storage — only for thumbnails past grace period
+    const existingThumbnail = await this.prisma.thumbnail.findUnique({
+      where: { id },
+      select: { userId: true, projectId: true, imageUrl: true, storagePublicId: true, deletedAt: true },
+    });
+
+    if (!existingThumbnail) {
+      throw new Error('Thumbnail not found');
+    }
+
+    // Safety: only hard-delete if already soft-deleted
+    if (!existingThumbnail.deletedAt) {
+      throw new Error('Thumbnail must be soft-deleted first');
+    }
+
+    // Delete from storage provider
+    if (existingThumbnail.storagePublicId) {
+      try {
+        const { getStorageService } = await import('../storage');
+        await getStorageService().delete(existingThumbnail.storagePublicId);
+        console.log(`☁️ Storage asset deleted: ${existingThumbnail.storagePublicId}`);
+      } catch (storageError) {
+        console.warn('Storage deletion failed (asset may already be removed):', storageError);
+      }
+    }
+
+    // Permanently remove from DB
+    const thumbnail = await this.prisma.thumbnail.delete({
+      where: { id },
+    });
+
+    // Invalidate caches
+    await this.cache.del(`thumbnail:${id}`);
+    if (existingThumbnail) {
+      await this.invalidateUserThumbnailsCache(existingThumbnail.userId);
+      await this.invalidateProjectCache(existingThumbnail.projectId);
+    }
+
+    console.log(`💀 Thumbnail permanently deleted: ${id}`);
+    return thumbnail;
+  }
+
+  async getDeletedThumbnails(userId: string) {
+    return this.prisma.thumbnail.findMany({
+      where: {
+        userId,
+        deletedAt: { not: null },
+      },
+      orderBy: { deletedAt: 'desc' },
+    });
   }
 
   async setThumbnailAsFeatured(thumbnailId: string, projectId: string) {
