@@ -338,15 +338,20 @@ describe('VisionService', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should throw error when Bing API key is not configured', async () => {
+    it('should throw error when no image search API is configured', async () => {
       delete process.env.BING_SEARCH_API_KEY;
+      // Also ensure fallback providers are not configured
+      delete process.env.SEARXNG_URL;
+      delete process.env.SERPAPI_KEY;
+      
       const serviceNoKey = new VisionService({
         prisma: mockPrisma,
         cache: mockCache,
       });
 
+      // Multi-provider fallback: SearXNG → SerpAPI → Bing
       await expect(serviceNoKey.searchWebImages('test')).rejects.toThrow(
-        'Bing Search API key not configured'
+        'No image search API configured. Set SEARXNG_URL, SERPAPI_KEY, or BING_SEARCH_API_KEY.'
       );
     });
 

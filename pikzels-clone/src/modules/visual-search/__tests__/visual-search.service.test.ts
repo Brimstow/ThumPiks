@@ -182,7 +182,8 @@ describe('QdrantService', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
       const createCall = mockFetch.mock.calls[1]!;
       const body = JSON.parse((createCall[1] as any).body);
-      expect(body.vectors.size).toBe(768);
+      // Jina CLIP v2 outputs 1024 dimensions (upgraded from v1's 768)
+      expect(body.vectors.size).toBe(1024);
       expect(body.vectors.distance).toBe('Cosine');
     });
   });

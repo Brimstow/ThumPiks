@@ -28,6 +28,7 @@ jest.mock('sharp', () => {
     sharpen: jest.fn().mockReturnThis(),
     convolve: jest.fn().mockReturnThis(),
     png: jest.fn().mockReturnThis(),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.from('test-image-data')),
     toFile: jest.fn().mockResolvedValue(undefined),
   }));
 });

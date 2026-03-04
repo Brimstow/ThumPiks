@@ -476,7 +476,7 @@ describe('Security Config - Utility Functions', () => {
       });
 
       expect(config.securityConfig.cors.origins).toContain(
-        'http://localhost:3000'
+        'http://localhost:8556'
       );
     });
 

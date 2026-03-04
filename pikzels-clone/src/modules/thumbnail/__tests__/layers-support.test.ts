@@ -1,5 +1,3 @@
-import { ImageProcessingService } from '../image-processing.service';
-
 // Set NODE_ENV to test
 process.env.NODE_ENV = 'test';
 
@@ -11,26 +9,9 @@ jest.mock('fs', () => ({
   },
 }));
 
-// Mock the entire sharp module
-jest.mock('sharp', () => {
-  return jest.fn(() => ({
-    resize: jest.fn().mockReturnThis(),
-    modulate: jest.fn().mockReturnThis(),
-    linear: jest.fn().mockReturnThis(),
-    rotate: jest.fn().mockReturnThis(),
-    flip: jest.fn().mockReturnThis(),
-    flop: jest.fn().mockReturnThis(),
-    extract: jest.fn().mockReturnThis(),
-    grayscale: jest.fn().mockReturnThis(),
-    tint: jest.fn().mockReturnThis(),
-    negate: jest.fn().mockReturnThis(),
-    blur: jest.fn().mockReturnThis(),
-    sharpen: jest.fn().mockReturnThis(),
-    convolve: jest.fn().mockReturnThis(),
-    png: jest.fn().mockReturnThis(),
-    toFile: jest.fn().mockResolvedValue(undefined),
-  }));
-});
+// Note: sharp and storage mocks are provided globally in src/__tests__/setup.ts
+
+import { ImageProcessingService } from '../image-processing.service';
 
 describe('ImageProcessingService - Layers Support', () => {
   let imageProcessingService: ImageProcessingService;

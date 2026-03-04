@@ -24,86 +24,105 @@ jest.mock('../contexts/ThemeContext', () => ({
   })
 }));
 
-// Mock all components
-jest.mock('../components/LandingPage', () => 
-  () => <div data-testid="landing-page">Landing Page Component</div>
-);
+// Mock all components - must use __esModule + default since AppContent uses require().default
+jest.mock('../components/LandingPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="landing-page">Landing Page Component</div>
+}));
 
-jest.mock('../components/Dashboard', () => 
-  () => <div data-testid="dashboard">Dashboard Component</div>
-);
+jest.mock('../components/Dashboard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="dashboard">Dashboard Component</div>
+}));
 
-jest.mock('../components/auth/Login', () => 
-  () => <div data-testid="login">Login Component</div>
-);
+jest.mock('../components/auth/Login', () => ({
+  __esModule: true,
+  default: () => <div data-testid="login">Login Component</div>
+}));
 
-jest.mock('../components/auth/Register', () => 
-  () => <div data-testid="register">Register Component</div>
-);
+jest.mock('../components/auth/Register', () => ({
+  __esModule: true,
+  default: () => <div data-testid="register">Register Component</div>
+}));
 
-jest.mock('../components/auth/ForgotPassword', () => 
-  () => <div data-testid="forgot-password">Forgot Password Component</div>
-);
+jest.mock('../components/auth/ForgotPassword', () => ({
+  __esModule: true,
+  default: () => <div data-testid="forgot-password">Forgot Password Component</div>
+}));
 
-jest.mock('../components/auth/ResetPassword', () => 
-  () => <div data-testid="reset-password">Reset Password Component</div>
-);
+jest.mock('../components/auth/ResetPassword', () => ({
+  __esModule: true,
+  default: () => <div data-testid="reset-password">Reset Password Component</div>
+}));
 
-jest.mock('../components/UserSettings', () => 
-  () => <div data-testid="user-settings">User Settings Component</div>
-);
+jest.mock('../components/UserSettings', () => ({
+  __esModule: true,
+  default: () => <div data-testid="user-settings">User Settings Component</div>
+}));
 
-jest.mock('../components/projects/ProjectsList', () => 
-  () => <div data-testid="projects-list">Projects List Component</div>
-);
+jest.mock('../components/projects/ProjectsList', () => ({
+  __esModule: true,
+  default: () => <div data-testid="projects-list">Projects List Component</div>
+}));
 
-jest.mock('../components/projects/ProjectDetail', () => 
-  () => <div data-testid="project-detail">Project Detail Component</div>
-);
+jest.mock('../components/projects/ProjectDetail', () => ({
+  __esModule: true,
+  default: () => <div data-testid="project-detail">Project Detail Component</div>
+}));
 
-jest.mock('../components/projects/ProjectForm', () => 
-  ({ isEdit }: { isEdit: boolean }) => 
+jest.mock('../components/projects/ProjectForm', () => ({
+  __esModule: true,
+  default: ({ isEdit }: { isEdit: boolean }) => 
     <div data-testid="project-form">
       Project Form Component - {isEdit ? 'Edit Mode' : 'Create Mode'}
     </div>
-);
+}));
 
-jest.mock('../components/templates/TemplateMarketplace', () => 
-  () => <div data-testid="template-marketplace">Template Marketplace Component</div>
-);
+jest.mock('../components/templates/TemplateMarketplace', () => ({
+  __esModule: true,
+  default: () => <div data-testid="template-marketplace">Template Marketplace Component</div>
+}));
 
-jest.mock('../components/AnalyticsDashboard', () => 
-  () => <div data-testid="analytics-dashboard">Analytics Dashboard Component</div>
-);
+jest.mock('../components/AnalyticsDashboard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="analytics-dashboard">Analytics Dashboard Component</div>
+}));
 
-jest.mock('../components/AdvancedAnalyticsDashboard', () => 
-  () => <div data-testid="advanced-analytics-dashboard">Advanced Analytics Dashboard Component</div>
-);
+jest.mock('../components/AdvancedAnalyticsDashboard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="advanced-analytics-dashboard">Advanced Analytics Dashboard Component</div>
+}));
 
-jest.mock('../components/SharedThumbnailPage', () => 
-  () => <div data-testid="shared-thumbnail-page">Shared Thumbnail Page Component</div>
-);
+jest.mock('../components/SharedThumbnailPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="shared-thumbnail-page">Shared Thumbnail Page Component</div>
+}));
 
-jest.mock('../components/AboutPage', () => 
-  () => <div data-testid="about-page">About Page Component</div>
-);
+jest.mock('../components/AboutPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="about-page">About Page Component</div>
+}));
 
-jest.mock('../components/ContactPage', () => 
-  () => <div data-testid="contact-page">Contact Page Component</div>
-);
+jest.mock('../components/ContactPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="contact-page">Contact Page Component</div>
+}));
 
-jest.mock('../components/TermsPage', () => 
-  () => <div data-testid="terms-page">Terms Page Component</div>
-);
+jest.mock('../components/TermsPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="terms-page">Terms Page Component</div>
+}));
 
-jest.mock('../components/PrivacyPage', () => 
-  () => <div data-testid="privacy-page">Privacy Page Component</div>
-);
+jest.mock('../components/PrivacyPage', () => ({
+  __esModule: true,
+  default: () => <div data-testid="privacy-page">Privacy Page Component</div>
+}));
 
-jest.mock('../components/ProtectedRoute', () => 
-  ({ children }: { children: React.ReactNode }) => 
+jest.mock('../components/ProtectedRoute', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => 
     <div data-testid="protected-route">{children}</div>
-);
+}));
 
 // Create a testable version of App without BrowserRouter
 const AppContent = () => {
