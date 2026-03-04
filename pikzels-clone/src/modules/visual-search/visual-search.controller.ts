@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
 import { VisualSearchService } from './visual-search.service';
 import { getPrisma } from '../../utils/prisma-factory';
+import fetch from 'node-fetch';
 
 let sharedService: VisualSearchService;
 
@@ -84,8 +85,8 @@ export const searchByText = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json(results);
   } catch (error: any) {
-    console.error('Error in visual search by text:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in visual search by text:', error.message, error.stack);
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
 
@@ -153,6 +154,75 @@ export const healthCheck = async (req: AuthRequest, res: Response) => {
     return res.status(200).json(health);
   } catch (error) {
     console.error('Error in visual search health check:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/visual-search/resolve-url
+ * Resolve social media URLs to direct image URLs.
+ * Currently supports TikTok via oEmbed API.
+ */
+export const resolveUrl = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { url } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'url is required' });
+    }
+
+    // Validate URL format
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    // Only allow http/https protocols (SSRF prevention)
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return res.status(400).json({ error: 'Only HTTP/HTTPS URLs are allowed' });
+    }
+
+    // TikTok oEmbed resolution
+    if (/tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com/.test(parsedUrl.hostname)) {
+      try {
+        const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+        const response = await fetch(oembedUrl, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+
+        if (!response.ok) {
+          return res.status(404).json({ error: 'Could not resolve TikTok URL' });
+        }
+
+        const data: any = await response.json();
+        if (data.thumbnail_url) {
+          return res.status(200).json({
+            imageUrl: data.thumbnail_url,
+            platform: 'TikTok',
+            title: data.title || '',
+            author: data.author_name || '',
+          });
+        } else {
+          return res.status(404).json({ error: 'No thumbnail found for TikTok video' });
+        }
+      } catch (error) {
+        console.error('TikTok oEmbed error:', error);
+        return res.status(500).json({ error: 'Failed to resolve TikTok URL' });
+      }
+    }
+
+    // Unsupported platform
+    return res.status(400).json({ 
+      error: 'Unsupported platform. Currently only TikTok URLs are supported for server-side resolution.' 
+    });
+  } catch (error) {
+    console.error('Error in URL resolution:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

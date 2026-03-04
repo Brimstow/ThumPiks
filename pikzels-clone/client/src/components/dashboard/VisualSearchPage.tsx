@@ -103,9 +103,128 @@ const VisualSearchPage: React.FC = () => {
     reader.readAsDataURL(file);
   }, []);
 
+  // ============================================
+  // URL RESOLUTION UTILITIES
+  // ============================================
+
+  // Trusted image CDN domains (whitelist for security)
+  const TRUSTED_IMAGE_DOMAINS = [
+    'i.ytimg.com',
+    'img.youtube.com',
+    'static-cdn.jtvnw.net',
+    'clips-media-assets2.twitch.tv',
+    'p16-sign.tiktokcdn.com',
+    'p16-sign-sg.tiktokcdn.com', 
+    'p16-sign-va.tiktokcdn.com',
+  ];
+
+  // Validate URL is from trusted domain or is a direct image
+  const isValidImageUrl = useCallback((url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      // Must be http or https
+      if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+      // Check if trusted domain
+      if (TRUSTED_IMAGE_DOMAINS.some(domain => parsed.hostname.includes(domain))) return true;
+      // Check if looks like direct image URL
+      if (/\.(jpg|jpeg|png|gif|webp|bmp)(\?.*)?$/i.test(parsed.pathname)) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Extract YouTube video ID (comprehensive regex from best practices research)
+  const extractYouTubeId = useCallback((url: string): string | null => {
+    // Comprehensive pattern handling all YouTube URL formats:
+    // - youtube.com/watch?v=ID
+    // - youtu.be/ID  
+    // - youtube.com/embed/ID
+    // - youtube.com/v/ID
+    // - youtube.com/shorts/ID
+    // - youtube-nocookie.com variants
+    // - With extra query params
+    const regex = /(?:youtube(?:-nocookie)?\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+    const match = url.match(regex);
+    
+    // Also handle shorts separately
+    if (!match) {
+      const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/i);
+      return shortsMatch ? shortsMatch[1] : null;
+    }
+    
+    return match ? match[1] : null;
+  }, []);
+
+  // Extract Twitch username from URL
+  const extractTwitchUsername = useCallback((url: string): string | null => {
+    // Patterns for Twitch live streams:
+    // - twitch.tv/username
+    // - twitch.tv/username/
+    // NOT: twitch.tv/videos/ID, twitch.tv/username/clip/ID
+    const match = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)(?:\/)?$/i);
+    if (match && !['videos', 'clip', 'directory', 'settings'].includes(match[1].toLowerCase())) {
+      return match[1];
+    }
+    return null;
+  }, []);
+
+  // Check if URL is TikTok (needs backend resolution)
+  const isTikTokUrl = useCallback((url: string): boolean => {
+    return /(?:tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com)/.test(url);
+  }, []);
+
+  // Convert social media URL to image URL (client-side for YouTube/Twitch)
+  const convertToImageUrl = useCallback((url: string): { imageUrl: string | null; needsBackend: boolean; platform: string | null } => {
+    // YouTube
+    const ytId = extractYouTubeId(url);
+    if (ytId) {
+      return {
+        imageUrl: `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg`,
+        needsBackend: false,
+        platform: 'YouTube'
+      };
+    }
+
+    // Twitch Live Stream
+    const twitchUsername = extractTwitchUsername(url);
+    if (twitchUsername) {
+      return {
+        imageUrl: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${twitchUsername.toLowerCase()}-1280x720.jpg`,
+        needsBackend: false,
+        platform: 'Twitch'
+      };
+    }
+
+    // TikTok - needs backend oEmbed resolution
+    if (isTikTokUrl(url)) {
+      return {
+        imageUrl: null,
+        needsBackend: true,
+        platform: 'TikTok'
+      };
+    }
+
+    return { imageUrl: null, needsBackend: false, platform: null };
+  }, [extractYouTubeId, extractTwitchUsername, isTikTokUrl]);
+
+  // Resolve URL via backend (for TikTok oEmbed)
+  const resolveUrlViaBackend = useCallback(async (url: string): Promise<string | null> => {
+    try {
+      const response = await authPost('/api/visual-search/resolve-url', { url });
+      if (response.ok) {
+        const data = await response.json();
+        return data.imageUrl || null;
+      }
+    } catch {
+      // Fall through to return null
+    }
+    return null;
+  }, []);
+
   // Search by image
   const handleSearchByImage = useCallback(async () => {
-    const url = uploadedImage || imageUrl.trim();
+    let url = uploadedImage || imageUrl.trim();
     if (!url) return;
 
     setIsSearching(true);
@@ -114,10 +233,38 @@ const VisualSearchPage: React.FC = () => {
 
     try {
       // For uploaded images we still need a URL - the backend needs a publicly accessible URL
-      // If it's a base64, inform the user
       if (url.startsWith('data:')) {
         setError(
           'Visual search requires a publicly accessible image URL. Upload your image first via the Create tool, then search by URL.'
+        );
+        setIsSearching(false);
+        return;
+      }
+
+      // Try to convert social media URLs to image URLs
+      const resolved = convertToImageUrl(url);
+      
+      if (resolved.imageUrl) {
+        // Client-side resolution (YouTube, Twitch)
+        url = resolved.imageUrl;
+        console.log(`Resolved ${resolved.platform} URL to: ${url}`);
+      } else if (resolved.needsBackend) {
+        // Backend resolution needed (TikTok)
+        const backendUrl = await resolveUrlViaBackend(url);
+        if (backendUrl) {
+          url = backendUrl;
+          console.log(`Resolved ${resolved.platform} URL via backend to: ${url}`);
+        } else {
+          setError(
+            `Could not resolve ${resolved.platform} thumbnail. The video may be private or unavailable.`
+          );
+          setIsSearching(false);
+          return;
+        }
+      } else if (!isValidImageUrl(url)) {
+        // Not a recognized platform and not a valid image URL
+        setError(
+          'Please enter a direct image URL or a supported platform link (YouTube, Twitch, TikTok).'
         );
         setIsSearching(false);
         return;
@@ -139,7 +286,7 @@ const VisualSearchPage: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
-  }, [uploadedImage, imageUrl]);
+  }, [uploadedImage, imageUrl, convertToImageUrl, resolveUrlViaBackend, isValidImageUrl]);
 
   // Search by text
   const handleSearchByText = useCallback(async () => {
@@ -531,7 +678,7 @@ const VisualSearchPage: React.FC = () => {
               </p>
               <div className="mt-6 grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-violet-400">768</div>
+                  <div className="text-2xl font-bold text-violet-400">1024</div>
                   <div className="text-xs text-slate-500 mt-1">
                     Dimensions
                   </div>

@@ -51,8 +51,12 @@ export const describeImage = async (req: AuthRequest, res: Response) => {
     if (error.message === 'Insufficient credits for vision analysis') {
       return res.status(402).json({ error: error.message });
     }
-    console.error('Error in vision describe:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    if (error.message?.includes('API key not configured')) {
+      console.error('Vision describe config error:', error.message);
+      return res.status(503).json({ error: 'Vision service not configured' });
+    }
+    console.error('Error in vision describe:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
 
@@ -76,9 +80,9 @@ export const searchImages = async (req: AuthRequest, res: Response) => {
     const results = await getVisionService().searchWebImages(query.trim(), count);
 
     return res.status(200).json({ results });
-  } catch (error) {
-    console.error('Error in vision search:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+  } catch (error: any) {
+    console.error('Error in vision search:', error.message || error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
 

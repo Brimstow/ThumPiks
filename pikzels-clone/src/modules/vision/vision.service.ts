@@ -11,20 +11,48 @@ import {
   VisionServiceDependencies,
 } from './types';
 
-const VISION_SYSTEM_PROMPT = `You are a thumbnail design analyst. Analyze the provided image and return a JSON response with these exact fields:
+const VISION_SYSTEM_PROMPT = `You are a thumbnail design analyst and CTR prediction expert. Analyze the provided image and return a JSON response with these exact fields:
 
 {
   "description": "A detailed 2-3 sentence description of the image's visual design",
   "elements": {
     "mainSubject": "The primary subject/focus of the image",
     "faces": 0,
+    "faceDetails": [
+      {
+        "position": "left|center|right",
+        "verticalPosition": "top|middle|bottom",
+        "expression": "excited|surprised|happy|serious|neutral|sad|angry|confident",
+        "size": "small|medium|large",
+        "eyeContact": true
+      }
+    ],
     "textOverlay": ["list of any text visible in the image"],
     "colorPalette": ["#hex1", "#hex2", "#hex3", "#hex4", "#hex5"],
+    "dominantColor": "#hex of the most prominent color",
+    "colorContrast": "low|medium|high",
     "mood": "one word: energetic|calm|dramatic|playful|serious|mysterious|inspiring|urgent",
     "style": "one word: minimalist|bold|cinematic|professional|creative|gaming|retro|clean",
-    "composition": "one phrase: centered|rule-of-thirds|diagonal|symmetrical|asymmetrical|framed"
+    "composition": "one phrase: centered|rule-of-thirds|diagonal|symmetrical|asymmetrical|framed",
+    "ctrFactors": {
+      "faceScore": 0,
+      "textScore": 0,
+      "colorScore": 0,
+      "compositionScore": 0,
+      "emotionScore": 0,
+      "overallCTR": 0
+    },
+    "suggestions": ["up to 3 actionable suggestions to improve thumbnail CTR"]
   }
 }
+
+CTR scoring rules (0-100 each):
+- faceScore: 80+ if large face with eye contact and excited/surprised expression. 50 if face present but neutral. 20 if no face.
+- textScore: 80+ if bold, readable text with high contrast. 50 if text present but small/low contrast. 20 if no text.
+- colorScore: 80+ if high contrast, saturated, complementary colors. 50 if moderate. 20 if dull/monochrome.
+- compositionScore: 80+ if clear focal point, rule-of-thirds, balanced. 50 if centered. 20 if cluttered.
+- emotionScore: 80+ if image evokes strong curiosity or excitement. 50 if neutral. 20 if boring.
+- overallCTR: Weighted average (face 30%, emotion 25%, color 20%, text 15%, composition 10%).
 
 Return ONLY valid JSON, no markdown, no explanation.`;
 
@@ -35,6 +63,8 @@ export class VisionService {
   private openrouterApiUrl: string;
   private bingApiKey: string;
   private bingEndpoint: string;
+  private serpApiKey: string;
+  private searxngUrl: string;
 
   constructor(dependencies: VisionServiceDependencies = {}) {
     this.prisma = dependencies.prisma || getPrisma();
@@ -46,6 +76,8 @@ export class VisionService {
     this.bingEndpoint =
       process.env.BING_SEARCH_ENDPOINT ||
       'https://api.bing.microsoft.com/v7.0/images/search';
+    this.serpApiKey = process.env.SERPAPI_KEY || '';
+    this.searxngUrl = process.env.SEARXNG_URL || '';
   }
 
   async analyzeImage(
@@ -68,7 +100,7 @@ export class VisionService {
 
     // Call OpenRouter Gemini vision model
     const visionModel =
-      process.env.OPENROUTER_MODEL_VISION || 'google/gemini-2.5-flash-preview';
+      process.env.OPENROUTER_MODEL_VISION || 'google/gemini-2.5-flash';
 
     const requestBody = {
       model: visionModel,
@@ -149,11 +181,128 @@ export class VisionService {
     query: string,
     count: number = 20
   ): Promise<BingImageResult[]> {
-    if (!this.bingApiKey) {
-      throw new Error('Bing Search API key not configured');
+    // Priority: SearXNG (free/self-hosted) -> SerpAPI -> Bing
+    if (this.searxngUrl) {
+      return this.searchWithSearXNG(query, count);
+    }
+    if (this.serpApiKey) {
+      return this.searchWithSerpApi(query, count);
+    }
+    if (this.bingApiKey) {
+      return this.searchWithBing(query, count);
+    }
+    throw new Error('No image search API configured. Set SEARXNG_URL, SERPAPI_KEY, or BING_SEARCH_API_KEY.');
+  }
+
+  private async searchWithSearXNG(
+    query: string,
+    count: number
+  ): Promise<BingImageResult[]> {
+    const cacheKey = `searxng:images:${query}:${count}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached as BingImageResult[];
     }
 
-    // Check cache first
+    const params = new URLSearchParams({
+      q: query,
+      categories: 'images',
+      format: 'json',
+      safesearch: '1',
+    });
+
+    try {
+      const response = await fetch(`${this.searxngUrl}/search?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`SearXNG failed (${response.status})`);
+      }
+
+      const data: any = await response.json();
+      const results: BingImageResult[] = (data.results || [])
+        .slice(0, count)
+        .filter((img: any) => img.img_src)
+        .map((img: any) => ({
+          url: img.img_src,
+          title: img.title || '',
+          sourceUrl: img.url || img.img_src,
+          width: img.resolution?.split('x')[0] ? parseInt(img.resolution.split('x')[0]) : 0,
+          height: img.resolution?.split('x')[1] ? parseInt(img.resolution.split('x')[1]) : 0,
+          thumbnailUrl: img.thumbnail_src || img.img_src,
+        }));
+
+      await this.cache.set(cacheKey, results, 1800);
+      return results;
+    } catch (error: any) {
+      // Fallback to SerpAPI or Bing if SearXNG fails
+      if (this.serpApiKey) {
+        console.warn(`SearXNG failed, falling back to SerpAPI: ${error.message}`);
+        return this.searchWithSerpApi(query, count);
+      }
+      if (this.bingApiKey) {
+        console.warn(`SearXNG failed, falling back to Bing: ${error.message}`);
+        return this.searchWithBing(query, count);
+      }
+      throw error;
+    }
+  }
+
+  private async searchWithSerpApi(
+    query: string,
+    count: number
+  ): Promise<BingImageResult[]> {
+    const cacheKey = `serpapi:images:${query}:${count}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return cached as BingImageResult[];
+    }
+
+    const params = new URLSearchParams({
+      q: query,
+      tbm: 'isch', // image search
+      num: String(Math.min(count, 100)),
+      api_key: this.serpApiKey,
+      safe: 'active',
+    });
+
+    const response = await fetch(`https://serpapi.com/search?${params}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // If SerpAPI fails and Bing is available, try Bing
+      if (this.bingApiKey) {
+        console.warn(`SerpAPI failed, falling back to Bing: ${errorText}`);
+        return this.searchWithBing(query, count);
+      }
+      throw new Error(`SerpAPI Image Search failed (${response.status}): ${errorText}`);
+    }
+
+    const data: any = await response.json();
+    const results: BingImageResult[] = (data.images_results || [])
+      .slice(0, count)
+      .filter((img: any) => img.original_width >= 800 || img.width >= 800)
+      .map((img: any) => ({
+        url: img.original || img.link,
+        title: img.title || '',
+        sourceUrl: img.source || img.link,
+        width: img.original_width || img.width || 0,
+        height: img.original_height || img.height || 0,
+        thumbnailUrl: img.thumbnail,
+      }));
+
+    await this.cache.set(cacheKey, results, 1800);
+    return results;
+  }
+
+  private async searchWithBing(
+    query: string,
+    count: number
+  ): Promise<BingImageResult[]> {
     const cacheKey = `bing:images:${query}:${count}`;
     const cached = await this.cache.get(cacheKey);
     if (cached) {
@@ -194,9 +343,7 @@ export class VisionService {
         thumbnailUrl: img.thumbnailUrl,
       }));
 
-    // Cache for 30 minutes
     await this.cache.set(cacheKey, results, 1800);
-
     return results;
   }
 
@@ -236,22 +383,33 @@ export class VisionService {
       content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
 
+    const defaultCTR: import('./types').CTRFactors = {
+      faceScore: 0,
+      textScore: 0,
+      colorScore: 0,
+      compositionScore: 0,
+      emotionScore: 0,
+      overallCTR: 0,
+    };
+
     try {
       const parsed = JSON.parse(content);
+      const el = parsed.elements || {};
       return {
         description: parsed.description || 'No description available',
         elements: {
-          mainSubject: parsed.elements?.mainSubject || 'Unknown',
-          faces: typeof parsed.elements?.faces === 'number' ? parsed.elements.faces : 0,
-          textOverlay: Array.isArray(parsed.elements?.textOverlay)
-            ? parsed.elements.textOverlay
-            : [],
-          colorPalette: Array.isArray(parsed.elements?.colorPalette)
-            ? parsed.elements.colorPalette
-            : [],
-          mood: parsed.elements?.mood || 'neutral',
-          style: parsed.elements?.style || 'default',
-          composition: parsed.elements?.composition || 'centered',
+          mainSubject: el.mainSubject || 'Unknown',
+          faces: typeof el.faces === 'number' ? el.faces : 0,
+          faceDetails: Array.isArray(el.faceDetails) ? el.faceDetails : [],
+          textOverlay: Array.isArray(el.textOverlay) ? el.textOverlay : [],
+          colorPalette: Array.isArray(el.colorPalette) ? el.colorPalette : [],
+          dominantColor: el.dominantColor || '#000000',
+          colorContrast: ['low', 'medium', 'high'].includes(el.colorContrast) ? el.colorContrast : 'medium',
+          mood: el.mood || 'neutral',
+          style: el.style || 'default',
+          composition: el.composition || 'centered',
+          ctrFactors: el.ctrFactors ? { ...defaultCTR, ...el.ctrFactors } : defaultCTR,
+          suggestions: Array.isArray(el.suggestions) ? el.suggestions : [],
         },
       };
     } catch {
@@ -261,11 +419,16 @@ export class VisionService {
         elements: {
           mainSubject: 'Unknown',
           faces: 0,
+          faceDetails: [],
           textOverlay: [],
           colorPalette: [],
+          dominantColor: '#000000',
+          colorContrast: 'medium',
           mood: 'neutral',
           style: 'default',
           composition: 'centered',
+          ctrFactors: defaultCTR,
+          suggestions: [],
         },
       };
     }

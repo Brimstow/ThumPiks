@@ -17,40 +17,13 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { authGet, authPost } from '../../utils/api';
+import type { VisionAnalysisResult, BingImageResult } from '../../types/vision.types';
 
 // ============================================
 // TYPES
 // ============================================
 
 type TabId = 'upload' | 'url' | 'search';
-
-interface VisionElements {
-  mainSubject: string;
-  faces: number;
-  textOverlay: string[];
-  colorPalette: string[];
-  mood: string;
-  style: string;
-  composition: string;
-}
-
-interface VisionAnalysisResult {
-  id: string;
-  imageUrl: string;
-  description: string;
-  suggestedPrompt: string;
-  elements: VisionElements;
-  createdAt: string;
-}
-
-interface BingImageResult {
-  url: string;
-  title: string;
-  sourceUrl: string;
-  width: number;
-  height: number;
-  thumbnailUrl: string;
-}
 
 // ============================================
 // COMPONENT

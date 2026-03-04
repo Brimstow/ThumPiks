@@ -7,6 +7,7 @@ import {
   indexThumbnail,
   indexBatch,
   healthCheck,
+  resolveUrl,
 } from './visual-search.controller';
 
 const router = Router();
@@ -25,6 +26,9 @@ router.post('/index/:thumbnailId', (req, res) =>
 router.post('/index-batch', (req, res) =>
   indexBatch(req as unknown as AuthRequest, res)
 );
+
+// URL resolution (for TikTok oEmbed)
+router.post('/resolve-url', (req, res) => resolveUrl(req as unknown as AuthRequest, res));
 
 // Health check
 router.get('/health', (req, res) => healthCheck(req as unknown as AuthRequest, res));

@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import { SimilarityMatch, IndexedThumbnail } from './types';
 
 const COLLECTION_NAME = 'thumbnails';
-const VECTOR_SIZE = 768; // Jina CLIP v2 output dimensions
+const VECTOR_SIZE = 1024; // Jina CLIP v2 output dimensions
 
 /**
  * Qdrant vector database client.
