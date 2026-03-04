@@ -111,6 +111,8 @@ function sleep(ms: number): Promise<void> {
 export class ReplicateAIService {
   private apiKey: string;
   private baseUrl: string;
+  /** Injectable sleep function — real setTimeout in production, no-op in tests */
+  private readonly sleep: (ms: number) => Promise<void>;
 
   // Model environment variable names (12-Factor: Config in environment)
   // All models must be configured via environment variables
@@ -122,9 +124,10 @@ export class ReplicateAIService {
     expand: 'REPLICATE_MODEL_EXPAND',
   } as const;
 
-  constructor() {
+  constructor(sleepFn?: (ms: number) => Promise<void>) {
     this.apiKey = process.env.REPLICATE_API_KEY || '';
     this.baseUrl = process.env.REPLICATE_API_URL || 'https://api.replicate.com/v1';
+    this.sleep = sleepFn ?? sleep;
 
     if (!this.apiKey) {
       console.warn(
@@ -514,7 +517,7 @@ export class ReplicateAIService {
             `Replicate: Retry ${attempt}/${MAX_RETRIES} after ${Math.round(delay)}ms` +
             (lastRetryAfter ? ` (server suggested ${lastRetryAfter}s)` : '')
           );
-          await sleep(delay);
+          await this.sleep(delay);
         }
 
         return await this.executePrediction(model, input);
@@ -531,6 +534,12 @@ export class ReplicateAIService {
         // Check if this is a non-retryable error
         if (error.statusCode && NON_RETRYABLE_STATUS_CODES.has(error.statusCode)) {
           console.error(`Replicate: Non-retryable error (${error.statusCode}):`, lastError.message);
+          throw lastError;
+        }
+
+        // Explicitly non-retryable (e.g., prediction failed/canceled terminal states)
+        if (error.isRetryable === false) {
+          console.error('Replicate: Terminal error (not retryable):', lastError.message);
           throw lastError;
         }
 
@@ -643,7 +652,10 @@ export class ReplicateAIService {
     }
 
     if (prediction.status === 'failed') {
-      throw new Error(prediction.error || 'Prediction failed immediately');
+      throw Object.assign(
+        new Error(prediction.error || 'Prediction failed immediately'),
+        { isRetryable: false }
+      );
     }
 
     // Poll for completion with rate limit handling
@@ -671,7 +683,7 @@ export class ReplicateAIService {
         );
       }
 
-      await sleep(POLL_INTERVAL);
+      await this.sleep(POLL_INTERVAL);
 
       const pollUrl = prediction.urls?.get || `${this.baseUrl}/predictions/${prediction.id}`;
       const statusResponse = await fetch(pollUrl, {
@@ -691,7 +703,7 @@ export class ReplicateAIService {
         }
         const retryAfter = parseRetryAfter(statusResponse as unknown as Response) || 5;
         console.warn(`Replicate: Rate limited during poll, waiting ${retryAfter}s (attempt ${pollRetries}/${MAX_POLL_RETRIES})`);
-        await sleep(retryAfter * 1000);
+        await this.sleep(retryAfter * 1000);
         continue;
       }
 
@@ -700,7 +712,7 @@ export class ReplicateAIService {
         if (statusResponse.status >= 500 && pollRetries < MAX_POLL_RETRIES) {
           pollRetries++;
           console.warn(`Replicate: Server error during poll (${statusResponse.status}), retrying...`);
-          await sleep(2000);
+          await this.sleep(2000);
           continue;
         }
         throw new Error(
@@ -714,13 +726,19 @@ export class ReplicateAIService {
     }
 
     if (prediction.status === 'failed') {
-      throw new Error(
-        prediction.error || 'Replicate prediction failed'
+      const err = Object.assign(
+        new Error(prediction.error || 'Replicate prediction failed'),
+        { isRetryable: false }
       );
+      throw err;
     }
 
     if (prediction.status === 'canceled') {
-      throw new Error('Replicate prediction was canceled');
+      const err = Object.assign(
+        new Error('Replicate prediction was canceled'),
+        { isRetryable: false }
+      );
+      throw err;
     }
 
     return prediction;
