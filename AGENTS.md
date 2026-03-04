@@ -731,9 +731,193 @@ You are a **polyglot JS/TS coding assistant** for the Thumbnail Maker project.
 
 ---
 
-## 🧪 TEST-DRIVEN DEVELOPMENT & TEST FAILURE RESOLUTION POLICY
+## 🧪 TESTING CONVENTIONS (CONDITIONAL REFERENCE)
 
-**This policy is MANDATORY for all AI assistants working on Thumbnail Maker.**
+**Parameters loaded on-demand. Apply ONLY when the task explicitly involves writing or fixing tests.**
+
+### Conditional Execution Logic
+
+```
+IF (task requires writing tests, fixing tests, or improving testability):
+    → Apply the patterns and principles below
+    → Execute with explicit user permission
+ELSE:
+    → Ignore this entire section
+    → Do not restructure production code for testability unprompted
+```
+
+### When to Apply These Conventions
+
+**✅ USE when:**
+- User says "write tests", "add tests", "we should test this"
+- Pre-push hook fails due to coverage thresholds
+- A test is failing and you need to investigate
+- User says "fix the tests" or "all tests must pass"
+
+**🚫 IGNORE when:**
+- Task is feature implementation only
+- Task is UI, routing, or config work
+- No tests are mentioned or implied
+
+---
+
+### Core Principle: Fix the Root, Not the Test
+
+**ALWAYS investigate implementation before touching tests.**
+
+```
+Test fails
+    ↓
+Is the production code wrong?  → YES → Fix production code
+    ↓ NO
+Is this a genuine requirement change?  → YES → Update test + document why
+    ↓ NO
+Is the test itself buggy (wrong mock, wrong assertion)?  → YES → Fix test
+    ↓ NO
+Ask the user
+```
+
+---
+
+### Jest Hoisting Trap (Critical — Applies to All New Service Tests)
+
+`jest.mock()` calls are **hoisted before all variable declarations**. Any mock factory that references a `const` or `let` variable declared in the same file will throw:
+
+```
+ReferenceError: Cannot access 'mockPrisma' before initialization
+```
+
+**✅ CORRECT — Inline factory, inject via constructor:**
+
+```typescript
+// Factory uses only inline values — no external variable references
+jest.mock('../../../utils/prisma-factory', () => ({
+  getPrisma: jest.fn(() => ({})),  // ← inline, no variable reference
+}));
+
+// Stable mock object declared AFTER the jest.mock calls
+const mockPrisma: any = {
+  user: { findUnique: jest.fn(), create: jest.fn() },
+};
+
+// Inject real mock via constructor in beforeEach
+beforeEach(() => {
+  service = new MyService(mockPrisma);
+});
+```
+
+**✅ CORRECT — Global storage for PrismaClient pattern (when `new PrismaClient()` is called at module level):**
+
+```typescript
+jest.mock('@prisma/client', () => {
+  const store = { myTable: { findMany: jest.fn(), create: jest.fn() } };
+  (global as any).__myModuleMock = store;  // store in global to avoid TDZ
+  return { PrismaClient: jest.fn().mockImplementation(() => store) };
+});
+
+// Getter function reads from global — no TDZ risk
+function getMock() { return (global as any).__myModuleMock; }
+```
+
+**❌ WRONG — References outer variable inside factory:**
+
+```typescript
+const mockPrisma = { user: { findUnique: jest.fn() } }; // ← TDZ: accessed before init
+jest.mock('../../../utils/prisma-factory', () => ({
+  getPrisma: jest.fn(() => mockPrisma),  // ← crashes at runtime
+}));
+```
+
+---
+
+### Testability Pattern: Injectable Dependencies
+
+When production code uses timing, I/O, or external calls inside private loops, make them injectable via an **optional constructor parameter**. Do NOT add fake timers to tests as the first solution — that's hacking the test.
+
+**Production code (testable by design):**
+
+```typescript
+export class MyService {
+  private readonly sleep: (ms: number) => Promise<void>;
+
+  constructor(sleepFn?: (ms: number) => Promise<void>) {
+    // Real implementation in production; no-op injected in tests
+    this.sleep = sleepFn ?? ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+  }
+
+  private async pollUntilDone(): Promise<void> {
+    await this.sleep(1000);  // Uses injected fn — instant in tests
+  }
+}
+```
+
+**Test (clean, no fake timers needed):**
+
+```typescript
+const noopSleep = () => Promise.resolve();
+
+beforeEach(() => {
+  service = new MyService(noopSleep);  // polling resolves instantly
+});
+```
+
+**When this applies:** Any service with retry loops, polling, backoff delays, or rate-limit waits.
+
+---
+
+### Terminal vs Retryable Errors
+
+When a service has retry logic (exponential backoff), **terminal states must be explicitly marked** to prevent spurious retries:
+
+```typescript
+// WRONG — plain Error has no retryable=false, retry loop will retry it
+throw new Error('Prediction was canceled');
+
+// CORRECT — explicitly non-retryable
+throw Object.assign(
+  new Error('Prediction was canceled'),
+  { isRetryable: false }  // ← retry loop checks this and bails immediately
+);
+```
+
+Terminal states that must NEVER retry: `failed`, `canceled`, `invalid_input`, `forbidden`.
+
+---
+
+### Test Structure Template
+
+```typescript
+describe('ServiceName', () => {
+  let service: ServiceName;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Set env vars needed by service
+    process.env.MY_API_KEY = 'test-key';
+    service = new ServiceName(noopSleep);  // inject no-op for timing
+  });
+
+  afterEach(() => {
+    // Clean up env vars
+    delete process.env.MY_API_KEY;
+  });
+
+  describe('methodName', () => {
+    it('describes expected behavior for given input', async () => {
+      // arrange
+      mockDep.method.mockResolvedValueOnce({ id: '1', status: 'ok' });
+      // act
+      const result = await service.methodName('input');
+      // assert
+      expect(result).toBe('expected');
+    });
+  });
+});
+```
+
+---
+
+
 
 ### Core Philosophy: Tests Are Contracts, Not Obstacles
 
