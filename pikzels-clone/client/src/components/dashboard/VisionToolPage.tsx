@@ -15,15 +15,43 @@ import {
   Layers,
   X,
   ExternalLink,
+  Sparkles,
+  Wand2,
+  Lightbulb,
+  BarChart3,
+  ChevronRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { authGet, authPost } from '../../utils/api';
-import type { VisionAnalysisResult, BingImageResult } from '../../types/vision.types';
+import type { VisionAnalysisResult, BingImageResult, CTRFactors } from '../../types/vision.types';
+import ThumbnailActionBar from '../ui/ThumbnailActionBar';
+import RecreateBetterModal from '../ui/RecreateBetterModal';
+import type { ImageActionContext } from '../../types/image-actions.types';
+import { CircularProgress } from '../ui/AnimatedCharts';
 
 // ============================================
 // TYPES
 // ============================================
 
 type TabId = 'upload' | 'url' | 'search';
+
+// ============================================
+// HELPERS
+// ============================================
+
+const getScoreColor = (score: number) => {
+  if (score >= 70) return { color: '#22c55e', textClass: 'text-green-400', bgClass: 'bg-green-500', label: 'Great' };
+  if (score >= 40) return { color: '#f59e0b', textClass: 'text-yellow-400', bgClass: 'bg-yellow-500', label: 'Fair' };
+  return { color: '#ef4444', textClass: 'text-red-400', bgClass: 'bg-red-500', label: 'Needs Work' };
+};
+
+const CTR_SUB_SCORES: { key: keyof CTRFactors; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { key: 'faceScore',        label: 'Faces',   icon: Users },
+  { key: 'textScore',        label: 'Text',    icon: Type },
+  { key: 'colorScore',       label: 'Colors',  icon: Palette },
+  { key: 'compositionScore', label: 'Layout',  icon: BarChart3 },
+  { key: 'emotionScore',     label: 'Emotion', icon: Sparkles },
+];
 
 // ============================================
 // COMPONENT
@@ -46,6 +74,23 @@ const VisionToolPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  // State for generating from prompt
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+
+  // State for ThumPiks Score bar animation
+  const [barsAnimated, setBarsAnimated] = useState(false);
+
+  // Reset bar animation when analysis result changes
+  useEffect(() => {
+    if (analysisResult?.elements?.ctrFactors) {
+      setBarsAnimated(false);
+      const t = setTimeout(() => setBarsAnimated(true), 300);
+      return () => clearTimeout(t);
+    }
+  }, [analysisResult]);
 
   // Fetch history on mount
   useEffect(() => {
@@ -201,6 +246,63 @@ const VisionToolPage: React.FC = () => {
     setActiveTab('url');
     setImageUrl(item.imageUrl);
   }, []);
+
+  // Generate from suggested prompt
+  const handleGenerateFromPrompt = useCallback(async () => {
+    if (!analysisResult?.suggestedPrompt) return;
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await authPost('/api/thumbnails/ai/generate', {
+        prompt: analysisResult.suggestedPrompt,
+        aspectRatio: '16:9',
+        style: analysisResult.elements.style || 'photorealistic',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 402) {
+          throw new Error('Insufficient credits. Please purchase more credits.');
+        }
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      const result = await response.json();
+      setGeneratedImage(result.imageUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [analysisResult]);
+
+  // Get current image URL for action bar
+  const getCurrentImageUrl = useCallback(() => {
+    if (generatedImage) return generatedImage;
+    if (analysisResult?.imageUrl) return analysisResult.imageUrl;
+    if (uploadedImage) return uploadedImage;
+    if (imageUrl) return imageUrl;
+    return null;
+  }, [generatedImage, analysisResult, uploadedImage, imageUrl]);
+
+  // Build action context for ThumbnailActionBar
+  const getActionContext = useCallback((): ImageActionContext | null => {
+    const currentImage = getCurrentImageUrl();
+    if (!currentImage) return null;
+
+    return {
+      imageUrl: currentImage,
+      sourceSettings: {
+        prompt: analysisResult?.suggestedPrompt,
+        style: analysisResult?.elements.style,
+        aspectRatio: '16:9',
+      },
+      // Pass existing analysis to skip re-analysis in Recreate Better
+      analysisResult: analysisResult || undefined,
+    };
+  }, [getCurrentImageUrl, analysisResult]);
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'upload', label: 'Upload', icon: <Upload className="w-4 h-4" /> },
@@ -516,6 +618,82 @@ const VisionToolPage: React.FC = () => {
         <div className="space-y-6">
           {analysisResult ? (
             <>
+              {/* ThumPiks Score */}
+              {analysisResult.elements.ctrFactors && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">ThumPiks Score</h3>
+
+                  {/* Hero Gauge */}
+                  {(() => {
+                    const overallCTR = analysisResult.elements.ctrFactors.overallCTR;
+                    const scoreStyle = getScoreColor(overallCTR);
+                    return (
+                      <div className="flex flex-col items-center mb-6">
+                        <CircularProgress
+                          percentage={overallCTR}
+                          size={140}
+                          strokeWidth={10}
+                          color={scoreStyle.color}
+                        >
+                          <div className="text-center">
+                            <div className={`text-3xl font-bold ${scoreStyle.textClass}`}>
+                              {overallCTR}
+                            </div>
+                            <div className="text-sm text-slate-500">/ 100</div>
+                          </div>
+                        </CircularProgress>
+                        <span className={`text-sm font-medium mt-2 ${scoreStyle.textClass}`}>
+                          {scoreStyle.label}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Sub-Score Breakdown */}
+                  <div className="space-y-3">
+                    {CTR_SUB_SCORES.map(({ key, label, icon: Icon }) => {
+                      const score = analysisResult.elements.ctrFactors[key] || 0;
+                      const { textClass, bgClass } = getScoreColor(score);
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          <div className={`flex items-center gap-2 w-24 flex-shrink-0`}>
+                            <Icon className={`w-4 h-4 ${textClass}`} />
+                            <span className="text-sm text-slate-400">{label}</span>
+                          </div>
+                          <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ease-out ${bgClass}`}
+                              style={{ width: barsAnimated ? `${score}%` : '0%' }}
+                            />
+                          </div>
+                          <span className={`text-sm font-semibold w-8 text-right ${textClass}`}>
+                            {score}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Improvement Suggestions */}
+                  {analysisResult.elements.suggestions?.length > 0 && (
+                    <div className="border-t border-slate-800 pt-4 mt-4">
+                      <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                        <Lightbulb className="w-4 h-4 text-yellow-400" />
+                        How to Improve
+                      </h4>
+                      <div className="space-y-2">
+                        {analysisResult.elements.suggestions.slice(0, 3).map((suggestion, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-sm">
+                            <ChevronRight className="w-3 h-3 mt-1 flex-shrink-0 text-cyan-400" />
+                            <span className="text-slate-400 leading-relaxed">{suggestion}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Description */}
               <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-3">Analysis</h3>
@@ -656,6 +834,70 @@ const VisionToolPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Generate from Prompt Button */}
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">Create Similar Thumbnail</h3>
+                <p className="text-slate-400 text-sm mb-4">
+                  Generate a new thumbnail using the suggested prompt above
+                </p>
+                <button
+                  onClick={handleGenerateFromPrompt}
+                  disabled={isGenerating}
+                  className="w-full py-3 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/25"
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Generate from Prompt
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Generated Image Preview */}
+              {generatedImage && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-3">Generated Result</h3>
+                  <div className="relative aspect-video bg-slate-800 rounded-xl overflow-hidden mb-4">
+                    <img
+                      src={generatedImage}
+                      alt="Generated thumbnail"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  {/* Action Bar for generated image */}
+                  <ThumbnailActionBar
+                    context={{
+                      imageUrl: generatedImage,
+                      sourceSettings: {
+                        prompt: analysisResult.suggestedPrompt,
+                        style: analysisResult.elements.style,
+                        aspectRatio: '16:9',
+                      },
+                    }}
+                    visibleActions={['save', 'edit', 'download', 'regenerate', 'recreateBetter']}
+                    variant="horizontal"
+                  />
+                </div>
+              )}
+
+              {/* Action Bar for analyzed image (if no generated image yet) */}
+              {!generatedImage && getActionContext() && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-3">Quick Actions</h3>
+                  <ThumbnailActionBar
+                    context={getActionContext()!}
+                    visibleActions={['save', 'edit', 'download', 'recreateBetter']}
+                    variant="horizontal"
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
@@ -687,6 +929,9 @@ const VisionToolPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Recreate Better Modal */}
+      <RecreateBetterModal />
     </div>
   );
 };

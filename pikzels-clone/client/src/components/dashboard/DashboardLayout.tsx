@@ -149,6 +149,7 @@ const DashboardLayout: React.FC = () => {
   const categoryNavItems = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'My Thumbnails', path: '/dashboard/thumbnails' },
+    { label: 'Uploads', path: '/dashboard/uploads' },
     { label: 'Trending', path: '/dashboard/trending' },
     { label: 'Pricing', path: '/dashboard/pricing' },
     { label: 'Help', path: '/dashboard/help' },

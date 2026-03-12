@@ -1,8 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw } from 'lucide-react';
+import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw, Sparkles } from 'lucide-react';
+import { DragDropProvider } from '@dnd-kit/react';
+import { useDraggable, useDroppable } from '@dnd-kit/react';
 import { IS_DEVELOPMENT, API_BASE_URL } from '../../config/environment';
 import { authGet } from '../../utils/api';
+import { formatRelativeTime } from '../../lib/formatters';
+import { recategorizeThumbnail } from '../../services/quickEditService';
+import RecreateBetterModal from '../ui/RecreateBetterModal';
+import ImagePreviewModal from '../ui/ImagePreviewModal';
+import AssetContextMenu, { ThumbnailPlatform } from '../ui/AssetContextMenu';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -29,28 +36,6 @@ type PlatformFilter = 'all' | 'youtube' | 'instagram' | 'tiktok' | 'twitter';
 // ═══════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
-
-/**
- * Format date to relative time (e.g., "2 hours ago", "3 days ago")
- */
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-  const diffWeek = Math.floor(diffDay / 7);
-  const diffMonth = Math.floor(diffDay / 30);
-
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
-  if (diffHour < 24) return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
-  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
-  if (diffWeek < 4) return `${diffWeek} week${diffWeek === 1 ? '' : 's'} ago`;
-  return `${diffMonth} month${diffMonth === 1 ? '' : 's'} ago`;
-}
 
 /**
  * Get platform icon component based on platform type
@@ -126,6 +111,38 @@ const ThumbnailSkeleton: React.FC<{ spanClass: string }> = ({ spanClass }) => (
 );
 
 // ═══════════════════════════════════════════════════════════════════
+// DRAG-DROP HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+/** Wrapper that makes a thumbnail card draggable */
+const DraggableThumbnailCard: React.FC<{
+  id: string;
+  index: number;
+  children: React.ReactNode;
+}> = ({ id, index, children }) => {
+  const { ref, isDragSource } = useDraggable({ id, data: { type: 'thumbnail', thumbnailId: id } });
+  return (
+    <div ref={ref} style={{ opacity: isDragSource ? 0.4 : 1, transition: 'opacity 150ms' }}>
+      {children}
+    </div>
+  );
+};
+
+/** Wrapper that makes a platform tab a drop target */
+const DroppablePlatformTab: React.FC<{
+  platform: PlatformFilter;
+  children: React.ReactNode;
+  isOver?: boolean;
+}> = ({ platform, children }) => {
+  const { ref, isDropTarget } = useDroppable({ id: `tab-${platform}`, data: { platform }, disabled: platform === 'all' });
+  return (
+    <div ref={ref} className={`relative transition-all ${isDropTarget ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[#020817] rounded-lg scale-105' : ''}`}>
+      {children}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════
 
@@ -138,6 +155,7 @@ const MyThumbnailsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
   // DATA FETCHING
@@ -217,11 +235,41 @@ const MyThumbnailsPage: React.FC = () => {
     setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
   };
 
+  const handleRecategorizeThumbnail = useCallback(async (thumbnailId: string, platform: ThumbnailPlatform) => {
+    try {
+      await recategorizeThumbnail(thumbnailId, platform);
+      // Update local state
+      setThumbnails((prev) =>
+        prev.map((t) =>
+          t.id === thumbnailId
+            ? { ...t, parameters: { ...t.parameters, platform } }
+            : t
+        )
+      );
+    } catch (err) {
+      console.error('Recategorize failed:', err);
+    }
+  }, []);
+
   // ═══════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleDragEnd = useCallback((event: any) => {
+    const source = event.operation?.source;
+    const target = event.operation?.target;
+    if (!source || !target) return;
+
+    const thumbnailId = source.data?.thumbnailId as string | undefined;
+    const platform = target.data?.platform as string | undefined;
+    if (thumbnailId && platform && platform !== 'all') {
+      handleRecategorizeThumbnail(thumbnailId, platform as ThumbnailPlatform);
+    }
+  }, [handleRecategorizeThumbnail]);
+
   return (
+    <DragDropProvider onDragEnd={handleDragEnd}>
     <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
@@ -268,6 +316,7 @@ const MyThumbnailsPage: React.FC = () => {
       {/* Platform Filters */}
       <div className="flex flex-col sm:flex-row items-center justify-between border-b border-slate-800 pb-1 mb-8 gap-4">
         <div className="flex items-center gap-8 overflow-x-auto w-full sm:w-auto no-scrollbar">
+          <DroppablePlatformTab platform="all">
           <button 
             onClick={() => setPlatformFilter('all')}
             className={`relative pb-4 text-sm font-semibold whitespace-nowrap transition-colors ${
@@ -279,6 +328,8 @@ const MyThumbnailsPage: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]" />
             )}
           </button>
+          </DroppablePlatformTab>
+          <DroppablePlatformTab platform="youtube">
           <button 
             onClick={() => setPlatformFilter('youtube')}
             className={`relative pb-4 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
@@ -291,6 +342,8 @@ const MyThumbnailsPage: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
             )}
           </button>
+          </DroppablePlatformTab>
+          <DroppablePlatformTab platform="instagram">
           <button 
             onClick={() => setPlatformFilter('instagram')}
             className={`relative pb-4 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
@@ -303,6 +356,8 @@ const MyThumbnailsPage: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.6)]" />
             )}
           </button>
+          </DroppablePlatformTab>
+          <DroppablePlatformTab platform="tiktok">
           <button 
             onClick={() => setPlatformFilter('tiktok')}
             className={`relative pb-4 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
@@ -315,6 +370,8 @@ const MyThumbnailsPage: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.6)]" />
             )}
           </button>
+          </DroppablePlatformTab>
+          <DroppablePlatformTab platform="twitter">
           <button 
             onClick={() => setPlatformFilter('twitter')}
             className={`relative pb-4 text-sm font-medium transition-colors whitespace-nowrap ${
@@ -326,6 +383,7 @@ const MyThumbnailsPage: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-500 shadow-[0_0_12px_rgba(100,116,139,0.6)]" />
             )}
           </button>
+          </DroppablePlatformTab>
         </div>
 
         <div className="flex items-center gap-3 text-xs">
@@ -396,8 +454,14 @@ const MyThumbnailsPage: React.FC = () => {
             const spanClass = getGridSpanClass(index);
             
             return (
+              <DraggableThumbnailCard key={thumbnail.id} id={thumbnail.id} index={index}>
+              <AssetContextMenu
+                variant="thumbnail"
+                currentPlatform={thumbnail.parameters?.platform}
+                onRecategorize={(platform) => handleRecategorizeThumbnail(thumbnail.id, platform)}
+              >
               <div 
-                key={thumbnail.id}
+                onClick={() => setPreviewIndex(index)}
                 className={`group relative w-full h-full ${spanClass} bg-[#0F172A] rounded-xl overflow-hidden border border-slate-800 shadow-sm transition-all hover:shadow-xl ${platformInfo.hoverClass} cursor-pointer`}
               >
                 {/* Thumbnail Image */}
@@ -427,10 +491,28 @@ const MyThumbnailsPage: React.FC = () => {
                 {/* Hover Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
-                    <span className="text-xs font-medium text-white truncate max-w-[70%]">
+                    <span className="text-xs font-medium text-white truncate max-w-[60%]">
                       {thumbnail.title || 'Untitled Thumbnail'}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Dispatch custom event to open Recreate Better modal
+                          window.dispatchEvent(new CustomEvent('openRecreateBetter', {
+                            detail: {
+                              imageUrl: thumbnail.imageUrl,
+                              sourceSettings: {
+                                prompt: thumbnail.prompt,
+                              },
+                            }
+                          }));
+                        }}
+                        className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:shadow-lg hover:shadow-purple-500/30 transition-all"
+                        title="Recreate Better with AI"
+                      >
+                        <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+                      </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/editor/${thumbnail.id}`); }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
@@ -439,6 +521,14 @@ const MyThumbnailsPage: React.FC = () => {
                         <Edit className="w-3 h-3" strokeWidth={2.5} />
                       </button>
                       <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Download the thumbnail
+                          const link = document.createElement('a');
+                          link.href = thumbnail.imageUrl;
+                          link.download = `${thumbnail.title || 'thumbnail'}.jpg`;
+                          link.click();
+                        }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
                         title="Download thumbnail"
                       >
@@ -448,6 +538,8 @@ const MyThumbnailsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </AssetContextMenu>
+              </DraggableThumbnailCard>
             );
           })}
 
@@ -460,7 +552,42 @@ const MyThumbnailsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Recreate Better Modal */}
+      <RecreateBetterModal />
+
+      {/* Image Preview Modal */}
+      {previewIndex !== null && filteredThumbnails[previewIndex] && (
+        <ImagePreviewModal
+          isOpen
+          onClose={() => setPreviewIndex(null)}
+          imageUrl={filteredThumbnails[previewIndex].imageUrl}
+          title={filteredThumbnails[previewIndex].title}
+          metadata={{
+            platform: filteredThumbnails[previewIndex].parameters?.platform,
+            date: filteredThumbnails[previewIndex].createdAt,
+            prompt: filteredThumbnails[previewIndex].prompt,
+          }}
+          actions={{
+            onEdit: () => {
+              setPreviewIndex(null);
+              navigate(`/dashboard/editor/${filteredThumbnails[previewIndex!].id}`);
+            },
+            onDownload: () => {
+              const t = filteredThumbnails[previewIndex!];
+              const link = document.createElement('a');
+              link.href = t.imageUrl;
+              link.download = `${t.title || 'thumbnail'}.jpg`;
+              link.click();
+            },
+          }}
+          items={filteredThumbnails.map((t) => ({ imageUrl: t.imageUrl, title: t.title }))}
+          currentIndex={previewIndex}
+          onNavigate={(i) => setPreviewIndex(i)}
+        />
+      )}
     </main>
+    </DragDropProvider>
   );
 };
 

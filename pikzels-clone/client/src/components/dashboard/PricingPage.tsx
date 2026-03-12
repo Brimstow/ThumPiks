@@ -60,42 +60,43 @@ const PricingPage = () => {
       starter: {
         id: 'starter',
         name: 'Starter',
-        price: billingCycle === 'monthly' ? 9 : 7.50,
-        thumbnails: 30,
+        price: billingCycle === 'monthly' ? 19 : 15,
+        thumbnails: 50,
         features: [
-          '30 AI thumbnails/month',
-          'All styles & templates',
+          '50 AI thumbnails/month',
+          'All 9 AI tools',
           '1080p HD resolution',
           'No watermark',
-          'Face swap (1 face)'
+          'Multi-format export (PNG/JPG/WebP)',
+          'Email support'
         ]
       },
       pro: {
         id: 'pro',
         name: 'Creator Pro',
-        price: billingCycle === 'monthly' ? 24 : 19,
-        thumbnails: 120,
+        price: billingCycle === 'monthly' ? 39 : 29,
+        thumbnails: 200,
         features: [
-          '120 AI thumbnails/month',
+          '200 AI thumbnails/month',
           'All Starter features',
-          'Face training (5 faces)',
-          'A/B test variations',
-          '2x faster generation',
-          'Trending insights'
+          'Flash + Standard + Pro models',
+          'A/B testing',
+          'Vision / CTR analysis',
+          'Brand kit & analytics'
         ]
       },
-      business: {
-        id: 'business',
-        name: 'Agency',
-        price: billingCycle === 'monthly' ? 69 : 59,
-        thumbnails: 500,
+      ultra_pro: {
+        id: 'ultra_pro',
+        name: 'Ultra Pro',
+        price: billingCycle === 'monthly' ? 79 : 59,
+        thumbnails: 600,
         features: [
-          '500 AI thumbnails/month',
+          '600 AI thumbnails/month',
           'All Creator Pro features',
-          'Team collaboration (5 seats)',
-          'Brand kit & templates',
-          'API access',
-          'White-label option'
+          'All generations private',
+          'Pro models default',
+          'Early access to new features',
+          'Dedicated support'
         ]
       }
     };
@@ -323,7 +324,7 @@ Please try again or contact support if the issue persists.`);
               Starter
             </div>
             <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '9' : '7.50'}
+              ${billingCycle === 'monthly' ? '19' : '15'}
               <span className="text-lg text-slate-400">/month</span>
             </div>
             <div className="text-sm text-slate-400">
@@ -334,11 +335,11 @@ Please try again or contact support if the issue persists.`);
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>30 AI thumbnails/month</span>
+              <span>50 AI thumbnails/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>All styles & templates</span>
+              <span>All 9 AI tools</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -350,11 +351,11 @@ Please try again or contact support if the issue persists.`);
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Face swap (1 face)</span>
+              <span>Multi-format export</span>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>No A/B testing</span>
+            <div className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              <span>Email support</span>
             </div>
           </div>
 
@@ -367,7 +368,7 @@ Please try again or contact support if the issue persists.`);
             {getButtonText('starter')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
-            {billingCycle === 'annual' ? 'Save 17% annually' : '7-day free trial'}
+            {billingCycle === 'annual' ? 'Save 21% annually' : '7-day free trial'}
           </div>
         </div>
 
@@ -385,7 +386,7 @@ Please try again or contact support if the issue persists.`);
               Creator Pro
             </div>
             <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '24' : '19'}
+              ${billingCycle === 'monthly' ? '39' : '29'}
               <span className="text-lg text-slate-400">/month</span>
             </div>
             <div className="text-sm text-slate-400">
@@ -396,7 +397,7 @@ Please try again or contact support if the issue persists.`);
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>120 AI thumbnails/month</span>
+              <span>200 AI thumbnails/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -404,19 +405,19 @@ Please try again or contact support if the issue persists.`);
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Face training (5 faces)</span>
+              <span>Flash + Standard + Pro models</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>A/B test variations</span>
+              <span>A/B testing</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>2x faster generation</span>
+              <span>Vision / CTR analysis</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Trending insights</span>
+              <span>Brand kit & analytics</span>
             </div>
           </div>
 
@@ -433,26 +434,26 @@ Please try again or contact support if the issue persists.`);
           </div>
         </div>
 
-        {/* Agency Plan */}
+        {/* Ultra Pro Plan */}
         <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
           <div className="mb-6">
             <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
-              Agency
+              Ultra Pro
             </div>
             <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '69' : '59'}
+              ${billingCycle === 'monthly' ? '79' : '59'}
               <span className="text-lg text-slate-400">/month</span>
             </div>
             <div className="text-sm text-slate-400">
-              For teams & agencies
+              For power creators
             </div>
           </div>
 
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>500 AI thumbnails/month</span>
+              <span>600 AI thumbnails/month</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -460,32 +461,32 @@ Please try again or contact support if the issue persists.`);
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Team collaboration (5 seats)</span>
+              <span>All generations private</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Brand kit & templates</span>
+              <span>Pro models default</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>API access</span>
+              <span>Early access to new features</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>White-label option</span>
+              <span>Dedicated support</span>
             </div>
           </div>
 
           <button 
-            onClick={() => handleUpgradeClick('business')}
-            disabled={getButtonDisabled('business')}
+            onClick={() => handleUpgradeClick('ultra_pro')}
+            disabled={getButtonDisabled('ultra_pro')}
             className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
           >
-            {upgrading === 'business' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {getButtonText('business')}
+            {upgrading === 'ultra_pro' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {getButtonText('ultra_pro')}
           </button>
           <div className="text-center text-xs text-slate-500 mt-3">
-            Custom plans available
+            {billingCycle === 'annual' ? 'Save 25% annually' : '14-day free trial'}
           </div>
         </div>
       </div>
@@ -541,7 +542,7 @@ Please try again or contact support if the issue persists.`);
             {
               question: 'What payment methods do you accept?',
               answer:
-                'We accept all major credit cards (Visa, Mastercard, American Express, Discover) and PayPal. For Agency plans, we can also arrange custom invoicing.',
+                'We accept all major credit cards (Visa, Mastercard, American Express, Discover) and PayPal. For Ultra Pro plans, we can also arrange custom invoicing.',
             },
             {
               question: 'Is there a discount for annual billing?',

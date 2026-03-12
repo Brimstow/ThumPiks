@@ -25,7 +25,7 @@ export default function DemoCheckout() {
     const planNames: Record<string, string> = {
       starter: 'Starter',
       pro: 'Creator Pro',
-      business: 'Agency'
+      ultra_pro: 'Ultra Pro'
     };
     return planNames[plan || ''] || plan;
   };
@@ -33,9 +33,9 @@ export default function DemoCheckout() {
   // Get plan price
   const getPlanPrice = (plan: string | null, billingCycle: string | null) => {
     const prices: Record<string, { monthly: number; annual: number }> = {
-      starter: { monthly: 9, annual: 7.50 },
-      pro: { monthly: 24, annual: 19 },
-      business: { monthly: 69, annual: 59 }
+      starter: { monthly: 19, annual: 15 },
+      pro: { monthly: 39, annual: 29 },
+      ultra_pro: { monthly: 79, annual: 59 }
     };
     const planPrices = prices[plan || ''];
     if (!planPrices) return '$0';

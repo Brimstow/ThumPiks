@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, FolderOpen, Cloud, Scan, ChevronLeft, ChevronRight, PenTool, Video } from 'lucide-react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGoogleDrive } from '@fortawesome/free-brands-svg-icons';
+import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video } from 'lucide-react';
 import { API_BASE_URL, IS_DEVELOPMENT } from '../../config/environment';
 import { useNavigate } from 'react-router-dom';
-import { AllProjectsWidget, RecentThumbnailsWidget, StatsWidget, StorageIndicator } from './widgets';
+import { ProjectsAndUploadsWidget, RecentThumbnailsWidget, StatsWidget, StorageIndicator } from './widgets';
 import { authPost } from '../../utils/api';
+import { formatFileSize } from '../../lib/formatters';
+import { uploadAsset } from '../../services/quickEditService';
+import ThumbnailActionBar from '../ui/ThumbnailActionBar';
+import RecreateBetterModal from '../ui/RecreateBetterModal';
 // CollapsibleSection utilities available if needed
 // import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
 
@@ -47,21 +49,6 @@ const exampleThumbnails = [
   { id: 6, title: 'Music Video', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1280&h=720&fit=crop', category: 'Music' },
 ];
 
-// Mock Google Drive files
-const mockGoogleDriveFiles = [
-  { id: 'g1', name: 'profile-photo.jpg', type: 'image/jpeg', size: 245000, icon: '🖼️' },
-  { id: 'g2', name: 'brand-logo.png', type: 'image/png', size: 89000, icon: '🖼️' },
-  { id: 'g3', name: 'headshot-2024.jpg', type: 'image/jpeg', size: 512000, icon: '🖼️' },
-  { id: 'g4', name: 'team-photo.png', type: 'image/png', size: 1200000, icon: '🖼️' },
-];
-
-// Mock iCloud files
-const mockICloudFiles = [
-  { id: 'i1', name: 'vacation-portrait.heic', type: 'image/heic', size: 3200000, icon: '🖼️' },
-  { id: 'i2', name: 'selfie.jpg', type: 'image/jpeg', size: 1800000, icon: '🖼️' },
-  { id: 'i3', name: 'avatar.png', type: 'image/png', size: 156000, icon: '🖼️' },
-  { id: 'i4', name: 'photo-library-export.jpg', type: 'image/jpeg', size: 890000, icon: '🖼️' },
-];
 
 const DashboardHome: React.FC = () => {
   const navigate = useNavigate();
@@ -78,14 +65,11 @@ const DashboardHome: React.FC = () => {
   
   // Modal states
   const [showFaceModal, setShowFaceModal] = useState(false);
-  const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
-  const [showAppleModal, setShowAppleModal] = useState(false);
   const [showExampleModal, setShowExampleModal] = useState(false);
   
   // Face inclusion states
   const [faceImage, setFaceImage] = useState<string | null>(null);
   const [faceFileName, setFaceFileName] = useState<string | null>(null);
-  const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [faceDragActive, setFaceDragActive] = useState(false);
   
   // Upload states
@@ -94,10 +78,6 @@ const DashboardHome: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [mainDragActive, setMainDragActive] = useState(false);
   
-  // Cloud integration states
-  const [googleDriveConnected, setGoogleDriveConnected] = useState(false);
-  const [appleConnected, setAppleConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
   
   // Example modal state
   const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
@@ -165,8 +145,6 @@ const DashboardHome: React.FC = () => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowFaceModal(false);
-        setShowGoogleDriveModal(false);
-        setShowAppleModal(false);
         setShowExampleModal(false);
       }
     };
@@ -253,32 +231,48 @@ const DashboardHome: React.FC = () => {
     
     setIsUploading(true);
     setUploadProgress(0);
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 100);
+    const startTime = Date.now();
     
     const reader = new FileReader();
+    
+    reader.onprogress = (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    
     reader.onload = (e) => {
-      setTimeout(() => {
+      setUploadProgress(100);
+      const elapsed = Date.now() - startTime;
+      const base64 = e.target?.result as string;
+      const finalize = () => {
         setUploadedFile({
           name: file.name,
           size: file.size,
           type: file.type,
-          preview: e.target?.result as string,
+          preview: base64,
         });
         setIsUploading(false);
         setUploadProgress(0);
-        clearInterval(interval);
-      }, 1000);
+      };
+      // Persist to user-assets in background (fire-and-forget)
+      uploadAsset({ type: 'background', imageData: base64, name: file.name }).catch((err) =>
+        console.error('Failed to persist upload:', err)
+      );
+      // Minimum 300ms display to prevent jarring flash on small files
+      if (elapsed >= 300) {
+        finalize();
+      } else {
+        setTimeout(finalize, 300 - elapsed);
+      }
     };
+    
+    reader.onerror = () => {
+      setError('Failed to read file. Please try again.');
+      setIsUploading(false);
+      setUploadProgress(0);
+    };
+    
     reader.readAsDataURL(file);
   }, []);
 
@@ -291,9 +285,17 @@ const DashboardHome: React.FC = () => {
     
     const reader = new FileReader();
     reader.onload = (e) => {
-      setFaceImage(e.target?.result as string);
+      const base64 = e.target?.result as string;
+      setFaceImage(base64);
       setFaceFileName(file.name);
       setIncludeFace(true);
+      // Persist face to user-assets in background (fire-and-forget)
+      uploadAsset({ type: 'face', imageData: base64, name: file.name }).catch((err) =>
+        console.error('Failed to persist face upload:', err)
+      );
+    };
+    reader.onerror = () => {
+      setError('Failed to read face image. Please try again.');
     };
     reader.readAsDataURL(file);
   }, []);
@@ -332,52 +334,6 @@ const DashboardHome: React.FC = () => {
       handleFaceUpload(file);
     }
   }, [handleFaceUpload]);
-
-  // AI Face detection mock
-  const handleAIFaceDetection = useCallback(() => {
-    setIsDetectingFace(true);
-    setTimeout(() => {
-      setIsDetectingFace(false);
-      // Mock detected face
-      setFaceImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face');
-      setFaceFileName('AI Detected Face');
-      setIncludeFace(true);
-    }, 2000);
-  }, []);
-
-  // Mock Google Drive OAuth
-  const handleGoogleDriveConnect = useCallback(() => {
-    setIsConnecting(true);
-    setTimeout(() => {
-      setGoogleDriveConnected(true);
-      setIsConnecting(false);
-    }, 1500);
-  }, []);
-
-  // Mock Apple OAuth
-  const handleAppleConnect = useCallback(() => {
-    setIsConnecting(true);
-    setTimeout(() => {
-      setAppleConnected(true);
-      setIsConnecting(false);
-    }, 1500);
-  }, []);
-
-  // Select file from cloud
-  const handleSelectCloudFile = useCallback((file: typeof mockGoogleDriveFiles[0], source: 'google' | 'apple') => {
-    setFaceImage(`https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face`);
-    setFaceFileName(`${file.name} (${source === 'google' ? 'Google Drive' : 'iCloud'})`);
-    setIncludeFace(true);
-    setShowGoogleDriveModal(false);
-    setShowAppleModal(false);
-  }, []);
-
-  // Format file size
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   return (
     <>
@@ -544,7 +500,7 @@ const DashboardHome: React.FC = () => {
               <div className="mb-4 p-4 rounded-xl bg-blue-500/10 border border-blue-500/50">
                 <div className="flex items-center gap-3 mb-2">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                  <span className="text-sm text-blue-400">Uploading...</span>
+                  <span className="text-sm text-blue-400">Reading file...</span>
                 </div>
                 <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                   <div 
@@ -555,7 +511,7 @@ const DashboardHome: React.FC = () => {
               </div>
             )}
 
-            {/* Row 1: Include Face | Google + Upload + Apple | See Example */}
+            {/* Row 1: Include Face | Upload | See Example */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
               {/* Left Button - Include Face */}
               <button 
@@ -570,49 +526,14 @@ const DashboardHome: React.FC = () => {
                 Include Face {includeFace && '✓'}
               </button>
 
-              {/* Center: Upload with Google/Apple flanking */}
-              <div className="flex items-center justify-center">
-                <div className="relative w-64 h-24">
-                  {/* Center: Upload */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 m-auto w-40 h-24 px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex flex-col items-center justify-center gap-2 group"
-                  >
-                    <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    Upload
-                  </button>
-
-                  {/* Left: Google Drive */}
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12">
-                    <button
-                      onClick={() => setShowGoogleDriveModal(true)}
-                      className="w-16 h-16 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center hover:border-blue-500 hover:bg-slate-900 transition-all group"
-                    >
-                      <FontAwesomeIcon icon={faGoogleDrive} className="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors" />
-                    </button>
-                    <p className="text-xs text-center mt-1 text-slate-500">Google</p>
-                  </div>
-
-                  {/* Right: Apple Drive */}
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12">
-                    <button
-                      onClick={() => setShowAppleModal(true)}
-                      className="flex hover:border-slate-500 hover:bg-slate-900 transition-all bg-slate-950 w-16 h-16 border-slate-800 border rounded-lg items-center justify-center group"
-                    >
-                      <svg
-                        role="img"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 text-slate-300 group-hover:text-slate-100 transition-colors"
-                      >
-                        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.99 3.91-.99 1.832 0 2.35.99 3.96.958 1.637-.033 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.666.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"></path>
-                      </svg>
-                    </button>
-                    <p className="text-xs text-center mt-1 text-slate-500">Apple</p>
-                  </div>
-                </div>
-              </div>
+              {/* Center: Upload */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 group"
+              >
+                <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                Upload
+              </button>
 
               {/* Right Button - See Example */}
               <button
@@ -757,56 +678,6 @@ const DashboardHome: React.FC = () => {
               <p className="text-xs text-slate-500">or click to browse</p>
             </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-6">
-              <div className="flex-1 h-px bg-slate-800"></div>
-              <span className="text-xs text-slate-500 font-medium">OR</span>
-              <div className="flex-1 h-px bg-slate-800"></div>
-            </div>
-
-            {/* AI Detection */}
-            <button
-              onClick={handleAIFaceDetection}
-              disabled={isDetectingFace}
-              className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {isDetectingFace ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Detecting Face...
-                </>
-              ) : (
-                <>
-                  <Scan className="w-5 h-5" />
-                  Auto-Detect Face with AI
-                </>
-              )}
-            </button>
-
-            {/* Cloud options */}
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <button
-                onClick={() => {
-                  setShowFaceModal(false);
-                  setShowGoogleDriveModal(true);
-                }}
-                className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-all flex items-center justify-center gap-2"
-              >
-                <FontAwesomeIcon icon={faGoogleDrive} className="w-4 h-4" />
-                Google Drive
-              </button>
-              <button
-                onClick={() => {
-                  setShowFaceModal(false);
-                  setShowAppleModal(true);
-                }}
-                className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-all flex items-center justify-center gap-2"
-              >
-                <Cloud className="w-4 h-4" />
-                iCloud
-              </button>
-            </div>
-
             {/* Confirm button */}
             <button
               onClick={() => setShowFaceModal(false)}
@@ -814,150 +685,6 @@ const DashboardHome: React.FC = () => {
             >
               {faceImage ? 'Confirm Selection' : 'Close'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Google Drive Modal */}
-      {showGoogleDriveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <FontAwesomeIcon icon={faGoogleDrive} className="w-6 h-6 text-blue-400" />
-                <h3 className="text-xl font-semibold text-slate-50">Google Drive</h3>
-              </div>
-              <button
-                onClick={() => setShowGoogleDriveModal(false)}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            {!googleDriveConnected ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <FontAwesomeIcon icon={faGoogleDrive} className="w-8 h-8 text-blue-400" />
-                </div>
-                <h4 className="text-lg font-medium text-slate-200 mb-2">Connect Google Drive</h4>
-                <p className="text-sm text-slate-400 mb-6">Sign in to access your Google Drive files</p>
-                <button
-                  onClick={handleGoogleDriveConnect}
-                  disabled={isConnecting}
-                  className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
-                >
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesomeIcon icon={faGoogleDrive} className="w-4 h-4" />
-                      Sign in with Google
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-2 mb-4 text-sm text-emerald-400">
-                  <CheckCircle className="w-4 h-4" />
-                  Connected to Google Drive
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {mockGoogleDriveFiles.map((file) => (
-                    <button
-                      key={file.id}
-                      onClick={() => handleSelectCloudFile(file, 'google')}
-                      className="w-full p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all flex items-center gap-3 text-left"
-                    >
-                      <span className="text-2xl">{file.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-200 truncate">{file.name}</p>
-                        <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
-                      </div>
-                      <FolderOpen className="w-4 h-4 text-slate-500" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Apple iCloud Modal */}
-      {showAppleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <Cloud className="w-6 h-6 text-slate-300" />
-                <h3 className="text-xl font-semibold text-slate-50">iCloud Drive</h3>
-              </div>
-              <button
-                onClick={() => setShowAppleModal(false)}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            {!appleConnected ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-slate-300">
-                    <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.99 3.91-.99 1.832 0 2.35.99 3.96.958 1.637-.033 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.666.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"></path>
-                  </svg>
-                </div>
-                <h4 className="text-lg font-medium text-slate-200 mb-2">Connect iCloud Drive</h4>
-                <p className="text-sm text-slate-400 mb-6">Sign in with your Apple ID to access iCloud files</p>
-                <button
-                  onClick={handleAppleConnect}
-                  disabled={isConnecting}
-                  className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
-                >
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.99 3.91-.99 1.832 0 2.35.99 3.96.958 1.637-.033 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.666.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"></path>
-                      </svg>
-                      Sign in with Apple
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-2 mb-4 text-sm text-emerald-400">
-                  <CheckCircle className="w-4 h-4" />
-                  Connected to iCloud Drive
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {mockICloudFiles.map((file) => (
-                    <button
-                      key={file.id}
-                      onClick={() => handleSelectCloudFile(file, 'apple')}
-                      className="w-full p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all flex items-center gap-3 text-left"
-                    >
-                      <span className="text-2xl">{file.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-200 truncate">{file.name}</p>
-                        <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
-                      </div>
-                      <FolderOpen className="w-4 h-4 text-slate-500" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1074,9 +801,24 @@ const DashboardHome: React.FC = () => {
                     }}
                   />
                 </div>
-                <p className="text-xs text-slate-400 mt-2 text-center">
-                  Redirecting to your thumbnails in 3 seconds...
-                </p>
+              </div>
+            )}
+
+            {/* Action Bar */}
+            {successData.thumbnailUrl && (
+              <div className="mb-6">
+                <ThumbnailActionBar
+                  context={{
+                    imageUrl: successData.thumbnailUrl,
+                    imageId: successData.thumbnailId,
+                    sourceSettings: {
+                      videoUrl: videoLink || undefined,
+                      includeFace,
+                    },
+                  }}
+                  visibleActions={['edit', 'download', 'regenerate', 'recreateBetter']}
+                  variant="horizontal"
+                />
               </div>
             )}
 
@@ -1109,12 +851,15 @@ const DashboardHome: React.FC = () => {
         </div>
       )}
 
+      {/* Recreate Better Modal */}
+      <RecreateBetterModal />
+
       {/* Dashboard Widgets Section */}
       <div className="mt-16 space-y-6">
         {/* Top row: Projects + Storage */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <AllProjectsWidget />
+            <ProjectsAndUploadsWidget />
           </div>
           <div>
             <StorageIndicator />

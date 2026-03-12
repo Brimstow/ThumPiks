@@ -69,7 +69,7 @@ const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ onClose
       free: 'Free',
       starter: 'Starter',
       pro: 'Creator Pro',
-      business: 'Business',
+      ultra_pro: 'Ultra Pro',
     };
     return plans[planType] || planType;
   };

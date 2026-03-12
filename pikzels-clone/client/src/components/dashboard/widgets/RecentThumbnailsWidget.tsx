@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Image, Loader2 } from 'lucide-react';
 import { authGet } from '../../../utils/api';
+import { formatRelativeTime } from '../../../lib/formatters';
 
 interface Thumbnail {
   id: string;
@@ -36,18 +37,6 @@ export const RecentThumbnailsWidget: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    return date.toLocaleDateString();
   };
 
   return (
@@ -99,7 +88,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
                   {thumbnail.title}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {formatTimeAgo(thumbnail.createdAt)}
+                  {formatRelativeTime(thumbnail.createdAt)}
                 </p>
               </div>
             </div>

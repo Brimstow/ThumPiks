@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Link2, Sparkles, UploadCloud, ArrowLeft, Download, RotateCcw,
   Wand2, Loader2, X, Check,
@@ -20,6 +21,8 @@ import {
   SlotEditor,
   CompositionEngine,
 } from '../../features/composition-templates';
+import ThumbnailActionBar from '../ui/ThumbnailActionBar';
+import RecreateBetterModal from '../ui/RecreateBetterModal';
 
 // ============================================
 // TYPES
@@ -124,11 +127,35 @@ function savePersistedState(state: PersistedState): void {
 }
 
 const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpenEditor }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Route state: if navigated here with initialView, skip the start screen
+  const routeState = location.state as { initialView?: ViewState } | null;
+
   // Load persisted state once on mount
   const [persisted] = useState(() => loadPersistedState());
 
-  // Navigation state
-  const [view, setView] = useState<ViewState>(persisted.view || 'start');
+  // Navigation state — route state > persisted deep state > start
+  const [view, setView] = useState<ViewState>(() => {
+    // Route state takes priority (e.g. "From YouTube" navigates with initialView)
+    if (routeState?.initialView) return routeState.initialView;
+    // Only restore persisted view when it has meaningful context to resume
+    if (persisted.view === 'result' && persisted.resultImageUrl) return 'result';
+    if (persisted.view === 'frame-picker' && persisted.videoFrames?.length) return 'frame-picker';
+    // All other cases (sidebar click, shallow views) start fresh
+    return 'start';
+  });
+
+  // Track whether we entered via external navigation (e.g. CreatePlusPage)
+  const [enteredFromExternal] = useState(() => !!routeState?.initialView);
+
+  // Clear route state after consuming it so browser back/forward doesn't replay it
+  useEffect(() => {
+    if (routeState?.initialView) {
+      window.history.replaceState({}, '');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // URL path state
   const [urlInput, setUrlInput] = useState(persisted.urlInput || '');
@@ -1073,7 +1100,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const renderUrlInput = () => (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <button
-        onClick={() => { setView('start'); setError(null); }}
+        onClick={() => {
+          if (enteredFromExternal && view === (routeState?.initialView)) {
+            // Go back to the page that navigated here (e.g. CreatePlusPage)
+            navigate(-1);
+          } else {
+            setView('start');
+            setError(null);
+          }
+        }}
         className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -1948,6 +1983,25 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           <Download className="w-5 h-5" />
           Download
         </button>
+
+        {/* More Actions */}
+        {resultImageUrl && (
+          <>
+            <hr className="border-gray-700/50 my-2" />
+            <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">More Actions</h4>
+            <ThumbnailActionBar
+              context={{
+                imageUrl: resultImageUrl,
+                sourceSettings: {
+                  prompt: aiPrompt || undefined,
+                  style: selectedStyle || undefined,
+                },
+              }}
+              visibleActions={['save', 'edit', 'recreateBetter']}
+              variant="vertical"
+            />
+          </>
+        )}
       </div>
     </div>
   );
@@ -2073,6 +2127,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           ]}
         />
       )}
+
+      {/* Recreate Better Modal */}
+      <RecreateBetterModal />
     </div>
   );
 };

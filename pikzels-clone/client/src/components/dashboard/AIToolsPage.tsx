@@ -13,20 +13,26 @@ import {
   Zap,
   Image as ImageIcon,
   ArrowRight,
-  Download,
   RefreshCw,
   Check,
   AlertCircle,
   Maximize2,
   X,
-  Pencil,
   Move,
   MousePointer2,
+  Eye,
+  TrendingUp,
+  Upload,
+  FolderOpen,
+  Link,
+  Loader2,
 } from 'lucide-react';
+import ThumbnailActionBar from '../ui/ThumbnailActionBar';
+import RecreateBetterModal from '../ui/RecreateBetterModal';
 import { useAIService } from '../../hooks/useAIService';
 import { useAIWorker } from '../../hooks/useAIWorker';
 import { config } from '../../config/environment';
-import { authPost } from '../../utils/api';
+import { authPost, authGet } from '../../utils/api';
 import type { AIGenerateRequest } from '../../services/ai-providers';
 import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
 import type { ModelTierId } from '../../features/ai-tools';
@@ -44,7 +50,8 @@ type AIToolId =
   | 'enhance'
   | 'upscale'
   | 'expand'
-  | 'object-removal';
+  | 'object-removal'
+  | 'recreate-better';
 
 interface AITool {
   id: AIToolId;
@@ -153,6 +160,58 @@ const AIToolsPage: React.FC = () => {
   // Model tier selection ("Intel Inside" pattern)
   // Default to 'standard' — will be validated against fetched config
   const [selectedTier, setSelectedTier] = useState<ModelTierId>('standard');
+
+  // Recreate Better modal state
+  const [recreateBetterOpen, setRecreateBetterOpen] = useState(false);
+  const [recreateBetterImageUrl, setRecreateBetterImageUrl] = useState<string | null>(null);
+
+  // Recreate Better input source state
+  type RecreateBetterInputTab = 'upload' | 'my-thumbnails' | 'url';
+  const [recreateBetterInputTab, setRecreateBetterInputTab] = useState<RecreateBetterInputTab>('upload');
+  const [recreateBetterUrlInput, setRecreateBetterUrlInput] = useState('');
+  const [userThumbnails, setUserThumbnails] = useState<Array<{ id: string; imageUrl: string; title?: string }>>([]);
+  const [isLoadingThumbnails, setIsLoadingThumbnails] = useState(false);
+  const [myThumbnailsPreview, setMyThumbnailsPreview] = useState<string | null>(null); // Preview before confirming selection
+
+  // Listen for Recreate Better event from ThumbnailActionBar
+  React.useEffect(() => {
+    const handleRecreateBetter = (event: CustomEvent<{ imageUrl: string }>) => {
+      setRecreateBetterImageUrl(event.detail.imageUrl);
+      setRecreateBetterOpen(true);
+    };
+    window.addEventListener('openRecreateBetter', handleRecreateBetter as EventListener);
+    return () => window.removeEventListener('openRecreateBetter', handleRecreateBetter as EventListener);
+  }, []);
+
+  // Fetch user thumbnails when Recreate Better tool is selected and My Thumbnails tab is active
+  React.useEffect(() => {
+    if (selectedTool === 'recreate-better' && recreateBetterInputTab === 'my-thumbnails' && userThumbnails.length === 0) {
+      setIsLoadingThumbnails(true);
+      authGet('/api/thumbnails?limit=50')
+        .then(res => res.json())
+        .then(data => {
+          setUserThumbnails(data.thumbnails || []);
+        })
+        .catch(err => {
+          console.error('Failed to fetch thumbnails:', err);
+        })
+        .finally(() => {
+          setIsLoadingThumbnails(false);
+        });
+    }
+  }, [selectedTool, recreateBetterInputTab, userThumbnails.length]);
+
+  // Handle URL input for Recreate Better
+  const handleRecreateBetterUrlSubmit = useCallback(() => {
+    if (!recreateBetterUrlInput.trim()) return;
+    // Basic URL validation
+    try {
+      new URL(recreateBetterUrlInput);
+      setUploadedImage(recreateBetterUrlInput);
+    } catch {
+      setGenerateError('Please enter a valid URL');
+    }
+  }, [recreateBetterUrlInput]);
 
   // Tool definitions
   const aiTools: AITool[] = [
@@ -276,6 +335,22 @@ const AIToolsPage: React.FC = () => {
       ],
       requiresImage: true,
       apiCost: '2 credits/removal',
+    },
+    {
+      id: 'recreate-better',
+      name: 'Recreate Better',
+      description:
+        'Upload any thumbnail and AI will analyze it, then create an improved version',
+      icon: <TrendingUp className="w-6 h-6" />,
+      color: 'from-violet-500 to-fuchsia-500',
+      features: [
+        'Vision analysis',
+        'CTR optimization',
+        'Auto-improved prompt',
+        'One-click regeneration',
+      ],
+      requiresImage: true,
+      apiCost: '2 credits (analyze + generate)',
     },
   ];
 
@@ -841,6 +916,10 @@ const AIToolsPage: React.FC = () => {
                 setObjectRemovalClicks([]);
                 setObjectRemovalMask(null);
                 setObjectRemovalStep('select');
+                // Reset Recreate Better state
+                setRecreateBetterInputTab('upload');
+                setRecreateBetterUrlInput('');
+                setMyThumbnailsPreview(null);
               }}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
@@ -848,11 +927,11 @@ const AIToolsPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 items-stretch">
             {/* Left Panel - Controls */}
-            <div className="space-y-6">
-              {/* Image Upload (for tools that require it) */}
-              {currentTool.requiresImage && (
+            <div className="space-y-6 flex flex-col">
+              {/* Image Upload (for tools that require it, except recreate-better which has custom UI) */}
+              {currentTool.requiresImage && selectedTool !== 'recreate-better' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-3">
                     Upload Image
@@ -865,6 +944,242 @@ const AIToolsPage: React.FC = () => {
                       setResultImage(null);
                     }}
                   />
+                </div>
+              )}
+
+              {/* Recreate Better - Custom Multi-Source Input */}
+              {selectedTool === 'recreate-better' && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Select Source Thumbnail
+                  </label>
+
+                  {/* Tab buttons */}
+                  <div className="flex rounded-xl bg-slate-800/50 p-1">
+                    <button
+                      onClick={() => {
+                        setRecreateBetterInputTab('upload');
+                        setMyThumbnailsPreview(null);
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        recreateBetterInputTab === 'upload'
+                          ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50'
+                          : 'text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRecreateBetterInputTab('my-thumbnails');
+                        setMyThumbnailsPreview(null);
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        recreateBetterInputTab === 'my-thumbnails'
+                          ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50'
+                          : 'text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      My Thumbnails
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRecreateBetterInputTab('url');
+                        setMyThumbnailsPreview(null);
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        recreateBetterInputTab === 'url'
+                          ? 'bg-violet-500/20 text-violet-400 border border-violet-500/50'
+                          : 'text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      <Link className="w-4 h-4" />
+                      URL
+                    </button>
+                  </div>
+
+                  {/* Tab content */}
+                  {recreateBetterInputTab === 'upload' && (
+                    <ImageUploadZone
+                      currentImage={uploadedImage}
+                      onImageSelect={handleImageSelect}
+                      onRemove={() => {
+                        setUploadedImage(null);
+                        setResultImage(null);
+                      }}
+                    />
+                  )}
+
+                  {recreateBetterInputTab === 'my-thumbnails' && (
+                    <div className="relative min-h-[420px]">
+                      {/* Base: Thumbnail Grid */}
+                      <div className={`transition-opacity duration-200 ${myThumbnailsPreview || uploadedImage ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                        {isLoadingThumbnails ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                            <Loader2 className="w-8 h-8 animate-spin mb-3" />
+                            <span className="text-sm">Loading your thumbnails...</span>
+                          </div>
+                        ) : userThumbnails.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                            <FolderOpen className="w-10 h-10 mb-3" />
+                            <span className="text-sm">No thumbnails found</span>
+                            <span className="text-xs mt-1">Create some thumbnails first!</span>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                            {userThumbnails.map((thumb) => (
+                              <button
+                                key={thumb.id}
+                                onClick={() => setMyThumbnailsPreview(thumb.imageUrl)}
+                                className="relative aspect-video rounded-lg overflow-hidden border-2 border-slate-700 hover:border-slate-600 transition-all"
+                              >
+                                <img
+                                  src={thumb.imageUrl}
+                                  alt={thumb.title || 'Thumbnail'}
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Preview Overlay - before selection confirmed */}
+                      {myThumbnailsPreview && !uploadedImage && (
+                        <div className="absolute inset-0 bg-slate-900 rounded-xl animate-in fade-in duration-150 flex flex-col">
+                          {/* Header: Select as Source + Close */}
+                          <div className="flex items-center justify-between p-3 border-b border-slate-800">
+                            <button
+                              onClick={() => {
+                                setUploadedImage(myThumbnailsPreview);
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/50 text-violet-400 hover:bg-violet-500/30 transition-colors text-sm font-medium"
+                            >
+                              <Check className="w-4 h-4" />
+                              Select as Source
+                            </button>
+                            <button
+                              onClick={() => setMyThumbnailsPreview(null)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
+                              title="Back to thumbnails"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Large Preview Image */}
+                          <div className="flex-1 p-4 flex items-center justify-center">
+                            <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-700">
+                              <img
+                                src={myThumbnailsPreview}
+                                alt="Preview thumbnail"
+                                className="w-full h-full object-contain bg-slate-950"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Selected Source Overlay - after selection confirmed */}
+                      {uploadedImage && recreateBetterInputTab === 'my-thumbnails' && (
+                        <div className="absolute inset-0 bg-slate-900 rounded-xl animate-in fade-in duration-150 flex flex-col">
+                          {/* Header: Change selection + status */}
+                          <div className="flex items-center justify-between p-3 border-b border-slate-800">
+                            <div className="flex items-center gap-2 text-sm text-violet-400">
+                              <Check className="w-4 h-4" />
+                              <span className="font-medium">Source Selected</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setUploadedImage(null);
+                                setMyThumbnailsPreview(null);
+                              }}
+                              className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                            >
+                              Change
+                            </button>
+                          </div>
+
+                          {/* Large Selected Image */}
+                          <div className="p-4 flex-1">
+                            <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-violet-500/50 ring-2 ring-violet-500/20">
+                              <img
+                                src={uploadedImage}
+                                alt="Selected source"
+                                className="w-full h-full object-contain bg-slate-950"
+                              />
+                            </div>
+                          </div>
+
+                          {/* What happens next - LEFT SIDE ONLY */}
+                          <div className="px-4 pb-4">
+                            <div className="bg-slate-800/50 rounded-xl p-3">
+                              <h4 className="text-xs font-medium text-slate-400 mb-2">What happens next:</h4>
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                  <div className="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-[10px]">1</div>
+                                  <span>AI analyzes composition, colors, faces & text</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                  <div className="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-[10px]">2</div>
+                                  <span>Generates optimized prompt for higher CTR</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {recreateBetterInputTab === 'url' && (
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={recreateBetterUrlInput}
+                          onChange={(e) => setRecreateBetterUrlInput(e.target.value)}
+                          placeholder="https://example.com/thumbnail.jpg"
+                          className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 transition-colors text-sm"
+                          onKeyDown={(e) => e.key === 'Enter' && handleRecreateBetterUrlSubmit()}
+                        />
+                        <button
+                          onClick={handleRecreateBetterUrlSubmit}
+                          disabled={!recreateBetterUrlInput.trim()}
+                          className="px-4 py-3 rounded-xl bg-violet-500/20 border border-violet-500/50 text-violet-400 hover:bg-violet-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Load
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Paste any image URL — great for analyzing competitor thumbnails!
+                      </p>
+                      {uploadedImage && recreateBetterInputTab === 'url' && (
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-700">
+                          <img
+                            src={uploadedImage}
+                            alt="Loaded from URL"
+                            className="w-full h-full object-contain"
+                            onError={() => {
+                              setGenerateError('Failed to load image from URL');
+                              setUploadedImage(null);
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              setUploadedImage(null);
+                              setRecreateBetterUrlInput('');
+                            }}
+                            className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-lg hover:bg-black/80 transition-colors"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1151,6 +1466,51 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Recreate Better Tool Options - only for Upload & URL tabs (My Thumbnails uses overlay) */}
+              {selectedTool === 'recreate-better' && uploadedImage && recreateBetterInputTab !== 'my-thumbnails' && (
+                <div className="space-y-4">
+                  {/* What will happen */}
+                  <div className="bg-slate-800/50 rounded-xl p-4">
+                    <h4 className="text-sm font-medium text-slate-300 mb-3">What happens next:</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold">1</div>
+                        <span>AI analyzes composition, colors, faces & text</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold">2</div>
+                        <span>Generates optimized prompt with CTR improvements</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold">3</div>
+                        <span>Creates improved thumbnail (you can edit the prompt)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Credit cost info */}
+                  <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
+                    <span className="text-sm text-slate-400">Cost</span>
+                    <span className="text-sm font-medium text-violet-400">2 credits (1 analysis + 1 generation)</span>
+                  </div>
+
+                  {/* Start button */}
+                  <button
+                    onClick={() => {
+                      // Dispatch event to open the RecreateBetterModal with this image
+                      window.dispatchEvent(new CustomEvent('openRecreateBetter', {
+                        detail: { imageUrl: uploadedImage }
+                      }));
+                    }}
+                    disabled={!uploadedImage || isGenerating}
+                    className="w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:shadow-lg hover:shadow-violet-500/25"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Analyze & Improve Thumbnail
+                  </button>
+                </div>
+              )}
+
               {/* Face Swap Tool Options */}
               {selectedTool === 'face-swap' && uploadedImage && (
                 <div>
@@ -1200,8 +1560,8 @@ const AIToolsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Process Button (hidden for object-removal which has its own flow) */}
-              {selectedTool !== 'object-removal' && (
+              {/* Process Button (hidden for object-removal and recreate-better which have their own flows) */}
+              {selectedTool !== 'object-removal' && selectedTool !== 'recreate-better' && (
                 <button
                   onClick={handleProcessTool}
                   disabled={
@@ -1240,7 +1600,40 @@ const AIToolsPage: React.FC = () => {
             </div>
 
             {/* Right Panel - Config + Result */}
-            <div className="space-y-4">
+            <div className="space-y-4 flex flex-col">
+              {/* Recreate Better - Right side info when source is selected */}
+              {selectedTool === 'recreate-better' && uploadedImage && (
+                <div className="space-y-3">
+                  {/* Step 3 - result creation */}
+                  <div className="bg-slate-800/50 rounded-xl p-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <div className="w-5 h-5 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-[10px]">3</div>
+                      <span>Creates improved thumbnail (editable)</span>
+                    </div>
+                  </div>
+
+                  {/* Cost info */}
+                  <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                    <span className="text-xs text-slate-400">Cost</span>
+                    <span className="text-xs font-medium text-violet-400">2 credits (1 analysis + 1 generation)</span>
+                  </div>
+
+                  {/* Analyze & Improve button */}
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('openRecreateBetter', {
+                        detail: { imageUrl: uploadedImage }
+                      }));
+                    }}
+                    disabled={isGenerating}
+                    className="w-full py-3 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:shadow-lg hover:shadow-violet-500/25"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Analyze & Improve
+                  </button>
+                </div>
+              )}
+
               {/* Style & Aspect Ratio — moved here from left panel to reduce scroll */}
               {selectedTool === 'generate' && (
                 <div className="space-y-4">
@@ -1296,26 +1689,25 @@ const AIToolsPage: React.FC = () => {
                   Result
                 </label>
                 {resultImage && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleOpenInEditor}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Open in Editor
-                    </button>
-                    <button
-                      onClick={handleDownload}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download
-                    </button>
-                  </div>
+                  <ThumbnailActionBar
+                    context={{
+                      imageUrl: resultImage,
+                      sourceSettings: {
+                        toolType: selectedTool || 'generate',
+                        prompt: selectedTool === 'generate' ? generatePrompt : inpaintPrompt,
+                        style: selectedTool === 'generate' ? style : undefined,
+                        aspectRatio: selectedTool === 'generate' ? aspectRatio : undefined,
+                        tier: selectedTier,
+                        image: uploadedImage || undefined,
+                      },
+                    }}
+                    visibleActions={['save', 'edit', 'download', 'regenerate', 'recreateBetter']}
+                    variant="compact"
+                  />
                 )}
               </div>
 
-              <div className="aspect-video bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden flex items-center justify-center">
+              <div className={`bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden flex items-center justify-center ${selectedTool === 'recreate-better' ? 'aspect-video' : 'flex-1 min-h-[200px]'}`}>
                 {resultImage ? (
                   <img
                     src={resultImage}
@@ -1345,6 +1737,21 @@ const AIToolsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Recreate Better Modal */}
+      {recreateBetterImageUrl && (
+        <RecreateBetterModal
+          isOpen={recreateBetterOpen}
+          onClose={() => {
+            setRecreateBetterOpen(false);
+            setRecreateBetterImageUrl(null);
+          }}
+          imageUrl={recreateBetterImageUrl}
+          onImageGenerated={(newImageUrl) => {
+            setResultImage(newImageUrl);
+          }}
+        />
       )}
     </div>
   );

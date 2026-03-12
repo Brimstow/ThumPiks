@@ -1,4 +1,4 @@
-import { authGet, authPost, authDelete } from '../utils/api';
+import { authGet, authPost, authDelete, authPatch } from '../utils/api';
 
 // ============================================
 // USER ASSETS
@@ -53,6 +53,30 @@ export async function getStorageUsage(): Promise<{
   const res = await authGet('/api/user-assets/usage');
   if (!res.ok) throw new Error('Failed to fetch storage usage');
   return res.json();
+}
+
+export async function recategorizeAsset(
+  id: string,
+  type: 'face' | 'background' | 'logo' | 'other'
+): Promise<UserAsset> {
+  const res = await authPatch(`/api/user-assets/${id}/recategorize`, { type });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Recategorize failed' }));
+    throw new Error(err.error || 'Recategorize failed');
+  }
+  const data = await res.json();
+  return data.asset;
+}
+
+export async function recategorizeThumbnail(
+  id: string,
+  platform: 'youtube' | 'tiktok' | 'instagram' | 'twitter'
+): Promise<void> {
+  const res = await authPatch(`/api/thumbnails/${id}/recategorize`, { platform });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Recategorize failed' }));
+    throw new Error(err.error || 'Recategorize failed');
+  }
 }
 
 // ============================================
