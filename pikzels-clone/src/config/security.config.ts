@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { isProductionLike, isDevelopmentEnv } from '../utils/env';
 import crypto from 'crypto';
 
 interface SecurityConfig {
@@ -44,47 +45,47 @@ interface SecurityConfig {
 
 /**
  * Development mode defaults - relaxed settings for local development
- * These are ONLY applied when NODE_ENV !== 'production'
+ * These are ONLY applied when NODE_ENV is not production-like (production/staging)
  */
 const DEV_DEFAULTS = {
   rateLimiting: {
-    enabled: false,           // Disable rate limiting in dev
-    windowMs: 60000,           // 1 minute (if enabled)
-    maxRequests: 10000,        // Very high limit
-    authWindowMs: 60000,       // 1 minute
-    authMaxAttempts: 1000,     // Very high limit
+    enabled: false, // Disable rate limiting in dev
+    windowMs: 60000, // 1 minute (if enabled)
+    maxRequests: 10000, // Very high limit
+    authWindowMs: 60000, // 1 minute
+    authMaxAttempts: 1000, // Very high limit
   },
   jwt: {
-    accessExpiry: '24h',       // Longer session for dev convenience
-    refreshExpiry: '30d',      // Month-long refresh token
+    accessExpiry: '24h', // Longer session for dev convenience
+    refreshExpiry: '30d', // Month-long refresh token
   },
   cors: {
     origins: ['http://localhost:8556', 'http://127.0.0.1:8556'],
   },
   security: {
     enableHttpsRedirect: false, // No HTTPS locally
-    enableHeaders: false,       // Optional in dev
+    enableHeaders: false, // Optional in dev
   },
 };
 
 /**
  * Production defaults - strict security settings
- * These are enforced when NODE_ENV === 'production'
+ * These are enforced when NODE_ENV is production-like (production/staging)
  */
 const PROD_DEFAULTS = {
   rateLimiting: {
     enabled: true,
-    windowMs: 900000,          // 15 minutes
+    windowMs: 900000, // 15 minutes
     maxRequests: 100,
-    authWindowMs: 900000,      // 15 minutes  
-    authMaxAttempts: 5,        // Strict limit
+    authWindowMs: 900000, // 15 minutes
+    authMaxAttempts: 5, // Strict limit
   },
   jwt: {
     accessExpiry: '15m',
     refreshExpiry: '7d',
   },
   cors: {
-    origins: [] as string[],   // Must be set via CORS_ORIGIN env in production
+    origins: [] as string[], // Must be set via CORS_ORIGIN env in production
   },
   security: {
     enableHttpsRedirect: true,
@@ -110,9 +111,9 @@ function logDevModeBanner(): void {
 ║                                                                   ║
 ║  ⛔ DO NOT deploy to production with NODE_ENV=development        ║
 ╚══════════════════════════════════════════════════════════════════╝`;
-  
+
   console.log('\x1b[33m%s\x1b[0m', banner); // Yellow color
-  
+
   logger.warn('🚨 DEVELOPMENT MODE: Security features relaxed', {
     rateLimiting: 'disabled',
     jwtExpiry: '24h',
@@ -126,14 +127,19 @@ function logDevModeBanner(): void {
  * Get rate limiting configuration based on environment
  * In development: disabled or very high limits
  * In production: strict limits from env or defaults
- * 
+ *
  * TIP: Set BYPASS_RATE_LIMIT=true for testing in any environment
  * This allows you to test without getting locked out
  */
-function getRateLimitConfig(isDevelopment: boolean, defaults: typeof DEV_DEFAULTS | typeof PROD_DEFAULTS): SecurityConfig['rateLimiting'] {
+function getRateLimitConfig(
+  isDevelopment: boolean,
+  defaults: typeof DEV_DEFAULTS | typeof PROD_DEFAULTS
+): SecurityConfig['rateLimiting'] {
   // Allow explicit bypass for testing (works in any environment)
   if (process.env.BYPASS_RATE_LIMIT === 'true') {
-    logger.warn('⚠️ BYPASS_RATE_LIMIT=true: Rate limiting DISABLED for testing');
+    logger.warn(
+      '⚠️ BYPASS_RATE_LIMIT=true: Rate limiting DISABLED for testing'
+    );
     return {
       enabled: false,
       windowMs: defaults.rateLimiting.windowMs,
@@ -146,18 +152,32 @@ function getRateLimitConfig(isDevelopment: boolean, defaults: typeof DEV_DEFAULT
   // In development, always use relaxed settings unless explicitly overridden
   if (isDevelopment) {
     const forceRateLimiting = process.env.FORCE_RATE_LIMITING === 'true';
-    
+
     if (forceRateLimiting) {
-      logger.info('⚠️ DEV MODE: Rate limiting FORCE ENABLED via FORCE_RATE_LIMITING=true');
+      logger.info(
+        '⚠️ DEV MODE: Rate limiting FORCE ENABLED via FORCE_RATE_LIMITING=true'
+      );
       return {
         enabled: true,
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || String(defaults.rateLimiting.windowMs)),
-        maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || String(defaults.rateLimiting.maxRequests)),
-        authWindowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || String(defaults.rateLimiting.authWindowMs)),
-        authMaxAttempts: parseInt(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || String(defaults.rateLimiting.authMaxAttempts)),
+        windowMs: parseInt(
+          process.env.RATE_LIMIT_WINDOW_MS ||
+            String(defaults.rateLimiting.windowMs)
+        ),
+        maxRequests: parseInt(
+          process.env.RATE_LIMIT_MAX_REQUESTS ||
+            String(defaults.rateLimiting.maxRequests)
+        ),
+        authWindowMs: parseInt(
+          process.env.AUTH_RATE_LIMIT_WINDOW_MS ||
+            String(defaults.rateLimiting.authWindowMs)
+        ),
+        authMaxAttempts: parseInt(
+          process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS ||
+            String(defaults.rateLimiting.authMaxAttempts)
+        ),
       };
     }
-    
+
     // Default: disabled in development
     return {
       enabled: false,
@@ -167,29 +187,40 @@ function getRateLimitConfig(isDevelopment: boolean, defaults: typeof DEV_DEFAULT
       authMaxAttempts: defaults.rateLimiting.authMaxAttempts,
     };
   }
-  
+
   // Production: use env values or strict defaults
   return {
     enabled: process.env.ENABLE_RATE_LIMITING !== 'false', // Default to true in production
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || String(defaults.rateLimiting.windowMs)),
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || String(defaults.rateLimiting.maxRequests)),
-    authWindowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || String(defaults.rateLimiting.authWindowMs)),
-    authMaxAttempts: parseInt(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || String(defaults.rateLimiting.authMaxAttempts)),
+    windowMs: parseInt(
+      process.env.RATE_LIMIT_WINDOW_MS || String(defaults.rateLimiting.windowMs)
+    ),
+    maxRequests: parseInt(
+      process.env.RATE_LIMIT_MAX_REQUESTS ||
+        String(defaults.rateLimiting.maxRequests)
+    ),
+    authWindowMs: parseInt(
+      process.env.AUTH_RATE_LIMIT_WINDOW_MS ||
+        String(defaults.rateLimiting.authWindowMs)
+    ),
+    authMaxAttempts: parseInt(
+      process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS ||
+        String(defaults.rateLimiting.authMaxAttempts)
+    ),
   };
 }
 
 /**
  * Validates and returns security configuration
  * Ensures all critical security settings are properly configured
- * 
- * DEVELOPMENT MODE: Automatically applies relaxed settings when NODE_ENV !== 'production'
+ *
+ * DEVELOPMENT MODE: Automatically applies relaxed settings when NODE_ENV is not production-like (production/staging)
  * PRODUCTION MODE: Enforces strict security settings
  */
 export function getSecurityConfig(): SecurityConfig {
   // Validate critical environment variables
   validateEnvironment();
 
-  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const isDevelopment = isDevelopmentEnv();
   const defaults = isDevelopment ? DEV_DEFAULTS : PROD_DEFAULTS;
 
   // Log development mode banner
@@ -201,9 +232,13 @@ export function getSecurityConfig(): SecurityConfig {
     isDevelopment,
     jwt: {
       secret: getRequiredEnv('JWT_SECRET'),
-      refreshSecret: getRequiredEnv('REFRESH_TOKEN_SECRET', 'different-secret-from-jwt'),
+      refreshSecret: getRequiredEnv(
+        'REFRESH_TOKEN_SECRET',
+        'different-secret-from-jwt'
+      ),
       accessExpiry: process.env.JWT_ACCESS_EXPIRY || defaults.jwt.accessExpiry,
-      refreshExpiry: process.env.JWT_REFRESH_EXPIRY || defaults.jwt.refreshExpiry,
+      refreshExpiry:
+        process.env.JWT_REFRESH_EXPIRY || defaults.jwt.refreshExpiry,
       resetExpiry: process.env.JWT_RESET_EXPIRY || '1h',
     },
     encryption: {
@@ -212,25 +247,32 @@ export function getSecurityConfig(): SecurityConfig {
     },
     database: {
       url: getRequiredEnv('DATABASE_URL'),
-      ssl: process.env.NODE_ENV === 'production',
+      ssl: isProductionLike(),
     },
     cors: {
-      origins: process.env.CORS_ORIGIN 
+      origins: process.env.CORS_ORIGIN
         ? process.env.CORS_ORIGIN.split(',')
-        : (isDevelopment ? defaults.cors.origins : ['https://yourdomain.com']),
+        : isDevelopment
+          ? defaults.cors.origins
+          : ['https://yourdomain.com'],
       credentials: process.env.CORS_CREDENTIALS !== 'false', // Default to true
     },
     rateLimiting: getRateLimitConfig(isDevelopment, defaults),
     security: {
-      enableHeaders: process.env.ENABLE_SECURITY_HEADERS === 'true' || (!isDevelopment && defaults.security.enableHeaders),
-      enableHttpsRedirect: process.env.ENABLE_HTTPS_REDIRECT === 'true' && !isDevelopment,
-      requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION === 'true',
+      enableHeaders:
+        process.env.ENABLE_SECURITY_HEADERS === 'true' ||
+        (!isDevelopment && defaults.security.enableHeaders),
+      enableHttpsRedirect:
+        process.env.ENABLE_HTTPS_REDIRECT === 'true' && !isDevelopment,
+      requireEmailVerification:
+        process.env.REQUIRE_EMAIL_VERIFICATION === 'true',
       enableSanitization: process.env.ENABLE_INPUT_SANITIZATION !== 'false', // Default to true
     },
     features: {
       enableCache: process.env.ENABLE_CACHE === 'true',
       enableCompression: process.env.ENABLE_COMPRESSION === 'true',
-      enablePerformanceMonitoring: process.env.ENABLE_PERFORMANCE_MONITORING === 'true',
+      enablePerformanceMonitoring:
+        process.env.ENABLE_PERFORMANCE_MONITORING === 'true',
     },
   };
 
@@ -255,13 +297,13 @@ export function getSecurityConfig(): SecurityConfig {
  */
 function getRequiredEnv(key: string, fallback?: string): string {
   const value = process.env[key];
-  
+
   if (!value) {
-    if (fallback && process.env.NODE_ENV !== 'production') {
+    if (fallback && isDevelopmentEnv()) {
       logger.warn(`Using fallback for ${key} in development`, { key });
       return fallback;
     }
-    
+
     logger.error(`Required environment variable ${key} is not set`);
     throw new Error(`Required environment variable ${key} is not set`);
   }
@@ -273,15 +315,17 @@ function getRequiredEnv(key: string, fallback?: string): string {
     'your-encryption-key',
     'change-me',
     'default',
-    '123456'
+    '123456',
   ];
 
   if (insecureDefaults.includes(value.toLowerCase())) {
-    if (process.env.NODE_ENV === 'production') {
+    if (isProductionLike()) {
       logger.error(`Insecure default value detected for ${key}`);
       throw new Error(`Insecure default value for ${key} in production`);
     } else {
-      logger.warn(`Insecure default value for ${key} - change for production`, { key });
+      logger.warn(`Insecure default value for ${key} - change for production`, {
+        key,
+      });
     }
   }
 
@@ -318,7 +362,10 @@ function isCloudEnvironment(): { isCloud: boolean; platform: string | null } {
     return { isCloud: true, platform: 'Google Cloud' };
   }
   // Azure detection
-  if (process.env.WEBSITE_SITE_NAME || process.env.AZURE_FUNCTIONS_ENVIRONMENT) {
+  if (
+    process.env.WEBSITE_SITE_NAME ||
+    process.env.AZURE_FUNCTIONS_ENVIRONMENT
+  ) {
     return { isCloud: true, platform: 'Azure' };
   }
   // Fly.io detection
@@ -330,25 +377,22 @@ function isCloudEnvironment(): { isCloud: boolean; platform: string | null } {
     // PORT is set but not running via npm script - likely cloud
     return { isCloud: true, platform: 'Unknown Cloud' };
   }
-  
+
   return { isCloud: false, platform: null };
 }
 
 /**
  * Validate environment variables at startup
- * 
+ *
  * FAILSAFE: Blocks startup in cloud environments if security is misconfigured
  */
 function validateEnvironment(): void {
-  const requiredVars = [
-    'JWT_SECRET',
-    'DATABASE_URL'
-  ];
+  const requiredVars = ['JWT_SECRET', 'DATABASE_URL'];
 
   const productionRequiredVars = [
     'REFRESH_TOKEN_SECRET',
     'ENCRYPTION_KEY',
-    'CORS_ORIGIN'  // Must explicitly set CORS in production
+    'CORS_ORIGIN', // Must explicitly set CORS in production
   ];
 
   const missingVars: string[] = [];
@@ -357,12 +401,12 @@ function validateEnvironment(): void {
   // FAILSAFE #1: Detect cloud environment and enforce production mode
   // ═══════════════════════════════════════════════════════════════════
   const cloudCheck = isCloudEnvironment();
-  
+
   if (cloudCheck.isCloud) {
     logger.info(`☁️  Cloud environment detected: ${cloudCheck.platform}`);
-    
-    // CRITICAL: If we're in a cloud environment but NODE_ENV is not 'production'
-    if (process.env.NODE_ENV !== 'production') {
+
+    // CRITICAL: If we're in a cloud environment but NODE_ENV is not production-like
+    if (!isProductionLike()) {
       const errorMsg = `
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║  🚨 SECURITY FAILSAFE TRIGGERED - STARTUP BLOCKED                        ║
@@ -377,11 +421,15 @@ function validateEnvironment(): void {
 ║       environment variables before deploying.                            ║
 ║                                                                          ║
 ╚══════════════════════════════════════════════════════════════════════════╝`;
-      
+
       console.error('\x1b[31m%s\x1b[0m', errorMsg);
-      logger.error(`FAILSAFE: Cloud environment detected without NODE_ENV=production - platform: ${cloudCheck.platform}, nodeEnv: ${process.env.NODE_ENV}`);
-      
-      throw new Error(`SECURITY FAILSAFE: Set NODE_ENV=production for ${cloudCheck.platform} deployment`);
+      logger.error(
+        `FAILSAFE: Cloud environment detected without NODE_ENV=production - platform: ${cloudCheck.platform}, nodeEnv: ${process.env.NODE_ENV}`
+      );
+
+      throw new Error(
+        `SECURITY FAILSAFE: Set NODE_ENV=production for ${cloudCheck.platform} deployment`
+      );
     }
   }
 
@@ -393,31 +441,54 @@ function validateEnvironment(): void {
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // FAILSAFE #2: Enforce strict requirements in production
+  // FAILSAFE #2: Enforce strict requirements in production-like envs
   // ═══════════════════════════════════════════════════════════════════
-  if (process.env.NODE_ENV === 'production') {
+  if (isProductionLike()) {
     productionRequiredVars.forEach(varName => {
       if (!process.env[varName]) {
         missingVars.push(varName);
       }
     });
-    
-    // Additional production checks
+
+    // Additional production-like checks
     const jwtSecret = process.env.JWT_SECRET;
     if (jwtSecret && jwtSecret.length < 32) {
-      logger.error('JWT_SECRET must be at least 32 characters in production');
-      throw new Error('JWT_SECRET must be at least 32 characters in production');
+      logger.error(
+        'JWT_SECRET must be at least 32 characters in production/staging'
+      );
+      throw new Error(
+        'JWT_SECRET must be at least 32 characters in production/staging'
+      );
     }
-    
+
     // Check for insecure placeholder values
-    const insecurePatterns = ['CHANGE_ME', 'your-', 'example', 'test', 'default', '123456'];
-    const sensitiveVars = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET', 'ENCRYPTION_KEY'];
-    
+    const insecurePatterns = [
+      'CHANGE_ME',
+      'your-',
+      'example',
+      'test',
+      'default',
+      '123456',
+    ];
+    const sensitiveVars = [
+      'JWT_SECRET',
+      'REFRESH_TOKEN_SECRET',
+      'ENCRYPTION_KEY',
+    ];
+
     sensitiveVars.forEach(varName => {
       const value = process.env[varName] || '';
-      if (insecurePatterns.some(pattern => value.toLowerCase().includes(pattern.toLowerCase()))) {
-        logger.error(`INSECURE VALUE: ${varName} contains placeholder/test value in production`);
-        throw new Error(`${varName} contains insecure placeholder value - change it for production!`);
+      if (
+        insecurePatterns.some(pattern =>
+          value.toLowerCase().includes(pattern.toLowerCase())
+        )
+      ) {
+        logger.error(
+          `INSECURE VALUE: ${varName} contains placeholder/test value in ${process.env.NODE_ENV}`
+        );
+        throw new Error(
+          `${varName} contains insecure placeholder value - change it for ${process.env.NODE_ENV}!`
+        );
       }
     });
   }
@@ -430,14 +501,20 @@ function validateEnvironment(): void {
 
   // Validate JWT secret length (warning in dev, error in prod - handled above)
   const jwtSecret = process.env.JWT_SECRET;
-  if (jwtSecret && jwtSecret.length < 32 && process.env.NODE_ENV !== 'production') {
+  if (jwtSecret && jwtSecret.length < 32 && isDevelopmentEnv()) {
     logger.warn('JWT_SECRET should be at least 32 characters for security');
   }
 
   // Validate database URL format
   const dbUrl = process.env.DATABASE_URL;
-  if (dbUrl && !dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('file:')) {
-    logger.warn('Unexpected database URL format', { format: dbUrl.split('://')[0] });
+  if (
+    dbUrl &&
+    !dbUrl.startsWith('postgresql://') &&
+    !dbUrl.startsWith('file:')
+  ) {
+    logger.warn('Unexpected database URL format', {
+      format: dbUrl.split('://')[0],
+    });
   }
 
   logger.info('Environment validation completed');
@@ -461,30 +538,36 @@ function validateSecurityConfig(config: SecurityConfig): void {
 
   // Validate rate limiting settings
   if (config.rateLimiting.enabled) {
-    if (config.rateLimiting.maxRequests < 1 || config.rateLimiting.authMaxAttempts < 1) {
+    if (
+      config.rateLimiting.maxRequests < 1 ||
+      config.rateLimiting.authMaxAttempts < 1
+    ) {
       logger.error('Rate limiting values must be positive integers');
       throw new Error('Invalid rate limiting configuration');
     }
   }
 
-  // Production-specific validations
-  if (process.env.NODE_ENV === 'production') {
+  // Production-like validations (production + staging)
+  if (isProductionLike()) {
     if (!config.security.enableHeaders) {
       logger.warn('Security headers should be enabled in production');
     }
-    
+
     if (!config.security.enableHttpsRedirect) {
       logger.warn('HTTPS redirect should be enabled in production');
     }
-    
+
     if (!config.rateLimiting.enabled) {
       logger.warn('Rate limiting should be enabled in production');
     }
 
     // Check CORS origins in production
-    if (config.cors.origins.includes('*') || config.cors.origins.includes('http://localhost:8556')) {
-      logger.warn('CORS origins should be restricted in production', { 
-        origins: config.cors.origins 
+    if (
+      config.cors.origins.includes('*') ||
+      config.cors.origins.includes('http://localhost:8556')
+    ) {
+      logger.warn('CORS origins should be restricted in production', {
+        origins: config.cors.origins,
       });
     }
   }
@@ -505,21 +588,28 @@ export function generateSecureKey(length = 32): string {
  * @param key - Optional encryption key (uses ENCRYPTION_KEY env if not provided)
  * @returns Object containing encrypted data, IV, and auth tag
  */
-export function encryptData(data: string, key?: string): { encrypted: string; iv: string; authTag: string } {
+export function encryptData(
+  data: string,
+  key?: string
+): { encrypted: string; iv: string; authTag: string } {
   const encryptionKey = key || getRequiredEnv('ENCRYPTION_KEY');
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(encryptionKey.slice(0, 32)), iv);
-  
+  const cipher = crypto.createCipheriv(
+    'aes-256-gcm',
+    Buffer.from(encryptionKey.slice(0, 32)),
+    iv
+  );
+
   let encrypted = cipher.update(data, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   // Get authentication tag for GCM mode (CRITICAL for data integrity)
   const authTag = cipher.getAuthTag();
-  
+
   return {
     encrypted,
     iv: iv.toString('hex'),
-    authTag: authTag.toString('hex')
+    authTag: authTag.toString('hex'),
   };
 }
 
@@ -531,16 +621,25 @@ export function encryptData(data: string, key?: string): { encrypted: string; iv
  * @param key - Optional encryption key (uses ENCRYPTION_KEY env if not provided)
  * @returns Decrypted plaintext string
  */
-export function decryptData(encryptedData: string, iv: string, authTag: string, key?: string): string {
+export function decryptData(
+  encryptedData: string,
+  iv: string,
+  authTag: string,
+  key?: string
+): string {
   const encryptionKey = key || getRequiredEnv('ENCRYPTION_KEY');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(encryptionKey.slice(0, 32)), Buffer.from(iv, 'hex'));
-  
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    Buffer.from(encryptionKey.slice(0, 32)),
+    Buffer.from(iv, 'hex')
+  );
+
   // Set authentication tag (CRITICAL for GCM integrity verification)
   decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-  
+
   let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
-  
+
   return decrypted;
 }
 

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { adminAuthService, AdminRoles } from './admin-auth.service';
+import { isProductionLike } from '../../utils/env';
 import rateLimit from 'express-rate-limit';
 
 // Rate limiting for admin auth endpoints
@@ -10,16 +11,15 @@ export const adminLoginRateLimit = rateLimit({
   message: {
     error: 'Too many admin login attempts',
     code: 'ADMIN_LOGIN_RATE_LIMIT',
-    retryAfter: 15 * 60
+    retryAfter: 15 * 60,
   },
   standardHeaders: true,
   legacyHeaders: false,
   // Remove custom keyGenerator to use default IP-based limiting
-  skipSuccessfulRequests: true
+  skipSuccessfulRequests: true,
 });
 
 export class AdminAuthController {
-  
   /**
    * Admin login endpoint
    */
@@ -31,7 +31,7 @@ export class AdminAuthController {
         res.status(400).json({
           error: 'Validation failed',
           code: 'ADMIN_VALIDATION_ERROR',
-          errors: errors.array()
+          errors: errors.array(),
         });
         return;
       }
@@ -51,7 +51,7 @@ export class AdminAuthController {
       if (!result) {
         res.status(401).json({
           error: 'Invalid admin credentials',
-          code: 'ADMIN_LOGIN_FAILED'
+          code: 'ADMIN_LOGIN_FAILED',
         });
         return;
       }
@@ -61,9 +61,9 @@ export class AdminAuthController {
       // Set secure HTTP-only cookie for admin session
       res.cookie('admin_token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProductionLike(),
         sameSite: 'strict',
-        maxAge: 15 * 60 * 1000 // 15 minutes
+        maxAge: 15 * 60 * 1000, // 15 minutes
       });
 
       res.json({
@@ -74,16 +74,15 @@ export class AdminAuthController {
           name: user.name,
           roles: user.roles,
           permissions: user.permissions,
-          lastLoginAt: user.lastLoginAt
+          lastLoginAt: user.lastLoginAt,
         },
-        token
+        token,
       });
-
     } catch (error) {
       console.error('Admin login error:', error);
       res.status(500).json({
         error: 'Authentication failed',
-        code: 'ADMIN_LOGIN_ERROR'
+        code: 'ADMIN_LOGIN_ERROR',
       });
     }
   }
@@ -102,7 +101,7 @@ export class AdminAuthController {
           null,
           {
             ipAddress: req.ip,
-            userAgent: req.get('User-Agent')
+            userAgent: req.get('User-Agent'),
           }
         );
       }
@@ -112,14 +111,13 @@ export class AdminAuthController {
 
       res.json({
         success: true,
-        message: 'Admin logged out successfully'
+        message: 'Admin logged out successfully',
       });
-
     } catch (error) {
       console.error('Admin logout error:', error);
       res.status(500).json({
         error: 'Logout failed',
-        code: 'ADMIN_LOGOUT_ERROR'
+        code: 'ADMIN_LOGOUT_ERROR',
       });
     }
   }
@@ -132,7 +130,7 @@ export class AdminAuthController {
       if (!req.adminUser) {
         res.status(401).json({
           error: 'Admin authentication required',
-          code: 'ADMIN_AUTH_REQUIRED'
+          code: 'ADMIN_AUTH_REQUIRED',
         });
         return;
       }
@@ -145,15 +143,14 @@ export class AdminAuthController {
           name: req.adminUser.name,
           roles: req.adminUser.roles,
           permissions: req.adminUser.permissions,
-          lastLoginAt: req.adminUser.lastLoginAt
-        }
+          lastLoginAt: req.adminUser.lastLoginAt,
+        },
       });
-
     } catch (error) {
       console.error('Get current admin error:', error);
       res.status(500).json({
         error: 'Failed to get admin info',
-        code: 'ADMIN_INFO_ERROR'
+        code: 'ADMIN_INFO_ERROR',
       });
     }
   }
@@ -168,7 +165,7 @@ export class AdminAuthController {
         res.status(400).json({
           error: 'Validation failed',
           code: 'ADMIN_VALIDATION_ERROR',
-          errors: errors.array()
+          errors: errors.array(),
         });
         return;
       }
@@ -180,16 +177,19 @@ export class AdminAuthController {
       if (!Object.values(AdminRoles).includes(role)) {
         res.status(400).json({
           error: 'Invalid admin role',
-          code: 'ADMIN_INVALID_ROLE'
+          code: 'ADMIN_INVALID_ROLE',
         });
         return;
       }
 
       // Only super admins can assign super admin role
-      if (role === AdminRoles.SUPER_ADMIN && !adminUser.roles.includes(AdminRoles.SUPER_ADMIN)) {
+      if (
+        role === AdminRoles.SUPER_ADMIN &&
+        !adminUser.roles.includes(AdminRoles.SUPER_ADMIN)
+      ) {
         res.status(403).json({
           error: 'Only super admins can assign super admin role',
-          code: 'ADMIN_PERMISSION_DENIED'
+          code: 'ADMIN_PERMISSION_DENIED',
         });
         return;
       }
@@ -204,21 +204,20 @@ export class AdminAuthController {
       if (!success) {
         res.status(500).json({
           error: 'Failed to assign admin role',
-          code: 'ADMIN_ROLE_ASSIGNMENT_FAILED'
+          code: 'ADMIN_ROLE_ASSIGNMENT_FAILED',
         });
         return;
       }
 
       res.json({
         success: true,
-        message: 'Admin role assigned successfully'
+        message: 'Admin role assigned successfully',
       });
-
     } catch (error) {
       console.error('Assign admin role error:', error);
       res.status(500).json({
         error: 'Failed to assign admin role',
-        code: 'ADMIN_ROLE_ASSIGNMENT_ERROR'
+        code: 'ADMIN_ROLE_ASSIGNMENT_ERROR',
       });
     }
   }
@@ -233,7 +232,7 @@ export class AdminAuthController {
         res.status(400).json({
           error: 'Validation failed',
           code: 'ADMIN_VALIDATION_ERROR',
-          errors: errors.array()
+          errors: errors.array(),
         });
         return;
       }
@@ -242,10 +241,13 @@ export class AdminAuthController {
       const adminUser = req.adminUser!;
 
       // Prevent removing super admin role unless done by another super admin
-      if (role === AdminRoles.SUPER_ADMIN && !adminUser.roles.includes(AdminRoles.SUPER_ADMIN)) {
+      if (
+        role === AdminRoles.SUPER_ADMIN &&
+        !adminUser.roles.includes(AdminRoles.SUPER_ADMIN)
+      ) {
         res.status(403).json({
           error: 'Only super admins can remove super admin role',
-          code: 'ADMIN_PERMISSION_DENIED'
+          code: 'ADMIN_PERMISSION_DENIED',
         });
         return;
       }
@@ -254,7 +256,7 @@ export class AdminAuthController {
       if (userId === adminUser.id && role === AdminRoles.SUPER_ADMIN) {
         res.status(403).json({
           error: 'Cannot remove your own super admin role',
-          code: 'ADMIN_SELF_ROLE_REMOVAL_DENIED'
+          code: 'ADMIN_SELF_ROLE_REMOVAL_DENIED',
         });
         return;
       }
@@ -268,21 +270,20 @@ export class AdminAuthController {
       if (!success) {
         res.status(500).json({
           error: 'Failed to remove admin role',
-          code: 'ADMIN_ROLE_REMOVAL_FAILED'
+          code: 'ADMIN_ROLE_REMOVAL_FAILED',
         });
         return;
       }
 
       res.json({
         success: true,
-        message: 'Admin role removed successfully'
+        message: 'Admin role removed successfully',
       });
-
     } catch (error) {
       console.error('Remove admin role error:', error);
       res.status(500).json({
         error: 'Failed to remove admin role',
-        code: 'ADMIN_ROLE_REMOVAL_ERROR'
+        code: 'ADMIN_ROLE_REMOVAL_ERROR',
       });
     }
   }
@@ -298,7 +299,7 @@ export class AdminAuthController {
         adminId,
         action,
         resource,
-        severity
+        severity,
       } = req.query;
 
       const logs = await adminAuthService.getAdminLogs(
@@ -315,15 +316,14 @@ export class AdminAuthController {
         logs,
         pagination: {
           limit: parseInt(limit as string),
-          offset: parseInt(offset as string)
-        }
+          offset: parseInt(offset as string),
+        },
       });
-
     } catch (error) {
       console.error('Get admin activity logs error:', error);
       res.status(500).json({
         error: 'Failed to fetch activity logs',
-        code: 'ADMIN_LOGS_ERROR'
+        code: 'ADMIN_LOGS_ERROR',
       });
     }
   }
@@ -337,29 +337,25 @@ export const adminLoginValidation = [
     .withMessage('Valid email is required'),
   body('password')
     .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters long')
+    .withMessage('Password must be at least 8 characters long'),
 ];
 
 export const assignRoleValidation = [
-  body('userId')
-    .isUUID()
-    .withMessage('Valid user ID is required'),
+  body('userId').isUUID().withMessage('Valid user ID is required'),
   body('role')
     .isIn(Object.values(AdminRoles))
     .withMessage('Valid admin role is required'),
   body('expiresAt')
     .optional()
     .isISO8601()
-    .withMessage('Valid expiration date is required')
+    .withMessage('Valid expiration date is required'),
 ];
 
 export const removeRoleValidation = [
-  body('userId')
-    .isUUID()
-    .withMessage('Valid user ID is required'),
+  body('userId').isUUID().withMessage('Valid user ID is required'),
   body('role')
     .isIn(Object.values(AdminRoles))
-    .withMessage('Valid admin role is required')
+    .withMessage('Valid admin role is required'),
 ];
 
 export const adminAuthController = new AdminAuthController();

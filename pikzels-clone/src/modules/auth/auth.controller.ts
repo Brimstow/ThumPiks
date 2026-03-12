@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { logger } from '../../utils/logger';
+import { isProductionLike, isDevelopmentEnv } from '../../utils/env';
 import {
   ValidationError,
   ConflictError,
@@ -28,11 +29,11 @@ export const register = async (req: Request, res: Response) => {
     const result = await authService.register(username, email, name, password);
 
     // Determine cookie settings for cross-origin (Netlify -> Railway)
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction, // Required for sameSite: 'none'
-      sameSite: isProduction ? 'none' as const : 'strict' as const, // 'none' required for cross-origin cookies
+      sameSite: isProduction ? ('none' as const) : ('strict' as const), // 'none' required for cross-origin cookies
     };
 
     // Set HttpOnly cookie for access token
@@ -102,11 +103,11 @@ export const login = async (req: Request, res: Response) => {
     const result = await authService.login(loginIdentifier, password);
 
     // Determine cookie settings for cross-origin (Netlify -> Railway)
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction, // Required for sameSite: 'none'
-      sameSite: isProduction ? 'none' as const : 'strict' as const, // 'none' required for cross-origin cookies
+      sameSite: isProduction ? ('none' as const) : ('strict' as const), // 'none' required for cross-origin cookies
     };
 
     // Set HttpOnly cookie for access token
@@ -155,7 +156,7 @@ export const login = async (req: Request, res: Response) => {
     // Generic error for unexpected failures - include error message in development
     return res.status(500).json({
       error: 'Login failed. Please try again.',
-      debug: process.env.NODE_ENV !== 'production' ? error?.message : undefined,
+      debug: isDevelopmentEnv() ? error?.message : undefined,
     });
   }
 };
@@ -167,11 +168,11 @@ export const login = async (req: Request, res: Response) => {
 export const logout = async (_req: Request, res: Response) => {
   try {
     // Determine cookie settings for cross-origin (Netlify -> Railway)
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' as const : 'strict' as const,
+      sameSite: isProduction ? ('none' as const) : ('strict' as const),
     };
 
     // Clear authentication cookies
@@ -180,13 +181,13 @@ export const logout = async (_req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Logged out successfully'
+      message: 'Logged out successfully',
     });
   } catch (error: any) {
     logger.error('Logout failed', error);
     return res.status(500).json({
       success: false,
-      error: 'Logout failed. Please try again.'
+      error: 'Logout failed. Please try again.',
     });
   }
 };
@@ -345,7 +346,7 @@ export const refreshToken = async (req: Request, res: Response) => {
   try {
     // Try to get refresh token from cookie first, then fallback to request body
     let refreshToken = (req as any).cookies?.refreshToken;
-    
+
     // Fallback to request body for backwards compatibility
     if (!refreshToken) {
       refreshToken = req.body.refreshToken;
@@ -360,11 +361,11 @@ export const refreshToken = async (req: Request, res: Response) => {
     const result = await authService.refreshToken(refreshToken);
 
     // Determine cookie settings for cross-origin (Netlify -> Railway)
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' as const : 'strict' as const,
+      sameSite: isProduction ? ('none' as const) : ('strict' as const),
     };
 
     // Set new tokens in HttpOnly cookies

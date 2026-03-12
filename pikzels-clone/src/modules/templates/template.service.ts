@@ -1,10 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { isProductionLike } from '../../utils/env';
+import { TemplateParametersSchema, TemplateTagsSchema } from './types';
+import {
+  validateJsonColumn,
+  safeParseJsonColumn,
+} from '../../utils/json-validation';
 
 const prisma = getPrisma();
 const isTestEnv = process.env.NODE_ENV === 'test';
-const isProdEnv = process.env.NODE_ENV === 'production';
+const isProdEnv = isProductionLike();
 
 export class TemplateService {
   /**
@@ -19,6 +25,14 @@ export class TemplateService {
     tags: string[];
     isPublic?: boolean;
   }) {
+    // Validate JSON columns before writing
+    validateJsonColumn(
+      TemplateParametersSchema,
+      data.parameters,
+      'Template.parameters'
+    );
+    validateJsonColumn(TemplateTagsSchema, data.tags, 'Template.tags');
+
     return prisma.template.create({
       data: {
         id: uuidv4(),
@@ -114,10 +128,20 @@ export class TemplateService {
         take: limit,
       });
 
-      // Parse tags from JSON
+      // Parse and validate tags from JSON
       return templates.map(template => ({
         ...template,
-        tags: JSON.parse(template.tags as string),
+        tags: safeParseJsonColumn(
+          TemplateTagsSchema,
+          (() => {
+            try {
+              return JSON.parse(template.tags as string);
+            } catch {
+              return template.tags;
+            }
+          })(),
+          'Template.tags'
+        ),
       }));
     } catch (error) {
       // In non-production environments, fall back to mock data if DB access fails
@@ -158,7 +182,17 @@ export class TemplateService {
 
     return {
       ...template,
-      tags: JSON.parse(template.tags as string),
+      tags: safeParseJsonColumn(
+        TemplateTagsSchema,
+        (() => {
+          try {
+            return JSON.parse(template.tags as string);
+          } catch {
+            return template.tags;
+          }
+        })(),
+        'Template.tags'
+      ),
     };
   }
 
@@ -176,8 +210,9 @@ export class TemplateService {
   ) {
     const updateData: any = { ...data };
 
-    // Handle tags update
+    // Handle tags update with validation
     if (data.tags) {
+      validateJsonColumn(TemplateTagsSchema, data.tags, 'Template.tags');
       updateData.tags = JSON.stringify(data.tags);
     }
 
@@ -191,7 +226,17 @@ export class TemplateService {
 
     return {
       ...template,
-      tags: JSON.parse(template.tags as string),
+      tags: safeParseJsonColumn(
+        TemplateTagsSchema,
+        (() => {
+          try {
+            return JSON.parse(template.tags as string);
+          } catch {
+            return template.tags;
+          }
+        })(),
+        'Template.tags'
+      ),
     };
   }
 

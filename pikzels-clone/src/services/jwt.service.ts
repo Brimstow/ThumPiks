@@ -1,17 +1,18 @@
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import { logger } from '../utils/logger';
+import { isProductionLike } from '../utils/env';
 import { getPrisma } from '../utils/prisma-factory';
 
 const prisma = getPrisma();
 
 // Enhanced JWT configuration with proper error handling
-const getJWTSecret = (): string => {
+export const getJWTSecret = (): string => {
   const secret = process.env.JWT_SECRET; // secretlint-disable-line
   if (!secret || secret === 'your-secret-key') {
-    if (process.env.NODE_ENV === 'production') {
+    if (isProductionLike()) {
       logger.error('JWT_SECRET not set in environment variables');
-      throw new Error('JWT_SECRET must be set in production');
+      throw new Error('JWT_SECRET must be set in production/staging');
     }
     logger.warn('Using default JWT secret - not suitable for production');
     return 'your-secret-key';
@@ -22,9 +23,9 @@ const getJWTSecret = (): string => {
 const getRefreshSecret = (): string => {
   const secret = process.env.REFRESH_TOKEN_SECRET; // secretlint-disable-line
   if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
+    if (isProductionLike()) {
       logger.error('REFRESH_TOKEN_SECRET not set in environment variables');
-      throw new Error('REFRESH_TOKEN_SECRET must be set in production');
+      throw new Error('REFRESH_TOKEN_SECRET must be set in production/staging');
     }
     logger.warn('Using default refresh secret - not suitable for production');
     return 'your-refresh-secret-key';

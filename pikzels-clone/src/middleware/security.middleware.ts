@@ -1,20 +1,28 @@
-import { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import Redis from 'ioredis';
+import { RateLimiterRedis, RateLimiterMemory } from 'rate-limiter-flexible';
 import { logger } from '../utils/logger';
+import { isProductionLike } from '../utils/env';
 
 // Security Headers Middleware
 export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:", "data:", "blob:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https:", "ws:", "wss:", "http://localhost:8556", "http://localhost:8550"],
-      fontSrc: ["'self'", "https:", "data:", "blob:"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https:', 'data:', 'blob:'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https:'],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      connectSrc: [
+        "'self'",
+        'https:',
+        'ws:',
+        'wss:',
+        'http://localhost:8556',
+        'http://localhost:8550',
+      ],
+      fontSrc: ["'self'", 'https:', 'data:', 'blob:'],
       objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "data:"],
+      mediaSrc: ["'self'", 'data:'],
       frameSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
@@ -28,72 +36,222 @@ export const securityHeaders = helmet({
   },
 });
 
-// Rate Limiting Configurations
-export const generalRateLimit = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    logger.warn('Rate limit exceeded', {
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      url: req.url,
-      method: req.method,
+// ---------------------------------------------------------------------------
+// Redis Client for Rate Limiting (rate-limiter-flexible + insuranceLimiter)
+// ---------------------------------------------------------------------------
+
+let sharedRedisClient: Redis | null = null;
+
+function getRateLimitRedis(): Redis | null {
+  if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID)
+    return null;
+  if (sharedRedisClient) return sharedRedisClient;
+
+  try {
+    const host = process.env.REDIS_HOST ?? 'localhost';
+    const port = parseInt(process.env.REDIS_PORT ?? '8520');
+
+    sharedRedisClient = new Redis({
+      host,
+      port,
+      password: process.env.REDIS_PASSWORD || undefined,
+      enableOfflineQueue: false,
+      connectTimeout: 3000,
+      maxRetriesPerRequest: 1,
     });
-    res.status(429).json({
-      error: 'Too many requests from this IP, please try again later.',
-      retryAfter: '15 minutes',
+
+    sharedRedisClient.on('error', () => {
+      // Redis error — rate-limiter-flexible auto-falls back to insuranceLimiter
     });
-  },
+
+    return sharedRedisClient;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rate Limiter Factory
+// ---------------------------------------------------------------------------
+
+interface LimiterConfig {
+  points: number;
+  duration: number; // seconds
+  keyPrefix: string;
+  message: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  keyGenerator: (req: any) => string;
+  skipSuccessfulRequests?: boolean;
+  logLabel: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createLimiter(
+  config: LimiterConfig
+): (req: any, res: any, next: any) => void {
+  const memoryFallback = new RateLimiterMemory({
+    points: config.points,
+    duration: config.duration,
+    keyPrefix: config.keyPrefix,
+  });
+
+  const redis = getRateLimitRedis();
+  const limiter = redis
+    ? new RateLimiterRedis({
+        storeClient: redis,
+        points: config.points,
+        duration: config.duration,
+        keyPrefix: config.keyPrefix,
+        insuranceLimiter: memoryFallback,
+      })
+    : memoryFallback;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (req: any, res: any, next: any) => {
+    const key = config.keyGenerator(req);
+    limiter
+      .consume(key)
+      .then(rlRes => {
+        res.set('X-RateLimit-Limit', String(config.points));
+        res.set('X-RateLimit-Remaining', String(rlRes.remainingPoints));
+        res.set('RateLimit-Limit', String(config.points));
+        res.set('RateLimit-Remaining', String(rlRes.remainingPoints));
+        res.set(
+          'RateLimit-Reset',
+          String(Math.ceil(rlRes.msBeforeNext / 1000))
+        );
+
+        if (config.skipSuccessfulRequests) {
+          res.on('finish', () => {
+            if (res.statusCode < 400) {
+              limiter.reward(key, 1).catch(() => {});
+            }
+          });
+        }
+
+        next();
+      })
+      .catch(rlRes => {
+        if (rlRes instanceof Error) {
+          // Unexpected error — fail open (allow request through)
+          logger.warn(
+            'Rate limiter unexpected error, allowing request through',
+            {
+              category: 'rate-limit',
+              limiter: config.logLabel,
+              error: rlRes.message,
+            }
+          );
+          next();
+          return;
+        }
+
+        const retryAfter = Math.ceil(rlRes.msBeforeNext / 1000);
+        res.set('Retry-After', String(retryAfter));
+        res.set('X-RateLimit-Limit', String(config.points));
+        res.set('X-RateLimit-Remaining', '0');
+
+        logger.warn(`${config.logLabel} rate limit exceeded`, {
+          category: 'rate-limit',
+          ip: req.ip,
+          userAgent: req.get('User-Agent'),
+          url: req.url,
+          method: req.method,
+          limiter: config.keyPrefix,
+          ...(req.user?.id && { userId: req.user.id }),
+        });
+
+        res.status(429).json({
+          error: config.message,
+          retryAfter: '15 minutes',
+        });
+      });
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ipKey = (req: any): string => req.ip || 'unknown';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const userKey = (req: any): string => req.user?.id || req.ip || 'unknown';
+
+// ---------------------------------------------------------------------------
+// Rate Limiters — IP-based (Layer 1)
+// ---------------------------------------------------------------------------
+
+export const generalRateLimit = createLimiter({
+  points: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+  duration: Math.ceil(
+    parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000') / 1000
+  ),
+  keyPrefix: 'rl:general:',
+  message: 'Too many requests from this IP, please try again later.',
+  keyGenerator: ipKey,
+  logLabel: 'General',
 });
 
-// Strict rate limiting for authentication endpoints
-export const authRateLimit = rateLimit({
-  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || '5'),
-  message: {
-    error: 'Too many authentication attempts, please try again later.',
-    retryAfter: '15 minutes',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful requests
-  handler: (req, res) => {
-    logger.warn('Authentication rate limit exceeded', {
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      url: req.url,
-      method: req.method,
-    });
-    res.status(429).json({
-      error: 'Too many authentication attempts, please try again later.',
-      retryAfter: '15 minutes',
-    });
-  },
+export const authRateLimit = createLimiter({
+  points: parseInt(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || '5'),
+  duration: Math.ceil(
+    parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000') / 1000
+  ),
+  keyPrefix: 'rl:auth:',
+  message: 'Too many authentication attempts, please try again later.',
+  keyGenerator: ipKey,
+  skipSuccessfulRequests: true,
+  logLabel: 'Authentication',
 });
 
-// File upload rate limiting
-export const uploadRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Max 20 uploads per window
-  message: {
-    error: 'Too many file uploads, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
+export const uploadRateLimit = createLimiter({
+  points: 20,
+  duration: 900,
+  keyPrefix: 'rl:upload:',
+  message: 'Too many file uploads, please try again later.',
+  keyGenerator: ipKey,
+  logLabel: 'Upload',
+});
+
+// ---------------------------------------------------------------------------
+// Rate Limiters — Per-User (Layer 2: per-account abuse prevention)
+// Applied AFTER authenticateToken in route files so req.user is available.
+// ---------------------------------------------------------------------------
+
+/** General API: 200 req / 15 min per user */
+export const userApiRateLimit = createLimiter({
+  points: 200,
+  duration: 900,
+  keyPrefix: 'rl:user:api:',
+  message: 'Too many requests, please try again later.',
+  keyGenerator: userKey,
+  logLabel: 'Per-user API',
+});
+
+/** AI generation: 30 req / 15 min per user (expensive operations) */
+export const userAiRateLimit = createLimiter({
+  points: 30,
+  duration: 900,
+  keyPrefix: 'rl:user:ai:',
+  message: 'Too many AI generation requests, please try again later.',
+  keyGenerator: userKey,
+  logLabel: 'Per-user AI',
+});
+
+/** File uploads: 50 req / 15 min per user */
+export const userUploadRateLimit = createLimiter({
+  points: 50,
+  duration: 900,
+  keyPrefix: 'rl:user:upload:',
+  message: 'Too many file uploads, please try again later.',
+  keyGenerator: userKey,
+  logLabel: 'Per-user upload',
 });
 
 // Input sanitization middleware
-export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const sanitizeInput = (req: any, _res: any, next: any) => {
   // Remove potentially dangerous characters from string inputs
   const sanitizeString = (str: string): string => {
     if (typeof str !== 'string') return str;
-    
+
     // Remove script tags and javascript: protocol
     return str
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -104,15 +262,15 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
 
   const sanitizeObject = (obj: any): any => {
     if (obj === null || obj === undefined) return obj;
-    
+
     if (typeof obj === 'string') {
       return sanitizeString(obj);
     }
-    
+
     if (Array.isArray(obj)) {
       return obj.map(sanitizeObject);
     }
-    
+
     if (typeof obj === 'object') {
       const sanitized: any = {};
       for (const key in obj) {
@@ -122,7 +280,7 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
       }
       return sanitized;
     }
-    
+
     return obj;
   };
 
@@ -132,16 +290,25 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
   }
 
   // Sanitize query parameters
+  // Note: In Express 5, req.query is a read-only getter (re-parsed from URL each
+  // time). The assignment below silently fails in non-strict mode but throws in
+  // strict mode (TypeScript output always emits "use strict"). We catch the error
+  // to avoid breaking the request; route-level validators handle further sanitisation.
   if (req.query) {
-    req.query = sanitizeObject(req.query);
+    try {
+      req.query = sanitizeObject(req.query);
+    } catch {
+      // Express 5: req.query is getter-only — skip in-place replacement
+    }
   }
 
   next();
 };
 
 // HTTPS redirect middleware (for production)
-export const httpsRedirect = (req: Request, res: Response, next: NextFunction) => {
-  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_HTTPS_REDIRECT === 'true') {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const httpsRedirect = (req: any, res: any, next: any) => {
+  if (isProductionLike() && process.env.ENABLE_HTTPS_REDIRECT === 'true') {
     if (req.header('x-forwarded-proto') !== 'https') {
       return res.redirect(`https://${req.header('host')}${req.url}`);
     }
@@ -150,11 +317,12 @@ export const httpsRedirect = (req: Request, res: Response, next: NextFunction) =
 };
 
 // Security logging middleware
-export const securityLogger = (req: Request, _res: Response, next: NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const securityLogger = (req: any, _res: any, next: any) => {
   // Log security-relevant events
   const userAgent = req.get('User-Agent') || 'Unknown';
   const ip = req.ip || req.connection.remoteAddress || 'Unknown';
-  
+
   // Log suspicious patterns
   const suspiciousPatterns = [
     /\.\./g, // Directory traversal
@@ -170,7 +338,9 @@ export const securityLogger = (req: Request, _res: Response, next: NextFunction)
     params: req.params,
   });
 
-  const isSuspicious = suspiciousPatterns.some(pattern => pattern.test(requestString));
+  const isSuspicious = suspiciousPatterns.some(pattern =>
+    pattern.test(requestString)
+  );
 
   if (isSuspicious) {
     logger.warn('Suspicious request detected', {
@@ -185,7 +355,11 @@ export const securityLogger = (req: Request, _res: Response, next: NextFunction)
   }
 
   // Log authentication attempts
-  if (req.url.includes('/auth/') || req.url.includes('/login') || req.url.includes('/register')) {
+  if (
+    req.url.includes('/auth/') ||
+    req.url.includes('/login') ||
+    req.url.includes('/register')
+  ) {
     logger.info('Authentication attempt', {
       ip,
       userAgent,
@@ -198,9 +372,10 @@ export const securityLogger = (req: Request, _res: Response, next: NextFunction)
 };
 
 // Request size limiting middleware
-export const requestSizeLimit = (req: Request, res: Response, next: NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const requestSizeLimit = (req: any, res: any, next: any) => {
   const maxSize = parseInt(process.env.MAX_FILE_SIZE || '10485760'); // 10MB default
-  
+
   if (req.headers['content-length']) {
     const contentLength = parseInt(req.headers['content-length']);
     if (contentLength > maxSize) {
@@ -216,18 +391,19 @@ export const requestSizeLimit = (req: Request, res: Response, next: NextFunction
       });
     }
   }
-  
+
   return next();
 };
 
 // API versioning and deprecation headers
-export const apiVersioning = (_req: Request, res: Response, next: NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const apiVersioning = (_req: any, res: any, next: any) => {
   // Add API version to response headers
   res.set('X-API-Version', '1.0.0');
   res.set('X-Powered-By', 'Thumbnail Maker Studio');
-  
+
   // Remove default Express header for security
   res.removeHeader('X-Powered-By');
-  
+
   next();
 };

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import { isProductionLike, isDevelopmentEnv } from './utils/env';
 // import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
 // Load environment variables FIRST
@@ -20,6 +21,7 @@ import {
   requestSizeLimit,
   apiVersioning,
 } from './middleware/security.middleware';
+import { requestIdMiddleware } from './middleware/request-id.middleware';
 
 // Import services AFTER environment variables are loaded
 import { CacheService } from './services/cache.service';
@@ -27,9 +29,11 @@ import {
   performanceMiddleware,
   responseTimeMiddleware,
 } from './middleware/performance.middleware';
-import { logger } from './utils/logger';
+import { logger, flushLogger } from './utils/logger';
+import { getRequestId } from './utils/request-context';
 import { eventRegistry } from './events';
 import { getReplicateQueue } from './modules/thumbnail/replicate-queue.service';
+import { healthCheckPrisma } from './utils/prisma-factory';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
@@ -54,7 +58,10 @@ import abTestingRoutes from './modules/ab-testing/ab-testing.routes';
 import userAssetRoutes from './modules/user-asset/user-asset.routes';
 import urlHistoryRoutes from './modules/user-url-history/user-url-history.routes';
 import editorCommandRoutes from './modules/editor-command/editor-command.routes';
+import editorChatRoutes from './modules/editor-chat/editor-chat.routes';
 import compositionLayoutRoutes from './modules/composition-layout/composition-layout.routes';
+import youtubeTrendingRoutes from './modules/youtube-trending/youtube-trending.routes';
+import brandKitRoutes from './modules/brand-kit/brand-kit.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -66,8 +73,8 @@ import sitemapRoutes from './modules/admin/sitemap.routes';
 const app = express();
 const PORT = Number(process.env.PORT) || 8550;
 
-// Trust proxy for Railway/production deployment
-if (process.env.NODE_ENV === 'production') {
+// Trust proxy for Railway/production-like deployment (production + staging)
+if (isProductionLike()) {
   app.set('trust proxy', true);
 }
 
@@ -83,6 +90,9 @@ if (process.env.ENABLE_SECURITY_HEADERS === 'true') {
   app.use(securityHeaders);
   console.log('🛡️  Security headers enabled');
 }
+
+// Request ID tracking (must be before any logging middleware)
+app.use(requestIdMiddleware);
 
 // Security logging
 app.use(securityLogger);
@@ -124,7 +134,7 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
 // Enhanced CORS configuration
 // Development: Always include localhost for local testing
 // Production: Only use CORS_ORIGIN env var (no localhost exposure)
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = isDevelopmentEnv();
 const devOrigins = ['http://localhost:8556', 'http://127.0.0.1:8556'];
 const prodOrigins = process.env.CORS_ORIGIN?.split(',') || [];
 
@@ -132,8 +142,21 @@ const corsOptions = {
   origin: isDev ? [...devOrigins, ...prodOrigins] : prodOrigins,
   credentials: true, // Always enable credentials for HttpOnly cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-API-Version'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Request-Id',
+  ],
+  exposedHeaders: [
+    'X-API-Version',
+    'X-Request-Id',
+    'RateLimit-Limit',
+    'RateLimit-Remaining',
+    'RateLimit-Reset',
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+  ],
   maxAge: 86400, // 24 hours
 };
 
@@ -190,10 +213,13 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/editor-command', editorCommandRoutes);
+app.use('/api/editor-chat', editorChatRoutes);
 app.use('/api/visual-search', visualSearchRoutes);
 app.use('/api/ab-tests', abTestingRoutes);
 app.use('/api/user-assets', userAssetRoutes);
 app.use('/api/url-history', urlHistoryRoutes);
+app.use('/api/youtube-trending', youtubeTrendingRoutes);
+app.use('/api/brand-kit', brandKitRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -205,9 +231,12 @@ app.use('/api/admin/sitemap', sitemapRoutes);
 // Health check endpoint - MUST be before error handler for Railway healthchecks
 app.get('/health', async (_req, res) => {
   try {
-    const cacheStatus = await cache.healthCheck();
+    const [cacheStatus, dbStatus] = await Promise.all([
+      cache.healthCheck(),
+      healthCheckPrisma(),
+    ]);
     const eventStats = eventRegistry.getStats();
-    
+
     // Check Replicate queue status
     const replicateQueue = getReplicateQueue();
     let queueStats = null;
@@ -215,14 +244,20 @@ app.get('/health', async (_req, res) => {
       queueStats = await replicateQueue.getStats();
     }
 
-    res.status(200).json({
-      status: 'OK',
-      message: 'Thumbnail Maker API is running',
+    const statusCode = dbStatus ? 200 : 503;
+
+    res.status(statusCode).json({
+      status: dbStatus ? 'OK' : 'DEGRADED',
+      message: dbStatus
+        ? 'Thumbnail Maker API is running'
+        : 'Thumbnail Maker API is degraded - database unreachable',
       services: {
         cache: cacheStatus ? 'healthy' : 'unhealthy',
-        database: 'healthy', // Will add Prisma health check later
+        database: dbStatus ? 'healthy' : 'unhealthy',
         events: eventStats.totalHandlers > 0 ? 'healthy' : 'unhealthy',
-        replicateQueue: replicateQueue.isReady() ? 'healthy' : 'not initialized',
+        replicateQueue: replicateQueue.isReady()
+          ? 'healthy'
+          : 'not initialized',
       },
       events: {
         totalHandlers: eventStats.totalHandlers,
@@ -247,22 +282,21 @@ app.get('/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    // Return 200 even on partial failures so Railway knows the server is up
-    res.status(200).json({
-      status: 'OK',
-      message: 'Thumbnail Maker API is running',
+    res.status(503).json({
+      status: 'ERROR',
+      message: 'Health check failed',
       timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Production API-only mode (frontend deployed separately)
-if (process.env.NODE_ENV === 'production') {
+// Production-like API-only mode (frontend deployed separately)
+if (isProductionLike()) {
   app.get('/', (_req, res) => {
     res.json({
       message: 'Thumbnail Maker API',
       version: '1.0.0',
-      environment: 'production',
+      environment: process.env.NODE_ENV || 'production',
       health: '/health',
       api: '/api',
     });
@@ -297,6 +331,8 @@ app.use(
     res: express.Response,
     _next: express.NextFunction
   ) => {
+    const requestId = getRequestId();
+
     logger.error('Unhandled API error', err, {
       url: req.url,
       method: req.method,
@@ -304,16 +340,16 @@ app.use(
       userAgent: req.get('User-Agent'),
     });
 
-    // Don't leak error details in production
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    // Don't leak error details in production/staging
+    const isDevelopment = isDevelopmentEnv();
 
     res.status(500).json({
       error: 'Internal server error',
+      requestId,
       ...(isDevelopment && { details: err.message, stack: err.stack }),
     });
   }
 );
-
 
 // Initialize event system before starting server
 async function initializeServer() {
@@ -330,14 +366,22 @@ async function initializeServer() {
         console.log('🚀 Replicate job queue initialized');
       } catch (queueError) {
         // Queue initialization failure is non-fatal - service will work without queue
-        console.warn('⚠️  Replicate queue not initialized (Redis may be unavailable):', 
-          queueError instanceof Error ? queueError.message : String(queueError));
-        console.warn('   Replicate requests will be processed directly without queuing');
+        console.warn(
+          '⚠️  Replicate queue not initialized (Redis may be unavailable):',
+          queueError instanceof Error ? queueError.message : String(queueError)
+        );
+        console.warn(
+          '   Replicate requests will be processed directly without queuing'
+        );
       }
     }
 
     // Start server - bind to 0.0.0.0 for Railway
-    const server = app.listen(PORT, '0.0.0.0', () => {
+    const server = app.listen(PORT, '0.0.0.0', (error?: Error) => {
+      if (error) {
+        logger.error('Server failed to start', error);
+        process.exit(1);
+      }
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`🎯 Health check: http://localhost:${PORT}/health`);
 
@@ -378,13 +422,14 @@ if (require.main === module) {
     server.close(() => {
       console.log('👋 Process terminated');
     });
-    
+
     // Shutdown Replicate queue
     const replicateQueue = getReplicateQueue();
     if (replicateQueue.isReady()) {
       await replicateQueue.shutdown();
     }
-    
+
+    await flushLogger();
     await cache.disconnect();
   });
 
@@ -394,13 +439,14 @@ if (require.main === module) {
     server.close(() => {
       console.log('👋 Process terminated');
     });
-    
+
     // Shutdown Replicate queue
     const replicateQueue = getReplicateQueue();
     if (replicateQueue.isReady()) {
       await replicateQueue.shutdown();
     }
-    
+
+    await flushLogger();
     await cache.disconnect();
   });
 
@@ -414,7 +460,7 @@ if (require.main === module) {
       }
     );
     // For development, we don't exit the process
-    if (process.env.NODE_ENV === 'production') {
+    if (isProductionLike()) {
       process.exit(1);
     }
   });
