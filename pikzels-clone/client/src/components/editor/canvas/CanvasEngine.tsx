@@ -854,30 +854,41 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
         <div
           className="canvas-wrapper"
           style={{
-            transform: `translate(${canvas.panX}px, ${canvas.panY}px) scale(${canvas.zoom}) ${globalTransformString}`,
-            transformOrigin: 'center center',
+            width: canvas.width * canvas.zoom,
+            height: canvas.height * canvas.zoom,
+            transform: `translate(${canvas.panX}px, ${canvas.panY}px)`,
             filter: globalFilterString,
           }}
         >
-          {/* Main canvas */}
-          <canvas
-            ref={canvasRef}
-            width={canvas.width}
-            height={canvas.height}
-            style={{ display: 'block' }}
-          />
-          {/* Overlay canvas for selection, guides, etc. */}
-          <canvas
-            ref={overlayCanvasRef}
-            width={canvas.width}
-            height={canvas.height}
+          <div
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              pointerEvents: 'none',
+              transform: `scale(${canvas.zoom}) ${globalTransformString}`,
+              transformOrigin: '0 0',
+              width: canvas.width,
+              height: canvas.height,
+              position: 'relative',
             }}
-          />
+          >
+            {/* Main canvas */}
+            <canvas
+              ref={canvasRef}
+              width={canvas.width}
+              height={canvas.height}
+              style={{ display: 'block' }}
+            />
+            {/* Overlay canvas for selection, guides, etc. */}
+            <canvas
+              ref={overlayCanvasRef}
+              width={canvas.width}
+              height={canvas.height}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
         </div>
       </div>
 

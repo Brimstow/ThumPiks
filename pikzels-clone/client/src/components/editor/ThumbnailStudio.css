@@ -551,7 +551,7 @@
 .canvas-wrapper {
   position: relative;
   box-shadow: var(--editor-shadow-lg);
-  transition: transform var(--editor-transition-normal);
+  overflow: hidden;
 }
 
 .canvas-wrapper canvas {

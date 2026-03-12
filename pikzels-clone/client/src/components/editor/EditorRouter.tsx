@@ -22,6 +22,12 @@ export interface EditorRouterProps {
     };
   };
   initialImage?: string;
+  platformPreset?: {
+    platform: string;
+    width: number;
+    height: number;
+    name: string;
+  };
   onSave: (data: { layers: Layer[]; preview: string }) => void;
   onClose: () => void;
 }
@@ -38,6 +44,7 @@ export function EditorRouter({
   thumbnailId,
   thumbnailData,
   initialImage,
+  platformPreset,
   onSave,
   onClose,
 }: EditorRouterProps) {
@@ -60,6 +67,7 @@ export function EditorRouter({
       thumbnailId={thumbnailId}
       thumbnailData={thumbnailData}
       initialImage={initialImage}
+      platformPreset={platformPreset}
       onSave={onSave}
       onClose={onClose}
     />

@@ -388,6 +388,12 @@ export interface ThumbnailStudioProps {
       [key: string]: unknown;
     };
   };
+  platformPreset?: {
+    platform: string;
+    width: number;
+    height: number;
+    name: string;
+  };
   onSave?: (data: { layers: Layer[]; preview: string }) => void;
   onClose?: () => void;
 }

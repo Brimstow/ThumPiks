@@ -24,6 +24,8 @@ import {
   compositionToLayers,
 } from '../../features/composition-templates';
 import { EditorModeToggle, useEditorMode } from '../../features/editor-mode';
+import { ChatPanel, useChatConversation, useChatActions } from '../../features/ai-chat';
+import type { PlatformPresetContext } from '../../features/ai-chat';
 import type { 
   ThumbnailStudioProps, 
   ToolType, 
@@ -188,6 +190,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   thumbnailId,
   initialImage,
   thumbnailData,
+  platformPreset,
   onSave,
   onClose,
 }) => {
@@ -247,6 +250,10 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
 
   // AI Command Bar state
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+  // AI Chat panel state
+  const [isChatCollapsed, setIsChatCollapsed] = useState(() => {
+    return localStorage.getItem('editor-chat-collapsed') === 'true';
+  });
   const { callBackendAI, isLoading: isAILoading } = useBackendAI();
 
   // Ref for canvas container (used by FloatingLayerToolbar for positioning)
@@ -956,6 +963,15 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     addImageLayer(frame.dataUrl, `Video Frame ${formatTimestamp(frame.timestamp)}`);
   }, [addImageLayer]);
 
+  // Chat upload handler — read file as data URL and add as image layer
+  const handleChatUpload = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      addImageLayer(reader.result as string, file.name);
+    };
+    reader.readAsDataURL(file);
+  }, [addImageLayer]);
+
   // Helper to format timestamp
   const formatTimestamp = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -1066,6 +1082,28 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     getSelectedLayerIds: () => selectionRef.current.layerIds,
     getCanvasSize: () => ({ width: state.canvas.width, height: state.canvas.height }),
   });
+
+  // AI Chat conversation & actions
+  const chatConversation = useChatConversation({
+    getCanvasContext: commandExecutor.buildContext,
+    platformPreset: platformPreset as PlatformPresetContext | undefined,
+    onActions: (actions, messageId) => {
+      chatActionsHook.executeActions(actions, messageId);
+    },
+  });
+
+  const chatActionsHook = useChatActions({
+    commandExecutor,
+    updateActionResult: chatConversation.updateActionResult,
+  });
+
+  const toggleChatCollapsed = useCallback(() => {
+    setIsChatCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('editor-chat-collapsed', String(next));
+      return next;
+    });
+  }, []);
 
   // Layouts — Advanced Editor integration
   const layouts = useLayouts();
@@ -1898,6 +1936,26 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Draggable divider between tab content and chat */}
+                <div
+                  className="chat-divider"
+                  onDoubleClick={toggleChatCollapsed}
+                  title="Double-click to toggle chat"
+                />
+
+                {/* AI Chat Section */}
+                <ChatPanel
+                  messages={chatConversation.messages}
+                  isStreaming={chatConversation.isStreaming}
+                  onSend={chatConversation.sendMessage}
+                  onStop={chatConversation.stopStreaming}
+                  onClear={chatConversation.clearMessages}
+                  selectedLayers={selectedLayers}
+                  isCollapsed={isChatCollapsed}
+                  onToggleCollapse={toggleChatCollapsed}
+                  onUpload={handleChatUpload}
+                />
               </>
             )}
           </aside>
