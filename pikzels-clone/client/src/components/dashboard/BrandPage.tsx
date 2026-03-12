@@ -32,12 +32,15 @@ import {
   Calendar,
   Users,
   Star,
+  Info,
+  Wand2,
 } from 'lucide-react';
 import { BrandCategoryType, BrandCategory, CustomCategory } from './brand/types';
 import { useBrandKit } from './brand/useBrandKit';
 import BrandKitModal from './brand/BrandKitModal';
 import BrandUsageOverview from './brand/BrandUsageOverview';
 import RecentBrandActivity from './brand/RecentBrandActivity';
+import BrandKitSetupWizard from './brand/BrandKitSetupWizard';
 
 // ── Category Card Config (driven by hook state for counts) ────────────
 
@@ -334,11 +337,17 @@ function renderCardContent(categoryId: BrandCategoryType, state: ReturnType<type
 
 const BrandPage: React.FC = () => {
   const brandKit = useBrandKit();
-  const { state, usageStats, activityFeed, getCategoryCount, openModal, closeModal, isModalOpen, activeCategory, modalMode, addCustomCategory, deleteCustomCategory } = brandKit;
+  const { state, usageStats, activityFeed, getCategoryCount, openModal, closeModal, isModalOpen, activeCategory, modalMode, addCustomCategory, deleteCustomCategory, isUsingMockData, clearSampleData } = brandKit;
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('Folder');
   const [newCategoryColor, setNewCategoryColor] = useState('pink');
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const handleStartManualSetup = (category: BrandCategoryType) => {
+    openModal(category, 'add');
+  };
 
   const handleCreateCategory = () => {
     if (!newCategoryName.trim()) return;
@@ -364,6 +373,47 @@ const BrandPage: React.FC = () => {
       <div className="mb-12 relative">
         <div className="absolute inset-0 -top-12 mx-auto h-96 max-w-6xl rounded-[40px] bg-gradient-to-b from-blue-500/10 via-purple-500/5 to-transparent blur-3xl -z-10"></div>
 
+        {/* Sample Brand Kit Banner */}
+        {isUsingMockData && !bannerDismissed && (
+          <div className="mb-6 relative overflow-hidden rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
+            <div className="relative flex items-center justify-between p-4 sm:p-5">
+              <div className="flex items-start gap-4">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400">
+                  <Info className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-amber-100">Sample Brand Kit</h3>
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Preview Mode
+                    </span>
+                  </div>
+                  <p className="text-sm text-amber-200/70 mt-1">
+                    You're viewing sample data to preview how your Brand Kit will look. Set up your own brand assets to get started.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <button
+                  onClick={() => setShowSetupWizard(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold transition-all"
+                >
+                  <Wand2 className="w-4 h-4" />
+                  Set Up My Brand
+                </button>
+                <button
+                  onClick={() => setBannerDismissed(true)}
+                  className="p-2 hover:bg-amber-500/20 rounded-lg transition-colors text-amber-400/70 hover:text-amber-300"
+                  title="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row items-end justify-between gap-4 mb-6">
           <div>
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-50">Brand Kit</h2>
@@ -371,10 +421,21 @@ const BrandPage: React.FC = () => {
               Manage your brand identity assets to maintain consistency across all your thumbnails and designs.
             </p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 text-sm font-semibold transition-all">
-            <Share className="w-4 h-4" />
-            Share Kit
-          </button>
+          <div className="flex items-center gap-3">
+            {isUsingMockData && (
+              <button
+                onClick={() => setShowSetupWizard(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-semibold transition-all"
+              >
+                <Wand2 className="w-4 h-4" />
+                Set Up Brand Kit
+              </button>
+            )}
+            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 text-sm font-semibold transition-all">
+              <Share className="w-4 h-4" />
+              Share Kit
+            </button>
+          </div>
         </div>
 
         {/* Brand Grid */}
@@ -388,15 +449,23 @@ const BrandPage: React.FC = () => {
                 onClick={() => openModal(category.id)}
                 className="group relative rounded-2xl border border-slate-800 bg-[#020818]/80 hover:bg-slate-900/90 backdrop-blur-sm p-5 transition-all cursor-pointer hover:border-slate-700 hover:shadow-lg hover:shadow-black/20"
               >
+                {/* Sample Badge */}
+                {isUsingMockData && (
+                  <div className="absolute top-3 right-3 px-2 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    Sample
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div
                     className={`p-2.5 rounded-xl ${category.bgColor} ${category.borderColor} border ${category.textColor} ${category.hoverColor} transition-colors`}
                   >
                     <IconComponent className="w-6 h-6" />
                   </div>
-                  <span className="text-xs font-medium text-slate-500 group-hover:text-slate-400">
-                    {count}
-                  </span>
+                  {!isUsingMockData && (
+                    <span className="text-xs font-medium text-slate-500 group-hover:text-slate-400">
+                      {count}
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-base font-semibold text-slate-100">{category.title}</h3>
                 {renderCardContent(category.id, state)}
@@ -529,6 +598,14 @@ const BrandPage: React.FC = () => {
         category={activeCategory}
         mode={modalMode}
         brandKit={brandKit}
+      />
+
+      {/* Setup Wizard Modal */}
+      <BrandKitSetupWizard
+        isOpen={showSetupWizard}
+        onClose={() => setShowSetupWizard(false)}
+        onStartManualSetup={handleStartManualSetup}
+        onClearSampleData={clearSampleData}
       />
     </>
   );
