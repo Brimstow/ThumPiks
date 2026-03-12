@@ -324,6 +324,16 @@ model User {
   UserAsset                                     UserAsset[]
   UserUrlHistory                                UserUrlHistory[]
   VisionAnalysis                                VisionAnalysis[]
+  // Brand Kit relations
+  BrandLogo                                     BrandLogo[]
+  BrandColorPalette                             BrandColorPalette[]
+  BrandFont                                     BrandFont[]
+  BrandVoice                                    BrandVoice?
+  BrandPhoto                                    BrandPhoto[]
+  BrandGraphic                                  BrandGraphic[]
+  BrandIcon                                     BrandIcon[]
+  BrandStylePreset                              BrandStylePreset[]
+  BrandCustomCategory                           BrandCustomCategory[]
 }
 
 model VisionAnalysis {
@@ -475,4 +485,157 @@ model UserSession {
   @@index([lastActivity])
   @@index([sessionId])
   @@index([userId])
+}
+
+// ============================================
+// BRAND KIT MODELS
+// ============================================
+
+model BrandLogo {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  url       String
+  publicId  String?
+  variant   String   @default("full") // full, icon, light, dark
+  isPrimary Boolean  @default(false)
+  fileType  String   @default("png") // svg, png, jpg
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BrandColorPalette {
+  id        String             @id @default(uuid())
+  userId    String
+  name      String
+  isPrimary Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  User      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  colors    BrandColorSwatch[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BrandColorSwatch {
+  id        String            @id @default(uuid())
+  paletteId String
+  hex       String
+  name      String
+  role      String            @default("custom") // primary, secondary, accent, neutral, custom
+  Palette   BrandColorPalette @relation(fields: [paletteId], references: [id], onDelete: Cascade)
+
+  @@index([paletteId])
+}
+
+model BrandFont {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  fontFamily  String
+  weights     Json     @default("[]") // Array of {weight, label, style}
+  role        String   @default("custom") // heading, subheading, body, custom
+  previewText String   @default("Aa")
+  createdAt   DateTime @default(now())
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BrandVoice {
+  id          String   @id @default(uuid())
+  userId      String   @unique // One brand voice per user
+  tone        String
+  description String
+  keywords    Json     @default("[]") // String array
+  dos         Json     @default("[]") // String array
+  donts       Json     @default("[]") // String array
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BrandPhoto {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  url          String
+  publicId     String?
+  thumbnailUrl String?
+  tags         Json     @default("[]") // String array
+  category     String   @default("custom") // headshot, background, product, lifestyle, custom
+  createdAt    DateTime @default(now())
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model BrandGraphic {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  url          String
+  publicId     String?
+  thumbnailUrl String?
+  type         String   @default("custom") // overlay, shape, pattern, sticker, badge, custom
+  createdAt    DateTime @default(now())
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model BrandIcon {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  svg       String   @db.Text
+  category  String   @default("custom") // action, social, media, ui, custom
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model BrandStylePreset {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  previewUrl     String?
+  textPlacement  String   @default("center") // top-left, top-center, top-right, center, bottom-left, bottom-center, bottom-right
+  overlayColor   String   @default("#000000")
+  overlayOpacity Float    @default(0.5)
+  fontPairing    Json     @default("{}") // {heading: string, body: string}
+  colorScheme    Json     @default("[]") // String array of hex colors
+  createdAt      DateTime @default(now())
+  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BrandCustomCategory {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  icon        String   @default("Folder") // Lucide icon name
+  color       String   @default("slate")
+  bgColor     String   @default("bg-slate-500/10")
+  borderColor String   @default("border-slate-500/20")
+  textColor   String   @default("text-slate-400")
+  hoverColor  String   @default("group-hover:text-slate-300")
+  createdAt   DateTime @default(now())
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
