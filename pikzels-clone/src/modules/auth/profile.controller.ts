@@ -19,13 +19,16 @@ export class ProfileController {
     }
   }
 
-  async updateProfile(req: AuthRequest, res: Response) {
+  async updateProfile(
+    req: AuthRequest & { body: { name?: string; email?: string } },
+    res: Response
+  ) {
     try {
       if (!req.user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { name, email } = req.body;
+      const { name, email } = req.body as { name?: string; email?: string };
 
       // Update user profile logic here
       const updatedUser = { ...req.user, name, email };
@@ -94,19 +97,25 @@ export class ProfileController {
    * }
    * ```
    */
-  async updateUserSettings(req: AuthRequest, res: Response): Promise<void> {
+  async updateUserSettings(
+    req: AuthRequest & { body: { settings: unknown } },
+    res: Response
+  ): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
       }
 
-      const { settings } = req.body;
+      const { settings } = req.body as {
+        settings: Record<string, unknown> | null;
+      };
 
       // Update user settings in database
+      // Cast to InputJsonValue (Prisma's JSON type) since settings can be any valid JSON object
       const updatedUser = await prisma.user.update({
         where: { id: req.user.id },
-        data: { settings },
+        data: { settings: settings as object },
         select: { settings: true },
       });
 

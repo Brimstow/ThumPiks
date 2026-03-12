@@ -5,12 +5,12 @@ process.env.JWT_ACCESS_EXPIRY = '15m';
 // Mock dependencies before imports
 jest.mock('bcryptjs', () => ({
   compare: jest.fn(),
-  hash: jest.fn()
+  hash: jest.fn(),
 }));
 
 jest.mock('jsonwebtoken', () => ({
   sign: jest.fn(),
-  verify: jest.fn()
+  verify: jest.fn(),
 }));
 
 // Mock Admin Auth Service (ROOT PROBLEM FIX)
@@ -33,7 +33,7 @@ jest.mock('../admin-auth.service', () => ({
     USERS_UPDATE: 'users.update',
     USERS_DELETE: 'users.delete',
     ANALYTICS_VIEW: 'analytics.view',
-  }
+  },
 }));
 
 // Mock User Management Service
@@ -45,7 +45,7 @@ jest.mock('../user-management.service', () => ({
     updateUser: jest.fn(),
     deleteUser: jest.fn(),
     getUserStats: jest.fn(),
-  }
+  },
 }));
 
 // Mock Prisma Client
@@ -56,25 +56,26 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-    count: jest.fn()
+    count: jest.fn(),
   },
   adminRole: {
     create: jest.fn(),
     updateMany: jest.fn(),
-    findMany: jest.fn()
+    findMany: jest.fn(),
   },
   auditLog: {
     create: jest.fn(),
-    findMany: jest.fn()
-  }
+    findMany: jest.fn(),
+  },
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => mockPrisma)
+  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
 }));
 
 // Now import the modules
 import request from 'supertest';
+import { createServer } from 'http';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -89,51 +90,60 @@ import { userManagementService } from '../user-management.service';
 const createTestApp = () => {
   const app = express();
   app.use(express.json());
-  
+
   // Add admin routes
   app.use('/api/admin/auth', adminAuthRoutes);
   app.use('/api/admin/users', userManagementRoutes);
-  
+
   return app;
 };
 
 describe('Admin Routing Tests', () => {
   let app: express.Application;
-  const mockAdminAuthService = adminAuthService as jest.Mocked<typeof adminAuthService>;
-  const mockUserManagementService = userManagementService as jest.Mocked<typeof userManagementService>;
+  const mockAdminAuthService = adminAuthService as jest.Mocked<
+    typeof adminAuthService
+  >;
+  const mockUserManagementService = userManagementService as jest.Mocked<
+    typeof userManagementService
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
     app = createTestApp();
-    
+
     // Setup default admin auth service mocks (ROOT PROBLEM FIX)
     const mockAdminUser = {
       id: 'admin123',
       email: 'admin@test.com',
       name: 'Admin User',
       roles: [AdminRoles.ADMIN],
-      permissions: ['users.view', 'users.create', 'users.update', 'users.delete'],
-      lastLoginAt: new Date()
+      permissions: [
+        'users.view',
+        'users.create',
+        'users.update',
+        'users.delete',
+      ],
+      lastLoginAt: new Date(),
     };
-    
+
     mockAdminAuthService.verifyAdminToken.mockResolvedValue(mockAdminUser);
     mockAdminAuthService.hasPermission.mockReturnValue(true);
     mockAdminAuthService.logAdminAction.mockResolvedValue(undefined);
-    
+
     // Setup authenticateAdmin mock for login routes
     mockAdminAuthService.authenticateAdmin.mockResolvedValue({
       user: mockAdminUser,
-      token: 'mock-admin-token'
+      token: 'mock-admin-token',
     });
-    
+
     // Setup other admin service mocks
     mockAdminAuthService.assignAdminRole.mockResolvedValue(true);
     mockAdminAuthService.removeAdminRole.mockResolvedValue(true);
-    
+
     // Setup user management service mocks (ROOT PROBLEM FIX)
     mockUserManagementService.getUsers.mockResolvedValue({
       users: [],
-      pagination: { page: 1, limit: 10, total: 0, totalPages: 0 }
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
     });
     mockUserManagementService.getUserById.mockResolvedValue(null);
     mockUserManagementService.createUser.mockResolvedValue('new-user-id');
@@ -145,7 +155,7 @@ describe('Admin Routing Tests', () => {
       verified: 70,
       admins: 5,
       newThisMonth: 15,
-      newThisWeek: 3
+      newThisWeek: 3,
     });
   });
 
@@ -162,9 +172,9 @@ describe('Admin Routing Tests', () => {
             {
               role: AdminRoles.ADMIN,
               isActive: true,
-              expiresAt: null
-            }
-          ]
+              expiresAt: null,
+            },
+          ],
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(mockAdmin);
@@ -173,11 +183,11 @@ describe('Admin Routing Tests', () => {
         mockPrisma.auditLog.create.mockResolvedValue({});
         (jwt.sign as jest.Mock).mockReturnValue('mock-jwt-token');
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/auth/login')
           .send({
             email: 'admin@test.com',
-            password: 'password123'
+            password: 'password123',
           });
 
         expect(response.status).toBe(200);
@@ -191,11 +201,11 @@ describe('Admin Routing Tests', () => {
         mockAdminAuthService.authenticateAdmin.mockResolvedValueOnce(null);
         mockPrisma.auditLog.create.mockResolvedValue({});
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/auth/login')
           .send({
             email: 'invalid@test.com',
-            password: 'wrongpassword'
+            password: 'wrongpassword',
           });
 
         expect(response.status).toBe(401);
@@ -203,10 +213,10 @@ describe('Admin Routing Tests', () => {
       });
 
       it('should validate required fields', async () => {
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/auth/login')
           .send({
-            email: 'invalid-email'
+            email: 'invalid-email',
             // missing password
           });
 
@@ -220,7 +230,7 @@ describe('Admin Routing Tests', () => {
         const mockDecoded = {
           userId: 'admin123',
           email: 'admin@test.com',
-          type: 'admin'
+          type: 'admin',
         };
 
         const mockAdmin = {
@@ -232,15 +242,15 @@ describe('Admin Routing Tests', () => {
             {
               role: AdminRoles.ADMIN,
               isActive: true,
-              expiresAt: null
-            }
-          ]
+              expiresAt: null,
+            },
+          ],
         };
 
         (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
         mockPrisma.user.findUnique.mockResolvedValue(mockAdmin);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/auth/me')
           .set('Authorization', 'Bearer valid-admin-token');
 
@@ -250,8 +260,9 @@ describe('Admin Routing Tests', () => {
       });
 
       it('should reject request without token', async () => {
-        const response = await request(app)
-          .get('/api/admin/auth/me');
+        const response = await request(createServer(app)).get(
+          '/api/admin/auth/me'
+        );
 
         expect(response.status).toBe(401);
         expect(response.body).toHaveProperty('error');
@@ -261,7 +272,7 @@ describe('Admin Routing Tests', () => {
         // Override the verifyAdminToken mock to return null for invalid token
         mockAdminAuthService.verifyAdminToken.mockResolvedValueOnce(null);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/auth/me')
           .set('Authorization', 'Bearer invalid-token');
 
@@ -275,7 +286,7 @@ describe('Admin Routing Tests', () => {
         const mockDecoded = {
           userId: 'admin123',
           email: 'admin@test.com',
-          type: 'admin'
+          type: 'admin',
         };
 
         const mockAdmin = {
@@ -287,16 +298,16 @@ describe('Admin Routing Tests', () => {
             {
               role: AdminRoles.ADMIN,
               isActive: true,
-              expiresAt: null
-            }
-          ]
+              expiresAt: null,
+            },
+          ],
         };
 
         (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
         mockPrisma.user.findUnique.mockResolvedValue(mockAdmin);
         mockPrisma.auditLog.create.mockResolvedValue({});
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/auth/logout')
           .set('Authorization', 'Bearer valid-admin-token');
 
@@ -307,8 +318,9 @@ describe('Admin Routing Tests', () => {
 
     describe('GET /api/admin/auth/health', () => {
       it('should return health check status', async () => {
-        const response = await request(app)
-          .get('/api/admin/auth/health');
+        const response = await request(createServer(app)).get(
+          '/api/admin/auth/health'
+        );
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('success', true);
@@ -321,13 +333,13 @@ describe('Admin Routing Tests', () => {
 
   describe('User Management Routes', () => {
     const mockAdminToken = 'valid-admin-token';
-    
+
     beforeEach(() => {
       // Setup mock admin authentication for user management routes
       const mockDecoded = {
         userId: 'admin123',
         email: 'admin@test.com',
-        type: 'admin'
+        type: 'admin',
       };
 
       const mockAdmin = {
@@ -339,15 +351,15 @@ describe('Admin Routing Tests', () => {
           {
             role: AdminRoles.ADMIN,
             isActive: true,
-            expiresAt: null
-          }
-        ]
+            expiresAt: null,
+          },
+        ],
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
       mockPrisma.user.findUnique.mockResolvedValue(mockAdmin);
     });
-    
+
     beforeEach(() => {
       // Setup mock admin authentication
       const mockDecoded = {
@@ -355,7 +367,12 @@ describe('Admin Routing Tests', () => {
         email: 'admin@test.com',
         type: 'admin',
         roles: [AdminRoles.ADMIN],
-        permissions: ['users.view', 'users.create', 'users.update', 'users.delete']
+        permissions: [
+          'users.view',
+          'users.create',
+          'users.update',
+          'users.delete',
+        ],
       };
 
       const mockAdmin = {
@@ -367,9 +384,9 @@ describe('Admin Routing Tests', () => {
           {
             role: AdminRoles.ADMIN,
             isActive: true,
-            expiresAt: null
-          }
-        ]
+            expiresAt: null,
+          },
+        ],
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -388,7 +405,7 @@ describe('Admin Routing Tests', () => {
             createdAt: new Date(),
             lastLoginAt: new Date(),
             adminRoles: [],
-            _count: { projects: 2, thumbnails: 5 }
+            _count: { projects: 2, thumbnails: 5 },
           },
           {
             id: 'user2',
@@ -399,22 +416,22 @@ describe('Admin Routing Tests', () => {
             createdAt: new Date(),
             lastLoginAt: null,
             adminRoles: [],
-            _count: { projects: 1, thumbnails: 3 }
-          }
+            _count: { projects: 1, thumbnails: 3 },
+          },
         ];
 
         // Mock the service call instead of Prisma directly
         mockUserManagementService.getUsers.mockResolvedValueOnce({
           users: mockUsers,
-          pagination: { page: 1, limit: 10, total: 2, totalPages: 1 }
+          pagination: { page: 1, limit: 10, total: 2, totalPages: 1 },
         });
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/users')
           .set('Authorization', `Bearer ${mockAdminToken}`)
           .query({
             page: 1,
-            limit: 10
+            limit: 10,
           });
 
         expect(response.status).toBe(200);
@@ -435,23 +452,23 @@ describe('Admin Routing Tests', () => {
             createdAt: new Date(),
             lastLoginAt: new Date(),
             adminRoles: [],
-            _count: { projects: 1, thumbnails: 2 }
-          }
+            _count: { projects: 1, thumbnails: 2 },
+          },
         ];
 
         // Mock the service call instead of Prisma directly
         mockUserManagementService.getUsers.mockResolvedValueOnce({
           users: mockUsers,
-          pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
+          pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
         });
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/users')
           .set('Authorization', `Bearer ${mockAdminToken}`)
           .query({
             search: 'john',
             page: 1,
-            limit: 10
+            limit: 10,
           });
 
         expect(response.status).toBe(200);
@@ -460,8 +477,9 @@ describe('Admin Routing Tests', () => {
       });
 
       it('should reject unauthorized access', async () => {
-        const response = await request(app)
-          .get('/api/admin/users');
+        const response = await request(createServer(app)).get(
+          '/api/admin/users'
+        );
 
         expect(response.status).toBe(401);
       });
@@ -484,13 +502,13 @@ describe('Admin Routing Tests', () => {
           adminRoles: [],
           projects: [],
           thumbnails: [],
-          subscriptions: []
+          subscriptions: [],
         };
 
         // Override the service mock to return the user for this test
         mockUserManagementService.getUserById.mockResolvedValueOnce(mockUser);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get(`/api/admin/users/${validUUID}`)
           .set('Authorization', `Bearer ${mockAdminToken}`);
 
@@ -504,7 +522,7 @@ describe('Admin Routing Tests', () => {
         // Mock service to return null for non-existent user
         mockUserManagementService.getUserById.mockResolvedValueOnce(null);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/users/550e8400-e29b-41d4-a716-446655440000')
           .set('Authorization', `Bearer ${mockAdminToken}`);
 
@@ -518,7 +536,7 @@ describe('Admin Routing Tests', () => {
         const newUser = {
           email: 'newuser@test.com',
           name: 'New User',
-          password: 'securepassword123'
+          password: 'securepassword123',
         };
 
         const createdUser = {
@@ -526,14 +544,14 @@ describe('Admin Routing Tests', () => {
           email: newUser.email,
           name: newUser.name,
           isActive: true,
-          createdAt: new Date()
+          createdAt: new Date(),
         };
 
         (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
         mockPrisma.user.create.mockResolvedValue(createdUser);
         mockPrisma.auditLog.create.mockResolvedValue({});
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/users')
           .set('Authorization', `Bearer ${mockAdminToken}`)
           .send(newUser);
@@ -541,15 +559,18 @@ describe('Admin Routing Tests', () => {
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('data');
         expect(response.body.data).toHaveProperty('userId');
-        expect(response.body).toHaveProperty('message', 'User created successfully');
+        expect(response.body).toHaveProperty(
+          'message',
+          'User created successfully'
+        );
       });
 
       it('should validate required fields', async () => {
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/admin/users')
           .set('Authorization', `Bearer ${mockAdminToken}`)
           .send({
-            email: 'invalid-email'
+            email: 'invalid-email',
             // missing required fields
           });
 
@@ -563,10 +584,10 @@ describe('Admin Routing Tests', () => {
         // Mock the database queries for stats
         mockPrisma.user.count
           .mockResolvedValueOnce(100) // total users
-          .mockResolvedValueOnce(95)  // active users
+          .mockResolvedValueOnce(95) // active users
           .mockResolvedValueOnce(15); // new users this month
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/admin/users/stats')
           .set('Authorization', `Bearer ${mockAdminToken}`);
 
@@ -579,8 +600,9 @@ describe('Admin Routing Tests', () => {
 
     describe('GET /api/admin/users/health', () => {
       it('should return health check status', async () => {
-        const response = await request(app)
-          .get('/api/admin/users/health');
+        const response = await request(createServer(app)).get(
+          '/api/admin/users/health'
+        );
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('success', true);
@@ -593,7 +615,7 @@ describe('Admin Routing Tests', () => {
 
   describe('Route Parameter Validation', () => {
     const mockAdminToken = 'valid-admin-token';
-    
+
     beforeEach(() => {
       // Setup mock admin authentication
       const mockDecoded = {
@@ -601,7 +623,7 @@ describe('Admin Routing Tests', () => {
         email: 'admin@test.com',
         type: 'admin',
         roles: [AdminRoles.ADMIN],
-        permissions: ['users.view', 'users.update', 'users.delete']
+        permissions: ['users.view', 'users.update', 'users.delete'],
       };
 
       const mockAdmin = {
@@ -613,9 +635,9 @@ describe('Admin Routing Tests', () => {
           {
             role: AdminRoles.ADMIN,
             isActive: true,
-            expiresAt: null
-          }
-        ]
+            expiresAt: null,
+          },
+        ],
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
@@ -623,7 +645,7 @@ describe('Admin Routing Tests', () => {
     });
 
     it('should validate userId parameter format', async () => {
-      const response = await request(app)
+      const response = await request(createServer(app))
         .get('/api/admin/users/invalid-user-id-format')
         .set('Authorization', `Bearer ${mockAdminToken}`);
 
@@ -632,7 +654,7 @@ describe('Admin Routing Tests', () => {
     });
 
     it('should handle special characters in routes', async () => {
-      const response = await request(app)
+      const response = await request(createServer(app))
         .get('/api/admin/users/@#$%^&*()')
         .set('Authorization', `Bearer ${mockAdminToken}`);
 
@@ -644,14 +666,16 @@ describe('Admin Routing Tests', () => {
   describe('Error Handling', () => {
     it('should handle database connection errors', async () => {
       // Mock service to throw database error
-      mockUserManagementService.getUsers.mockRejectedValueOnce(new Error('Database connection failed'));
+      mockUserManagementService.getUsers.mockRejectedValueOnce(
+        new Error('Database connection failed')
+      );
 
       const mockDecoded = {
         userId: 'admin123',
         email: 'admin@test.com',
         type: 'admin',
         roles: [AdminRoles.ADMIN],
-        permissions: ['users.view']
+        permissions: ['users.view'],
       };
 
       const mockAdmin = {
@@ -663,15 +687,15 @@ describe('Admin Routing Tests', () => {
           {
             role: AdminRoles.ADMIN,
             isActive: true,
-            expiresAt: null
-          }
-        ]
+            expiresAt: null,
+          },
+        ],
       };
 
       (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
       mockPrisma.user.findUnique.mockResolvedValue(mockAdmin);
 
-      const response = await request(app)
+      const response = await request(createServer(app))
         .get('/api/admin/users')
         .set('Authorization', 'Bearer valid-admin-token');
 
@@ -680,7 +704,7 @@ describe('Admin Routing Tests', () => {
     });
 
     it('should handle malformed JSON requests', async () => {
-      const response = await request(app)
+      const response = await request(createServer(app))
         .post('/api/admin/auth/login')
         .set('Content-Type', 'application/json')
         .send('{"invalid": json}');

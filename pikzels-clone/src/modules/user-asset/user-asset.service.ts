@@ -42,7 +42,9 @@ export class UserAssetService {
       },
     });
 
-    console.log(`📦 User asset uploaded: ${asset.id} (${data.type}) for user ${data.userId}`);
+    console.log(
+      `📦 User asset uploaded: ${asset.id} (${data.type}) for user ${data.userId}`
+    );
     return asset;
   }
 
@@ -75,7 +77,9 @@ export class UserAssetService {
       },
     });
 
-    console.log(`📦 User asset uploaded from URL: ${asset.id} (${data.type}) for user ${data.userId}`);
+    console.log(
+      `📦 User asset uploaded from URL: ${asset.id} (${data.type}) for user ${data.userId}`
+    );
     return asset;
   }
 
@@ -112,7 +116,10 @@ export class UserAssetService {
       await cloudinary.delete(asset.publicId);
       console.log(`☁️ Cloudinary asset deleted: ${asset.publicId}`);
     } catch (err) {
-      console.warn('Cloudinary delete failed (asset may already be removed):', err);
+      console.warn(
+        'Cloudinary delete failed (asset may already be removed):',
+        err
+      );
     }
 
     // Delete from DB
@@ -122,7 +129,32 @@ export class UserAssetService {
     return { success: true };
   }
 
-  async getStorageUsage(userId: string): Promise<{ totalBytes: number; count: number }> {
+  async recategorizeAsset(
+    id: string,
+    newType: 'face' | 'background' | 'logo' | 'other',
+    userId: string
+  ) {
+    const asset = await this.prisma.userAsset.findUnique({ where: { id } });
+
+    if (!asset) {
+      throw new Error('Asset not found');
+    }
+    if (asset.userId !== userId) {
+      throw new Error('Forbidden');
+    }
+
+    const updated = await this.prisma.userAsset.update({
+      where: { id },
+      data: { type: newType },
+    });
+
+    console.log(`🔀 User asset recategorized: ${id} → ${newType}`);
+    return updated;
+  }
+
+  async getStorageUsage(
+    userId: string
+  ): Promise<{ totalBytes: number; count: number }> {
     const result = await this.prisma.userAsset.aggregate({
       where: { userId },
       _sum: { sizeBytes: true },

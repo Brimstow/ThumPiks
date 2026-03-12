@@ -10,16 +10,8 @@ const layoutService = new CompositionLayoutService();
  */
 export const getCompositionLayouts = async (req: Request, res: Response) => {
   try {
-    const {
-      category,
-      search,
-      tags,
-      builtIn,
-      sortBy,
-      sortOrder,
-      page,
-      limit,
-    } = req.query;
+    const { category, search, tags, builtIn, sortBy, sortOrder, page, limit } =
+      req.query;
 
     const filters: any = {
       isPublic: true,
@@ -38,7 +30,9 @@ export const getCompositionLayouts = async (req: Request, res: Response) => {
     return res.status(200).json(layouts);
   } catch (error) {
     console.error('Error fetching composition layouts:', error);
-    return res.status(500).json({ error: 'Failed to fetch composition layouts' });
+    return res
+      .status(500)
+      .json({ error: 'Failed to fetch composition layouts' });
   }
 };
 
@@ -52,7 +46,7 @@ export const getCompositionLayoutById = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Layout ID is required' });
     }
 
-    const layout = await layoutService.getLayoutById(id);
+    const layout = await layoutService.getLayoutById(String(id));
     if (!layout) {
       return res.status(404).json({ error: 'Layout not found' });
     }
@@ -67,13 +61,29 @@ export const getCompositionLayoutById = async (req: Request, res: Response) => {
 /**
  * Create a new user-made composition layout
  */
-export const createCompositionLayout = async (req: AuthRequest, res: Response) => {
+export const createCompositionLayout = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, description, category, tags, wireframeSvg, slots, textSlots, fallbackBackground, previewUrl, isPublic, canvasWidth, canvasHeight } = req.body;
+    const {
+      name,
+      description,
+      category,
+      tags,
+      wireframeSvg,
+      slots,
+      textSlots,
+      fallbackBackground,
+      previewUrl,
+      isPublic,
+      canvasWidth,
+      canvasHeight,
+    } = req.body;
 
     if (!name || !wireframeSvg || !slots || !Array.isArray(slots)) {
       return res.status(400).json({
@@ -106,7 +116,10 @@ export const createCompositionLayout = async (req: AuthRequest, res: Response) =
 /**
  * Update a composition layout
  */
-export const updateCompositionLayout = async (req: AuthRequest, res: Response) => {
+export const updateCompositionLayout = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -117,9 +130,15 @@ export const updateCompositionLayout = async (req: AuthRequest, res: Response) =
       return res.status(400).json({ error: 'Layout ID is required' });
     }
 
-    const layout = await layoutService.updateLayout(id, req.user.id, req.body);
+    const layout = await layoutService.updateLayout(
+      String(id),
+      req.user.id,
+      req.body
+    );
     if (!layout) {
-      return res.status(404).json({ error: 'Layout not found or not editable' });
+      return res
+        .status(404)
+        .json({ error: 'Layout not found or not editable' });
     }
 
     return res.status(200).json(layout);
@@ -132,7 +151,10 @@ export const updateCompositionLayout = async (req: AuthRequest, res: Response) =
 /**
  * Delete a composition layout
  */
-export const deleteCompositionLayout = async (req: AuthRequest, res: Response) => {
+export const deleteCompositionLayout = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -143,9 +165,11 @@ export const deleteCompositionLayout = async (req: AuthRequest, res: Response) =
       return res.status(400).json({ error: 'Layout ID is required' });
     }
 
-    const deleted = await layoutService.deleteLayout(id, req.user.id);
+    const deleted = await layoutService.deleteLayout(String(id), req.user.id);
     if (!deleted) {
-      return res.status(404).json({ error: 'Layout not found or not deletable' });
+      return res
+        .status(404)
+        .json({ error: 'Layout not found or not deletable' });
     }
 
     return res.status(204).send();
@@ -158,14 +182,17 @@ export const deleteCompositionLayout = async (req: AuthRequest, res: Response) =
 /**
  * Increment download count for a layout
  */
-export const downloadCompositionLayout = async (req: Request, res: Response) => {
+export const downloadCompositionLayout = async (
+  req: Request,
+  res: Response
+) => {
   try {
     const { id } = req.params;
     if (!id) {
       return res.status(400).json({ error: 'Layout ID is required' });
     }
 
-    const layout = await layoutService.incrementDownloads(id);
+    const layout = await layoutService.incrementDownloads(String(id));
     return res.status(200).json(layout);
   } catch (error) {
     console.error('Error recording layout download:', error);
@@ -176,7 +203,10 @@ export const downloadCompositionLayout = async (req: Request, res: Response) => 
 /**
  * Toggle like on a layout
  */
-export const likeCompositionLayout = async (req: AuthRequest, res: Response) => {
+export const likeCompositionLayout = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -189,7 +219,7 @@ export const likeCompositionLayout = async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ error: 'Layout ID is required' });
     }
 
-    const layout = await layoutService.toggleLike(id, like !== false);
+    const layout = await layoutService.toggleLike(String(id), like !== false);
     return res.status(200).json(layout);
   } catch (error) {
     console.error('Error toggling layout like:', error);

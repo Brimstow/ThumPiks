@@ -13,7 +13,7 @@ const prisma = getPrisma();
 // Initialize Stripe (use same key from subscription module)
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-01-28.clover',
+      apiVersion: '2026-02-25.clover',
     })
   : null;
 
@@ -311,7 +311,11 @@ export async function refundCredits(
     });
 
     if (!subscription) {
-      logger.error('Refund failed: no subscription found', new Error('No subscription'), { userId, amount });
+      logger.error(
+        'Refund failed: no subscription found',
+        new Error('No subscription'),
+        { userId, amount }
+      );
       return false;
     }
 

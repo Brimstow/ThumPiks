@@ -18,7 +18,7 @@ const prisma = getPrisma();
 // Initialize Stripe only if secret key is provided
 const stripe = STRIPE_CONFIG.secretKey
   ? new Stripe(STRIPE_CONFIG.secretKey, {
-      apiVersion: '2026-01-28.clover',
+      apiVersion: '2026-02-25.clover',
     })
   : null;
 

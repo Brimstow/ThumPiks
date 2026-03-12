@@ -5,6 +5,11 @@ import { emitThumbnailCreated, emitAnalyticsEvent } from '../../events';
 import { eventEmitter } from '../../events/event-emitter';
 import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../../utils/prisma-factory';
+import { ThumbnailParametersSchema } from './types';
+import {
+  validateJsonColumn,
+  safeParseJsonColumn,
+} from '../../utils/json-validation';
 
 // Default instances for production use
 const defaultPrisma = getPrisma();
@@ -44,6 +49,13 @@ export class ThumbnailService {
     storagePublicId?: string;
     storageProvider?: string;
   }) {
+    // Validate parameters JSON before writing
+    validateJsonColumn(
+      ThumbnailParametersSchema,
+      data.parameters,
+      'Thumbnail.parameters'
+    );
+
     const thumbnail = await this.prisma.thumbnail.create({
       data: {
         id: uuidv4(),
@@ -187,6 +199,15 @@ export class ThumbnailService {
       storageProvider: string;
     }>
   ) {
+    // Validate parameters JSON if it's being updated
+    if (data.parameters !== undefined) {
+      validateJsonColumn(
+        ThumbnailParametersSchema,
+        data.parameters,
+        'Thumbnail.parameters'
+      );
+    }
+
     // Get thumbnail info for cache invalidation
     const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
@@ -239,7 +260,12 @@ export class ThumbnailService {
     // Soft-delete: mark with deletedAt timestamp instead of removing
     const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
-      select: { userId: true, projectId: true, imageUrl: true, storagePublicId: true },
+      select: {
+        userId: true,
+        projectId: true,
+        imageUrl: true,
+        storagePublicId: true,
+      },
     });
 
     const thumbnail = await this.prisma.thumbnail.update({
@@ -302,7 +328,13 @@ export class ThumbnailService {
     // Permanently delete from DB and storage — only for thumbnails past grace period
     const existingThumbnail = await this.prisma.thumbnail.findUnique({
       where: { id },
-      select: { userId: true, projectId: true, imageUrl: true, storagePublicId: true, deletedAt: true },
+      select: {
+        userId: true,
+        projectId: true,
+        imageUrl: true,
+        storagePublicId: true,
+        deletedAt: true,
+      },
     });
 
     if (!existingThumbnail) {
@@ -319,9 +351,14 @@ export class ThumbnailService {
       try {
         const { getStorageService } = await import('../storage');
         await getStorageService().delete(existingThumbnail.storagePublicId);
-        console.log(`☁️ Storage asset deleted: ${existingThumbnail.storagePublicId}`);
+        console.log(
+          `☁️ Storage asset deleted: ${existingThumbnail.storagePublicId}`
+        );
       } catch (storageError) {
-        console.warn('Storage deletion failed (asset may already be removed):', storageError);
+        console.warn(
+          'Storage deletion failed (asset may already be removed):',
+          storageError
+        );
       }
     }
 
@@ -349,6 +386,40 @@ export class ThumbnailService {
       },
       orderBy: { deletedAt: 'desc' },
     });
+  }
+
+  async recategorizeThumbnail(id: string, platform: string, userId: string) {
+    const thumbnail = await this.prisma.thumbnail.findUnique({
+      where: { id },
+      select: { id: true, userId: true, projectId: true, parameters: true },
+    });
+
+    if (!thumbnail) {
+      throw new Error('Thumbnail not found');
+    }
+    if (thumbnail.userId !== userId) {
+      throw new Error('Not authorized');
+    }
+
+    const currentParams =
+      safeParseJsonColumn(
+        ThumbnailParametersSchema,
+        thumbnail.parameters,
+        'Thumbnail.parameters'
+      ) || {};
+    const updatedParams = { ...currentParams, platform };
+
+    const updated = await this.prisma.thumbnail.update({
+      where: { id },
+      data: { parameters: updatedParams },
+    });
+
+    // Invalidate caches
+    await this.cache.del(`thumbnail:${id}`);
+    await this.invalidateUserThumbnailsCache(userId);
+
+    console.log(`🔀 Thumbnail recategorized: ${id} → ${platform}`);
+    return updated;
   }
 
   async setThumbnailAsFeatured(thumbnailId: string, projectId: string) {

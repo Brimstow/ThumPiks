@@ -26,7 +26,7 @@ router.post(
         field: 'planId',
         required: true,
         type: 'string',
-        whitelist: ['free', 'starter', 'pro', 'business'],
+        whitelist: ['free', 'starter', 'pro', 'ultra_pro'],
       },
       {
         field: 'billingCycle',
@@ -104,7 +104,7 @@ router.post(
         field: 'plan',
         required: true,
         type: 'string',
-        whitelist: ['free', 'starter', 'pro', 'business'],
+        whitelist: ['free', 'starter', 'pro', 'ultra_pro'],
       },
       {
         field: 'cycle',

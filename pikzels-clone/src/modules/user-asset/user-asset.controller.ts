@@ -31,7 +31,11 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
 
     const validTypes = ['face', 'background', 'logo', 'other'];
     if (!validTypes.includes(type)) {
-      return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(', ')}` });
+      return res
+        .status(400)
+        .json({
+          error: `Invalid type. Must be one of: ${validTypes.join(', ')}`,
+        });
     }
 
     let asset;
@@ -48,7 +52,11 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
       // Upload from base64 data
       const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
       if (!matches) {
-        return res.status(400).json({ error: 'Invalid imageData format. Expected base64 data URI.' });
+        return res
+          .status(400)
+          .json({
+            error: 'Invalid imageData format. Expected base64 data URI.',
+          });
       }
 
       const mimeType = matches[1];
@@ -56,7 +64,9 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
 
       // 10MB limit
       if (buffer.length > 10 * 1024 * 1024) {
-        return res.status(400).json({ error: 'File size must be less than 10MB' });
+        return res
+          .status(400)
+          .json({ error: 'File size must be less than 10MB' });
       }
 
       asset = await getUserAssetService().uploadAsset({
@@ -67,7 +77,9 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
         mimeType,
       });
     } else {
-      return res.status(400).json({ error: 'Either imageData (base64) or imageUrl is required' });
+      return res
+        .status(400)
+        .json({ error: 'Either imageData (base64) or imageUrl is required' });
     }
 
     return res.status(201).json({ asset });
@@ -88,7 +100,7 @@ export const deleteAsset = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Asset ID is required' });
     }
 
-    await getUserAssetService().deleteAsset(id, req.user.id);
+    await getUserAssetService().deleteAsset(String(id), req.user.id);
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
@@ -100,6 +112,46 @@ export const deleteAsset = async (req: AuthRequest, res: Response) => {
     }
     console.error('Error deleting user asset:', error);
     return res.status(500).json({ error: 'Failed to delete asset' });
+  }
+};
+
+export const recategorizeAsset = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Asset ID is required' });
+    }
+
+    const { type } = req.body;
+    const validTypes = ['face', 'background', 'logo', 'other'];
+    if (!type || !validTypes.includes(type)) {
+      return res
+        .status(400)
+        .json({
+          error: `Invalid type. Must be one of: ${validTypes.join(', ')}`,
+        });
+    }
+
+    const asset = await getUserAssetService().recategorizeAsset(
+      String(id),
+      type,
+      req.user.id
+    );
+
+    return res.status(200).json({ asset });
+  } catch (error: any) {
+    if (error.message === 'Asset not found') {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+    if (error.message === 'Forbidden') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    console.error('Error recategorizing user asset:', error);
+    return res.status(500).json({ error: 'Failed to recategorize asset' });
   }
 };
 

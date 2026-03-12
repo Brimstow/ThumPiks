@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 import { describeImage, searchImages, getHistory } from './vision.controller';
 
@@ -7,6 +8,7 @@ const router = Router();
 
 // All vision routes require authentication
 router.use(authenticateToken);
+router.use(userApiRateLimit);
 
 // POST /api/vision/describe - Analyze an image with AI vision
 router.post('/describe', (req, res) => describeImage(req as AuthRequest, res));

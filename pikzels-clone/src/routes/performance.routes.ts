@@ -1,24 +1,31 @@
 import { Router } from 'express';
-import { getPerformanceMetrics, clearPerformanceMetrics } from '../middleware/performance.middleware';
+import {
+  getPerformanceMetrics,
+  clearPerformanceMetrics,
+} from '../middleware/performance.middleware';
 import { CacheService } from '../services/cache.service';
 import { authenticateToken } from '../middleware/auth.middleware';
+import { userApiRateLimit } from '../middleware/security.middleware';
 
 const router = Router();
 const cache = CacheService.getInstance();
 
 // All performance routes require authentication
 router.use(authenticateToken);
+router.use(userApiRateLimit);
 
 /**
  * Get performance metrics
  */
 router.get('/metrics', async (req, res) => {
   try {
-    const timeframe = req.query.timeframe as 'hour' | 'day' || 'hour';
+    const timeframe = (req.query.timeframe as 'hour' | 'day') || 'hour';
     const metrics = await getPerformanceMetrics(timeframe);
-    
+
     if (!metrics) {
-      return res.status(500).json({ error: 'Failed to retrieve performance metrics' });
+      return res
+        .status(500)
+        .json({ error: 'Failed to retrieve performance metrics' });
     }
 
     return res.json({
@@ -37,7 +44,7 @@ router.get('/metrics', async (req, res) => {
 router.get('/cache', async (_req, res) => {
   try {
     const cacheHealth = await cache.healthCheck();
-    
+
     // Get some cache statistics (this would be implemented based on your Redis setup)
     const stats = {
       status: cacheHealth ? 'healthy' : 'unhealthy',
@@ -64,7 +71,7 @@ router.delete('/metrics', async (_req, res) => {
   try {
     // In a real app, you'd check for admin permissions here
     const success = await clearPerformanceMetrics();
-    
+
     if (success) {
       res.json({ success: true, message: 'Performance metrics cleared' });
     } else {
@@ -82,7 +89,7 @@ router.delete('/metrics', async (_req, res) => {
 router.get('/health', async (_req, res) => {
   try {
     const cacheHealth = await cache.healthCheck();
-    
+
     const health = {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -99,9 +106,15 @@ router.get('/health', async (_req, res) => {
       },
       uptime: process.uptime(),
       memory: {
-        used: Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 100) / 100,
-        total: Math.round((process.memoryUsage().heapTotal / 1024 / 1024) * 100) / 100,
-        external: Math.round((process.memoryUsage().external / 1024 / 1024) * 100) / 100,
+        used:
+          Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 100) /
+          100,
+        total:
+          Math.round((process.memoryUsage().heapTotal / 1024 / 1024) * 100) /
+          100,
+        external:
+          Math.round((process.memoryUsage().external / 1024 / 1024) * 100) /
+          100,
       },
     };
 

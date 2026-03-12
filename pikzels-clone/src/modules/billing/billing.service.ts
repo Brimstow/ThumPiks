@@ -6,7 +6,7 @@ const prisma = getPrisma();
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-01-28.clover',
+      apiVersion: '2026-02-25.clover',
     })
   : null;
 
@@ -168,7 +168,7 @@ function getAmountFromDescription(description: string): number {
   const packPrices: Record<string, number> = {
     'Starter Pack': 900, // $9
     'Pro Pack': 2400, // $24
-    'Business Pack': 6900, // $69
+    'Ultra Pro Pack': 7900, // $79
   };
 
   for (const [packName, price] of Object.entries(packPrices)) {

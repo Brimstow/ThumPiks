@@ -39,12 +39,20 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# TypeScript compilation check
-echo "📘 [5/5] TypeScript compilation check..."
+# TypeScript compilation check (production code)
+echo "📘 [5/6] TypeScript compilation check (src)..."
 npx tsc --noEmit --skipLibCheck
 if [ $? -ne 0 ]; then
-  echo "⚠️  TypeScript warnings detected (non-blocking)."
+  echo "⚠️  TypeScript warnings detected in production code (non-blocking)."
   echo "Consider fixing before pushing."
+fi
+
+# TypeScript compilation check (test files)
+echo "🧪 [6/6] TypeScript compilation check (tests)..."
+npx tsc --noEmit --project tsconfig.test.json
+if [ $? -ne 0 ]; then
+  echo "❌ Test TypeScript errors detected! Fix type errors in test files."
+  exit 1
 fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

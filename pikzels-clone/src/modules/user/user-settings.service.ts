@@ -1,5 +1,10 @@
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { UserSettingsSchema } from './types';
+import {
+  validateJsonColumn,
+  safeParseJsonColumn,
+} from '../../utils/json-validation';
 
 const prisma = getPrisma();
 const isTestEnv = process.env.NODE_ENV === 'test';
@@ -128,12 +133,16 @@ export async function getUserStorage(userId: string): Promise<StorageInfo> {
     });
 
     if (!user) {
-      logger.info('User not found for storage info, using defaults', { userId });
+      logger.info('User not found for storage info, using defaults', {
+        userId,
+      });
       return getMockStorage();
     }
 
     // Parse settings JSON for storage-related data
-    const settings = (user.settings as any) || {};
+    const settings =
+      safeParseJsonColumn(UserSettingsSchema, user.settings, 'User.settings') ||
+      {};
 
     return {
       usedGB: settings.storageUsedGB || 0,
@@ -165,12 +174,17 @@ export async function updateAutoSave(
       throw new Error('User not found');
     }
 
-    const settings = (user.settings as any) || {};
+    const settings =
+      safeParseJsonColumn(UserSettingsSchema, user.settings, 'User.settings') ||
+      {};
     settings.autoSave = enabled;
+
+    // Validate before writing back
+    validateJsonColumn(UserSettingsSchema, settings, 'User.settings');
 
     await prisma.user.update({
       where: { id: userId },
-      data: { settings: settings },
+      data: { settings: settings as any },
     });
 
     logger.info('Auto-save setting updated', { userId, enabled });
@@ -198,12 +212,17 @@ export async function updateAutoImport(
       throw new Error('User not found');
     }
 
-    const settings = (user.settings as any) || {};
+    const settings =
+      safeParseJsonColumn(UserSettingsSchema, user.settings, 'User.settings') ||
+      {};
     settings.autoImport = enabled;
+
+    // Validate before writing back
+    validateJsonColumn(UserSettingsSchema, settings, 'User.settings');
 
     await prisma.user.update({
       where: { id: userId },
-      data: { settings: settings },
+      data: { settings: settings as any },
     });
 
     logger.info('Auto-import setting updated', { userId, enabled });

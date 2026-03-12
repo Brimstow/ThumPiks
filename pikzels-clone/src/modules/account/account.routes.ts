@@ -11,6 +11,7 @@
 
 import express from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 import * as profileService from '../user/profile.service';
 import * as securityService from '../security/security.service';
@@ -23,6 +24,7 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+router.use(userApiRateLimit);
 
 // ============================================
 // PROFILE ROUTES

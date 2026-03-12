@@ -25,7 +25,9 @@ jest.mock('../../credit/credit.service', () => ({
   deductCredits: jest.fn(),
 }));
 import { deductCredits } from '../../credit/credit.service';
-const mockDeductCredits = deductCredits as jest.MockedFunction<typeof deductCredits>;
+const mockDeductCredits = deductCredits as jest.MockedFunction<
+  typeof deductCredits
+>;
 
 // Mock instances
 const mockPrisma: any = {
@@ -50,7 +52,8 @@ describe('VisionService', () => {
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
     process.env.BING_SEARCH_API_KEY = 'test-bing-key';
-    process.env.BING_SEARCH_ENDPOINT = 'https://api.bing.microsoft.com/v7.0/images/search';
+    process.env.BING_SEARCH_ENDPOINT =
+      'https://api.bing.microsoft.com/v7.0/images/search';
 
     service = new VisionService({
       prisma: mockPrisma,
@@ -101,7 +104,8 @@ describe('VisionService', () => {
         userId,
         imageUrl,
         description: mockVisionResponse.description,
-        suggestedPrompt: 'Create a bold YouTube thumbnail. with a energetic mood. featuring Gaming character. using colors: #FF0000, #00FF00, #0000FF. with text: "EPIC WIN". centered composition.',
+        suggestedPrompt:
+          'Create a bold YouTube thumbnail. with a energetic mood. featuring Gaming character. using colors: #FF0000, #00FF00, #0000FF. with text: "EPIC WIN". centered composition.',
         elements: mockVisionResponse.elements,
         sourceType: 'url',
         createdAt: new Date('2026-01-01'),
@@ -114,10 +118,18 @@ describe('VisionService', () => {
       expect(result.elements.mainSubject).toBe('Gaming character');
       expect(result.elements.faces).toBe(1);
       expect(result.elements.mood).toBe('energetic');
-      expect(result.elements.colorPalette).toEqual(['#FF0000', '#00FF00', '#0000FF']);
+      expect(result.elements.colorPalette).toEqual([
+        '#FF0000',
+        '#00FF00',
+        '#0000FF',
+      ]);
 
       // Verify credit was deducted
-      expect(mockDeductCredits).toHaveBeenCalledWith(userId, 1, 'Vision analysis - thumbnail reference');
+      expect(mockDeductCredits).toHaveBeenCalledWith(
+        userId,
+        1,
+        'Vision analysis - thumbnail reference'
+      );
 
       // Verify OpenRouter was called with correct format
       expect(mockFetch).toHaveBeenCalledWith(
@@ -185,7 +197,8 @@ describe('VisionService', () => {
           choices: [
             {
               message: {
-                content: 'This is not valid JSON but a description of the image.',
+                content:
+                  'This is not valid JSON but a description of the image.',
               },
             },
           ],
@@ -197,7 +210,8 @@ describe('VisionService', () => {
         userId,
         imageUrl,
         description: 'This is not valid JSON but a description of the image.',
-        suggestedPrompt: 'Create a default YouTube thumbnail. centered composition.',
+        suggestedPrompt:
+          'Create a default YouTube thumbnail. centered composition.',
         elements: {
           mainSubject: 'Unknown',
           faces: 0,
@@ -225,7 +239,9 @@ describe('VisionService', () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: jest.fn().mockResolvedValue({
-          choices: [{ message: { content: JSON.stringify(mockVisionResponse) } }],
+          choices: [
+            { message: { content: JSON.stringify(mockVisionResponse) } },
+          ],
         }),
       } as any);
 
@@ -343,7 +359,7 @@ describe('VisionService', () => {
       // Also ensure fallback providers are not configured
       delete process.env.SEARXNG_URL;
       delete process.env.SERPAPI_KEY;
-      
+
       const serviceNoKey = new VisionService({
         prisma: mockPrisma,
         cache: mockCache,
@@ -372,28 +388,11 @@ describe('VisionService', () => {
 
   describe('getHistory', () => {
     it('should return user analysis history via cache', async () => {
-      const mockHistory = [
-        {
-          id: 'analysis-1',
-          imageUrl: 'https://example.com/img1.jpg',
-          description: 'A bold thumbnail',
-          suggestedPrompt: 'Create a bold thumbnail...',
-          elements: {
-            mainSubject: 'Person',
-            faces: 1,
-            textOverlay: [],
-            colorPalette: ['#FF0000'],
-            mood: 'energetic',
-            style: 'bold',
-            composition: 'centered',
-          },
-          createdAt: new Date('2026-01-01'),
-        },
-      ];
-
-      mockCache.getOrSet.mockImplementation(async (_key: string, fetchFn: () => Promise<any>) => {
-        return fetchFn();
-      });
+      mockCache.getOrSet.mockImplementation(
+        async (_key: string, fetchFn: () => Promise<any>) => {
+          return fetchFn();
+        }
+      );
 
       mockPrisma.visionAnalysis.findMany.mockResolvedValue([
         {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 import {
   createTest,
@@ -16,12 +17,17 @@ const router = Router();
 
 // All AB testing routes require authentication
 router.use(authenticateToken);
+router.use(userApiRateLimit);
 
 // CRUD
 router.post('/', (req, res) => createTest(req as unknown as AuthRequest, res));
 router.get('/', (req, res) => getUserTests(req as unknown as AuthRequest, res));
-router.get('/:testId', (req, res) => getTest(req as unknown as AuthRequest, res));
-router.delete('/:testId', (req, res) => deleteTest(req as unknown as AuthRequest, res));
+router.get('/:testId', (req, res) =>
+  getTest(req as unknown as AuthRequest, res)
+);
+router.delete('/:testId', (req, res) =>
+  deleteTest(req as unknown as AuthRequest, res)
+);
 
 // Lifecycle
 router.post('/:testId/start', (req, res) =>

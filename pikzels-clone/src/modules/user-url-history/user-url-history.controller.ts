@@ -9,7 +9,10 @@ export const getUrlHistory = async (req: AuthRequest, res: Response) => {
     }
 
     const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 20;
-    const history = await getUserUrlHistoryService().getHistory(req.user.id, limit);
+    const history = await getUserUrlHistoryService().getHistory(
+      req.user.id,
+      limit
+    );
 
     return res.status(200).json({ history });
   } catch (error) {
@@ -37,7 +40,8 @@ export const saveUrl = async (req: AuthRequest, res: Response) => {
     if (title) upsertData.title = title;
     if (platform) upsertData.platform = platform;
     if (thumbnailUrl) upsertData.thumbnailUrl = thumbnailUrl;
-    if (selectedFrameTime != null) upsertData.selectedFrameTime = Number(selectedFrameTime);
+    if (selectedFrameTime != null)
+      upsertData.selectedFrameTime = Number(selectedFrameTime);
 
     const entry = await getUserUrlHistoryService().upsertUrl(upsertData as any);
 
@@ -59,7 +63,7 @@ export const deleteUrlEntry = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Entry ID is required' });
     }
 
-    await getUserUrlHistoryService().deleteEntry(id, req.user.id);
+    await getUserUrlHistoryService().deleteEntry(String(id), req.user.id);
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AnalyticsController } from './analytics.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 
 const router = Router();
@@ -8,6 +9,7 @@ const analyticsController = new AnalyticsController();
 
 // All routes in this file require authentication
 router.use(authenticateToken);
+router.use(userApiRateLimit);
 
 // Analytics dashboard data
 router.get('/dashboard', (req, res) => {

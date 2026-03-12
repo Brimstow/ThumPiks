@@ -21,7 +21,8 @@ export interface SubscriptionPlan {
     abTesting: boolean;
     analytics: boolean;
     support: string;
-    teamMembers?: number;
+    privateModeDefault?: boolean;
+    earlyAccess?: boolean;
     customTemplates?: boolean;
   };
 }
@@ -40,7 +41,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       aiThumbnails: 5,
       resolution: '720p',
       watermark: true,
-      faceSwap: false,
+      faceSwap: 3,
       abTesting: false,
       analytics: false,
       support: 'Community',
@@ -52,14 +53,14 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
     description: 'Perfect for new creators',
     monthlyPriceId: process.env.STRIPE_PRICE_ID_STARTER_MONTHLY || '',
     annualPriceId: process.env.STRIPE_PRICE_ID_STARTER_ANNUAL || '',
-    monthlyPrice: 9,
-    annualPrice: 90, // $7.50/month when billed annually
-    credits: 30,
+    monthlyPrice: 19,
+    annualPrice: 180, // $15/month when billed annually
+    credits: 50,
     features: {
-      aiThumbnails: 30,
+      aiThumbnails: 50,
       resolution: '1080p HD',
       watermark: false,
-      faceSwap: 1,
+      faceSwap: 10,
       abTesting: false,
       analytics: false,
       support: 'Email',
@@ -71,38 +72,39 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
     description: 'For serious YouTubers',
     monthlyPriceId: process.env.STRIPE_PRICE_ID_PRO_MONTHLY || '',
     annualPriceId: process.env.STRIPE_PRICE_ID_PRO_ANNUAL || '',
-    monthlyPrice: 24,
-    annualPrice: 228, // $19/month when billed annually
-    credits: 120,
+    monthlyPrice: 39,
+    annualPrice: 348, // $29/month when billed annually
+    credits: 200,
     features: {
-      aiThumbnails: 120,
+      aiThumbnails: 200,
       resolution: '1080p HD',
       watermark: false,
-      faceSwap: 5,
+      faceSwap: 50,
       abTesting: true,
       analytics: true,
       support: 'Priority',
       customTemplates: true,
     },
   },
-  business: {
-    id: 'business',
-    name: 'Business',
-    description: 'For agencies and teams',
-    monthlyPriceId: process.env.STRIPE_PRICE_ID_BUSINESS_MONTHLY || '',
-    annualPriceId: process.env.STRIPE_PRICE_ID_BUSINESS_ANNUAL || '',
+  ultra_pro: {
+    id: 'ultra_pro',
+    name: 'Ultra Pro',
+    description: 'For power creators',
+    monthlyPriceId: process.env.STRIPE_PRICE_ID_ULTRA_PRO_MONTHLY || '',
+    annualPriceId: process.env.STRIPE_PRICE_ID_ULTRA_PRO_ANNUAL || '',
     monthlyPrice: 79,
-    annualPrice: 790, // ~$65.83/month when billed annually
-    credits: 500,
+    annualPrice: 708, // $59/month when billed annually
+    credits: 600,
     features: {
-      aiThumbnails: 500,
+      aiThumbnails: 600,
       resolution: '4K Ultra HD',
       watermark: false,
-      faceSwap: 20,
+      faceSwap: -1, // Unlimited
       abTesting: true,
       analytics: true,
       support: 'Dedicated',
-      teamMembers: 10,
+      privateModeDefault: true,
+      earlyAccess: true,
       customTemplates: true,
     },
   },

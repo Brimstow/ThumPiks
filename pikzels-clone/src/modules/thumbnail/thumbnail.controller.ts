@@ -19,12 +19,21 @@ import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
 import { systemMonitoringService } from '../admin/system-monitoring.service';
+import { isZodError } from '../../utils/json-validation';
 
 // Single source of truth for valid thumbnail styles
 const VALID_STYLES = [
-  'bold', 'minimalist', 'dramatic', 'cinematic',
-  'professional', 'creative', 'gaming',
-  'vibrant', 'retro', 'neon', 'natural',
+  'bold',
+  'minimalist',
+  'dramatic',
+  'cinematic',
+  'professional',
+  'creative',
+  'gaming',
+  'vibrant',
+  'retro',
+  'neon',
+  'natural',
 ] as const;
 
 // Create shared instances that can be overridden for testing
@@ -107,7 +116,9 @@ async function ensureBase64(image: string): Promise<string> {
       return `data:${contentType};base64,${buffer.toString('base64')}`;
     } catch (err) {
       console.error('[ensureBase64] Failed to convert URL to base64:', err);
-      throw new Error('Could not fetch the image URL. Please try with a different image.');
+      throw new Error(
+        'Could not fetch the image URL. Please try with a different image.'
+      );
     }
   }
   // Assume raw base64 string
@@ -125,7 +136,10 @@ const aiService = {
     model?: string;
   }) => {
     try {
-      console.log('[AI Service] Generating with model:', options.model || 'default');
+      console.log(
+        '[AI Service] Generating with model:',
+        options.model || 'default'
+      );
       const images = await openRouterService.generateImages(
         options.prompt,
         options.model || undefined, // Use tier-selected model or fall back to default
@@ -170,6 +184,15 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
 
     return res.status(201).json({ thumbnail });
   } catch (error) {
+    if (isZodError(error)) {
+      return res.status(400).json({
+        error: 'Invalid thumbnail parameters',
+        details: error.issues.map(i => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
     console.error('Error creating thumbnail:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -288,6 +311,15 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
   } catch (error) {
+    if (isZodError(error)) {
+      return res.status(400).json({
+        error: 'Invalid thumbnail parameters',
+        details: error.issues.map(i => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
     console.error('Error updating thumbnail:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -536,9 +568,10 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails,
         });
       } catch (aiError) {
-        const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
+        const errorMessage =
+          aiError instanceof Error ? aiError.message : String(aiError);
         const errorStack = aiError instanceof Error ? aiError.stack : undefined;
-        
+
         console.error(
           'Error generating thumbnails with AI, falling back to placeholders:',
           aiError
@@ -581,11 +614,13 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         }
 
         return res.status(201).json({
-          message: 'We could not generate AI images at this time. Placeholder images have been created instead.',
+          message:
+            'We could not generate AI images at this time. Placeholder images have been created instead.',
           thumbnails,
           aiError: errorMessage,
           aiErrorCode: 'AI_GENERATION_FAILED',
-          userAction: 'Please try again later or contact support if the issue persists.',
+          userAction:
+            'Please try again later or contact support if the issue persists.',
         });
       }
     } else {
@@ -626,7 +661,8 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
       }
 
       return res.status(201).json({
-        message: 'AI image generation is temporarily unavailable. Placeholder images have been created.',
+        message:
+          'AI image generation is temporarily unavailable. Placeholder images have been created.',
         thumbnails,
         aiNotConfigured: true,
         aiErrorCode: 'AI_SERVICE_UNAVAILABLE',
@@ -740,6 +776,15 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
       thumbnail: updatedThumbnail,
     });
   } catch (error) {
+    if (isZodError(error)) {
+      return res.status(400).json({
+        error: 'Invalid thumbnail parameters',
+        details: error.issues.map(i => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
     console.error('Error applying edits to thumbnail:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -771,7 +816,9 @@ export const applyStyleTransfer = async (req: AuthRequest, res: Response) => {
     // Style transfer logic here
     const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       parameters: {
-        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        ...(typeof thumbnail.parameters === 'object'
+          ? thumbnail.parameters
+          : {}),
         styleTransfer: true,
       },
     });
@@ -812,7 +859,9 @@ export const applyImageEnhancement = async (
     // Image enhancement logic here
     const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       parameters: {
-        ...(typeof thumbnail.parameters === 'object' ? thumbnail.parameters : {}),
+        ...(typeof thumbnail.parameters === 'object'
+          ? thumbnail.parameters
+          : {}),
         imageEnhancement: true,
       },
     });
@@ -1009,6 +1058,50 @@ export const setAsFeatured = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Recategorize thumbnail platform
+export const recategorizeThumbnail = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ error: 'Thumbnail ID is required' });
+    }
+
+    const { platform } = req.body;
+    const validPlatforms = ['youtube', 'tiktok', 'instagram', 'twitter'];
+    if (!platform || !validPlatforms.includes(platform)) {
+      return res
+        .status(400)
+        .json({
+          error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}`,
+        });
+    }
+
+    const thumbnail = await getThumbnailService().recategorizeThumbnail(
+      id,
+      platform,
+      req.user.id
+    );
+
+    return res.status(200).json({ thumbnail });
+  } catch (error: any) {
+    if (error.message === 'Thumbnail not found') {
+      return res.status(404).json({ error: 'Thumbnail not found' });
+    }
+    if (error.message === 'Not authorized') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    console.error('Error recategorizing thumbnail:', error);
+    return res.status(500).json({ error: 'Failed to recategorize thumbnail' });
+  }
+};
+
 // Get available AI styles
 export const getAvailableStyles = async (_req: Request, res: Response) => {
   try {
@@ -1158,7 +1251,12 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
 
     const { prompt, style, tier, model: modelOverride } = req.body;
 
-    console.log('[AI Generate] Request body:', { prompt: prompt?.substring(0, 50), style, tier, modelOverride });
+    console.log('[AI Generate] Request body:', {
+      prompt: prompt?.substring(0, 50),
+      style,
+      tier,
+      modelOverride,
+    });
 
     if (!prompt) {
       return res.status(400).json({
@@ -1192,7 +1290,8 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
     // Resolve model: direct override takes priority, then tier-based lookup, then default
     const resolvedModel =
       modelOverride || resolveModelFromTier(tier, 'generate');
-    const model = resolvedModel || openRouterService.getModelForTool('generate');
+    const model =
+      resolvedModel || openRouterService.getModelForTool('generate');
     console.log(
       `[AI Generate] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
     );
@@ -1374,12 +1473,14 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
     }
 
     // Prefer Replicate for upscale (purpose-built Real-ESRGAN model)
-    const useReplicate = replicateService.isConfigured() && !modelOverride && !tier;
+    const useReplicate =
+      replicateService.isConfigured() && !modelOverride && !tier;
     const useOpenRouter = openRouterService.isConfigured();
 
     if (!useReplicate && !useOpenRouter) {
       return res.status(503).json({
-        error: 'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
+        error:
+          'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
       });
     }
 
@@ -1480,7 +1581,8 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
 
     if (!useReplicate && !useOpenRouter) {
       return res.status(503).json({
-        error: 'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
+        error:
+          'AI service not configured. Please set REPLICATE_API_KEY or OPENROUTER_API_KEY.',
       });
     }
 
@@ -1488,7 +1590,9 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
     const model = useReplicate
       ? replicateService.getModelForTool('removeBg')
       : openRouterService.getModelForTool('inpaint');
-    console.log(`[AI Remove Background] Using provider: ${provider}, model: ${model}`);
+    console.log(
+      `[AI Remove Background] Using provider: ${provider}, model: ${model}`
+    );
 
     // Credit check & deduction - flat 1 credit (non-tiered tool)
     const creditCost = 1;
@@ -1538,7 +1642,11 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
       });
     } catch (apiError) {
       // Refund credits on API failure
-      await refundCredits(req.user.id, creditCost, 'AI remove-background failed');
+      await refundCredits(
+        req.user.id,
+        creditCost,
+        'AI remove-background failed'
+      );
       throw apiError;
     }
   } catch (error) {
@@ -1587,11 +1695,7 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
 
     // Credit check & deduction - flat 1 credit (non-tiered tool)
     const creditCost = 1;
-    const deducted = await deductCredits(
-      req.user.id,
-      creditCost,
-      'AI enhance'
-    );
+    const deducted = await deductCredits(req.user.id, creditCost, 'AI enhance');
     if (!deducted) {
       return res.status(402).json({
         error: 'Insufficient credits',
@@ -1640,13 +1744,13 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
 /**
  * Segment objects in an image using SAM 2 (Segment Anything Model)
  * Provider: Replicate
- * 
+ *
  * Supports two modes:
  * - 'auto': Auto-segmentation with grid (meta/sam-2) - returns all detected objects
  * - 'interactive': Click-to-select (meta/sam-2-video) - returns mask for clicked object
- * 
- * Body: { 
- *   image: base64, 
+ *
+ * Body: {
+ *   image: base64,
  *   mode?: 'auto' | 'interactive',  // default: 'auto'
  *   clicks?: Array<{x, y, label}>,  // required for interactive mode
  *   options?: { pointsPerSide?, predIouThresh?, stabilityScoreThresh?, useM2m? }  // auto mode options
@@ -1682,13 +1786,16 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
 
     if (!replicateService.isConfigured()) {
       return res.status(503).json({
-        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+        error:
+          'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
       });
     }
 
     const modelType = mode === 'interactive' ? 'segmentInteractive' : 'segment';
     const model = replicateService.getModelForTool(modelType);
-    console.log(`[AI Segment] Mode: ${mode}, Model: ${model}, Clicks: ${clicks?.length || 0}`);
+    console.log(
+      `[AI Segment] Mode: ${mode}, Model: ${model}, Clicks: ${clicks?.length || 0}`
+    );
 
     // Credit check & deduction - flat 1 credit (non-tiered tool)
     const creditCost = 1;
@@ -1710,11 +1817,17 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
         const result = await replicateService.segmentInteractive(image, clicks);
 
         // Emit analytics event
-        emitAnalyticsEvent(req.user.id, 'ai-tool', 'segment', 'ai-segment-interactive', {
-          model,
-          clickCount: clicks.length,
-          maskCount: result.masks.length,
-        });
+        emitAnalyticsEvent(
+          req.user.id,
+          'ai-tool',
+          'segment',
+          'ai-segment-interactive',
+          {
+            model,
+            clickCount: clicks.length,
+            maskCount: result.masks.length,
+          }
+        );
 
         return res.status(200).json({
           success: true,
@@ -1728,11 +1841,17 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
         const result = await replicateService.segment(image, options);
 
         // Emit analytics event
-        emitAnalyticsEvent(req.user.id, 'ai-tool', 'segment', 'ai-segment-auto', {
-          model,
-          maskCount: result.masks.length,
-          pointsPerSide: options?.pointsPerSide || 32,
-        });
+        emitAnalyticsEvent(
+          req.user.id,
+          'ai-tool',
+          'segment',
+          'ai-segment-auto',
+          {
+            model,
+            maskCount: result.masks.length,
+            pointsPerSide: options?.pointsPerSide || 32,
+          }
+        );
 
         return res.status(200).json({
           success: true,
@@ -1764,7 +1883,7 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
  * Decompose an image into isolated semantic layers using SAM auto-segmentation.
  * Each detected object becomes a separate RGBA layer that can be independently
  * edited, moved, or styled in the Advanced Editor.
- * 
+ *
  * Body: { image: base64, maxLayers?: number (default 8) }
  * Returns: { success, layers: Array<{ name, imageBase64, bounds, score }>, predictionId }
  */
@@ -1784,7 +1903,8 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
 
     if (!replicateService.isConfigured()) {
       return res.status(503).json({
-        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+        error:
+          'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
       });
     }
 
@@ -1832,7 +1952,7 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
 /**
  * Expand/Outpaint - Extend canvas in any direction with AI-generated content
  * Provider: Replicate (purpose-built outpainting model)
- * 
+ *
  * @body image - Base64-encoded source image
  * @body prompt - Description of what to fill in expanded areas (optional)
  * @body direction - Expansion direction: 'left' | 'right' | 'top' | 'bottom' | 'all'
@@ -1871,7 +1991,8 @@ export const aiExpand = async (req: AuthRequest, res: Response) => {
     // Expand uses Replicate exclusively (purpose-built outpainting model)
     if (!replicateService.isConfigured()) {
       return res.status(503).json({
-        error: 'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
+        error:
+          'Replicate AI service not configured. Please set REPLICATE_API_KEY.',
       });
     }
 
@@ -1948,7 +2069,9 @@ export const getDeletedThumbnails = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const thumbnails = await getThumbnailService().getDeletedThumbnails(req.user.id);
+    const thumbnails = await getThumbnailService().getDeletedThumbnails(
+      req.user.id
+    );
 
     return res.status(200).json({
       message: 'Deleted thumbnails retrieved',
@@ -2053,7 +2176,13 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60 } = req.body;
+    const {
+      prompt,
+      context,
+      tone = 'clickbait',
+      count = 5,
+      maxLength = 60,
+    } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -2082,14 +2211,25 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     try {
       // Build the system prompt for title generation
       const toneInstructions: Record<string, string> = {
-        clickbait: 'Maximum clicks & curiosity. Use power words, numbers, emotional triggers. Create FOMO.',
-        professional: 'Clean, authoritative, trustworthy. No hype, just clear value propositions.',
-        casual: 'Friendly, relatable, conversational. Like talking to a friend.',
-        dramatic: 'High emotion, urgency, impact. Create suspense and excitement.',
-        educational: 'Informative, clear, structured. Focus on learning outcomes and value.',
+        clickbait:
+          'Maximum clicks & curiosity. Use power words, numbers, emotional triggers. Create FOMO.',
+        professional:
+          'Clean, authoritative, trustworthy. No hype, just clear value propositions.',
+        casual:
+          'Friendly, relatable, conversational. Like talking to a friend.',
+        dramatic:
+          'High emotion, urgency, impact. Create suspense and excitement.',
+        educational:
+          'Informative, clear, structured. Focus on learning outcomes and value.',
       };
 
-      const styleTypes = ['bold', 'question', 'listicle', 'emotional', 'curiosity'];
+      const styleTypes = [
+        'bold',
+        'question',
+        'listicle',
+        'emotional',
+        'curiosity',
+      ];
 
       const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
 
@@ -2109,11 +2249,12 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
       // Use a text-only model via OpenRouter chat completions
       const textModel = 'google/gemini-2.5-flash';
 
-      const apiUrl = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
+      const apiUrl =
+        process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
       const response = await fetch(`${apiUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
           'X-Title': 'ThumPiks AI Text Generator',
@@ -2131,11 +2272,17 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
 
       if (!response.ok) {
         const errData: any = await response.json().catch(() => ({}));
-        await refundCredits(req.user.id, creditCost, 'AI text generation failed');
-        throw new Error(errData.error?.message || `OpenRouter API error (${response.status})`);
+        await refundCredits(
+          req.user.id,
+          creditCost,
+          'AI text generation failed'
+        );
+        throw new Error(
+          errData.error?.message || `OpenRouter API error (${response.status})`
+        );
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
       const content = data.choices?.[0]?.message?.content || '';
@@ -2144,7 +2291,10 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
       let suggestions: Array<{ text: string; style: string; score: number }>;
       try {
         // Strip markdown code fences if present
-        const cleaned = content.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+        const cleaned = content
+          .replace(/```json?\s*/g, '')
+          .replace(/```\s*/g, '')
+          .trim();
         suggestions = JSON.parse(cleaned);
 
         if (!Array.isArray(suggestions)) {
@@ -2153,26 +2303,45 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
 
         // Validate and sanitize
         suggestions = suggestions
-          .filter(s => s && typeof s.text === 'string' && s.text.trim().length > 0)
+          .filter(
+            s => s && typeof s.text === 'string' && s.text.trim().length > 0
+          )
           .slice(0, count)
           .map(s => ({
             text: s.text.trim().slice(0, maxLength + 20), // Allow slight overflow
             style: styleTypes.includes(s.style) ? s.style : 'bold',
-            score: typeof s.score === 'number' ? Math.min(1, Math.max(0, s.score)) : 0.8,
+            score:
+              typeof s.score === 'number'
+                ? Math.min(1, Math.max(0, s.score))
+                : 0.8,
           }));
       } catch {
         // If JSON parsing fails, try to extract text lines
-        const lines = content.split('\n').filter((l: string) => l.trim().length > 0 && l.trim().length <= maxLength + 20);
+        const lines = content
+          .split('\n')
+          .filter(
+            (l: string) =>
+              l.trim().length > 0 && l.trim().length <= maxLength + 20
+          );
         suggestions = lines.slice(0, count).map((line: string, i: number) => ({
-          text: line.replace(/^\d+[\.\)]\s*/, '').replace(/^["']|["']$/g, '').trim(),
+          text: line
+            .replace(/^\d+[.)]\s*/, '')
+            .replace(/^["']|["']$/g, '')
+            .trim(),
           style: styleTypes[i % styleTypes.length] as string,
           score: 0.75,
         }));
       }
 
       if (suggestions.length === 0) {
-        await refundCredits(req.user.id, creditCost, 'AI text generation returned no results');
-        return res.status(500).json({ error: 'No valid suggestions generated. Please try again.' });
+        await refundCredits(
+          req.user.id,
+          creditCost,
+          'AI text generation returned no results'
+        );
+        return res
+          .status(500)
+          .json({ error: 'No valid suggestions generated. Please try again.' });
       }
 
       // Emit analytics
@@ -2195,7 +2364,8 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
   } catch (error) {
     console.error('Error in AI text generation:', error);
     return res.status(500).json({
-      error: error instanceof Error ? error.message : 'AI text generation failed',
+      error:
+        error instanceof Error ? error.message : 'AI text generation failed',
     });
   }
 };
