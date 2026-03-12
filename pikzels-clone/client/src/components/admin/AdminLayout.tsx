@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { DashboardProvider } from '../../contexts/DashboardContext';
+import { getAdminUser, isAdminAuthenticated } from '../../services/admin/adminApiClient';
+import { adminAuthService } from '../../services/admin/adminAuthService';
 import { 
   Users, 
   Settings, 
@@ -33,28 +35,62 @@ interface AdminNavItem {
   children?: AdminNavItem[];
 }
 
+interface AdminUserData {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  avatar?: string | null;
+  lastLogin?: string;
+}
+
 const AdminLayout: React.FC = () => {
-  const [sidebarExpanded, setSidebarExpanded] = useState(false); // Desktop: expanded/collapsed
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile: overlay menu
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [adminUser, setAdminUser] = useState<AdminUserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Enhanced admin user with more details
-  const adminUser = {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-    roles: ['super_admin'],
-    permissions: ['*'],
-    lastLogin: new Date(),
-    status: 'online'
-  };
+  // Load admin user from authenticated session
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAdminUser() {
+      if (!isAdminAuthenticated()) {
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
+      // Show cached user instantly while validating
+      const cached = getAdminUser() as AdminUserData | null;
+      if (cached) {
+        setAdminUser(cached);
+        setIsLoading(false);
+      }
+
+      // Validate session with backend/mock
+      const result = await adminAuthService.getCurrentAdmin();
+      if (cancelled) return;
+
+      if (result.success && result.data) {
+        setAdminUser(result.data as AdminUserData);
+        setIsLoading(false);
+      } else if (!cached) {
+        navigate('/admin/login', { replace: true });
+      }
+    }
+
+    loadAdminUser();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   const hasPermission = (permission: string) => {
+    if (!adminUser) return false;
     return adminUser.permissions.includes('*') || adminUser.permissions.includes(permission);
   };
 
@@ -222,10 +258,24 @@ const AdminLayout: React.FC = () => {
   const visibleNavItems = filterNavItems(navItems);
 
   const handleLogout = async () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUser');
+    await adminAuthService.logout();
     navigate('/admin/login', { replace: true });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#020817] text-slate-100">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#2563ff] border-t-transparent"></div>
+          <p className="text-slate-400 text-sm">Loading admin panel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!adminUser) {
+    return null;
+  }
 
   return (
     <DashboardProvider>
@@ -302,13 +352,11 @@ const AdminLayout: React.FC = () => {
               <div className="w-10 h-10 bg-[#2563ff] rounded-xl flex items-center justify-center text-white text-sm font-bold">
                 {adminUser.name?.charAt(0).toUpperCase() || 'A'}
               </div>
-              <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020818] ${
-                adminUser.status === 'online' ? 'bg-green-400' : 'bg-slate-500'
-              }`}></div>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020818] bg-green-400"></div>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-100 truncate">{adminUser.name}</p>
-              <p className="text-xs text-slate-400 truncate">{adminUser.roles.join(', ')}</p>
+              <p className="text-xs text-slate-400 truncate">{adminUser.role}</p>
             </div>
           </div>
           
@@ -439,9 +487,7 @@ const AdminLayout: React.FC = () => {
                     <div className="w-10 h-10 bg-[#2563ff] rounded-xl flex items-center justify-center text-white text-sm font-bold hover:bg-[#1d4fff] transition-colors cursor-pointer">
                       {adminUser.name?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020817] ${
-                      adminUser.status === 'online' ? 'bg-green-400' : 'bg-slate-500'
-                    }`}></div>
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020817] bg-green-400"></div>
                   </div>
                 </div>
               </div>

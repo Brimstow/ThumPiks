@@ -21,6 +21,12 @@ interface EditorRouteState {
   prompt?: string;
   style?: string;
   source?: string;
+  platformPreset?: {
+    platform: string;
+    width: number;
+    height: number;
+    name: string;
+  };
 }
 
 const ThumbnailStudioPage: React.FC = () => {
@@ -32,6 +38,7 @@ const ThumbnailStudioPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialImageUrl, setInitialImageUrl] = useState<string | undefined>();
+  const [platformPreset, setPlatformPreset] = useState<EditorRouteState['platformPreset']>();
 
   // Read initial image from route state or sessionStorage (for page refresh persistence)
   useEffect(() => {
@@ -56,6 +63,11 @@ const ThumbnailStudioPage: React.FC = () => {
         // Clear after consumption to prevent stale data
         sessionStorage.removeItem('pendingEditorImage');
       }
+    }
+
+    // Extract platform preset from route state
+    if (routeState?.platformPreset) {
+      setPlatformPreset(routeState.platformPreset);
     }
   }, [location.state, id]);
 
@@ -226,6 +238,7 @@ const ThumbnailStudioPage: React.FC = () => {
         thumbnailId={id}
         thumbnailData={thumbnailData || undefined}
         initialImage={initialImageUrl}
+        platformPreset={platformPreset}
         onSave={handleSave}
         onClose={handleClose}
       />

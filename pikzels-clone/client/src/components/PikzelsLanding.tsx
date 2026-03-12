@@ -749,7 +749,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                     Starter
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '9' : '7.50'}
+                    ${billingCycle === 'monthly' ? '19' : '15'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
@@ -760,11 +760,11 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>30 AI thumbnails/month</span>
+                    <span>50 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>All styles & templates</span>
+                    <span>All 9 AI tools</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -776,11 +776,11 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Face swap (1 face)</span>
+                    <span>Multi-format export</span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>No A/B testing</span>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Email support</span>
                   </div>
                 </div>
 
@@ -791,7 +791,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   Get Started
                 </button>
                 <div className="text-center text-xs text-gray-500 mt-3">
-                  {billingCycle === 'annual' && 'Save 17% annually'}
+                  {billingCycle === 'annual' && 'Save 21% annually'}
                   {billingCycle === 'monthly' && '7-day free trial'}
                 </div>
               </div>
@@ -810,7 +810,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                     Creator Pro
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '24' : '19'}
+                    ${billingCycle === 'monthly' ? '39' : '29'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
@@ -821,7 +821,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>120 AI thumbnails/month</span>
+                    <span>200 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -829,19 +829,19 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Face training (5 faces)</span>
+                    <span>Flash + Standard + Pro models</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>A/B test variations</span>
+                    <span>A/B testing</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>2x faster generation</span>
+                    <span>Vision / CTR analysis</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Trending insights</span>
+                    <span>Brand kit & analytics</span>
                   </div>
                 </div>
 
@@ -856,26 +856,26 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </div>
               </div>
 
-              {/* AGENCY TIER */}
+              {/* ULTRA PRO TIER */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
                 <div className="mb-6">
                   <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
-                    Agency
+                    Ultra Pro
                   </div>
                   <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '69' : '59'}
+                    ${billingCycle === 'monthly' ? '79' : '59'}
                     <span className="text-lg text-gray-400">/month</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    For teams & agencies
+                    For power creators
                   </div>
                 </div>
 
                 <div className="space-y-4 mb-8">
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>500 AI thumbnails/month</span>
+                    <span>600 AI thumbnails/month</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -883,19 +883,19 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Team collaboration (5 seats)</span>
+                    <span>All generations private</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Brand kit & templates</span>
+                    <span>Pro models default</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>API access</span>
+                    <span>Early access to new features</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>White-label option</span>
+                    <span>Dedicated support</span>
                   </div>
                 </div>
 
@@ -903,10 +903,10 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                   onClick={handleAuthAction}
                   className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
                 >
-                  Contact Sales
+                  Get Started
                 </button>
                 <div className="text-center text-xs text-gray-500 mt-3">
-                  Custom plans available
+                  {billingCycle === 'annual' ? 'Save 25% annually' : '14-day free trial'}
                 </div>
               </div>
             </div>

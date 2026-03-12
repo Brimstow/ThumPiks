@@ -39,7 +39,7 @@ const ChangelogPage: React.FC = () => {
         {
           type: 'improvement',
           title: 'Faster Generation Speed',
-          description: '2x faster thumbnail generation for Pro and Agency users with priority queue system.',
+          description: '2x faster thumbnail generation for Pro and Ultra Pro users with priority queue system.',
           icon: <Rocket className="w-5 h-5" />,
         },
         {

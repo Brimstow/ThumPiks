@@ -444,9 +444,9 @@ test.describe('Pricing Page UI Elements', () => {
     await expect(page.locator('text=MOST POPULAR')).toBeVisible();
     console.log('  ✓ Creator Pro tier visible (with popular badge)');
     
-    // Verify Agency tier
-    await expect(page.locator('text=Agency').first()).toBeVisible();
-    console.log('  ✓ Agency tier visible');
+    // Verify Ultra Pro tier
+    await expect(page.locator('text=Ultra Pro').first()).toBeVisible();
+    console.log('  ✓ Ultra Pro tier visible');
     
     // Take full screenshot
     await page.screenshot({ 

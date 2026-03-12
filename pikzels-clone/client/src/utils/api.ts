@@ -172,3 +172,13 @@ export async function authPut(endpoint: string, body: unknown): Promise<Response
 export async function authDelete(endpoint: string): Promise<Response> {
   return authFetch(endpoint, { method: 'DELETE' });
 }
+
+/**
+ * Convenience method for PATCH requests with JSON body
+ */
+export async function authPatch(endpoint: string, body: unknown): Promise<Response> {
+  return authFetch(endpoint, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}

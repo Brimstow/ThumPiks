@@ -25,6 +25,7 @@ import ProjectDetail from './components/projects/ProjectDetail';
 import TemplatesPage from './components/dashboard/TemplatesPage';
 import AnalyticsPage from './components/dashboard/AnalyticsPage';
 import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
+import UploadsPage from './components/dashboard/UploadsPage';
 import TrendingPage from './components/dashboard/TrendingPage';
 import PricingPage from './components/dashboard/PricingPage';
 import CreditsPage from './components/dashboard/CreditsPage';
@@ -37,6 +38,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 // ThumbnailEditorPage removed - legacy route now redirects to unified editor
 import BatchEditor from './components/BatchEditor';
 import CanvasEditorPage from './pages/CanvasEditorPage';
+import PresetEditorPage from './pages/PresetEditorPage';
 import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
 import UserAnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
@@ -186,6 +188,7 @@ function App() {
               >
                 <Route index element={<DashboardHome />} />
                 <Route path="thumbnails" element={<MyThumbnailsPage />} />
+                <Route path="uploads" element={<UploadsPage />} />
                 <Route path="create" element={<DashboardHome />} />
                 <Route path="templates" element={<TemplatesPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
@@ -206,6 +209,7 @@ function App() {
                 <Route path="account/:section" element={<AccountPage />} />
                 <Route path="video-editor" element={<VideoEditorPage />} />
                 <Route path="create-plus" element={<CreatePlusPage />} />
+                <Route path="create-plus/:presetId" element={<PresetEditorPage />} />
                 <Route path="quick-edit" element={<ErrorBoundary><QuickEditView /></ErrorBoundary>} />
               </Route>
 

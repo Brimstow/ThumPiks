@@ -89,25 +89,22 @@ const CreatePlusPage: React.FC = () => {
 
   // Select preset
   const handleSelectPreset = useCallback((presetId: string) => {
-    setSelectedPreset(presetId);
-    
     if (presetId === 'instagram') {
+      // Instagram has sub-options — show them, don't navigate yet
+      setSelectedPreset(presetId);
       setShowInstagramOptions(true);
-      // Set to current selected Instagram ratio
       const igRatio = instagramRatios.find(r => r.id === selectedInstagramRatio);
       if (igRatio) {
         setCustomWidth(igRatio.width);
         setCustomHeight(igRatio.height);
       }
-    } else {
-      setShowInstagramOptions(false);
-      const preset = platformPresets.find(p => p.id === presetId);
-      if (preset) {
-        setCustomWidth(preset.width);
-        setCustomHeight(preset.height);
-      }
+      return;
     }
-  }, [platformPresets, selectedInstagramRatio, instagramRatios]);
+
+    // Non-instagram presets: navigate directly to preset editor
+    setShowInstagramOptions(false);
+    navigate(`/dashboard/create-plus/${presetId}`);
+  }, [navigate, selectedInstagramRatio, instagramRatios]);
 
   // Select Instagram ratio
   const handleSelectInstagramRatio = useCallback((ratioId: '1:1' | '4:5' | '16:9') => {
@@ -116,8 +113,17 @@ const CreatePlusPage: React.FC = () => {
     if (ratio) {
       setCustomWidth(ratio.width);
       setCustomHeight(ratio.height);
+      // Navigate to preset editor with the selected Instagram ratio
+      navigate(`/dashboard/create-plus/instagram-${ratioId.replace(':', '-')}`, {
+        state: {
+          platform: 'Instagram',
+          width: ratio.width,
+          height: ratio.height,
+          name: `Instagram ${ratio.name}`,
+        },
+      });
     }
-  }, [instagramRatios]);
+  }, [instagramRatios, navigate]);
 
   // File upload handler
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,6 +133,19 @@ const CreatePlusPage: React.FC = () => {
     console.log('File selected:', file.name);
     navigate('/dashboard/video-editor', { state: { uploadedFile: file } });
   }, [navigate]);
+
+  /** Resolve the currently selected platform preset for passing to the editor */
+  const getSelectedPlatformPreset = useCallback(() => {
+    const preset = platformPresets.find(p => p.id === selectedPreset);
+    if (preset) {
+      return { platform: preset.platform, width: customWidth, height: customHeight, name: preset.name };
+    }
+    const custom = savedPresets.find(p => p.id === selectedPreset);
+    if (custom) {
+      return { platform: 'Custom', width: custom.width, height: custom.height, name: custom.name };
+    }
+    return { platform: 'Custom', width: customWidth, height: customHeight, name: 'Custom' };
+  }, [selectedPreset, customWidth, customHeight, platformPresets, savedPresets]);
 
   // AI prompt thumbnail creation handler
   const handleAiPromptCreate = useCallback(async (prompt: string, style: string, projectId: string) => {
@@ -160,6 +179,7 @@ const CreatePlusPage: React.FC = () => {
           projectId,
           prompt,
           style,
+          platformPreset: getSelectedPlatformPreset(),
         },
       });
     } catch (error) {
@@ -180,7 +200,7 @@ const CreatePlusPage: React.FC = () => {
       color: 'from-red-500/20 to-red-600/20',
       borderColor: 'border-red-500/30',
       hoverColor: 'hover:border-red-500/60',
-      action: () => navigate('/dashboard'),
+      action: () => navigate('/dashboard/quick-edit', { state: { initialView: 'url-input' } }),
     },
     {
       id: 'upload',
@@ -230,7 +250,9 @@ const CreatePlusPage: React.FC = () => {
       color: 'from-slate-500/20 to-slate-600/20',
       borderColor: 'border-slate-500/30',
       hoverColor: 'hover:border-slate-500/60',
-      action: () => navigate('/dashboard/editor'),
+      action: () => navigate('/dashboard/editor', {
+        state: { platformPreset: getSelectedPlatformPreset() },
+      }),
     },
   ];
 
@@ -418,9 +440,14 @@ const CreatePlusPage: React.FC = () => {
                         >
                           <button
                             onClick={() => {
-                              setSelectedPreset(preset.id);
-                              setCustomWidth(preset.width);
-                              setCustomHeight(preset.height);
+                              navigate(`/dashboard/create-plus/${preset.id}`, {
+                                state: {
+                                  platform: 'Custom',
+                                  width: preset.width,
+                                  height: preset.height,
+                                  name: preset.name,
+                                },
+                              });
                             }}
                             className="w-full"
                           >

@@ -63,7 +63,7 @@ const ReviewsPage: React.FC = () => {
       avatar: '/images/testimonials/review6.png',
       rating: 5,
       quote: "The face swap feature is pure magic. I can keep my personal brand consistent across all thumbnails without spending hours in front of the camera. My team loves it too!",
-      improvement: 'Agency-ready',
+      improvement: 'Power creator-ready',
       color: 'from-pink-500 to-rose-500',
     },
   ];

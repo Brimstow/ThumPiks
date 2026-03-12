@@ -107,7 +107,7 @@ const MOCK_USERS = Array.from({ length: 42 }, (_, i) => ({
   lastLoginAt: randomDate(30).toISOString(),
   thumbnailCount: randomInt(0, 150),
   projectCount: randomInt(0, 20),
-  subscription: randomItem(['free', 'starter', 'pro', 'business']),
+  subscription: randomItem(['free', 'starter', 'pro', 'ultra_pro']),
   creditsRemaining: randomInt(0, 500),
 }));
 
@@ -161,7 +161,7 @@ export async function mockGetUserStats() {
         free: MOCK_USERS.filter(u => u.subscription === 'free').length,
         starter: MOCK_USERS.filter(u => u.subscription === 'starter').length,
         pro: MOCK_USERS.filter(u => u.subscription === 'pro').length,
-        business: MOCK_USERS.filter(u => u.subscription === 'business').length,
+        ultra_pro: MOCK_USERS.filter(u => u.subscription === 'ultra_pro').length,
       },
     },
   };

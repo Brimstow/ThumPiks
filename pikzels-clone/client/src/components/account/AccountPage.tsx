@@ -296,7 +296,7 @@ const AccountPage: React.FC = () => {
       free: 'Free',
       starter: 'Starter',
       pro: 'Creator Pro',
-      business: 'Agency',
+      ultra_pro: 'Ultra Pro',
     };
     return names[planType] || planType;
   };
@@ -304,19 +304,19 @@ const AccountPage: React.FC = () => {
   const getPlanPrice = (planType: string, billingCycle: string) => {
     const prices: Record<string, { monthly: number; annual: number }> = {
       free: { monthly: 0, annual: 0 },
-      starter: { monthly: 9, annual: 90 },
-      pro: { monthly: 24, annual: 228 },
-      business: { monthly: 69, annual: 708 },
+      starter: { monthly: 19, annual: 180 },
+      pro: { monthly: 39, annual: 348 },
+      ultra_pro: { monthly: 79, annual: 708 },
     };
     return prices[planType]?.[billingCycle as 'monthly' | 'annual'] || 0;
   };
 
   const getPlanFeatures = (planType: string) => {
     const features: Record<string, string[]> = {
-      free: ['10 AI thumbnails/month', 'Basic templates', 'Standard resolution'],
-      starter: ['30 AI thumbnails/month', 'All styles & templates', '1080p HD resolution', 'No watermark', 'Face swap (1 face)'],
-      pro: ['120 AI thumbnails/month', 'All Starter features', 'Face training (5 faces)', 'A/B test variations', '2x faster generation', 'Trending insights'],
-      business: ['500 AI thumbnails/month', 'All Creator Pro features', 'Team collaboration (5 seats)', 'Brand kit & templates', 'API access', 'White-label option'],
+      free: ['5 AI thumbnails/month', 'Basic AI generation', '720p resolution'],
+      starter: ['50 AI thumbnails/month', 'All 9 AI tools', '1080p HD resolution', 'No watermark', 'Multi-format export', 'Email support'],
+      pro: ['200 AI thumbnails/month', 'All Starter features', 'Flash + Standard + Pro models', 'A/B testing', 'Vision / CTR analysis', 'Brand kit & analytics'],
+      ultra_pro: ['600 AI thumbnails/month', 'All Creator Pro features', 'All generations private', 'Pro models default', 'Early access to new features', 'Dedicated support'],
     };
     return features[planType] || features.free;
   };

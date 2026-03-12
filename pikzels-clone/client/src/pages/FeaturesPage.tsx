@@ -53,9 +53,9 @@ const FeaturesPage: React.FC = () => {
     },
     {
       icon: <Users className="w-8 h-8" />,
-      title: 'Team Collaboration',
-      description: 'Share designs with your team, manage brand assets, and maintain consistent visual identity across channels.',
-      highlights: ['5+ team seats', 'Brand kit library', 'Permission controls'],
+      title: 'Brand Kit',
+      description: 'Save your logos, colors, and fonts to maintain a consistent visual identity across all your thumbnails.',
+      highlights: ['Logo & color presets', 'Font library', 'Consistent branding'],
     },
     {
       icon: <BarChart className="w-8 h-8" />,
@@ -72,7 +72,7 @@ const FeaturesPage: React.FC = () => {
     {
       icon: <Zap className="w-8 h-8" />,
       title: 'Priority Generation',
-      description: 'Pro and Agency users get 2-3x faster generation speeds. Perfect for creators who need thumbnails quickly.',
+      description: 'Pro and Ultra Pro users get 2-3x faster generation speeds. Perfect for creators who need thumbnails quickly.',
       highlights: ['Sub-10 second generation', 'Dedicated processing', 'Queue priority'],
     },
     {
@@ -148,7 +148,7 @@ const FeaturesPage: React.FC = () => {
             <span className="text-blue-500">Maximum Clicks</span>
           </h1>
           <p className="text-xl text-gray-400 mb-10">
-            From AI-powered generation to team collaboration, ThumPiks has every tool you need
+            From AI-powered generation to brand consistency, ThumPiks has every tool you need
             <br />
             to create thumbnails that drive views and grow your channel.
           </p>
