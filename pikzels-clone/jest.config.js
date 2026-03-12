@@ -12,6 +12,9 @@ module.exports = {
       {
         tsconfig: 'tsconfig.test.json',
         useESM: false,
+        // Use isolatedModules for faster compilation. Full type checking is done
+        // by tsc --noEmit (pre-commit hook) and tsc --project tsconfig.test.json.
+        isolatedModules: true,
       },
     ],
   },
@@ -25,7 +28,9 @@ module.exports = {
   ],
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   // Transform ES modules from node_modules that Jest can't handle
-  transformIgnorePatterns: ['node_modules/(?!(uuid|node-fetch|youtubei\\.js|.*\\.mjs$))'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(uuid|node-fetch|youtubei\\.js|.*\\.mjs$))',
+  ],
   testTimeout: 10000,
   // Detect open handles but don't force exit (Jest 29 handles this better)
   detectOpenHandles: false,

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { CacheService, CacheKeys, CacheTTL } from '../services/cache.service';
+import { logger } from '../utils/logger';
 
 interface CacheOptions {
   ttl?: number;
@@ -30,11 +31,19 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
       // Try to get cached response
       const cachedResponse = await cache.get<any>(cacheKey);
       if (cachedResponse) {
-        console.log(`🎯 Cache HIT: ${cacheKey}`);
+        logger.info('cache-middleware', {
+          category: 'cache',
+          operation: 'hit',
+          key: cacheKey,
+        });
         return res.json(cachedResponse);
       }
 
-      console.log(`💨 Cache MISS: ${cacheKey}`);
+      logger.info('cache-middleware', {
+        category: 'cache',
+        operation: 'miss',
+        key: cacheKey,
+      });
 
       // Intercept response to cache it
       const originalJson = res.json;
@@ -48,7 +57,11 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
 
       next();
     } catch (error) {
-      console.warn('Cache middleware error:', error);
+      logger.warn('cache-middleware-error', {
+        category: 'cache',
+        operation: 'middleware-error',
+        error: error instanceof Error ? error.message : String(error),
+      });
       next();
     }
   };
@@ -73,27 +86,36 @@ export const invalidateCacheMiddleware = (patterns: string[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     // Store the original json function
     const originalJson = res.json.bind(res);
-    
+
     // Override res.json to trigger cache invalidation before response
     (res as any).json = async function (data: any) {
       // Only invalidate on successful responses
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const cache = CacheService.getInstance();
-        
+
         // Wait for all cache invalidations to complete before sending response
         // This prevents race condition where refetch hits stale cache
         try {
-          await Promise.all(patterns.map(pattern => 
-            cache.delPattern(pattern)
-          ));
-          console.log(`[Cache Invalidation] Invalidated ${patterns.length} patterns for ${req.method} ${req.path}`);
+          await Promise.all(patterns.map(pattern => cache.delPattern(pattern)));
+          logger.info('cache-invalidation', {
+            category: 'cache',
+            operation: 'invalidate',
+            patterns: patterns.length,
+            method: req.method,
+            path: req.path,
+          });
         } catch (err) {
-          console.warn(`[Cache Invalidation] Failed for patterns:`, patterns, err);
+          logger.warn('cache-invalidation-failed', {
+            category: 'cache',
+            operation: 'invalidate-error',
+            patterns,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       return originalJson(data);
     };
-    
+
     next();
   };
 };
@@ -123,7 +145,7 @@ export const CacheMiddlewares = {
   // Cache user projects for 5 minutes
   userProjects: cacheMiddleware({
     ttl: CacheTTL.MEDIUM,
-    keyGenerator: (req) => {
+    keyGenerator: req => {
       const userId = (req as any).user?.id;
       return CacheKeys.userProjects(userId);
     },
@@ -132,7 +154,7 @@ export const CacheMiddlewares = {
   // Cache thumbnails for 5 minutes with pagination
   userThumbnails: cacheMiddleware({
     ttl: CacheTTL.MEDIUM,
-    keyGenerator: (req) => {
+    keyGenerator: req => {
       const userId = (req as any).user?.id;
       const page = req.query.page || '1';
       return CacheKeys.userThumbnails(userId, parseInt(page as string));
@@ -142,7 +164,7 @@ export const CacheMiddlewares = {
   // Cache analytics for 30 minutes
   analytics: cacheMiddleware({
     ttl: CacheTTL.LONG,
-    keyGenerator: (req) => {
+    keyGenerator: req => {
       const userId = (req as any).user?.id;
       const period = req.query.period || 'week';
       return CacheKeys.analytics(userId, period as string);
@@ -152,7 +174,7 @@ export const CacheMiddlewares = {
   // Cache social shares for 10 minutes
   socialShares: cacheMiddleware({
     ttl: CacheTTL.MEDIUM * 2,
-    keyGenerator: (req) => {
+    keyGenerator: req => {
       const thumbnailId = req.params.id as string;
       if (!thumbnailId) {
         throw new Error('Thumbnail ID is required for cache key');

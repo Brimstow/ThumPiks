@@ -1,4 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
+
+// Explicit mock — Partial<Response> loses methods under Express 5 + @types/express-serve-static-core v5
+interface MockResponse {
+  status: jest.Mock;
+  json: jest.Mock;
+  redirect: jest.Mock;
+  set: jest.Mock;
+  removeHeader: jest.Mock;
+}
 import {
   sanitizeInput,
   httpsRedirect,
@@ -19,7 +28,7 @@ jest.mock('../../utils/logger', () => ({
 
 describe('Security Middleware', () => {
   let mockReq: any; // Use any to allow property mutation for testing
-  let mockRes: Partial<Response>;
+  let mockRes: MockResponse;
   let mockNext: NextFunction;
 
   beforeEach(() => {
@@ -53,7 +62,11 @@ describe('Security Middleware', () => {
         description: 'Safe text',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.name).toBe('JohnDoe');
       expect(mockReq.body.description).toBe('Safe text');
@@ -65,7 +78,11 @@ describe('Security Middleware', () => {
         link: 'javascript:alert(1)',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.link).toBe('alert(1)');
       expect(mockNext).toHaveBeenCalled();
@@ -77,7 +94,11 @@ describe('Security Middleware', () => {
         div: '<div onclick="malicious()">Click</div>',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       // Regex removes 'onerror=' and 'onclick=' but leaves quoted values
       expect(mockReq.body.html).toBe('<img src="x" "alert(1)">');
@@ -95,7 +116,11 @@ describe('Security Middleware', () => {
         },
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.user.name).toBe('TestUser');
       expect(mockReq.body.user.profile.bio).toBe('Bio with');
@@ -107,7 +132,11 @@ describe('Security Middleware', () => {
         tags: ['safe', '<script>bad</script>', 'good'],
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.tags).toEqual(['safe', '', 'good']);
       expect(mockNext).toHaveBeenCalled();
@@ -118,7 +147,11 @@ describe('Security Middleware', () => {
         search: '<script>alert("xss")</script>test',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.query.search).toBe('test');
       expect(mockNext).toHaveBeenCalled();
@@ -131,7 +164,11 @@ describe('Security Middleware', () => {
         validValue: 'test',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.nullValue).toBeNull();
       expect(mockReq.body.undefinedValue).toBeUndefined();
@@ -146,7 +183,11 @@ describe('Security Middleware', () => {
         object: { key: 'value' },
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.number).toBe(123);
       expect(mockReq.body.boolean).toBe(true);
@@ -160,7 +201,11 @@ describe('Security Middleware', () => {
         email: ' test@example.com ',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.name).toBe('John Doe');
       expect(mockReq.body.email).toBe('test@example.com');
@@ -172,7 +217,11 @@ describe('Security Middleware', () => {
         malicious: '<script>alert(1)</script>Text<script>alert(2)</script>',
       };
 
-      sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
+      sanitizeInput(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.body.malicious).toBe('Text');
       expect(mockNext).toHaveBeenCalled();
@@ -198,9 +247,15 @@ describe('Security Middleware', () => {
     it('should redirect HTTP to HTTPS in production', () => {
       mockReq.url = '/secure-page';
 
-      httpsRedirect(mockReq as Request, mockRes as Response, mockNext);
+      httpsRedirect(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(mockRes.redirect).toHaveBeenCalledWith('https://example.com/secure-page');
+      expect(mockRes.redirect).toHaveBeenCalledWith(
+        'https://example.com/secure-page'
+      );
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -210,7 +265,11 @@ describe('Security Middleware', () => {
         return undefined;
       });
 
-      httpsRedirect(mockReq as Request, mockRes as Response, mockNext);
+      httpsRedirect(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.redirect).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
@@ -219,7 +278,11 @@ describe('Security Middleware', () => {
     it('should not redirect in development', () => {
       process.env.NODE_ENV = 'development';
 
-      httpsRedirect(mockReq as Request, mockRes as Response, mockNext);
+      httpsRedirect(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.redirect).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
@@ -228,7 +291,11 @@ describe('Security Middleware', () => {
     it('should not redirect if HTTPS redirect is disabled', () => {
       process.env.ENABLE_HTTPS_REDIRECT = 'false';
 
-      httpsRedirect(mockReq as Request, mockRes as Response, mockNext);
+      httpsRedirect(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.redirect).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
@@ -246,7 +313,11 @@ describe('Security Middleware', () => {
     it('should detect directory traversal attempts', () => {
       mockReq.query = { file: '../../../etc/passwd' };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Suspicious request detected',
@@ -263,43 +334,75 @@ describe('Security Middleware', () => {
     it('should detect XSS attempts', () => {
       mockReq.body = { content: '<script>alert("xss")</script>' };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(logger.warn).toHaveBeenCalledWith('Suspicious request detected', expect.any(Object));
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Suspicious request detected',
+        expect.any(Object)
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should detect SQL injection attempts', () => {
       mockReq.body = { username: "admin' UNION SELECT * FROM users--" };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(logger.warn).toHaveBeenCalledWith('Suspicious request detected', expect.any(Object));
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Suspicious request detected',
+        expect.any(Object)
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should detect eval injection attempts', () => {
       mockReq.body = { code: 'eval(malicious_code)' };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(logger.warn).toHaveBeenCalledWith('Suspicious request detected', expect.any(Object));
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Suspicious request detected',
+        expect.any(Object)
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should detect cookie theft attempts', () => {
       mockReq.body = { script: 'document.cookie' };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(logger.warn).toHaveBeenCalledWith('Suspicious request detected', expect.any(Object));
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Suspicious request detected',
+        expect.any(Object)
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should log authentication attempts', () => {
       mockReq.url = '/auth/login';
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.info).toHaveBeenCalledWith(
         'Authentication attempt',
@@ -316,9 +419,16 @@ describe('Security Middleware', () => {
     it('should log register attempts', () => {
       mockReq.url = '/register';
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(logger.info).toHaveBeenCalledWith('Authentication attempt', expect.any(Object));
+      expect(logger.info).toHaveBeenCalledWith(
+        'Authentication attempt',
+        expect.any(Object)
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -326,7 +436,11 @@ describe('Security Middleware', () => {
       mockReq.body = { username: 'john', password: 'safe123' };
       mockReq.query = { page: '1' };
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.warn).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
@@ -339,7 +453,11 @@ describe('Security Middleware', () => {
         connection: { remoteAddress: undefined },
       };
 
-      securityLogger(reqWithoutIp as Request, mockRes as Response, mockNext);
+      securityLogger(
+        reqWithoutIp as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       // Should use 'Unknown' as fallback
@@ -348,7 +466,11 @@ describe('Security Middleware', () => {
     it('should handle missing User-Agent', () => {
       (mockReq.get as jest.Mock).mockReturnValue(undefined);
 
-      securityLogger(mockReq as Request, mockRes as Response, mockNext);
+      securityLogger(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       // Should use 'Unknown' as fallback
@@ -359,7 +481,11 @@ describe('Security Middleware', () => {
     it('should allow requests within size limit', () => {
       mockReq.headers = { 'content-length': '1000' };
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
@@ -370,7 +496,11 @@ describe('Security Middleware', () => {
       mockReq.ip = '192.168.1.1';
       mockReq.url = '/upload';
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(413);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -392,7 +522,11 @@ describe('Security Middleware', () => {
     it('should allow requests without content-length header', () => {
       mockReq.headers = {};
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
@@ -402,7 +536,11 @@ describe('Security Middleware', () => {
       process.env.MAX_FILE_SIZE = '5000000'; // 5MB
       mockReq.headers = { 'content-length': '6000000' }; // 6MB
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(413);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -416,7 +554,11 @@ describe('Security Middleware', () => {
     it('should handle exactly at limit', () => {
       mockReq.headers = { 'content-length': '10485760' }; // Exactly 10MB
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
@@ -425,7 +567,11 @@ describe('Security Middleware', () => {
     it('should handle one byte over limit', () => {
       mockReq.headers = { 'content-length': '10485761' }; // 1 byte over 10MB
 
-      requestSizeLimit(mockReq as Request, mockRes as Response, mockNext);
+      requestSizeLimit(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(413);
       expect(mockNext).not.toHaveBeenCalled();
@@ -434,28 +580,47 @@ describe('Security Middleware', () => {
 
   describe('apiVersioning', () => {
     it('should add API version header', () => {
-      apiVersioning(mockReq as Request, mockRes as Response, mockNext);
+      apiVersioning(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.set).toHaveBeenCalledWith('X-API-Version', '1.0.0');
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should add custom X-Powered-By header', () => {
-      apiVersioning(mockReq as Request, mockRes as Response, mockNext);
+      apiVersioning(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(mockRes.set).toHaveBeenCalledWith('X-Powered-By', 'Thumbnail Maker Studio');
+      expect(mockRes.set).toHaveBeenCalledWith(
+        'X-Powered-By',
+        'Thumbnail Maker Studio'
+      );
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should remove default X-Powered-By header for security', () => {
-      apiVersioning(mockReq as Request, mockRes as Response, mockNext);
+      apiVersioning(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.removeHeader).toHaveBeenCalledWith('X-Powered-By');
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should call all header operations in correct order', () => {
-      apiVersioning(mockReq as Request, mockRes as Response, mockNext);
+      apiVersioning(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.set).toHaveBeenCalledTimes(2);
       expect(mockRes.removeHeader).toHaveBeenCalledTimes(1);

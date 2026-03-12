@@ -1,8 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { EnhancedJWTService } from '../services/jwt.enhanced.service';
-import { AuthRequest, SecureUser, UserRole, Permission } from '../types/auth';
+import {
+  AuthRequest,
+  SecureUser,
+  UserRole,
+  Permission,
+  FeatureKey,
+} from '../types/auth';
 import { getPrisma } from '../utils/prisma-factory';
+import { getCurrentSubscription } from '../modules/subscription/subscription.service';
+import { getPlanById } from '../modules/subscription/subscription.config';
 
 const prisma = getPrisma();
 
@@ -191,25 +199,79 @@ export const authenticateRefreshToken = async (
   }
 };
 
-// Optional: Role-based access control middleware
-export const requireRole = (allowedRoles: UserRole[]) => {
+// Subscription feature gating middleware
+// Checks if the user's subscription plan includes the requested feature.
+// Uses subscription.config.ts as the single source of truth for plan features.
+export const requireFeature = (feature: FeatureKey) => {
   return async (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
   ): Promise<any> => {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
       return res.status(401).json({
         error: 'Authentication required',
         code: 'AUTH_REQUIRED',
       });
     }
 
-    // For now, we'll implement this when we add roles to the User model
-    // This is a placeholder for future role-based access control
-    console.log('Allowed roles:', allowedRoles); // Use the parameter
+    try {
+      const subscription = await getCurrentSubscription(authReq.user.id);
 
-    next();
+      if (!subscription) {
+        return res.status(403).json({
+          error: 'Active subscription required',
+          code: 'SUBSCRIPTION_REQUIRED',
+        });
+      }
+
+      const plan = getPlanById(subscription.planType);
+
+      if (!plan) {
+        logger.warn('User has unknown plan type', {
+          userId: authReq.user.id,
+          planType: subscription.planType,
+        });
+        return res.status(403).json({
+          error: 'Invalid subscription plan',
+          code: 'INVALID_PLAN',
+        });
+      }
+
+      const featureValue = plan.features[feature];
+
+      // Feature is disabled (false or 0)
+      if (!featureValue) {
+        return res.status(403).json({
+          error: 'This feature requires a higher subscription plan',
+          code: 'FEATURE_NOT_AVAILABLE',
+          feature,
+          currentPlan: subscription.planType,
+        });
+      }
+
+      // Attach subscription info for downstream use (e.g., limit checks in controllers)
+      authReq.subscription = {
+        id: subscription.id,
+        planType: subscription.planType,
+        creditsBalance: subscription.creditsBalance,
+        status: subscription.status,
+      };
+      authReq.planFeatures = plan.features;
+
+      next();
+    } catch (error: any) {
+      logger.error('Feature gate middleware error', error, {
+        userId: authReq.user?.id,
+        feature,
+      });
+      return res.status(500).json({
+        error: 'Unable to verify subscription',
+        code: 'SUBSCRIPTION_CHECK_ERROR',
+      });
+    }
   };
 };
 

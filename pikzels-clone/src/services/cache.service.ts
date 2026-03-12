@@ -1,24 +1,42 @@
 import Redis from 'ioredis';
+import { LRUCache } from 'lru-cache';
+import { logger } from '../utils/logger';
+
+const DEFAULT_MAX_CACHE_ENTRIES = 10_000;
+const CAPACITY_WARNING_THRESHOLD = 0.8;
+const MILLISECONDS_PER_SECOND = 1000;
+
+// lru-cache requires V extends {}; this alias satisfies the constraint for any non-undefined value
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/consistent-type-definitions
+type CacheValue = {};
 
 export class CacheService {
   private static instance: CacheService;
   private redis: Redis | null = null;
-  private inMemoryCache: Map<string, { value: unknown; expires: number }> =
-    new Map();
+  private inMemoryCache!: LRUCache<string, CacheValue>;
   private isRedisAvailable = false;
   private redisCheckInterval: NodeJS.Timeout | null = null;
-  private memoryCacheCleanupInterval: NodeJS.Timeout | null = null;
+  private capacityWarningLogged = false;
 
   private constructor() {
+    const maxEntries = parseInt(
+      process.env.MAX_CACHE_ENTRIES ?? String(DEFAULT_MAX_CACHE_ENTRIES)
+    );
+    this.inMemoryCache = new LRUCache<string, CacheValue>({
+      max: maxEntries,
+      noDisposeOnSet: true,
+      dispose: (_value, key, reason) => {
+        if (reason === 'evict') {
+          logger.warn('Cache entry evicted due to capacity', { key });
+        }
+      },
+    });
+
     // Skip Redis connection in test environment
     if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
       console.log('🧪 Test environment detected - using in-memory cache only');
-      this.startMemoryCacheCleanup();
       return;
     }
-
-    // Initialize in-memory cache as fallback
-    this.startMemoryCacheCleanup();
 
     // Try to connect to Redis (production-like setup)
     this.initializeRedis();
@@ -94,19 +112,6 @@ export class CacheService {
     }, REDIS_CHECK_INTERVAL_MS);
   }
 
-  private startMemoryCacheCleanup() {
-    const CLEANUP_INTERVAL_MS = 300000; // 5 minutes
-    // Clean up expired entries every 5 minutes
-    this.memoryCacheCleanupInterval = setInterval(() => {
-      const now = Date.now();
-      for (const [key, entry] of this.inMemoryCache.entries()) {
-        if (entry.expires && entry.expires < now) {
-          this.inMemoryCache.delete(key);
-        }
-      }
-    }, CLEANUP_INTERVAL_MS);
-  }
-
   static getInstance(): CacheService {
     if (!CacheService.instance) {
       CacheService.instance = new CacheService();
@@ -118,11 +123,26 @@ export class CacheService {
    * Get cached data - tries Redis first, falls back to in-memory
    */
   async get<T>(key: string): Promise<T | null> {
+    let result: T | null = null;
+    let source: 'redis' | 'memory' = 'memory';
+
     // Try Redis first (production-like)
     if (this.redis && this.isRedisAvailable) {
       try {
         const data = await this.redis.get(key);
-        return data ? JSON.parse(data) : null;
+        if (data) {
+          result = JSON.parse(data);
+          source = 'redis';
+        }
+        // Log cache event (Redis path resolved -- hit or miss)
+        logger.info('cache', {
+          category: 'cache',
+          operation: 'get',
+          key,
+          hit: result !== null,
+          source,
+        });
+        return result;
       } catch (error) {
         // Redis failed, fall back to in-memory
         this.isRedisAvailable = false;
@@ -131,16 +151,16 @@ export class CacheService {
     }
 
     // Use in-memory cache as fallback
-    const entry = this.inMemoryCache.get(key);
-    if (!entry) return null;
-
-    // Check if expired
-    if (entry.expires && entry.expires < Date.now()) {
-      this.inMemoryCache.delete(key);
-      return null;
-    }
-
-    return entry.value as T;
+    const value = this.inMemoryCache.get(key);
+    result = value === undefined ? null : (value as T);
+    logger.info('cache', {
+      category: 'cache',
+      operation: 'get',
+      key,
+      hit: result !== null,
+      source,
+    });
+    return result;
   }
 
   /**
@@ -162,11 +182,25 @@ export class CacheService {
       }
     }
 
-    // Always store in in-memory cache as backup
-    const MILLISECONDS_PER_SECOND = 1000;
-    const expires =
-      ttlSeconds > 0 ? Date.now() + ttlSeconds * MILLISECONDS_PER_SECOND : 0;
-    this.inMemoryCache.set(key, { value, expires });
+    // Always store in in-memory cache as backup (skip undefined -- lru-cache treats it as delete)
+    if (value !== undefined) {
+      this.inMemoryCache.set(key, value as CacheValue, {
+        ttl: ttlSeconds > 0 ? ttlSeconds * MILLISECONDS_PER_SECOND : 0,
+      });
+    }
+
+    // Capacity warning (log once per crossing)
+    const ratio = this.inMemoryCache.size / this.inMemoryCache.max;
+    if (ratio >= CAPACITY_WARNING_THRESHOLD && !this.capacityWarningLogged) {
+      logger.warn('In-memory cache near capacity', {
+        size: this.inMemoryCache.size,
+        max: this.inMemoryCache.max,
+        percentage: Math.round(ratio * 100),
+      });
+      this.capacityWarningLogged = true;
+    } else if (ratio < CAPACITY_WARNING_THRESHOLD) {
+      this.capacityWarningLogged = false;
+    }
   }
 
   /**
@@ -191,13 +225,10 @@ export class CacheService {
    * Works with BOTH Redis and in-memory cache.
    */
   async delPattern(pattern: string): Promise<void> {
-    // 1. Clear from Redis if available
+    // 1. Clear from Redis if available (using non-blocking SCAN instead of KEYS)
     if (this.redis && this.isRedisAvailable) {
       try {
-        const keys = await this.redis.keys(pattern);
-        if (keys.length > 0) {
-          await this.redis.del(...keys);
-        }
+        await this.scanAndDelete(this.redis, pattern);
       } catch (error) {
         console.warn(`Cache delPattern error for pattern ${pattern}:`, error);
       }
@@ -210,25 +241,48 @@ export class CacheService {
       pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') +
       '$';
     const regex = new RegExp(regexStr);
+    const keysToDelete: string[] = [];
     for (const key of this.inMemoryCache.keys()) {
-      if (regex.test(key)) {
-        this.inMemoryCache.delete(key);
-      }
+      if (regex.test(key)) keysToDelete.push(key);
     }
+    for (const key of keysToDelete) {
+      this.inMemoryCache.delete(key);
+    }
+  }
+
+  private async scanAndDelete(redis: Redis, pattern: string): Promise<void> {
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100
+      );
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    } while (cursor !== '0');
   }
 
   /**
    * Check if key exists
    */
   async exists(key: string): Promise<boolean> {
-    if (!this.redis) return false;
-
-    try {
-      return (await this.redis.exists(key)) === 1;
-    } catch (error) {
-      console.warn(`Cache exists error for key ${key}:`, error);
-      return false;
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        return (await this.redis.exists(key)) === 1;
+      } catch (error) {
+        console.warn(`Cache exists error for key ${key}:`, error);
+        this.isRedisAvailable = false;
+        this.startRedisRetryCheck();
+      }
     }
+
+    // In-memory fallback (has() respects TTL in lru-cache)
+    return this.inMemoryCache.has(key);
   }
 
   /**
@@ -256,18 +310,28 @@ export class CacheService {
     key: string,
     ttlSeconds = CacheTTL.VERY_LONG
   ): Promise<number> {
-    if (!this.redis) return 0;
-
-    try {
-      const count = await this.redis.incr(key);
-      if (count === 1) {
-        await this.redis.expire(key, ttlSeconds);
+    if (this.redis && this.isRedisAvailable) {
+      try {
+        const count = await this.redis.incr(key);
+        if (count === 1) {
+          await this.redis.expire(key, ttlSeconds);
+        }
+        return count;
+      } catch (error) {
+        console.warn(`Cache increment error for key ${key}:`, error);
+        this.isRedisAvailable = false;
+        this.startRedisRetryCheck();
       }
-      return count;
-    } catch (error) {
-      console.warn(`Cache increment error for key ${key}:`, error);
-      return 0;
     }
+
+    // In-memory fallback (single-threaded Node = inherently atomic)
+    const current = (this.inMemoryCache.get(key) as number) ?? 0;
+    const next = current + 1;
+    const remainingTtl = this.inMemoryCache.getRemainingTTL(key);
+    const ttlMs =
+      remainingTtl > 0 ? remainingTtl : ttlSeconds * MILLISECONDS_PER_SECOND;
+    this.inMemoryCache.set(key, next as CacheValue, { ttl: ttlMs });
+    return next;
   }
 
   /**
@@ -297,11 +361,17 @@ export class CacheService {
       clearInterval(this.redisCheckInterval);
       this.redisCheckInterval = null;
     }
-    if (this.memoryCacheCleanupInterval) {
-      clearInterval(this.memoryCacheCleanupInterval);
-      this.memoryCacheCleanupInterval = null;
-    }
     this.inMemoryCache.clear();
+    this.capacityWarningLogged = false;
+  }
+
+  /**
+   * Reset singleton instance (for testing only)
+   */
+  static resetInstance(): void {
+    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+      CacheService.instance = undefined as unknown as CacheService;
+    }
   }
 
   /**

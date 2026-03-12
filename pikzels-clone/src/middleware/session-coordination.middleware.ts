@@ -1,6 +1,6 @@
 /**
  * Session Coordination Middleware
- * 
+ *
  * This middleware helps maintain login sessions during server restarts
  * by storing session state in external persistent storage (Redis/File system)
  */
@@ -10,6 +10,7 @@ import * as jwt from 'jsonwebtoken';
 import * as redis from 'ioredis';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { getJWTSecret } from '../services/jwt.service';
 
 interface SessionData {
   userId: string;
@@ -34,7 +35,11 @@ export class SessionCoordinator {
 
   constructor() {
     this.fallbackStoragePath = path.join(process.cwd(), 'temp', 'sessions');
-    this.serverStatePath = path.join(process.cwd(), 'temp', 'server-state.json');
+    this.serverStatePath = path.join(
+      process.cwd(),
+      'temp',
+      'server-state.json'
+    );
     this.initializeStorage();
   }
 
@@ -50,15 +55,14 @@ export class SessionCoordinator {
 
       // Ensure fallback directory exists
       await fs.mkdir(this.fallbackStoragePath, { recursive: true });
-      
+
       // Initialize server state
       await this.updateServerState({
         lastRestart: Date.now(),
         activeSessionCount: 0,
         backendHealth: true,
-        frontendHealth: true
+        frontendHealth: true,
       });
-
     } catch (error) {
       console.error('❌ Session coordinator initialization error:', error);
       // Fallback to file storage
@@ -69,14 +73,20 @@ export class SessionCoordinator {
   /**
    * Store session data in persistent storage
    */
-  async storeSession(sessionId: string, sessionData: SessionData): Promise<void> {
+  async storeSession(
+    sessionId: string,
+    sessionData: SessionData
+  ): Promise<void> {
     try {
       const data = JSON.stringify(sessionData);
 
       if (this.redisClient) {
         await this.redisClient.setex(`session:${sessionId}`, 86400, data); // 24 hours
       } else {
-        const filePath = path.join(this.fallbackStoragePath, `${sessionId}.json`);
+        const filePath = path.join(
+          this.fallbackStoragePath,
+          `${sessionId}.json`
+        );
         await fs.writeFile(filePath, data, 'utf8');
       }
     } catch (error) {
@@ -94,7 +104,10 @@ export class SessionCoordinator {
       if (this.redisClient) {
         data = await this.redisClient.get(`session:${sessionId}`);
       } else {
-        const filePath = path.join(this.fallbackStoragePath, `${sessionId}.json`);
+        const filePath = path.join(
+          this.fallbackStoragePath,
+          `${sessionId}.json`
+        );
         try {
           data = await fs.readFile(filePath, 'utf8');
         } catch (error) {
@@ -119,7 +132,10 @@ export class SessionCoordinator {
       if (this.redisClient) {
         await this.redisClient.del(`session:${sessionId}`);
       } else {
-        const filePath = path.join(this.fallbackStoragePath, `${sessionId}.json`);
+        const filePath = path.join(
+          this.fallbackStoragePath,
+          `${sessionId}.json`
+        );
         await fs.unlink(filePath).catch(() => {}); // Ignore if file doesn't exist
       }
     } catch (error) {
@@ -130,13 +146,15 @@ export class SessionCoordinator {
   /**
    * Update server coordination state
    */
-  async updateServerState(state: Partial<ServerCoordinationState>): Promise<void> {
+  async updateServerState(
+    state: Partial<ServerCoordinationState>
+  ): Promise<void> {
     try {
       let currentState: ServerCoordinationState = {
         lastRestart: Date.now(),
         activeSessionCount: 0,
         backendHealth: true,
-        frontendHealth: true
+        frontendHealth: true,
       };
 
       try {
@@ -147,7 +165,10 @@ export class SessionCoordinator {
       }
 
       const newState = { ...currentState, ...state };
-      await fs.writeFile(this.serverStatePath, JSON.stringify(newState, null, 2));
+      await fs.writeFile(
+        this.serverStatePath,
+        JSON.stringify(newState, null, 2)
+      );
     } catch (error) {
       console.error('❌ Error updating server state:', error);
     }
@@ -165,7 +186,7 @@ export class SessionCoordinator {
         lastRestart: Date.now(),
         activeSessionCount: 0,
         backendHealth: true,
-        frontendHealth: true
+        frontendHealth: true,
       };
     }
   }
@@ -218,7 +239,10 @@ const sessionCoordinator = new SessionCoordinator();
  * Middleware to handle session coordination across server restarts
  */
 export const sessionCoordinationMiddleware = async (
-  req: Request & { sessionCoordinator?: SessionCoordinator; sessionId?: string },
+  req: Request & {
+    sessionCoordinator?: SessionCoordinator;
+    sessionId?: string;
+  },
   _res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -234,25 +258,26 @@ export const sessionCoordinationMiddleware = async (
     if (token) {
       try {
         // Verify JWT token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
-        const sessionId = decoded.sessionId || sessionCoordinator.generateSessionId();
-        
+        const decoded = jwt.verify(token, getJWTSecret()) as any;
+        const sessionId =
+          decoded.sessionId || sessionCoordinator.generateSessionId();
+
         req.sessionId = sessionId;
 
         // Try to get persistent session data
         const sessionData = await sessionCoordinator.getSession(sessionId);
-        
+
         if (sessionData) {
           // Update last activity
           sessionData.lastActivity = Date.now();
           await sessionCoordinator.storeSession(sessionId, sessionData);
-          
+
           // Attach session data to request
           (req as any).sessionData = sessionData;
           (req as any).user = {
             id: sessionData.userId,
             type: sessionData.userType,
-            permissions: sessionData.permissions
+            permissions: sessionData.permissions,
           };
         }
       } catch (jwtError) {
@@ -283,7 +308,7 @@ export const createPersistentSession = async (
     permissions,
     loginTime: Date.now(),
     lastActivity: Date.now(),
-    sessionId
+    sessionId,
   };
 
   // Store session data
@@ -291,13 +316,13 @@ export const createPersistentSession = async (
 
   // Create JWT token
   const token = jwt.sign(
-    { 
-      userId, 
-      userType, 
+    {
+      userId,
+      userType,
       sessionId,
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
     },
-    process.env.JWT_SECRET || 'fallback-secret'
+    getJWTSecret()
   );
 
   return { token, sessionId };
@@ -321,7 +346,7 @@ export const notifyServerRestart = async (
   // Add restart notification header
   res.setHeader('X-Server-Restart', Date.now().toString());
   res.setHeader('X-Session-Persistent', 'true');
-  
+
   next();
 };
 

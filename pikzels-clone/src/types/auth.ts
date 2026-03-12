@@ -1,7 +1,11 @@
 import { Request } from 'express';
+import { SubscriptionPlan } from '../modules/subscription/subscription.config';
 
 // User roles for authorization
 export type UserRole = 'admin' | 'user';
+
+// Feature keys derived from subscription plan features
+export type FeatureKey = keyof SubscriptionPlan['features'];
 
 // Permission types for fine-grained access control
 export type Permission =
@@ -42,6 +46,13 @@ export interface SecurityContext {
 export interface AuthRequest extends Request {
   user?: SecureUser;
   security?: SecurityContext;
+  subscription?: {
+    id: string;
+    planType: string;
+    creditsBalance: number;
+    status: string;
+  };
+  planFeatures?: SubscriptionPlan['features'];
 }
 
 // Token payload for JWT

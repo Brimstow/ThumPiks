@@ -9,6 +9,9 @@ jest.mock('ioredis', () => {
     setex: jest.fn(),
     del: jest.fn(),
     keys: jest.fn(),
+    scan: jest.fn(),
+    incr: jest.fn(),
+    expire: jest.fn(),
     exists: jest.fn(),
     ping: jest.fn(),
     quit: jest.fn(),
@@ -97,7 +100,8 @@ describe('CacheService', () => {
       const undefinedResult = await cacheService.get('test:undefined');
 
       expect(nullResult).toBeNull();
-      expect(undefinedResult).toBeUndefined();
+      // lru-cache skips undefined values (treats set(key, undefined) as no-op)
+      expect(undefinedResult).toBeNull();
     });
   });
 
@@ -380,35 +384,49 @@ describe('CacheService', () => {
     let mockRedis: any;
 
     beforeEach(() => {
-      mockRedis = (Redis as jest.MockedClass<typeof Redis>).mock.results[0]?.value;
+      mockRedis = (Redis as jest.MockedClass<typeof Redis>).mock.results[0]
+        ?.value;
     });
 
     it('should call delPattern to delete keys by pattern', async () => {
       if (mockRedis) {
-        mockRedis.keys.mockResolvedValue(['key1', 'key2', 'key3']);
+        // SCAN returns [cursor, keys] - simulate single-pass completion
+        mockRedis.scan.mockResolvedValue(['0', ['key1', 'key2', 'key3']]);
         mockRedis.del.mockResolvedValue(3);
 
         await cacheService.delPattern('test:*');
 
-        expect(mockRedis.keys).toHaveBeenCalledWith('test:*');
+        expect(mockRedis.scan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'test:*',
+          'COUNT',
+          100
+        );
         expect(mockRedis.del).toHaveBeenCalledWith('key1', 'key2', 'key3');
       }
     });
 
     it('should handle delPattern with no matching keys', async () => {
       if (mockRedis) {
-        mockRedis.keys.mockResolvedValue([]);
+        mockRedis.scan.mockResolvedValue(['0', []]);
 
         await cacheService.delPattern('nonexistent:*');
 
-        expect(mockRedis.keys).toHaveBeenCalledWith('nonexistent:*');
+        expect(mockRedis.scan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'nonexistent:*',
+          'COUNT',
+          100
+        );
         expect(mockRedis.del).not.toHaveBeenCalled();
       }
     });
 
     it('should handle delPattern errors gracefully', async () => {
       if (mockRedis) {
-        mockRedis.keys.mockRejectedValue(new Error('Redis error'));
+        mockRedis.scan.mockRejectedValue(new Error('Redis error'));
 
         await expect(cacheService.delPattern('test:*')).resolves.not.toThrow();
       }
@@ -480,7 +498,9 @@ describe('CacheService', () => {
 
       // Verify all values were set
       const results = await Promise.all(
-        Array.from({ length: 50 }, (_, i) => cacheService.get(`concurrent:${i}`))
+        Array.from({ length: 50 }, (_, i) =>
+          cacheService.get(`concurrent:${i}`)
+        )
       );
 
       results.forEach((result, i) => {
@@ -514,9 +534,14 @@ describe('CacheService', () => {
     });
 
     it('should handle getOrSet with slow fetch function', async () => {
-      const slowFetch = jest.fn().mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ data: 'slow' }), 100))
-      );
+      const slowFetch = jest
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise(resolve =>
+              setTimeout(() => resolve({ data: 'slow' }), 100)
+            )
+        );
 
       const result = await cacheService.getOrSet('test:slow', slowFetch, 60);
 
@@ -595,6 +620,155 @@ describe('CacheService', () => {
       const result = await instance2.get('test:singleton-persist');
 
       expect(result).toBe('shared-data');
+    });
+  });
+
+  describe('LRU Eviction', () => {
+    afterEach(() => {
+      // Restore default instance
+      delete process.env.MAX_CACHE_ENTRIES;
+      CacheService.resetInstance();
+    });
+
+    it('should evict least-recently-used entry when at capacity', async () => {
+      process.env.MAX_CACHE_ENTRIES = '5';
+      CacheService.resetInstance();
+      const smallCache = CacheService.getInstance();
+
+      // Fill to capacity
+      for (let i = 0; i < 5; i++) {
+        await smallCache.set(`evict:${i}`, `value${i}`, 60);
+      }
+
+      // Add one more -- should evict the oldest (evict:0)
+      await smallCache.set('evict:5', 'value5', 60);
+
+      expect(await smallCache.get('evict:0')).toBeNull();
+      expect(await smallCache.get('evict:5')).toBe('value5');
+      // Most recent entries still exist
+      expect(await smallCache.get('evict:4')).toBe('value4');
+
+      smallCache.cleanup();
+    });
+  });
+
+  describe('Capacity Warning', () => {
+    afterEach(() => {
+      delete process.env.MAX_CACHE_ENTRIES;
+      CacheService.resetInstance();
+    });
+
+    it('should log warning when cache reaches 80% capacity', async () => {
+      jest.spyOn(require('../../utils/logger').logger, 'warn');
+      const loggerWarn = require('../../utils/logger').logger.warn as jest.Mock;
+      loggerWarn.mockClear();
+
+      process.env.MAX_CACHE_ENTRIES = '10';
+      CacheService.resetInstance();
+      const cache = CacheService.getInstance();
+
+      // Fill to 80%
+      for (let i = 0; i < 8; i++) {
+        await cache.set(`cap:${i}`, `value${i}`, 60);
+      }
+
+      expect(loggerWarn).toHaveBeenCalledWith(
+        'In-memory cache near capacity',
+        expect.objectContaining({
+          size: 8,
+          max: 10,
+          percentage: 80,
+        })
+      );
+
+      cache.cleanup();
+    });
+
+    it('should only log capacity warning once per threshold crossing', async () => {
+      jest.spyOn(require('../../utils/logger').logger, 'warn');
+      const loggerWarn = require('../../utils/logger').logger.warn as jest.Mock;
+      loggerWarn.mockClear();
+
+      process.env.MAX_CACHE_ENTRIES = '10';
+      CacheService.resetInstance();
+      const cache = CacheService.getInstance();
+
+      // Fill past 80% twice
+      for (let i = 0; i < 9; i++) {
+        await cache.set(`spam:${i}`, `value${i}`, 60);
+      }
+
+      const capacityCalls = loggerWarn.mock.calls.filter(
+        (call: unknown[]) => call[0] === 'In-memory cache near capacity'
+      );
+      expect(capacityCalls.length).toBe(1);
+
+      cache.cleanup();
+    });
+  });
+
+  describe('exists() In-Memory Fallback', () => {
+    it('should return true for existing key in in-memory cache', async () => {
+      await cacheService.set('exists:test', 'value', 60);
+      const result = await cacheService.exists('exists:test');
+      expect(result).toBe(true);
+    });
+
+    it('should return false for missing key', async () => {
+      const result = await cacheService.exists('exists:missing');
+      expect(result).toBe(false);
+    });
+
+    it('should return false for expired key', async () => {
+      await cacheService.set('exists:expired', 'value', 1);
+      await new Promise(resolve => setTimeout(resolve, 1100));
+      const result = await cacheService.exists('exists:expired');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('increment() In-Memory Fallback', () => {
+    it('should increment counter in in-memory cache', async () => {
+      const count1 = await cacheService.increment('inc:test', 60);
+      const count2 = await cacheService.increment('inc:test', 60);
+      const count3 = await cacheService.increment('inc:test', 60);
+
+      expect(count1).toBe(1);
+      expect(count2).toBe(2);
+      expect(count3).toBe(3);
+
+      // Verify get returns the current count
+      const stored = await cacheService.get<number>('inc:test');
+      expect(stored).toBe(3);
+    });
+
+    it('should reset counter after TTL expires', async () => {
+      await cacheService.increment('inc:expire', 1);
+      await cacheService.increment('inc:expire', 1);
+      expect(await cacheService.get<number>('inc:expire')).toBe(2);
+
+      // Wait for TTL
+      await new Promise(resolve => setTimeout(resolve, 1100));
+
+      // Should start fresh
+      const count = await cacheService.increment('inc:expire', 1);
+      expect(count).toBe(1);
+    });
+  });
+
+  describe('delPattern() In-Memory', () => {
+    it('should delete matching keys and keep non-matching ones', async () => {
+      await cacheService.set('pattern:a:1', 'v1', 60);
+      await cacheService.set('pattern:a:2', 'v2', 60);
+      await cacheService.set('pattern:b:1', 'v3', 60);
+      await cacheService.set('other:key', 'v4', 60);
+
+      await cacheService.delPattern('pattern:a:*');
+
+      expect(await cacheService.get('pattern:a:1')).toBeNull();
+      expect(await cacheService.get('pattern:a:2')).toBeNull();
+      expect(await cacheService.get('pattern:b:1')).toBe('v3');
+      expect(await cacheService.get('other:key')).toBe('v4');
     });
   });
 });

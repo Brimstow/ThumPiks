@@ -1,4 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+
+// Explicit mock — Partial<Response> loses methods under Express 5 + @types/express-serve-static-core v5
+interface MockResponse {
+  status: jest.Mock;
+  json: jest.Mock;
+}
 import { AuthRequest } from '../../types/auth';
 
 // Mock Prisma user object
@@ -22,18 +28,30 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+// Mock subscription service and config
+const mockGetCurrentSubscription = jest.fn();
+const mockGetPlanById = jest.fn();
+
+jest.mock('../../modules/subscription/subscription.service', () => ({
+  getCurrentSubscription: (...args: any[]) =>
+    mockGetCurrentSubscription(...args),
+}));
+jest.mock('../../modules/subscription/subscription.config', () => ({
+  getPlanById: (...args: any[]) => mockGetPlanById(...args),
+}));
+
 // Now import the middleware AFTER mocks are set up
 import {
   authenticateToken,
   authenticateRefreshToken,
-  requireRole,
+  requireFeature,
 } from '../auth.middleware';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { logger } from '../../utils/logger';
 
 describe('Auth Middleware', () => {
   let mockReq: any;
-  let mockRes: Partial<Response>;
+  let mockRes: MockResponse;
   let mockNext: NextFunction;
   let mockPrisma: any;
 
@@ -77,9 +95,15 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(EnhancedJWTService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
+      expect(EnhancedJWTService.verifyAccessToken).toHaveBeenCalledWith(
+        'valid-token'
+      );
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-123' },
         select: {
@@ -116,7 +140,11 @@ describe('Auth Middleware', () => {
     it('should reject request without authorization header', async () => {
       mockReq.headers.authorization = undefined;
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Authentication attempt without token',
@@ -133,7 +161,11 @@ describe('Auth Middleware', () => {
     it('should reject request with invalid token format', async () => {
       mockReq.headers.authorization = 'InvalidFormat';
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -147,7 +179,11 @@ describe('Auth Middleware', () => {
       mockReq.headers.authorization = 'Bearer invalid-token';
       (EnhancedJWTService.verifyAccessToken as jest.Mock).mockReturnValue(null);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Invalid token provided',
@@ -169,7 +205,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Token valid but user not found',
@@ -200,7 +240,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -229,7 +273,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
@@ -250,7 +298,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.user.name).toBeUndefined();
       expect(mockNext).toHaveBeenCalled();
@@ -271,7 +323,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.user.sessionId).toBe('legacy-session');
       expect(mockNext).toHaveBeenCalled();
@@ -285,7 +341,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         'Authentication middleware error',
@@ -315,7 +375,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateToken(mockReq as Request, mockRes as Response, mockNext);
+      await authenticateToken(
+        mockReq as Request,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.user).toMatchObject({
         id: expect.any(String),
@@ -344,9 +408,15 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(EnhancedJWTService.verifyRefreshToken).toHaveBeenCalledWith('valid-refresh-token');
+      expect(EnhancedJWTService.verifyRefreshToken).toHaveBeenCalledWith(
+        'valid-refresh-token'
+      );
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-123' },
         select: {
@@ -375,7 +445,11 @@ describe('Auth Middleware', () => {
     it('should reject request without refresh token', async () => {
       mockReq.body = {};
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -387,9 +461,15 @@ describe('Auth Middleware', () => {
 
     it('should reject invalid refresh token', async () => {
       mockReq.body.refreshToken = 'invalid-token';
-      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue(null);
+      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue(
+        null
+      );
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -407,7 +487,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -425,7 +509,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         'Refresh token middleware error',
@@ -453,7 +541,11 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.user.name).toBeUndefined();
       expect(mockNext).toHaveBeenCalled();
@@ -473,33 +565,32 @@ describe('Auth Middleware', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      await authenticateRefreshToken(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await authenticateRefreshToken(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockReq.user.sessionId).toBe('legacy-session');
       expect(mockNext).toHaveBeenCalled();
     });
   });
 
-  describe('requireRole', () => {
-    it('should allow access with correct role', async () => {
-      mockReq.user = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'admin',
-      };
-
-      const middleware = requireRole(['admin', 'user']);
-      await middleware(mockReq as AuthRequest, mockRes as Response, mockNext);
-
-      expect(mockNext).toHaveBeenCalled();
-      expect(mockRes.status).not.toHaveBeenCalled();
+  describe('requireFeature', () => {
+    beforeEach(() => {
+      mockGetCurrentSubscription.mockReset();
+      mockGetPlanById.mockReset();
     });
 
     it('should reject unauthenticated requests', async () => {
       mockReq.user = undefined;
 
-      const middleware = requireRole(['admin']);
-      await middleware(mockReq as AuthRequest, mockRes as Response, mockNext);
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -509,49 +600,196 @@ describe('Auth Middleware', () => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should log allowed roles for placeholder implementation', async () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-      
-      mockReq.user = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'user',
-      };
+    it('should reject when user has no subscription', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockResolvedValue(null);
 
-      const middleware = requireRole(['admin', 'user']);
-      await middleware(mockReq as AuthRequest, mockRes as Response, mockNext);
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('Allowed roles:', ['admin', 'user']);
-      expect(mockNext).toHaveBeenCalled();
-
-      consoleLogSpy.mockRestore();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Active subscription required',
+        code: 'SUBSCRIPTION_REQUIRED',
+      });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should accept multiple roles', async () => {
-      mockReq.user = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'user',
-      };
+    it('should reject when plan is invalid/unknown', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockResolvedValue({
+        id: 'sub-1',
+        planType: 'nonexistent',
+        creditsBalance: 10,
+        status: 'active',
+      });
+      mockGetPlanById.mockReturnValue(null);
 
-      const middleware = requireRole(['admin', 'user']);
-      await middleware(mockReq as AuthRequest, mockRes as Response, mockNext);
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Invalid subscription plan',
+        code: 'INVALID_PLAN',
+      });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should handle empty role array', async () => {
-      mockReq.user = {
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'user',
-      };
+    it('should reject when feature is disabled (boolean false)', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockResolvedValue({
+        id: 'sub-1',
+        planType: 'free',
+        creditsBalance: 5,
+        status: 'active',
+      });
+      mockGetPlanById.mockReturnValue({
+        id: 'free',
+        name: 'Free',
+        features: {
+          abTesting: false,
+          analytics: false,
+          faceSwap: false,
+        },
+      });
 
-      const middleware = requireRole([]);
-      await middleware(mockReq as AuthRequest, mockRes as Response, mockNext);
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
 
-      // Placeholder implementation just logs and continues
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'This feature requires a higher subscription plan',
+        code: 'FEATURE_NOT_AVAILABLE',
+        feature: 'abTesting',
+        currentPlan: 'free',
+      });
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should allow when feature is enabled (boolean true)', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockResolvedValue({
+        id: 'sub-1',
+        planType: 'pro',
+        creditsBalance: 120,
+        status: 'active',
+      });
+      mockGetPlanById.mockReturnValue({
+        id: 'pro',
+        name: 'Creator Pro',
+        features: {
+          abTesting: true,
+          analytics: true,
+          faceSwap: 5,
+        },
+      });
+
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
+
       expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    it('should allow when feature is numeric > 0 (e.g., faceSwap limit)', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockResolvedValue({
+        id: 'sub-1',
+        planType: 'starter',
+        creditsBalance: 30,
+        status: 'active',
+      });
+      mockGetPlanById.mockReturnValue({
+        id: 'starter',
+        name: 'Starter',
+        features: {
+          faceSwap: 1,
+          abTesting: false,
+        },
+      });
+
+      const middleware = requireFeature('faceSwap');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    it('should attach subscription and planFeatures to request on success', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      const mockSubscription = {
+        id: 'sub-1',
+        planType: 'pro',
+        creditsBalance: 120,
+        status: 'active',
+      };
+      const mockFeatures = {
+        abTesting: true,
+        analytics: true,
+        faceSwap: 5,
+      };
+      mockGetCurrentSubscription.mockResolvedValue(mockSubscription);
+      mockGetPlanById.mockReturnValue({
+        id: 'pro',
+        name: 'Creator Pro',
+        features: mockFeatures,
+      });
+
+      const middleware = requireFeature('analytics');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalled();
+      expect(mockReq.subscription).toEqual({
+        id: 'sub-1',
+        planType: 'pro',
+        creditsBalance: 120,
+        status: 'active',
+      });
+      expect(mockReq.planFeatures).toEqual(mockFeatures);
+    });
+
+    it('should handle subscription service errors gracefully', async () => {
+      mockReq.user = { id: 'user-123', email: 'test@example.com' };
+      mockGetCurrentSubscription.mockRejectedValue(new Error('Database error'));
+
+      const middleware = requireFeature('abTesting');
+      await middleware(
+        mockReq as AuthRequest,
+        mockRes as unknown as Response,
+        mockNext
+      );
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Unable to verify subscription',
+        code: 'SUBSCRIPTION_CHECK_ERROR',
+      });
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 });

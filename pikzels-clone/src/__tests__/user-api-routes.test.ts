@@ -158,6 +158,7 @@ jest.mock('@prisma/client', () => ({
 
 // Now import the modules
 import request from 'supertest';
+import { createServer } from 'http';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -255,7 +256,7 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.create.mockResolvedValue(createdUser);
         (jwt.sign as jest.Mock).mockReturnValue('mock-access-token');
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/auth/register')
           .send(newUser);
 
@@ -276,22 +277,26 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.findUnique.mockResolvedValue(existingUser);
         mockPrisma.user.findFirst.mockResolvedValue(null); // Username available
 
-        const response = await request(app).post('/api/auth/register').send({
-          username: 'newuser',
-          email: 'existing@test.com',
-          password: 'Password123!',
-          name: 'New User',
-        });
+        const response = await request(createServer(app))
+          .post('/api/auth/register')
+          .send({
+            username: 'newuser',
+            email: 'existing@test.com',
+            password: 'Password123!',
+            name: 'New User',
+          });
 
         expect(response.status).toBe(409);
         expect(response.body).toHaveProperty('error');
       });
 
       it('should validate required fields', async () => {
-        const response = await request(app).post('/api/auth/register').send({
-          email: 'invalid-email',
-          // missing password and name
-        });
+        const response = await request(createServer(app))
+          .post('/api/auth/register')
+          .send({
+            email: 'invalid-email',
+            // missing password and name
+          });
 
         expect(response.status).toBe(400);
         expect(response.body).toHaveProperty('errors');
@@ -314,10 +319,12 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.update.mockResolvedValue(user);
         (jwt.sign as jest.Mock).mockReturnValue('mock-access-token');
 
-        const response = await request(app).post('/api/auth/login').send({
-          email: 'user@test.com',
-          password: 'Password123!',
-        });
+        const response = await request(createServer(app))
+          .post('/api/auth/login')
+          .send({
+            email: 'user@test.com',
+            password: 'Password123!',
+          });
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('user');
@@ -328,10 +335,12 @@ describe('User App API Routes Tests', () => {
       it('should reject login with invalid credentials', async () => {
         mockPrisma.user.findUnique.mockResolvedValue(null);
 
-        const response = await request(app).post('/api/auth/login').send({
-          email: 'nonexistent@test.com',
-          password: 'WrongPass123!',
-        });
+        const response = await request(createServer(app))
+          .post('/api/auth/login')
+          .send({
+            email: 'nonexistent@test.com',
+            password: 'WrongPass123!',
+          });
 
         expect(response.status).toBe(401);
         expect(response.body).toHaveProperty('error');
@@ -349,7 +358,7 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.findUnique.mockResolvedValue(user);
         mockPrisma.user.update.mockResolvedValue(user);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/auth/request-password-reset')
           .send({
             email: 'user@test.com',
@@ -385,7 +394,7 @@ describe('User App API Routes Tests', () => {
         mockPrisma.user.update.mockResolvedValue(user);
         (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/auth/reset-password')
           .send({
             token: 'valid-reset-token',
@@ -422,7 +431,7 @@ describe('User App API Routes Tests', () => {
 
     describe('GET /api/user/profile', () => {
       it('should return user profile', async () => {
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/user/profile')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -432,7 +441,9 @@ describe('User App API Routes Tests', () => {
       });
 
       it('should reject unauthorized access', async () => {
-        const response = await request(app).get('/api/user/profile');
+        const response = await request(createServer(app)).get(
+          '/api/user/profile'
+        );
 
         expect(response.status).toBe(401);
       });
@@ -452,7 +463,7 @@ describe('User App API Routes Tests', () => {
           bio: updateData.bio,
         });
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .put('/api/user/profile')
           .set('Authorization', `Bearer ${mockUserToken}`)
           .send(updateData);
@@ -514,7 +525,7 @@ describe('User App API Routes Tests', () => {
           mockThumbnailService.getThumbnailsByUser.mock.calls.length
         );
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/thumbnails')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -539,7 +550,7 @@ describe('User App API Routes Tests', () => {
           mockThumbnails
         );
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/thumbnails')
           .query({
             page: 2,
@@ -574,7 +585,7 @@ describe('User App API Routes Tests', () => {
           createdThumbnail
         );
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/thumbnails')
           .set('Authorization', `Bearer ${mockUserToken}`)
           .send(thumbnailData);
@@ -585,7 +596,7 @@ describe('User App API Routes Tests', () => {
       });
 
       it('should validate required fields', async () => {
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/thumbnails')
           .set('Authorization', `Bearer ${mockUserToken}`)
           .send({
@@ -611,7 +622,7 @@ describe('User App API Routes Tests', () => {
 
         mockThumbnailService.getThumbnailById.mockResolvedValue(mockThumbnail);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/thumbnails/thumb123')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -623,7 +634,7 @@ describe('User App API Routes Tests', () => {
       it('should return 404 for non-existent thumbnail', async () => {
         mockThumbnailService.getThumbnailById.mockResolvedValue(null);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/thumbnails/nonexistent')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -674,7 +685,7 @@ describe('User App API Routes Tests', () => {
 
         mockProjectService.getProjectsByUser.mockResolvedValue(mockProjects);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/projects')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -701,7 +712,7 @@ describe('User App API Routes Tests', () => {
 
         mockProjectService.createProject.mockResolvedValue(createdProject);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/projects')
           .set('Authorization', `Bearer ${mockUserToken}`)
           .send(projectData);
@@ -769,7 +780,7 @@ describe('User App API Routes Tests', () => {
           errorMessage: 'No access token for twitter',
         });
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .post('/api/social-share/share')
           .set('Authorization', `Bearer ${mockUserToken}`)
           .send(shareData);
@@ -794,7 +805,7 @@ describe('User App API Routes Tests', () => {
 
         mockSocialShareService.getSocialShareStats.mockResolvedValue(mockStats);
 
-        const response = await request(app)
+        const response = await request(createServer(app))
           .get('/api/social-share/stats')
           .set('Authorization', `Bearer ${mockUserToken}`);
 
@@ -810,17 +821,19 @@ describe('User App API Routes Tests', () => {
         new Error('Database connection failed')
       );
 
-      const response = await request(app).post('/api/auth/login').send({
-        email: 'user@test.com',
-        password: 'password123',
-      });
+      const response = await request(createServer(app))
+        .post('/api/auth/login')
+        .send({
+          email: 'user@test.com',
+          password: 'password123',
+        });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
     });
 
     it('should handle malformed JSON requests', async () => {
-      const response = await request(app)
+      const response = await request(createServer(app))
         .post('/api/auth/register')
         .set('Content-Type', 'application/json')
         .send('{"invalid": json}');
@@ -829,7 +842,9 @@ describe('User App API Routes Tests', () => {
     });
 
     it('should handle missing authorization headers', async () => {
-      const response = await request(app).get('/api/user/profile');
+      const response = await request(createServer(app)).get(
+        '/api/user/profile'
+      );
 
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error');
@@ -840,7 +855,7 @@ describe('User App API Routes Tests', () => {
         throw new Error('Invalid token');
       });
 
-      const response = await request(app)
+      const response = await request(createServer(app))
         .get('/api/user/profile')
         .set('Authorization', 'Bearer invalid-token');
 
@@ -853,10 +868,12 @@ describe('User App API Routes Tests', () => {
     it('should handle rate limiting on auth endpoints', async () => {
       // This test would need actual rate limiting middleware
       // For now, just ensure the route responds
-      const response = await request(app).post('/api/auth/login').send({
-        email: 'user@test.com',
-        password: 'password123',
-      });
+      const response = await request(createServer(app))
+        .post('/api/auth/login')
+        .send({
+          email: 'user@test.com',
+          password: 'password123',
+        });
 
       // Should respond (either success or failure, but not rate limited in test)
       expect([200, 400, 401, 403, 500]).toContain(response.status);
@@ -865,33 +882,39 @@ describe('User App API Routes Tests', () => {
 
   describe('Input Validation', () => {
     it('should validate email formats', async () => {
-      const response = await request(app).post('/api/auth/register').send({
-        email: 'invalid-email-format',
-        password: 'password123',
-        name: 'Test User',
-      });
+      const response = await request(createServer(app))
+        .post('/api/auth/register')
+        .send({
+          email: 'invalid-email-format',
+          password: 'password123',
+          name: 'Test User',
+        });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
     });
 
     it('should validate password strength', async () => {
-      const response = await request(app).post('/api/auth/register').send({
-        email: 'user@test.com',
-        password: '123', // Too short
-        name: 'Test User',
-      });
+      const response = await request(createServer(app))
+        .post('/api/auth/register')
+        .send({
+          email: 'user@test.com',
+          password: '123', // Too short
+          name: 'Test User',
+        });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('errors');
     });
 
     it('should sanitize input data', async () => {
-      const response = await request(app).post('/api/auth/register').send({
-        email: 'user@test.com',
-        password: 'password123',
-        name: '<script>alert("xss")</script>Test User',
-      });
+      const response = await request(createServer(app))
+        .post('/api/auth/register')
+        .send({
+          email: 'user@test.com',
+          password: 'password123',
+          name: '<script>alert("xss")</script>Test User',
+        });
 
       // Should either clean the input or reject it
       expect([400, 500]).toContain(response.status);

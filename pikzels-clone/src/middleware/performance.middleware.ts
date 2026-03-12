@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { getService } from '../utils/service-factory';
+import { logger } from '../utils/logger';
 
 const cache = getService('cache');
 
@@ -56,7 +57,7 @@ export const performanceMiddleware = () => {
 };
 
 /**
- * Log performance metrics to cache and console
+ * Log performance metrics to cache and Axiom
  */
 async function logPerformanceMetrics(
   req: Request,
@@ -68,6 +69,17 @@ async function logPerformanceMetrics(
     const method = req.method;
     const statusCode = res.statusCode;
     const isError = statusCode >= 400;
+
+    // Structured request metric for every request (enables p50/p95/p99 in Axiom)
+    logger.info('request', {
+      category: 'request',
+      method,
+      url: route,
+      statusCode,
+      duration: responseTime,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
 
     // Create metric keys
     const metricsKey = `performance:${method}:${route}`;
@@ -112,10 +124,9 @@ async function logPerformanceMetrics(
 
     // Log slow requests (> 1000ms)
     if (responseTime > 1000) {
-      console.warn(`🐌 Slow request detected:`, {
+      logger.performance(`${method} ${route}`, responseTime, {
         method,
-        route,
-        responseTime: `${responseTime}ms`,
+        url: route,
         statusCode,
         userAgent: req.get('User-Agent'),
         ip: req.ip,
@@ -124,25 +135,30 @@ async function logPerformanceMetrics(
 
     // Log errors
     if (isError) {
-      console.error(`❌ Error response:`, {
+      logger.error('Error response', undefined, {
         method,
-        route,
+        url: route,
         statusCode,
-        responseTime: `${responseTime}ms`,
+        duration: responseTime,
         ip: req.ip,
       });
     }
 
     // Log performance summary every 100 requests
     if (newRequestCount % 100 === 0) {
-      console.log(`📊 Performance summary for ${method} ${route}:`, {
-        requests: newRequestCount,
+      logger.info(`Performance summary for ${method} ${route}`, {
+        method,
+        url: route,
+        requests: String(newRequestCount),
         avgResponseTime: `${updatedMetrics.averageResponseTime}ms`,
         errorRate: `${((newErrorCount / newRequestCount) * 100).toFixed(2)}%`,
       });
     }
   } catch (error) {
-    console.error('Error logging performance metrics:', error);
+    logger.error(
+      'Error logging performance metrics',
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 }
 
@@ -213,7 +229,10 @@ export async function getPerformanceMetrics(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('Error getting performance metrics:', error);
+    logger.error(
+      'Error getting performance metrics',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return null;
   }
 }
@@ -224,10 +243,13 @@ export async function getPerformanceMetrics(
 export async function clearPerformanceMetrics() {
   try {
     // In a real implementation, you'd scan and delete all performance keys
-    console.log('Performance metrics cleared');
+    logger.info('Performance metrics cleared');
     return true;
   } catch (error) {
-    console.error('Error clearing performance metrics:', error);
+    logger.error(
+      'Error clearing performance metrics',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return false;
   }
 }

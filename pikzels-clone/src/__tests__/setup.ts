@@ -171,28 +171,43 @@ jest.mock('cloudinary', () => ({
 }));
 
 // Global teardown to cleanup intervals and timers
+// Only runs cleanup if modules were already loaded (avoids triggering heavy imports)
 afterAll(async () => {
-  // Clean up all service singletons and their timers
   try {
-    // Use auto-cleanup registry (handles all services automatically)
-    const { jestGlobalTeardown } = await import('../utils/auto-cleanup');
-    await jestGlobalTeardown();
+    // Only cleanup if auto-cleanup was already loaded by a test
+    // This avoids triggering massive import chains for simple tests
+    const autoCleanupPath = require.resolve('../utils/auto-cleanup');
+    if (require.cache[autoCleanupPath]) {
+      const { jestGlobalTeardown } = require('../utils/auto-cleanup');
+      await jestGlobalTeardown();
+    }
 
-    // Import event handlers dynamically
-    const { analyticsHandlers } = await import('../events/analytics-handlers');
-    const { socialShareHandlers } = await import(
-      '../events/social-share-handlers'
-    );
-    const { systemMonitoringService } = await import(
+    // Only cleanup event handlers if they were loaded
+    const analyticsPath = require.resolve('../events/analytics-handlers');
+    if (require.cache[analyticsPath]) {
+      const { analyticsHandlers } = require('../events/analytics-handlers');
+      await analyticsHandlers.cleanup();
+    }
+
+    const socialPath = require.resolve('../events/social-share-handlers');
+    if (require.cache[socialPath]) {
+      const {
+        socialShareHandlers,
+      } = require('../events/social-share-handlers');
+      await socialShareHandlers.cleanup();
+    }
+
+    const monitoringPath = require.resolve(
       '../modules/admin/system-monitoring.service'
     );
-
-    // Call cleanup methods for event handlers
-    await analyticsHandlers.cleanup();
-    await socialShareHandlers.cleanup();
-    systemMonitoringService.stop();
-  } catch (error) {
-    console.error('❌ Error during global test cleanup:', error);
+    if (require.cache[monitoringPath]) {
+      const {
+        systemMonitoringService,
+      } = require('../modules/admin/system-monitoring.service');
+      systemMonitoringService.stop();
+    }
+  } catch {
+    // Module not found - this is fine, nothing to clean up
   }
 });
 

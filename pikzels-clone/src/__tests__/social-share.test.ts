@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { createServer } from 'http';
 import app from '../server';
 
 describe('Social Share API', () => {
@@ -7,7 +8,9 @@ describe('Social Share API', () => {
 
   describe('GET /api/social-share/stats', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app).get('/api/social-share/stats');
+      const response = await request(createServer(app)).get(
+        '/api/social-share/stats'
+      );
 
       expect(response.status).toBe(401);
     });
@@ -15,7 +18,9 @@ describe('Social Share API', () => {
 
   describe('GET /api/social-share/', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app).get('/api/social-share/');
+      const response = await request(createServer(app)).get(
+        '/api/social-share/'
+      );
 
       expect(response.status).toBe(401);
     });
@@ -23,7 +28,7 @@ describe('Social Share API', () => {
 
   describe('POST /api/social-share/share', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app)
+      const response = await request(createServer(app))
         .post('/api/social-share/share')
         .send({
           thumbnailId: 'test-id',
@@ -37,7 +42,7 @@ describe('Social Share API', () => {
 
   describe('GET /api/social-share/thumbnail/:thumbnailId', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app).get(
+      const response = await request(createServer(app)).get(
         '/api/social-share/thumbnail/test-id'
       );
 
@@ -47,7 +52,9 @@ describe('Social Share API', () => {
 
   describe('DELETE /api/social-share/:id', () => {
     it('should return 401 if no token is provided', async () => {
-      const response = await request(app).delete('/api/social-share/test-id');
+      const response = await request(createServer(app)).delete(
+        '/api/social-share/test-id'
+      );
 
       expect(response.status).toBe(401);
     });
