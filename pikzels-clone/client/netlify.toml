@@ -11,6 +11,8 @@
 
 [build.environment]
   NODE_ENV = "production"
+  NODE_VERSION = "22"
+  CI = ""
 
 # SPA fallback
 [[redirects]]
