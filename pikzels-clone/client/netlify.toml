@@ -1,6 +1,6 @@
 [build]
   publish = "dist"
-  command = "npm run build"
+  command = "npm install --include=dev && npm run build"
 
 # ═══════════════════════════════════════════════════════════════════
 # REQUIRED ENVIRONMENT VARIABLES FOR PRODUCTION
@@ -24,7 +24,7 @@
 
 # Production context - strictest settings
 [context.production]
-  command = "npm run build"
+  command = "npm install --include=dev && npm run build"
 
 [context.production.environment]
   NODE_ENV = "production"
@@ -32,7 +32,7 @@
 
 # Deploy Preview context - for PR previews
 [context.deploy-preview]
-  command = "npm run build"
+  command = "npm install --include=dev && npm run build"
 
 [context.deploy-preview.environment]
   NODE_ENV = "production"
@@ -40,7 +40,7 @@
 
 # Branch deploy context
 [context.branch-deploy]
-  command = "npm run build"
+  command = "npm install --include=dev && npm run build"
 
 [context.branch-deploy.environment]
   NODE_ENV = "production"
