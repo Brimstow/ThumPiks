@@ -14,7 +14,6 @@ interface UserStats {
 export const StatsWidget: React.FC = () => {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUserStats();
@@ -32,7 +31,15 @@ export const StatsWidget: React.FC = () => {
       setStats(data);
     } catch (err) {
       console.error('Error fetching user stats:', err);
-      setError('Failed to load stats');
+      // Show default zeros instead of scary error message
+      setStats({
+        thumbnailsCreated: 0,
+        clickThroughRate: 0,
+        templatesUsed: 0,
+        totalViews: 0,
+        projectsCount: 0,
+        recentActivity: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -59,10 +66,6 @@ export const StatsWidget: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center flex-1">
           <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-        </div>
-      ) : error ? (
-        <div className="text-center flex-1 flex items-center justify-center text-slate-400">
-          <p>{error}</p>
         </div>
       ) : !stats ? (
         <div className="text-center flex-1 flex items-center justify-center text-slate-400">

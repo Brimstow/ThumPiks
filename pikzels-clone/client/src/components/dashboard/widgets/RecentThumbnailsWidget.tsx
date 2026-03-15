@@ -15,7 +15,6 @@ export const RecentThumbnailsWidget: React.FC = () => {
   const navigate = useNavigate();
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRecentThumbnails();
@@ -33,7 +32,8 @@ export const RecentThumbnailsWidget: React.FC = () => {
       setThumbnails(data.thumbnails || []);
     } catch (err) {
       console.error('Error fetching recent thumbnails:', err);
-      setError('Failed to load recent thumbnails');
+      // Treat API errors as empty state — don't scare users with "Failed to load"
+      setThumbnails([]);
     } finally {
       setLoading(false);
     }
@@ -54,10 +54,6 @@ export const RecentThumbnailsWidget: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-        </div>
-      ) : error ? (
-        <div className="text-center py-8 text-slate-400">
-          <p>{error}</p>
         </div>
       ) : thumbnails.length === 0 ? (
         <div className="text-center py-8">
