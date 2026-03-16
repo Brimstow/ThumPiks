@@ -20,6 +20,7 @@ interface TestAdminUser extends TestUser {
 const TEST_ADMIN_USERS: TestAdminUser[] = [
   {
     email: 'admin@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
     password: 'AdminPass123!',
     name: 'Admin User',
     username: 'admin',
@@ -36,29 +37,51 @@ const TEST_ADMIN_USERS: TestAdminUser[] = [
 const TEST_USERS: TestUser[] = [
   {
     email: 'testerllm@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
     password: 'LLMdemo2026!',
     name: 'Tester LLM',
     username: 'testerLLM',
   },
   {
     email: 'tester1@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
     password: 'Test123!',
     name: 'Tester One',
     username: 'tester1',
   },
   {
     email: 'tester2@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
     password: 'Test123!',
     name: 'Tester Two',
     username: 'tester2',
   },
   {
     email: 'tester3@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
     password: 'Test123!',
     name: 'Tester Three',
     username: 'tester3',
   },
+  {
+    email: 'ultratester@thumpiks.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'UltraTest2026!',
+    name: 'Ultra Tester',
+    username: 'ultratester',
+  },
 ];
+
+// Subscription plans for test accounts (varied tiers for testing)
+// 999999 credits = effectively unlimited for staging/QA
+const TEST_SUBSCRIPTIONS: Record<string, { planType: string; credits: number }> = {
+  'ultratester@thumpiks.com': { planType: 'ultra_pro', credits: 999999 },
+  'testerllm@example.com':    { planType: 'pro', credits: 200 },
+  'admin@example.com':        { planType: 'ultra_pro', credits: 999999 },
+  'tester1@example.com':      { planType: 'starter', credits: 50 },
+  'tester2@example.com':      { planType: 'free', credits: 5 },
+  'tester3@example.com':      { planType: 'ultra_pro', credits: 600 },
+};
 
 /**
  * Seed test users into the database
@@ -228,6 +251,68 @@ async function seedAdminUsers() {
   }
 
   return { createdAdmins, existingAdmins };
+}
+
+/**
+ * Seed subscriptions for test users
+ * Gives each test account a plan so AI Tools and other gated features work
+ */
+async function seedSubscriptions() {
+  console.log('💳 Seeding Test Subscriptions...\n');
+
+  let created = 0;
+  let existing = 0;
+
+  for (const [email, plan] of Object.entries(TEST_SUBSCRIPTIONS)) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (!user) {
+        console.log(`   ⏭️  Skipping ${email} (user not found)`);
+        continue;
+      }
+
+      // Check if subscription already exists
+      const existingSub = await prisma.subscription.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (existingSub) {
+        existing++;
+        console.log(`   ✅ ${email} already has subscription: ${existingSub.planType} (${existingSub.creditsBalance} credits)`);
+        continue;
+      }
+
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1); // 1 year from now
+
+      await prisma.subscription.create({
+        data: {
+          id: `seed_sub_${user.id.slice(0, 8)}_${Date.now()}`,
+          userId: user.id,
+          planType: plan.planType,
+          creditsBalance: plan.credits,
+          creditsUsed: 0,
+          periodStart: now,
+          periodEnd,
+          billingCycle: 'monthly',
+          status: 'active',
+          cancelAtPeriodEnd: false,
+        },
+      });
+
+      created++;
+      console.log(`   ✨ ${email} → ${plan.planType} (${plan.credits} credits)`);
+    } catch (error) {
+      console.error(`   ❌ Error seeding subscription for ${email}:`, error);
+    }
+  }
+
+  console.log(`\n   📊 Subscriptions: ${created} created, ${existing} already existed\n`);
+  return { created, existing };
 }
 
 // ============================================
@@ -546,6 +631,9 @@ async function main() {
     // Seed admin users
     const { createdAdmins, existingAdmins } = await seedAdminUsers();
 
+    // Seed subscriptions for test accounts
+    const { created: subsCreated, existing: subsExisting } = await seedSubscriptions();
+
     // Seed built-in composition layouts (always runs, even in production)
     const { created: layoutsCreated, updated: layoutsUpdated } = await seedCompositionLayouts();
 
@@ -560,6 +648,7 @@ async function main() {
     console.log(`   - New admins created: ${createdAdmins.length}`);
     console.log(`   - Existing admins found: ${existingAdmins.length}`);
     console.log(`   - Total admin users: ${TEST_ADMIN_USERS.length}`);
+    console.log(`   - Subscriptions created: ${subsCreated}, already existed: ${subsExisting}`);
     console.log(`   - Composition layouts: ${layoutsCreated} new, ${layoutsUpdated} updated\n`);
 
     if (createdUsers.length > 0) {
