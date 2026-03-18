@@ -60,6 +60,9 @@ describe('BillingService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     };
+    p.subscription = {
+      findFirst: jest.fn().mockResolvedValue(null), // defaults to 'stripe' provider
+    };
     p.creditTransaction = {
       findMany: jest.fn().mockResolvedValue([]),
     };
@@ -69,7 +72,10 @@ describe('BillingService', () => {
 
   describe('getPaymentMethods', () => {
     it('returns mock data when user has no stripeCustomerId', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: null,
+        polarCustomerId: null,
+      });
 
       const result = await getPaymentMethods('user-123');
 
@@ -94,7 +100,10 @@ describe('BillingService', () => {
     });
 
     it('fetches real payment methods from Stripe when customer exists', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().paymentMethods.list.mockResolvedValue({
         data: [
@@ -136,7 +145,10 @@ describe('BillingService', () => {
     });
 
     it('marks non-default payment methods correctly', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().paymentMethods.list.mockResolvedValue({
         data: [
@@ -163,7 +175,10 @@ describe('BillingService', () => {
     });
 
     it('handles deleted Stripe customer gracefully', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().paymentMethods.list.mockResolvedValue({ data: [] });
       ms().customers.retrieve.mockResolvedValue({ deleted: true });
@@ -174,7 +189,10 @@ describe('BillingService', () => {
     });
 
     it('handles missing card data with defaults', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().paymentMethods.list.mockResolvedValue({
         data: [{ id: 'pm_1', type: 'card', card: null }],
@@ -204,7 +222,10 @@ describe('BillingService', () => {
     });
 
     it('throws on Stripe API error', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
       ms().paymentMethods.list.mockRejectedValue(new Error('Stripe down'));
 
       await expect(getPaymentMethods('user-123')).rejects.toThrow(
@@ -218,7 +239,10 @@ describe('BillingService', () => {
 
   describe('getBillingHistory', () => {
     it('returns mock invoices when no stripeCustomerId', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: null,
+        polarCustomerId: null,
+      });
 
       const result = await getBillingHistory('user-123');
 
@@ -234,7 +258,10 @@ describe('BillingService', () => {
     });
 
     it('fetches real invoices from Stripe when customer exists', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().invoices.list.mockResolvedValue({
         data: [
@@ -272,7 +299,10 @@ describe('BillingService', () => {
     });
 
     it('combines Stripe invoices with credit pack purchases sorted by date', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().invoices.list.mockResolvedValue({
         data: [
@@ -292,7 +322,7 @@ describe('BillingService', () => {
         {
           id: 'tx-1',
           createdAt: new Date('2025-02-01'),
-          description: 'Purchased Starter Pack',
+          description: 'Purchased Boost Pack',
           type: 'purchase',
         },
       ]);
@@ -307,19 +337,22 @@ describe('BillingService', () => {
     });
 
     it('maps credit pack description to amount correctly', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: null,
+        polarCustomerId: null,
+      });
 
       mp().creditTransaction.findMany.mockResolvedValue([
         {
           id: 'tx-1',
           createdAt: new Date('2025-03-01'),
-          description: 'Purchased Starter Pack',
+          description: 'Purchased Boost Pack',
           type: 'purchase',
         },
         {
           id: 'tx-2',
           createdAt: new Date('2025-02-01'),
-          description: 'Purchased Pro Pack',
+          description: 'Purchased Power Pack',
           type: 'purchase',
         },
       ]);
@@ -327,12 +360,16 @@ describe('BillingService', () => {
       const result = await getBillingHistory('user-123');
 
       const creditItems = result.filter((r: any) => r.type === 'credit_pack');
-      expect(creditItems.find((c: any) => c.id === 'tx-1')!.amount).toBe(900);
-      expect(creditItems.find((c: any) => c.id === 'tx-2')!.amount).toBe(2400);
+      // Amounts derived from CREDIT_PACKS single source of truth (dollars * 100 -> cents)
+      expect(creditItems.find((c: any) => c.id === 'tx-1')!.amount).toBe(1200); // Boost Pack: $12
+      expect(creditItems.find((c: any) => c.id === 'tx-2')!.amount).toBe(3900); // Power Pack: $39
     });
 
     it('returns 0 for unknown pack descriptions', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: null,
+        polarCustomerId: null,
+      });
 
       mp().creditTransaction.findMany.mockResolvedValue([
         {
@@ -350,7 +387,10 @@ describe('BillingService', () => {
     });
 
     it('handles creditTransaction.findMany failure gracefully (returns [])', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: null,
+        polarCustomerId: null,
+      });
       mp().creditTransaction.findMany.mockRejectedValue(new Error('DB error'));
 
       // Should still succeed with just Stripe/mock invoices
@@ -361,7 +401,10 @@ describe('BillingService', () => {
     });
 
     it('handles invoice with missing line items', async () => {
-      mp().user.findUnique.mockResolvedValue({ stripeCustomerId: 'cus_abc' });
+      mp().user.findUnique.mockResolvedValue({
+        stripeCustomerId: 'cus_abc',
+        polarCustomerId: null,
+      });
 
       ms().invoices.list.mockResolvedValue({
         data: [
@@ -402,17 +445,20 @@ describe('BillingService', () => {
         const savedKey = process.env.STRIPE_SECRET_KEY;
         delete process.env.STRIPE_SECRET_KEY;
 
-        let demoModule: any;
-        jest.isolateModules(() => {
-          demoModule = require('../billing.service');
+        // With no STRIPE_SECRET_KEY, getBillingProviderByName('stripe') falls back to demo
+        mp().user.findUnique.mockResolvedValue({
+          stripeCustomerId: null,
+          polarCustomerId: null,
+          email: 'test@test.com',
         });
+        mp().user.update.mockResolvedValue({});
 
-        process.env.STRIPE_SECRET_KEY = savedKey;
-
-        const result = await demoModule.createBillingPortalSession(
+        const result = await createBillingPortalSession(
           'user-123',
           'https://app.test/billing'
         );
+
+        process.env.STRIPE_SECRET_KEY = savedKey;
 
         expect(result).toEqual({
           url: '/dashboard/account/billing?demo=true',
@@ -432,6 +478,7 @@ describe('BillingService', () => {
       it('creates Stripe customer if user has no stripeCustomerId', async () => {
         mp().user.findUnique.mockResolvedValue({
           stripeCustomerId: null,
+          polarCustomerId: null,
           email: 'test@test.com',
         });
         ms().customers.create.mockResolvedValue({ id: 'cus_new' });
@@ -458,6 +505,7 @@ describe('BillingService', () => {
       it('uses existing stripeCustomerId without creating customer', async () => {
         mp().user.findUnique.mockResolvedValue({
           stripeCustomerId: 'cus_existing',
+          polarCustomerId: null,
           email: 'test@test.com',
         });
         ms().billingPortal.sessions.create.mockResolvedValue({
@@ -475,6 +523,7 @@ describe('BillingService', () => {
       it('creates billing portal session with correct params', async () => {
         mp().user.findUnique.mockResolvedValue({
           stripeCustomerId: 'cus_existing',
+          polarCustomerId: null,
           email: 'test@test.com',
         });
         ms().billingPortal.sessions.create.mockResolvedValue({
@@ -495,6 +544,7 @@ describe('BillingService', () => {
       it('returns session URL', async () => {
         mp().user.findUnique.mockResolvedValue({
           stripeCustomerId: 'cus_existing',
+          polarCustomerId: null,
           email: 'test@test.com',
         });
         ms().billingPortal.sessions.create.mockResolvedValue({
@@ -512,6 +562,7 @@ describe('BillingService', () => {
       it('throws on Stripe error', async () => {
         mp().user.findUnique.mockResolvedValue({
           stripeCustomerId: 'cus_existing',
+          polarCustomerId: null,
           email: 'test@test.com',
         });
         ms().billingPortal.sessions.create.mockRejectedValue(

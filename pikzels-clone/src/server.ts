@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import passport from 'passport';
 import { isProductionLike, isDevelopmentEnv } from './utils/env';
 // import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
@@ -25,10 +26,10 @@ import { requestIdMiddleware } from './middleware/request-id.middleware';
 
 // Import services AFTER environment variables are loaded
 import { CacheService } from './services/cache.service';
+import { OAuthService } from './modules/auth/oauth.service';
 import {
   performanceMiddleware,
   responseTimeMiddleware,
-  flushMetricsBuffer,
 } from './middleware/performance.middleware';
 import { logger, flushLogger } from './utils/logger';
 import { getRequestId } from './utils/request-context';
@@ -51,6 +52,7 @@ import videoProxyRoutes from './modules/video-proxy/video-proxy.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
 import creditRoutes from './modules/credit/credit.routes';
 import billingRoutes from './modules/billing/billing.routes';
+import polarWebhookRoutes from './modules/billing/polar-webhook.routes';
 import userSettingsRoutes from './modules/user/user-settings.routes';
 import accountRoutes from './modules/account/account.routes';
 import visionRoutes from './modules/vision/vision.routes';
@@ -168,6 +170,11 @@ console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
 app.use(cookieParser());
 console.log('🍪 Cookie parser enabled');
 
+// Initialize Passport for OAuth authentication
+app.use(passport.initialize());
+OAuthService.initializePassport();
+console.log('🔑 Passport OAuth initialized');
+
 // Enhanced JSON parsing with security limits
 app.use(
   express.json({
@@ -211,6 +218,7 @@ app.use('/api/video', videoProxyRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/polar', polarWebhookRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/editor-command', editorCommandRoutes);
@@ -398,11 +406,6 @@ async function initializeServer() {
       );
     });
 
-    // Prevent 502s behind Railway's reverse proxy (ALB timeout ~60s)
-    server.keepAliveTimeout = 65000; // 65s — must exceed proxy timeout
-    server.headersTimeout = 66000; // Must be > keepAliveTimeout
-    server.requestTimeout = 300000; // 5min — allows long AI operations
-
     return server;
   } catch (error) {
     logger.error(
@@ -435,7 +438,6 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
-    await flushMetricsBuffer();
     await flushLogger();
     await cache.disconnect();
   });
@@ -453,7 +455,6 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
-    await flushMetricsBuffer();
     await flushLogger();
     await cache.disconnect();
   });

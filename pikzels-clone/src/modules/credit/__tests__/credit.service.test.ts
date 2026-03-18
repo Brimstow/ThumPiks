@@ -176,7 +176,7 @@ describe('CreditService', () => {
           url: 'https://checkout.stripe.com/sess_1',
         });
 
-        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_50');
+        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_500');
 
         expect(ms().customers.create).toHaveBeenCalledWith({
           email: 'test@test.com',
@@ -197,7 +197,7 @@ describe('CreditService', () => {
           url: 'https://checkout.stripe.com/sess_1',
         });
 
-        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_50');
+        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_500');
 
         expect(ms().customers.create).not.toHaveBeenCalled();
       });
@@ -211,8 +211,12 @@ describe('CreditService', () => {
           url: 'https://checkout.stripe.com/sess_1',
         });
 
-        // pack_250 = Pro Pack, 250 credits, $35
-        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_250');
+        // pack_2000 = Power Pack, 2000 credits, $39
+        await createCreditPackCheckout(
+          'user-123',
+          'test@test.com',
+          'pack_2000'
+        );
 
         expect(ms().checkout.sessions.create).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -222,9 +226,9 @@ describe('CreditService', () => {
               expect.objectContaining({
                 price_data: expect.objectContaining({
                   currency: 'usd',
-                  unit_amount: 3500, // $35 * 100
+                  unit_amount: 3900, // $39 * 100
                   product_data: expect.objectContaining({
-                    name: 'Pro Pack',
+                    name: 'Power Pack',
                   }),
                 }),
                 quantity: 1,
@@ -232,8 +236,8 @@ describe('CreditService', () => {
             ],
             metadata: expect.objectContaining({
               userId: 'user-123',
-              packId: 'pack_250',
-              credits: '250',
+              packId: 'pack_2000',
+              credits: '2000',
               type: 'credit_pack_purchase',
             }),
           })
@@ -252,7 +256,7 @@ describe('CreditService', () => {
         const result = await createCreditPackCheckout(
           'user-123',
           'test@test.com',
-          'pack_50'
+          'pack_500'
         );
         expect(result).toBe('https://checkout.stripe.com/sess_1');
       });
@@ -269,7 +273,7 @@ describe('CreditService', () => {
         const result = await createCreditPackCheckout(
           'user-123',
           'test@test.com',
-          'pack_50'
+          'pack_500'
         );
         expect(result).toBe('');
       });
@@ -283,7 +287,7 @@ describe('CreditService', () => {
         );
 
         await expect(
-          createCreditPackCheckout('user-123', 'test@test.com', 'pack_50')
+          createCreditPackCheckout('user-123', 'test@test.com', 'pack_500')
         ).rejects.toThrow('Stripe down');
         expect(logger.error).toHaveBeenCalled();
       });
@@ -302,7 +306,7 @@ describe('CreditService', () => {
         const result = await demoModule.createCreditPackCheckout(
           'user-123',
           'test@test.com',
-          'pack_50'
+          'pack_500'
         );
 
         // Restore env so subsequent tests are unaffected
@@ -310,7 +314,7 @@ describe('CreditService', () => {
 
         expect(result).toContain('demo-checkout');
         expect(result).toContain('userId=user-123');
-        expect(result).toContain('planId=pack_50');
+        expect(result).toContain('planId=pack_500');
       });
     });
   });
@@ -328,7 +332,7 @@ describe('CreditService', () => {
       mp().subscription.findFirst.mockResolvedValue(null);
 
       await expect(
-        addPurchasedCredits('user-123', 'pack_50', 'sess_1')
+        addPurchasedCredits('user-123', 'pack_500', 'sess_1')
       ).rejects.toThrow('No subscription found');
     });
 
@@ -337,20 +341,20 @@ describe('CreditService', () => {
       mp().subscription.update.mockResolvedValue({});
       mp().creditTransaction.create.mockResolvedValue({});
 
-      await addPurchasedCredits('user-123', 'pack_50', 'sess_1');
+      await addPurchasedCredits('user-123', 'pack_500', 'sess_1');
 
-      // pack_50 = Starter Pack, 50 credits
+      // pack_500 = Boost Pack, 500 credits
       expect(mp().subscription.update).toHaveBeenCalledWith({
         where: { id: 'sub-1' },
-        data: { creditsBalance: { increment: 50 } },
+        data: { creditsBalance: { increment: 500 } },
       });
 
       expect(mp().creditTransaction.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-123',
           type: 'purchase',
-          amount: 50,
-          description: 'Purchased Starter Pack',
+          amount: 500,
+          description: 'Purchased Boost Pack',
           stripePaymentId: 'sess_1',
         },
       });
@@ -361,7 +365,7 @@ describe('CreditService', () => {
       mp().subscription.update.mockRejectedValue(new Error('DB error'));
 
       await expect(
-        addPurchasedCredits('user-123', 'pack_50', 'sess_1')
+        addPurchasedCredits('user-123', 'pack_500', 'sess_1')
       ).rejects.toThrow('DB error');
       expect(logger.error).toHaveBeenCalled();
     });
@@ -445,7 +449,7 @@ describe('CreditService', () => {
 
       expect(result).toBe(false);
       expect(logger.error).toHaveBeenCalledWith(
-        'Failed to refund credits',
+        'Refund failed: no subscription found',
         expect.any(Error),
         expect.objectContaining({ userId: 'user-123', amount: 10 })
       );

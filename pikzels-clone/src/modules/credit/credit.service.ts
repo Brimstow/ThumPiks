@@ -4,51 +4,38 @@
  * Handles credit transactions, balance tracking, and credit pack purchases
  */
 
-import Stripe from 'stripe';
+import { getBillingProvider } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
 
-// Initialize Stripe (use same key from subscription module)
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-02-25.clover',
-    })
-  : null;
-
 // Credit pack definitions (matching frontend)
-interface CreditPack {
+export interface CreditPack {
   id: string;
   name: string;
   credits: number;
   price: number; // in dollars
 }
 
-const CREDIT_PACKS: CreditPack[] = [
-  {
-    id: 'pack_50',
-    name: 'Starter Pack',
-    credits: 50,
-    price: 9,
-  },
-  {
-    id: 'pack_100',
-    name: 'Value Pack',
-    credits: 100,
-    price: 15,
-  },
-  {
-    id: 'pack_250',
-    name: 'Pro Pack',
-    credits: 250,
-    price: 35,
-  },
+export const CREDIT_PACKS: CreditPack[] = [
   {
     id: 'pack_500',
-    name: 'Ultra Pack',
+    name: 'Boost Pack',
     credits: 500,
-    price: 60,
+    price: 12,
+  },
+  {
+    id: 'pack_2000',
+    name: 'Power Pack',
+    credits: 2000,
+    price: 39,
+  },
+  {
+    id: 'pack_6000',
+    name: 'Ultra Pack',
+    credits: 6000,
+    price: 99,
   },
 ];
 
@@ -90,7 +77,8 @@ export async function getBalance(userId: string): Promise<number> {
 }
 
 /**
- * Create Stripe checkout session for credit pack purchase
+ * Create checkout session for credit pack purchase.
+ * Uses the active billing provider (Stripe, Polar, or Demo).
  */
 export async function createCreditPackCheckout(
   userId: string,
@@ -103,78 +91,31 @@ export async function createCreditPackCheckout(
     throw new Error('Invalid credit pack ID');
   }
 
-  // DEMO MODE: If Stripe not configured, return demo URL
-  if (!stripe) {
-    const demoUrl =
-      `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/demo-checkout?` +
-      `userId=${userId}&` +
-      `planId=${packId}&` +
-      `sessionId=demo_pack_${Date.now()}`;
-
-    logger.info('Demo credit pack checkout created (no Stripe)', {
-      userId,
-      packId,
-    });
-    return demoUrl;
-  }
+  const provider = getBillingProvider();
+  const clientUrl =
+    process.env.CLIENT_URL ||
+    process.env.VITE_BASE_URL ||
+    'http://localhost:8556';
 
   try {
-    // Get or create Stripe customer
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { stripeCustomerId: true },
-    });
-
-    let customerId = user?.stripeCustomerId;
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: userEmail,
-        metadata: { userId },
-      });
-      customerId = customer.id;
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { stripeCustomerId: customerId },
-      });
-    }
-
-    // Create one-time payment checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'payment', // One-time payment, not subscription
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: pack.name,
-              description: `${pack.credits} AI thumbnail generation credits`,
-            },
-            unit_amount: pack.price * 100, // Convert to cents
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/dashboard/credits?success=true`,
-      cancel_url: `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/dashboard/credits?cancel=true`,
-      metadata: {
-        userId,
-        packId,
-        credits: pack.credits.toString(),
-        type: 'credit_pack_purchase',
-      },
+    const url = await provider.createCreditPackCheckout({
+      userId,
+      email: userEmail,
+      packId: pack.id,
+      packName: pack.name,
+      credits: pack.credits,
+      price: pack.price,
+      successUrl: `${clientUrl}/dashboard/credits?success=true`,
+      cancelUrl: `${clientUrl}/dashboard/credits?cancel=true`,
     });
 
     logger.info('Credit pack checkout session created', {
       userId,
       packId,
-      sessionId: session.id,
+      provider: provider.providerName,
     });
 
-    return session.url || '';
+    return url;
   } catch (error) {
     logger.error('Failed to create credit pack checkout', error as Error, {
       userId,
@@ -185,13 +126,17 @@ export async function createCreditPackCheckout(
 }
 
 /**
- * Add purchased credits to user's balance
- * Called by webhook after successful payment
+ * Add purchased credits to user's balance.
+ * Called by webhook after successful payment from any provider.
+ *
+ * @param provider - Which billing provider completed the payment ('stripe' | 'polar' | 'demo')
+ * @param paymentId - The provider-specific session/order ID
  */
 export async function addPurchasedCredits(
   userId: string,
   packId: string,
-  stripeSessionId: string
+  paymentId: string,
+  provider: 'stripe' | 'polar' | 'demo' = 'stripe'
 ): Promise<void> {
   const pack = CREDIT_PACKS.find(p => p.id === packId);
 
@@ -200,43 +145,41 @@ export async function addPurchasedCredits(
   }
 
   try {
-    await prisma.$transaction(
-      async tx => {
-        const subscription = await tx.subscription.findFirst({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-        });
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
 
-        if (!subscription) {
-          throw new Error('No subscription found');
-        }
+    if (!subscription) {
+      throw new Error('No subscription found');
+    }
 
-        // Add credits and create transaction record (atomic)
-        await tx.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            creditsBalance: { increment: pack.credits },
-          },
-        });
-
-        await tx.creditTransaction.create({
-          data: {
-            userId,
-            type: 'purchase',
-            amount: pack.credits,
-            description: `Purchased ${pack.name}`,
-            stripePaymentId: stripeSessionId,
-          },
-        });
+    // Add credits and create transaction record
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        creditsBalance: { increment: pack.credits },
       },
-      { maxWait: 5000, timeout: 10000 }
-    );
+    });
+
+    await prisma.creditTransaction.create({
+      data: {
+        userId,
+        type: 'purchase',
+        amount: pack.credits,
+        description: `Purchased ${pack.name}`,
+        ...(provider === 'polar'
+          ? { polarOrderId: paymentId }
+          : { stripePaymentId: paymentId }),
+      },
+    });
 
     logger.info('Credits added from pack purchase', {
       userId,
       packId,
       credits: pack.credits,
-      stripeSessionId,
+      provider,
+      paymentId,
     });
   } catch (error) {
     logger.error('Failed to add purchased credits', error as Error, {
@@ -258,61 +201,40 @@ export async function deductCredits(
   _thumbnailId?: string
 ): Promise<boolean> {
   try {
-    return await prisma.$transaction(
-      async tx => {
-        const subscription = await tx.subscription.findFirst({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-        });
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
 
-        if (!subscription) {
-          throw new Error('No subscription found');
-        }
-
-        if (subscription.creditsBalance < amount) {
-          return false; // Insufficient credits
-        }
-
-        // Decrement first, then verify — atomic within transaction
-        const updated = await tx.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            creditsBalance: { decrement: amount },
-            creditsUsed: { increment: amount },
-          },
-        });
-
-        // Safety check: rollback if balance went negative (concurrent race)
-        if (updated.creditsBalance < 0) {
-          throw new Error('Insufficient credits after concurrent deduction');
-        }
-
-        await tx.creditTransaction.create({
-          data: {
-            userId,
-            type: 'usage',
-            amount: -amount, // Negative for deductions
-            description,
-          },
-        });
-
-        logger.info('Credits deducted', { userId, amount, description });
-        return true;
-      },
-      { maxWait: 5000, timeout: 10000 }
-    );
-  } catch (error) {
-    // Treat concurrent-race rollback as insufficient credits, not a crash
-    if (
-      error instanceof Error &&
-      error.message.includes('Insufficient credits after concurrent')
-    ) {
-      logger.warn('Credit deduction rolled back due to concurrent race', {
-        userId,
-        amount,
-      });
-      return false;
+    if (!subscription) {
+      throw new Error('No subscription found');
     }
+
+    if (subscription.creditsBalance < amount) {
+      return false; // Insufficient credits
+    }
+
+    // Deduct credits and create transaction
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        creditsBalance: { decrement: amount },
+        creditsUsed: { increment: amount },
+      },
+    });
+
+    await prisma.creditTransaction.create({
+      data: {
+        userId,
+        type: 'usage',
+        amount: -amount, // Negative for deductions
+        description,
+      },
+    });
+
+    logger.info('Credits deducted', { userId, amount, description });
+    return true;
+  } catch (error) {
     logger.error('Failed to deduct credits', error as Error, {
       userId,
       amount,
@@ -331,38 +253,38 @@ export async function refundCredits(
   reason: string
 ): Promise<boolean> {
   try {
-    await prisma.$transaction(
-      async tx => {
-        const subscription = await tx.subscription.findFirst({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-        });
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
 
-        if (!subscription) {
-          throw new Error('Refund failed: no subscription found');
-        }
+    if (!subscription) {
+      logger.error(
+        'Refund failed: no subscription found',
+        new Error('No subscription'),
+        { userId, amount }
+      );
+      return false;
+    }
 
-        // Add credits back (atomic)
-        await tx.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            creditsBalance: { increment: amount },
-            creditsUsed: { decrement: amount },
-          },
-        });
-
-        // Log refund transaction
-        await tx.creditTransaction.create({
-          data: {
-            userId,
-            type: 'refund',
-            amount: amount, // Positive for refunds
-            description: `Refund: ${reason}`,
-          },
-        });
+    // Add credits back
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        creditsBalance: { increment: amount },
+        creditsUsed: { decrement: amount },
       },
-      { maxWait: 5000, timeout: 10000 }
-    );
+    });
+
+    // Log refund transaction
+    await prisma.creditTransaction.create({
+      data: {
+        userId,
+        type: 'refund',
+        amount: amount, // Positive for refunds
+        description: `Refund: ${reason}`,
+      },
+    });
 
     logger.info('Credits refunded', { userId, amount, reason });
     return true;

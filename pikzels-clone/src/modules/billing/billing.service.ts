@@ -1,67 +1,50 @@
-import Stripe from 'stripe';
+/**
+ * Billing Service
+ *
+ * Handles payment methods, billing history, and billing portal.
+ * Uses the BillingProvider abstraction to support Stripe, Polar, and Demo modes.
+ */
+
+import { getBillingProviderByName } from '.';
+import type { BillingProviderName } from '.';
+import { CREDIT_PACKS } from '../credit/credit.service';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
 
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-02-25.clover',
-    })
-  : null;
-
 /**
- * Get payment methods for a user
- * Returns real data from Stripe if configured, otherwise mock data
+ * Get payment methods for a user.
+ * Uses the provider that the user's subscription is associated with.
  */
 export async function getPaymentMethods(userId: string) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { stripeCustomerId: true },
+      select: { stripeCustomerId: true, polarCustomerId: true },
     });
 
-    if (!user?.stripeCustomerId || !stripe) {
-      // Return mock data for demo mode
-      return [
-        {
-          id: 'pm_mock_1',
-          type: 'card',
-          card: {
-            brand: 'visa',
-            last4: '4242',
-            expMonth: 12,
-            expYear: 2026,
-          },
-          isDefault: true,
-        },
-      ];
+    // Determine which provider has the customer record
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { billingProvider: true },
+    });
+
+    const providerName = (subscription?.billingProvider ||
+      'stripe') as BillingProviderName;
+    const provider = getBillingProviderByName(providerName);
+
+    const customerId =
+      providerName === 'polar' ? user?.polarCustomerId : user?.stripeCustomerId;
+
+    if (!customerId) {
+      // No customer record -- return mock data via demo provider
+      const demo = getBillingProviderByName('demo');
+      return demo.getPaymentMethods('');
     }
 
-    // Fetch real payment methods from Stripe
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: user.stripeCustomerId,
-      type: 'card',
-    });
-
-    // Get default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
-    const defaultPaymentMethodId =
-      customer.deleted !== true
-        ? customer.invoice_settings?.default_payment_method
-        : null;
-
-    return paymentMethods.data.map(pm => ({
-      id: pm.id,
-      type: pm.type,
-      card: {
-        brand: pm.card?.brand || 'unknown',
-        last4: pm.card?.last4 || '0000',
-        expMonth: pm.card?.exp_month || 0,
-        expYear: pm.card?.exp_year || 0,
-      },
-      isDefault: pm.id === defaultPaymentMethodId,
-    }));
+    return await provider.getPaymentMethods(customerId);
   } catch (error) {
     logger.error('Failed to fetch payment methods', error as Error);
     throw new Error('Failed to fetch payment methods');
@@ -69,68 +52,43 @@ export async function getPaymentMethods(userId: string) {
 }
 
 /**
- * Get billing history (invoices from Stripe + credit transactions)
- * Returns combined billing history sorted by date
+ * Get billing history (invoices from provider + credit transactions from DB).
+ * Returns combined billing history sorted by date.
  */
 export async function getBillingHistory(userId: string) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { stripeCustomerId: true },
+      select: { stripeCustomerId: true, polarCustomerId: true },
     });
 
-    let stripeInvoices = [];
+    // Get provider invoices
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { billingProvider: true },
+    });
 
-    if (user?.stripeCustomerId && stripe) {
-      // Fetch real invoices from Stripe
-      const invoices = await stripe.invoices.list({
-        customer: user.stripeCustomerId,
-        limit: 50,
-      });
+    const providerName = (subscription?.billingProvider ||
+      'stripe') as BillingProviderName;
+    const provider = getBillingProviderByName(providerName);
 
-      stripeInvoices = invoices.data.map(invoice => ({
-        id: invoice.id,
-        date: new Date(invoice.created * 1000).toISOString().split('T')[0],
-        description: invoice.lines.data[0]?.description || 'Subscription',
-        amount: invoice.amount_paid, // Amount in cents
-        status: invoice.status === 'paid' ? 'paid' : 'pending',
-        type: 'subscription',
-        invoiceUrl: invoice.hosted_invoice_url,
-        pdfUrl: invoice.invoice_pdf,
-      }));
+    const customerId =
+      providerName === 'polar' ? user?.polarCustomerId : user?.stripeCustomerId;
+
+    let providerInvoices = [];
+    if (customerId) {
+      providerInvoices = await provider.getInvoices(customerId, 50);
     } else {
-      // Mock data for demo mode
-      stripeInvoices = [
-        {
-          id: 'INV-001',
-          date: '2025-01-27',
-          description: 'Professional Plan - Monthly',
-          amount: 2900, // 29.00 in cents
-          status: 'paid',
-          type: 'subscription',
-          invoiceUrl: null,
-          pdfUrl: null,
-        },
-        {
-          id: 'INV-002',
-          date: '2024-12-27',
-          description: 'Professional Plan - Monthly',
-          amount: 2900,
-          status: 'paid',
-          type: 'subscription',
-          invoiceUrl: null,
-          pdfUrl: null,
-        },
-      ];
+      // Demo mode fallback
+      const demo = getBillingProviderByName('demo');
+      providerInvoices = await demo.getInvoices('', 50);
     }
 
     // Get credit pack purchases from database
     const creditTransactions = await prisma.creditTransaction
       .findMany({
-        where: {
-          userId,
-          type: 'purchase',
-        },
+        where: { userId, type: 'purchase' },
         orderBy: { createdAt: 'desc' },
         take: 50,
       })
@@ -140,7 +98,7 @@ export async function getBillingHistory(userId: string) {
       id: tx.id,
       date: tx.createdAt.toISOString().split('T')[0],
       description: tx.description,
-      amount: getAmountFromDescription(tx.description), // Estimate amount in cents
+      amount: getAmountFromDescription(tx.description),
       status: 'paid',
       type: 'credit_pack',
       invoiceUrl: null,
@@ -148,7 +106,7 @@ export async function getBillingHistory(userId: string) {
     }));
 
     // Combine and sort by date
-    const allHistory = [...stripeInvoices, ...creditPurchases].sort(
+    const allHistory = [...providerInvoices, ...creditPurchases].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
 
@@ -160,74 +118,61 @@ export async function getBillingHistory(userId: string) {
 }
 
 /**
- * Helper to estimate amount from credit pack description
- * Format: "Purchased [Pack Name]"
+ * Helper to estimate amount from credit pack description.
+ * Uses centralized CREDIT_PACKS as the single source of truth.
  */
 function getAmountFromDescription(description: string): number {
-  // Parse pack names and return approximate amounts in cents
-  const packPrices: Record<string, number> = {
-    'Starter Pack': 900, // $9
-    'Pro Pack': 2400, // $24
-    'Ultra Pro Pack': 7900, // $79
-  };
-
-  for (const [packName, price] of Object.entries(packPrices)) {
-    if (description.includes(packName)) {
-      return price;
+  for (const pack of CREDIT_PACKS) {
+    if (description.includes(pack.name)) {
+      return pack.price * 100; // Convert dollars to cents
     }
   }
 
-  return 0; // Unknown pack
+  return 0;
 }
 
 /**
- * Create Stripe Billing Portal session
- * Allows users to manage payment methods, view invoices, cancel subscription
+ * Create billing portal session.
+ * Uses the provider associated with the user's subscription.
  */
 export async function createBillingPortalSession(
   userId: string,
   returnUrl: string
 ) {
   try {
-    if (!stripe) {
-      // Demo mode - return mock URL
-      return {
-        url: `/dashboard/account/billing?demo=true`,
-      };
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { stripeCustomerId: true, email: true },
+      select: { stripeCustomerId: true, polarCustomerId: true, email: true },
     });
 
     if (!user) {
       throw new Error('User not found');
     }
 
-    let customerId = user.stripeCustomerId;
-
-    // Create Stripe customer if doesn't exist
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: { userId },
-      });
-      customerId = customer.id;
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { stripeCustomerId: customerId },
-      });
-    }
-
-    // Create billing portal session
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: returnUrl,
+    // Determine which provider to use for the portal
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { billingProvider: true },
     });
 
-    return { url: session.url };
+    const providerName = (subscription?.billingProvider ||
+      'stripe') as BillingProviderName;
+    const provider = getBillingProviderByName(providerName);
+
+    const customerId =
+      providerName === 'polar' ? user.polarCustomerId : user.stripeCustomerId;
+
+    if (!customerId) {
+      // Create customer if needed
+      const newCustomerId = await provider.createOrGetCustomer(
+        userId,
+        user.email
+      );
+      return await provider.createPortalSession(newCustomerId, returnUrl);
+    }
+
+    return await provider.createPortalSession(customerId, returnUrl);
   } catch (error) {
     logger.error('Failed to create billing portal session', error as Error);
     throw new Error('Failed to create billing portal session');

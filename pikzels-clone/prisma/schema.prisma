@@ -137,10 +137,15 @@ model Subscription {
   status               String   @default("active")
   stripePriceId        String?
   stripeSubscriptionId String?  @unique
+  polarSubscriptionId  String?  @unique
+  polarProductId       String?
+  billingProvider      String   @default("stripe")
   User                 User     @relation(fields: [userId], references: [id])
 
   @@index([status])
   @@index([stripeSubscriptionId])
+  @@index([polarSubscriptionId])
+  @@index([billingProvider])
   @@index([userId])
 }
 
@@ -151,6 +156,7 @@ model CreditTransaction {
   amount          Int
   description     String
   stripePaymentId String?
+  polarOrderId    String?
   metadata        Json?
   createdAt       DateTime @default(now())
   User            User     @relation(fields: [userId], references: [id])
@@ -299,6 +305,11 @@ model User {
   isActive                                      Boolean             @default(true)
   stripeCustomerId                              String?             @unique
   stripeSubscriptionId                          String?
+  polarCustomerId                               String?             @unique
+  youtubeAccessToken                            String?
+  youtubeRefreshToken                           String?
+  youtubeChannelId                              String?
+  youtubeConnectedAt                            DateTime?
   emailUnsubscribedAt                           DateTime?
   emailVerified                                 Boolean             @default(false)
   marketingEmails                               Boolean             @default(true)
