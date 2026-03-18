@@ -28,6 +28,7 @@ import { CacheService } from './services/cache.service';
 import {
   performanceMiddleware,
   responseTimeMiddleware,
+  flushMetricsBuffer,
 } from './middleware/performance.middleware';
 import { logger, flushLogger } from './utils/logger';
 import { getRequestId } from './utils/request-context';
@@ -397,6 +398,11 @@ async function initializeServer() {
       );
     });
 
+    // Prevent 502s behind Railway's reverse proxy (ALB timeout ~60s)
+    server.keepAliveTimeout = 65000; // 65s — must exceed proxy timeout
+    server.headersTimeout = 66000; // Must be > keepAliveTimeout
+    server.requestTimeout = 300000; // 5min — allows long AI operations
+
     return server;
   } catch (error) {
     logger.error(
@@ -429,6 +435,7 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
+    await flushMetricsBuffer();
     await flushLogger();
     await cache.disconnect();
   });
@@ -446,6 +453,7 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
+    await flushMetricsBuffer();
     await flushLogger();
     await cache.disconnect();
   });

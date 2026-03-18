@@ -44,6 +44,7 @@ import {
   userAiRateLimit,
 } from '../../middleware/security.middleware';
 import { CacheKeys } from '../../services/cache.service';
+import { getReplicateQueue } from './replicate-queue.service';
 
 const router = Router();
 
@@ -279,5 +280,29 @@ router.post(
   invalidateCacheMiddleware([`api:*:/thumbnails:*`, `thumbnail:*`]),
   (req, res) => aiExpand(req as AuthRequest, res)
 );
+
+// =============================================================================
+// JOB STATUS POLLING — enables async AI operations without blocking HTTP
+// Frontend submits job via POST, then polls GET /ai/job/:jobId for result.
+// =============================================================================
+router.get('/ai/job/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const queue = getReplicateQueue();
+
+    if (!queue.isReady()) {
+      return res.status(503).json({ error: 'Queue service not available' });
+    }
+
+    const status = await queue.getJobStatus(jobId);
+    if (!status) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    return res.json(status);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to get job status' });
+  }
+});
 
 export default router;

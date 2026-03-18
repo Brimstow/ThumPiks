@@ -200,32 +200,37 @@ export async function addPurchasedCredits(
   }
 
   try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    await prisma.$transaction(
+      async tx => {
+        const subscription = await tx.subscription.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        });
 
-    if (!subscription) {
-      throw new Error('No subscription found');
-    }
+        if (!subscription) {
+          throw new Error('No subscription found');
+        }
 
-    // Add credits and create transaction record
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: { increment: pack.credits },
+        // Add credits and create transaction record (atomic)
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            creditsBalance: { increment: pack.credits },
+          },
+        });
+
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            type: 'purchase',
+            amount: pack.credits,
+            description: `Purchased ${pack.name}`,
+            stripePaymentId: stripeSessionId,
+          },
+        });
       },
-    });
-
-    await prisma.creditTransaction.create({
-      data: {
-        userId,
-        type: 'purchase',
-        amount: pack.credits,
-        description: `Purchased ${pack.name}`,
-        stripePaymentId: stripeSessionId,
-      },
-    });
+      { maxWait: 5000, timeout: 10000 }
+    );
 
     logger.info('Credits added from pack purchase', {
       userId,
@@ -253,40 +258,61 @@ export async function deductCredits(
   _thumbnailId?: string
 ): Promise<boolean> {
   try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    return await prisma.$transaction(
+      async tx => {
+        const subscription = await tx.subscription.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        });
 
-    if (!subscription) {
-      throw new Error('No subscription found');
-    }
+        if (!subscription) {
+          throw new Error('No subscription found');
+        }
 
-    if (subscription.creditsBalance < amount) {
-      return false; // Insufficient credits
-    }
+        if (subscription.creditsBalance < amount) {
+          return false; // Insufficient credits
+        }
 
-    // Deduct credits and create transaction
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: { decrement: amount },
-        creditsUsed: { increment: amount },
+        // Decrement first, then verify — atomic within transaction
+        const updated = await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            creditsBalance: { decrement: amount },
+            creditsUsed: { increment: amount },
+          },
+        });
+
+        // Safety check: rollback if balance went negative (concurrent race)
+        if (updated.creditsBalance < 0) {
+          throw new Error('Insufficient credits after concurrent deduction');
+        }
+
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            type: 'usage',
+            amount: -amount, // Negative for deductions
+            description,
+          },
+        });
+
+        logger.info('Credits deducted', { userId, amount, description });
+        return true;
       },
-    });
-
-    await prisma.creditTransaction.create({
-      data: {
-        userId,
-        type: 'usage',
-        amount: -amount, // Negative for deductions
-        description,
-      },
-    });
-
-    logger.info('Credits deducted', { userId, amount, description });
-    return true;
+      { maxWait: 5000, timeout: 10000 }
+    );
   } catch (error) {
+    // Treat concurrent-race rollback as insufficient credits, not a crash
+    if (
+      error instanceof Error &&
+      error.message.includes('Insufficient credits after concurrent')
+    ) {
+      logger.warn('Credit deduction rolled back due to concurrent race', {
+        userId,
+        amount,
+      });
+      return false;
+    }
     logger.error('Failed to deduct credits', error as Error, {
       userId,
       amount,
@@ -305,38 +331,38 @@ export async function refundCredits(
   reason: string
 ): Promise<boolean> {
   try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    await prisma.$transaction(
+      async tx => {
+        const subscription = await tx.subscription.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        });
 
-    if (!subscription) {
-      logger.error(
-        'Refund failed: no subscription found',
-        new Error('No subscription'),
-        { userId, amount }
-      );
-      return false;
-    }
+        if (!subscription) {
+          throw new Error('Refund failed: no subscription found');
+        }
 
-    // Add credits back
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: { increment: amount },
-        creditsUsed: { decrement: amount },
+        // Add credits back (atomic)
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            creditsBalance: { increment: amount },
+            creditsUsed: { decrement: amount },
+          },
+        });
+
+        // Log refund transaction
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            type: 'refund',
+            amount: amount, // Positive for refunds
+            description: `Refund: ${reason}`,
+          },
+        });
       },
-    });
-
-    // Log refund transaction
-    await prisma.creditTransaction.create({
-      data: {
-        userId,
-        type: 'refund',
-        amount: amount, // Positive for refunds
-        description: `Refund: ${reason}`,
-      },
-    });
+      { maxWait: 5000, timeout: 10000 }
+    );
 
     logger.info('Credits refunded', { userId, amount, reason });
     return true;

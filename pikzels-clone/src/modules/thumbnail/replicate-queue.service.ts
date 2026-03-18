@@ -1,5 +1,6 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { ReplicateAIService } from './replicate-ai.service';
+import { createBreaker } from '../../utils/circuit-breaker';
 
 /**
  * ReplicateQueueService - Production-grade request queue for Replicate API
@@ -31,13 +32,23 @@ const DEFAULT_ATTEMPTS = 1; // Let ReplicateAIService handle retries internally
 
 // Redis connection configuration
 // NOTE: Uses port 8520 for localhost (project convention), Railway auto-injects REDIS_URL
-function getRedisConfig(): { host: string; port: number; password?: string; maxRetriesPerRequest: null } {
+function getRedisConfig(): {
+  host: string;
+  port: number;
+  password?: string;
+  maxRetriesPerRequest: null;
+} {
   // If REDIS_URL is set (Railway production), parse it
   const redisUrl = process.env.REDIS_URL;
-  if (redisUrl && redisUrl.startsWith('redis://')) {
+  if (redisUrl?.startsWith('redis://')) {
     try {
       const url = new URL(redisUrl);
-      const config: { host: string; port: number; password?: string; maxRetriesPerRequest: null } = {
+      const config: {
+        host: string;
+        port: number;
+        password?: string;
+        maxRetriesPerRequest: null;
+      } = {
         host: url.hostname,
         port: parseInt(url.port || '6379', 10),
         maxRetriesPerRequest: null,
@@ -52,7 +63,12 @@ function getRedisConfig(): { host: string; port: number; password?: string; maxR
   }
 
   // Manual config (localhost development - uses port 8520 per project convention)
-  const config: { host: string; port: number; password?: string; maxRetriesPerRequest: null } = {
+  const config: {
+    host: string;
+    port: number;
+    password?: string;
+    maxRetriesPerRequest: null;
+  } = {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '8520', 10),
     maxRetriesPerRequest: null, // Required for BullMQ
@@ -64,7 +80,7 @@ function getRedisConfig(): { host: string; port: number; password?: string; maxR
 }
 
 // Job types for type safety
-export type ReplicateJobType = 
+export type ReplicateJobType =
   | 'segment'
   | 'segmentInteractive'
   | 'removeBackground'
@@ -129,7 +145,9 @@ export class ReplicateQueueService {
     }
 
     const redisConfig = getRedisConfig();
-    console.log(`ReplicateQueueService: Connecting to Redis at ${redisConfig.host}:${redisConfig.port}`);
+    console.log(
+      `ReplicateQueueService: Connecting to Redis at ${redisConfig.host}:${redisConfig.port}`
+    );
 
     try {
       // Create the queue
@@ -179,7 +197,9 @@ export class ReplicateQueueService {
       this.isInitialized = true;
       console.log('ReplicateQueueService: Initialized successfully');
       console.log(`  - Max concurrent: ${MAX_CONCURRENT_JOBS}`);
-      console.log(`  - Rate limit: ${RATE_LIMIT_MAX} jobs per ${RATE_LIMIT_DURATION / 1000}s`);
+      console.log(
+        `  - Rate limit: ${RATE_LIMIT_MAX} jobs per ${RATE_LIMIT_DURATION / 1000}s`
+      );
     } catch (error) {
       console.error('ReplicateQueueService: Failed to initialize:', error);
       throw error;
@@ -192,7 +212,7 @@ export class ReplicateQueueService {
   private setupEventHandlers(): void {
     if (!this.worker || !this.queueEvents) return;
 
-    this.worker.on('completed', (job) => {
+    this.worker.on('completed', job => {
       console.log(`ReplicateQueue: Job ${job.id} completed (${job.data.type})`);
     });
 
@@ -200,7 +220,7 @@ export class ReplicateQueueService {
       console.error(`ReplicateQueue: Job ${job?.id} failed:`, err.message);
     });
 
-    this.worker.on('error', (err) => {
+    this.worker.on('error', err => {
       console.error('ReplicateQueue: Worker error:', err);
     });
 
@@ -220,45 +240,59 @@ export class ReplicateQueueService {
   /**
    * Process a job using the ReplicateAIService
    */
-  private async processJob(job: Job<ReplicateJobData, ReplicateJobResult>): Promise<ReplicateJobResult> {
-    const { type, imageBase64, options, clicks, prompt, direction, expandPixels, scale, faceEnhance } = job.data;
+  private async processJob(
+    job: Job<ReplicateJobData, ReplicateJobResult>
+  ): Promise<ReplicateJobResult> {
+    console.log(
+      `ReplicateQueue: Processing job ${job.id} (${job.data.type}) for user ${job.data.userId}`
+    );
 
-    console.log(`ReplicateQueue: Processing job ${job.id} (${type}) for user ${job.data.userId}`);
+    // Circuit breaker: fail fast if Replicate API is down
+    const breaker = createBreaker(
+      'replicate',
+      async (args: ReplicateJobData) => {
+        switch (args.type) {
+          case 'segment':
+            return this.replicateService.segment(
+              args.imageBase64,
+              args.options
+            );
+          case 'segmentInteractive':
+            if (!args.clicks || args.clicks.length === 0) {
+              throw new Error('Clicks required for interactive segmentation');
+            }
+            return this.replicateService.segmentInteractive(
+              args.imageBase64,
+              args.clicks
+            );
+          case 'removeBackground':
+            return this.replicateService.removeBackground(args.imageBase64);
+          case 'upscale':
+            return this.replicateService.upscale(
+              args.imageBase64,
+              args.scale,
+              args.faceEnhance
+            );
+          case 'expand':
+            return this.replicateService.expand(
+              args.imageBase64,
+              args.prompt,
+              args.direction,
+              args.expandPixels
+            );
+          default:
+            throw new Error(`Unknown job type: ${(args as any).type}`);
+        }
+      },
+      { timeout: JOB_TIMEOUT }
+    );
 
     try {
-      let result: any;
-
-      switch (type) {
-        case 'segment':
-          result = await this.replicateService.segment(imageBase64, options);
-          break;
-
-        case 'segmentInteractive':
-          if (!clicks || clicks.length === 0) {
-            throw new Error('Clicks required for interactive segmentation');
-          }
-          result = await this.replicateService.segmentInteractive(imageBase64, clicks);
-          break;
-
-        case 'removeBackground':
-          result = await this.replicateService.removeBackground(imageBase64);
-          break;
-
-        case 'upscale':
-          result = await this.replicateService.upscale(imageBase64, scale, faceEnhance);
-          break;
-
-        case 'expand':
-          result = await this.replicateService.expand(imageBase64, prompt, direction, expandPixels);
-          break;
-
-        default:
-          throw new Error(`Unknown job type: ${type}`);
-      }
-
+      const result = await breaker.fire(job.data);
       return { success: true, data: result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error(`ReplicateQueue: Job ${job.id} failed:`, errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -266,15 +300,23 @@ export class ReplicateQueueService {
 
   /**
    * Add a job to the queue and wait for the result.
-   * This is the main entry point for queued Replicate operations.
+   *
+   * @deprecated Blocks the HTTP connection for up to JOB_TIMEOUT (3 min).
+   *   Prefer addJobAsync() + GET /ai/job/:jobId polling to free the
+   *   connection immediately and avoid HTTP connection exhaustion.
    *
    * @param jobData Job data including type and parameters
    * @param priority Optional priority (lower = higher priority, default 0)
    * @returns Promise resolving to job result
    */
-  async addJob(jobData: ReplicateJobData, priority: number = 0): Promise<ReplicateJobResult> {
+  async addJob(
+    jobData: ReplicateJobData,
+    priority: number = 0
+  ): Promise<ReplicateJobResult> {
     if (!this.queue || !this.isInitialized) {
-      throw new Error('ReplicateQueueService not initialized. Call initialize() first.');
+      throw new Error(
+        'ReplicateQueueService not initialized. Call initialize() first.'
+      );
     }
 
     // Generate job ID based on type and a timestamp
@@ -285,7 +327,9 @@ export class ReplicateQueueService {
       priority,
     });
 
-    console.log(`ReplicateQueue: Added job ${job.id} (${jobData.type}) for user ${jobData.userId}`);
+    console.log(
+      `ReplicateQueue: Added job ${job.id} (${jobData.type}) for user ${jobData.userId}`
+    );
 
     // Wait for the job to complete
     const result = await job.waitUntilFinished(this.queueEvents!, JOB_TIMEOUT);
@@ -300,7 +344,10 @@ export class ReplicateQueueService {
    * @param priority Optional priority
    * @returns Job ID
    */
-  async addJobAsync(jobData: ReplicateJobData, priority: number = 0): Promise<string> {
+  async addJobAsync(
+    jobData: ReplicateJobData,
+    priority: number = 0
+  ): Promise<string> {
     if (!this.queue || !this.isInitialized) {
       throw new Error('ReplicateQueueService not initialized');
     }
@@ -329,7 +376,7 @@ export class ReplicateQueueService {
     if (!job) return null;
 
     const state = await job.getState();
-    const progress = job.progress as number || 0;
+    const progress = (job.progress as number) || 0;
 
     if (state === 'completed') {
       return { state, progress, result: job.returnvalue };

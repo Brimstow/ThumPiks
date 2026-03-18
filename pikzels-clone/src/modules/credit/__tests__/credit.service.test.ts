@@ -98,6 +98,8 @@ describe('CreditService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     };
+    // Support interactive transactions: callback receives the same mock as `tx`
+    p.$transaction = jest.fn(async (fn: (tx: any) => Promise<any>) => fn(p));
   });
 
   // ── getTransactions ──────────────────────────────────────────────
@@ -383,7 +385,7 @@ describe('CreditService', () => {
 
     it('returns true and decrements balance on success', async () => {
       mp().subscription.findFirst.mockResolvedValue(mockSubscription);
-      mp().subscription.update.mockResolvedValue({});
+      mp().subscription.update.mockResolvedValue({ creditsBalance: 90 });
       mp().creditTransaction.create.mockResolvedValue({});
 
       const result = await deductCredits('user-123', 10, 'AI generation');
@@ -400,7 +402,7 @@ describe('CreditService', () => {
 
     it('creates negative transaction record', async () => {
       mp().subscription.findFirst.mockResolvedValue(mockSubscription);
-      mp().subscription.update.mockResolvedValue({});
+      mp().subscription.update.mockResolvedValue({ creditsBalance: 90 });
       mp().creditTransaction.create.mockResolvedValue({});
 
       await deductCredits('user-123', 10, 'AI generation');
@@ -443,7 +445,7 @@ describe('CreditService', () => {
 
       expect(result).toBe(false);
       expect(logger.error).toHaveBeenCalledWith(
-        'Refund failed: no subscription found',
+        'Failed to refund credits',
         expect.any(Error),
         expect.objectContaining({ userId: 'user-123', amount: 10 })
       );

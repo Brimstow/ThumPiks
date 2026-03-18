@@ -17,6 +17,7 @@ export class CacheService {
   private isRedisAvailable = false;
   private redisCheckInterval: NodeJS.Timeout | null = null;
   private capacityWarningLogged = false;
+  private inflightRequests = new Map<string, Promise<unknown>>();
 
   private constructor() {
     const maxEntries = parseInt(
@@ -286,7 +287,10 @@ export class CacheService {
   }
 
   /**
-   * Get or set cached data (cache-aside pattern)
+   * Get or set cached data (cache-aside pattern with singleflight).
+   * Prevents cache stampede: if multiple callers miss the same key
+   * concurrently, only one invokes fetchFunction; the rest await
+   * the same in-flight promise.
    */
   async getOrSet<T>(
     key: string,
@@ -298,9 +302,25 @@ export class CacheService {
       return cached;
     }
 
-    const data = await fetchFunction();
-    await this.set(key, data, ttlSeconds);
-    return data;
+    // Singleflight: deduplicate concurrent fetches for the same key
+    const inflight = this.inflightRequests.get(key);
+    if (inflight) {
+      return inflight as Promise<T>;
+    }
+
+    const promise = fetchFunction()
+      .then(async data => {
+        // Add ±10% jitter to TTL to stagger expiration across keys
+        const jitter = Math.floor(ttlSeconds * 0.1 * (Math.random() * 2 - 1));
+        await this.set(key, data, ttlSeconds + jitter);
+        return data;
+      })
+      .finally(() => {
+        this.inflightRequests.delete(key);
+      });
+
+    this.inflightRequests.set(key, promise);
+    return promise;
   }
 
   /**
