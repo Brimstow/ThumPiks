@@ -210,7 +210,7 @@ export class VideoService implements IVideoService {
     await this.ffmpeg.writeFile('input.mp4', this.currentVideo);
 
     // Use HTML5 video element for metadata extraction (faster than FFmpeg)
-    const blob = new Blob([this.currentVideo], { type: 'video/mp4' });
+    const blob = new Blob([this.currentVideo as BlobPart], { type: 'video/mp4' });
     const videoUrl = URL.createObjectURL(blob);
 
     return new Promise((resolve, reject) => {
@@ -395,7 +395,7 @@ export class VideoService implements IVideoService {
 
       // Read the extracted frame
       const frameData = await this.ffmpeg.readFile(outputFile);
-      const blob = new Blob([frameData], { type: `image/${format}` });
+      const blob = new Blob([frameData as BlobPart], { type: `image/${format}` });
       const dataUrl = await this.blobToDataUrl(blob);
 
       frames.push({
@@ -650,7 +650,7 @@ export class VideoService implements IVideoService {
     const clipData = await this.ffmpeg.readFile(outputFile);
     const mimeType = outputFormat === 'webm' ? 'video/webm' : 
                      outputFormat === 'gif' ? 'image/gif' : 'video/mp4';
-    const blob = new Blob([clipData], { type: mimeType });
+    const blob = new Blob([clipData as BlobPart], { type: mimeType });
 
     await this.ffmpeg.deleteFile(outputFile);
 

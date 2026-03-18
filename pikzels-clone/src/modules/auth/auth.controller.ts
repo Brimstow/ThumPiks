@@ -28,12 +28,14 @@ export const register = async (req: Request, res: Response) => {
 
     const result = await authService.register(username, email, name, password);
 
-    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    // Cookie settings: sameSite=lax is safe because Netlify proxies API
+    // requests to Railway (same-origin from browser's perspective).
+    // This also provides CSRF protection (blocks cross-site POST).
     const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction, // Required for sameSite: 'none'
-      sameSite: isProduction ? ('none' as const) : ('strict' as const), // 'none' required for cross-origin cookies
+      secure: isProduction,
+      sameSite: isProduction ? ('lax' as const) : ('strict' as const),
     };
 
     // Set HttpOnly cookie for access token
@@ -102,12 +104,14 @@ export const login = async (req: Request, res: Response) => {
 
     const result = await authService.login(loginIdentifier, password);
 
-    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    // Cookie settings: sameSite=lax is safe because Netlify proxies API
+    // requests to Railway (same-origin from browser's perspective).
+    // This also provides CSRF protection (blocks cross-site POST).
     const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction, // Required for sameSite: 'none'
-      sameSite: isProduction ? ('none' as const) : ('strict' as const), // 'none' required for cross-origin cookies
+      secure: isProduction,
+      sameSite: isProduction ? ('lax' as const) : ('strict' as const),
     };
 
     // Set HttpOnly cookie for access token
@@ -167,12 +171,12 @@ export const login = async (req: Request, res: Response) => {
  */
 export const logout = async (_req: Request, res: Response) => {
   try {
-    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    // Must match the same options used when setting cookies
     const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? ('none' as const) : ('strict' as const),
+      sameSite: isProduction ? ('lax' as const) : ('strict' as const),
     };
 
     // Clear authentication cookies
@@ -360,12 +364,12 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     const result = await authService.refreshToken(refreshToken);
 
-    // Determine cookie settings for cross-origin (Netlify -> Railway)
+    // Cookie settings: sameSite=lax (Netlify proxy = same-origin)
     const isProduction = isProductionLike();
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? ('none' as const) : ('strict' as const),
+      sameSite: isProduction ? ('lax' as const) : ('strict' as const),
     };
 
     // Set new tokens in HttpOnly cookies

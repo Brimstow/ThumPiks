@@ -1,20 +1,24 @@
 [build]
   publish = "dist"
-  command = "npm install --include=dev && npm run build"
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
 
 # ═══════════════════════════════════════════════════════════════════
-# REQUIRED ENVIRONMENT VARIABLES FOR PRODUCTION
-# Set these in Netlify Dashboard > Site Settings > Environment Variables
+# PROXY ARCHITECTURE (Safari ITP fix + CSRF hardening)
 # ═══════════════════════════════════════════════════════════════════
-# VITE_API_URL = "https://thumbnail-maker-studio-production.up.railway.app"
-# VITE_APP_URL = "https://your-netlify-site.netlify.app"
+# All API requests go through Netlify proxy → Railway backend.
+# This makes cookies first-party (fixes Safari ITP blocking) and
+# allows sameSite=lax (closes CSRF vector from sameSite=none).
+#
+# VITE_API_URL="" → frontend uses relative /api/* paths
+# API_PROXY_TARGET  → build script writes _redirects with proxy rule
+# ═══════════════════════════════════════════════════════════════════
 
 [build.environment]
   NODE_ENV = "production"
   NODE_VERSION = "22"
   CI = ""
 
-# SPA fallback
+# SPA fallback (overridden by build script when API_PROXY_TARGET is set)
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -24,28 +28,32 @@
 # DEPLOY CONTEXT SETTINGS
 # ═══════════════════════════════════════════════════════════════════
 
-# Production context - strictest settings
+# Production context
 [context.production]
-  command = "npm install --include=dev && npm run build"
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
 
 [context.production.environment]
   NODE_ENV = "production"
   VITE_ENV = "production"
-  VITE_API_URL = "https://thumbnail-maker-studio-production.up.railway.app"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-production.up.railway.app"
 
 # Deploy Preview context - for PR previews
 [context.deploy-preview]
-  command = "npm install --include=dev && npm run build"
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
 
 [context.deploy-preview.environment]
   NODE_ENV = "production"
   VITE_ENV = "preview"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-staging.up.railway.app"
 
-# Branch deploy context
+# Branch deploy context (staging)
 [context.branch-deploy]
-  command = "npm install --include=dev && npm run build"
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
 
 [context.branch-deploy.environment]
   NODE_ENV = "production"
   VITE_ENV = "staging"
-  VITE_API_URL = "https://thumbnail-maker-studio-staging.up.railway.app"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-staging.up.railway.app"

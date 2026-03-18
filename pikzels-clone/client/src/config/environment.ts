@@ -110,7 +110,8 @@ function validateProductionConfig(env: ReturnType<typeof detectEnvironment>, api
 const envDetection = detectEnvironment();
 
 // Get API URL with fallbacks
-const apiBaseUrl = import.meta.env.VITE_API_URL || 
+// Use ?? (not ||) so that VITE_API_URL="" enables proxy mode (relative paths)
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? 
   (envDetection.isProduction 
     ? 'https://thumbnail-maker-studio-production.up.railway.app'  // Your Railway backend
     : 'http://localhost:8550');
@@ -118,12 +119,14 @@ const apiBaseUrl = import.meta.env.VITE_API_URL ||
 // Validate configuration in production
 validateProductionConfig(envDetection, apiBaseUrl);
 
-// Log environment info in development
+// Log environment info
 if (!envDetection.isProduction) {
   console.log('🔧 Development Mode Active', {
     apiBaseUrl,
     platform: envDetection.platform || 'Local',
   });
+} else if (apiBaseUrl === '') {
+  console.log('🔄 Proxy Mode Active — API requests use relative paths (same-origin cookies)');
 }
 
 export const config: EnvironmentConfig = {
