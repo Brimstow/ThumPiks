@@ -1,6 +1,7 @@
 [build]
   publish = "dist"
   command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
+  ignore = "/bin/false"
 
 # ═══════════════════════════════════════════════════════════════════
 # PROXY ARCHITECTURE (Safari ITP fix + CSRF hardening)
