@@ -265,7 +265,7 @@ model Thumbnail {
   title                                          String
   imageUrl                                       String
   originalImageUrl                               String?
-  prompt                                         String
+  prompt                                         String          @default("")
   parameters                                     Json
   projectId                                      String
   userId                                         String
@@ -443,6 +443,7 @@ model UserUrlHistory {
   platform           String?
   thumbnailUrl       String?
   selectedFrameTime  Float?
+  pinned             Boolean  @default(false)
   createdAt          DateTime @default(now())
   User               User     @relation(fields: [userId], references: [id])
 

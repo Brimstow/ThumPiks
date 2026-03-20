@@ -298,7 +298,10 @@ class UnifiedServiceStarter {
 
     try {
       // Try Windows Service first (most stable)
-      this.log('debug', 'Attempting to start PostgreSQL via Windows Service...');
+      this.log(
+        'debug',
+        'Attempting to start PostgreSQL via Windows Service...'
+      );
       try {
         await execAsync('net start "PostgreSQL-ThumbnailMaker-8565"');
         this.log('info', `Waiting for ${service.name} to start...`);
@@ -336,8 +339,14 @@ class UnifiedServiceStarter {
         return true;
       } else {
         this.log('error', `${service.name} failed to start properly`);
-        this.log('warn', 'Consider registering PostgreSQL as a Windows Service for better stability');
-        this.log('warn', 'Run: cd B:\\Thumbnail_maker\\database\\postgresql\\bin && pg_ctl register -N "PostgreSQL-ThumbnailMaker-8565" -D "B:\\Thumbnail_maker\\database\\postgresql\\data" -o "-p 8565"');
+        this.log(
+          'warn',
+          'Consider registering PostgreSQL as a Windows Service for better stability'
+        );
+        this.log(
+          'warn',
+          'Run: cd B:\\Thumbnail_maker\\database\\postgresql\\bin && pg_ctl register -N "PostgreSQL-ThumbnailMaker-8565" -D "B:\\Thumbnail_maker\\database\\postgresql\\data" -o "-p 8565"'
+        );
         return false;
       }
     } catch (error) {
@@ -368,11 +377,11 @@ class UnifiedServiceStarter {
       // Start Redis in background
       const redisProcess = spawn(
         service.binPath,
-        [`--port`, service.port.toString()],
+        ['--port', service.port.toString()],
         {
           detached: true,
           stdio: ['ignore', 'ignore', 'ignore'],
-          shell: true,
+          windowsHide: true,
         }
       );
 
@@ -421,13 +430,19 @@ class UnifiedServiceStarter {
 
     try {
       // Start backend
-      const backendProcess = spawn(service.command, service.args, {
-        cwd: service.cwd,
-        stdio: ['ignore', 'ignore', 'ignore'],
-        shell: true,
-        detached: true,
-        env: { ...process.env, PORT: service.port.toString() },
-      });
+      // Combine command + args into single string for shell: true (npm/npx are cmd scripts on Windows)
+      const backendProcess = spawn(
+        `${service.command} ${service.args.join(' ')}`,
+        [],
+        {
+          cwd: service.cwd,
+          stdio: ['ignore', 'ignore', 'ignore'],
+          shell: true,
+          detached: true,
+          windowsHide: true,
+          env: { ...process.env, PORT: service.port.toString() },
+        }
+      );
 
       backendProcess.unref();
       this.processes.backend = backendProcess;
@@ -484,12 +499,18 @@ class UnifiedServiceStarter {
 
     try {
       // Start frontend
-      const frontendProcess = spawn(service.command, service.args, {
-        cwd: service.cwd,
-        stdio: ['ignore', 'ignore', 'ignore'],
-        shell: true,
-        detached: true,
-      });
+      // Combine command + args into single string for shell: true (npm/npx are cmd scripts on Windows)
+      const frontendProcess = spawn(
+        `${service.command} ${service.args.join(' ')}`,
+        [],
+        {
+          cwd: service.cwd,
+          stdio: ['ignore', 'ignore', 'ignore'],
+          shell: true,
+          detached: true,
+          windowsHide: true,
+        }
+      );
 
       frontendProcess.unref();
       this.processes.frontend = frontendProcess;

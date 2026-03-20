@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { videoProxyController } from './video-proxy.controller';
+import { optionalAuth } from '../../middleware/auth.middleware';
 
 const router = Router();
 
@@ -24,7 +25,10 @@ function videoCors(req: Request, res: Response, next: NextFunction): void {
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Range');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Length, Content-Range, Accept-Ranges'
+  );
   // Override Helmet's same-origin CORP so cross-origin <video> can load
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   if (req.method === 'OPTIONS') {
@@ -45,8 +49,13 @@ router.get('/info', (req, res) => videoProxyController.getVideoInfo(req, res));
 
 // Frame Picker: selectable frames from any video URL
 // SSE streaming endpoint (real-time progress as frames are extracted)
-router.get('/frames/stream', (req, res) =>
+// optionalAuth identifies logged-in users for rate limiting & cycle storage
+router.get('/frames/stream', optionalAuth, (req, res) =>
   videoProxyController.getVideoFramesStream(req, res)
+);
+// Frame cycle metadata (how many cycles cached, rate limit info)
+router.get('/frames/cycles', optionalAuth, (req, res) =>
+  videoProxyController.getFrameCyclesMeta(req, res)
 );
 // Non-streaming fallback
 router.get('/frames', (req, res) =>
@@ -60,7 +69,9 @@ router.get('/storyboard', (req, res) =>
 
 // Generic video streaming (with explicit CORS for canvas access)
 router.options('/stream', videoCors);
-router.get('/stream', videoCors, (req, res) => videoProxyController.streamVideo(req, res));
+router.get('/stream', videoCors, (req, res) =>
+  videoProxyController.streamVideo(req, res)
+);
 
 // Platform-specific proxy endpoints (with explicit CORS for canvas access)
 router.options('/proxy/youtube', videoCors);

@@ -21,7 +21,7 @@ export type ModelTierId = 'flash' | 'standard' | 'pro';
  * Tools using local/free processing (remove-bg, enhance) are excluded
  * since they don't route through paid API models.
  */
-export type TieredToolId = 'generate' | 'inpaint' | 'face-swap' | 'upscale';
+export type TieredToolId = 'generate' | 'generate-text' | 'inpaint' | 'face-swap' | 'upscale';
 
 /**
  * All AI tool identifiers (including non-tiered local tools).

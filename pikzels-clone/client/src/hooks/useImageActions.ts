@@ -58,12 +58,14 @@ export function useImageActions(): UseImageActionsReturn {
       const response = await authPost('/api/thumbnails', {
         imageUrl,
         title: metadata?.title || `Thumbnail ${new Date().toLocaleDateString()}`,
+        prompt: metadata?.prompt || '',
+        projectId: metadata?.projectId,
         platform: metadata?.platform || 'youtube',
         videoId: metadata?.videoId,
         sourceUrl: metadata?.sourceUrl,
         parameters: {
           platform: metadata?.platform || 'youtube',
-          source: 'image-action-bar',
+          source: metadata?.source || 'image-action-bar',
         },
       });
 

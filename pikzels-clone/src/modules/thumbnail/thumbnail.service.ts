@@ -197,6 +197,7 @@ export class ThumbnailService {
       parameters: any;
       storagePublicId: string;
       storageProvider: string;
+      projectId: string;
     }>
   ) {
     // Validate parameters JSON if it's being updated
@@ -250,6 +251,10 @@ export class ThumbnailService {
     if (existingThumbnail) {
       await this.invalidateUserThumbnailsCache(existingThumbnail.userId);
       await this.invalidateProjectCache(existingThumbnail.projectId);
+      // If projectId changed, also invalidate the NEW project's cache
+      if (data.projectId && data.projectId !== existingThumbnail.projectId) {
+        await this.invalidateProjectCache(data.projectId);
+      }
     }
 
     console.log(`🔄 Thumbnail updated: ${id}`);
@@ -456,6 +461,57 @@ export class ThumbnailService {
       `⭐ Thumbnail set as featured: ${thumbnailId} in project ${projectId}`
     );
     return thumbnail;
+  }
+
+  async bulkMoveThumbnails(
+    thumbnailIds: string[],
+    targetProjectId: string,
+    userId: string
+  ) {
+    // Get existing thumbnails to find affected source projects
+    const existingThumbnails = await this.prisma.thumbnail.findMany({
+      where: {
+        id: { in: thumbnailIds },
+        userId,
+        deletedAt: null,
+      },
+      select: { id: true, projectId: true },
+    });
+
+    if (existingThumbnails.length === 0) {
+      throw new Error('No valid thumbnails found');
+    }
+
+    // Collect unique source project IDs for cache invalidation
+    const sourceProjectIds = [
+      ...new Set(existingThumbnails.map(t => t.projectId)),
+    ];
+
+    // Batch update all thumbnails to the new project
+    const result = await this.prisma.thumbnail.updateMany({
+      where: {
+        id: { in: existingThumbnails.map(t => t.id) },
+        userId,
+      },
+      data: { projectId: targetProjectId },
+    });
+
+    // Invalidate caches for all affected projects + user thumbnails
+    await this.invalidateUserThumbnailsCache(userId);
+    await this.invalidateProjectCache(targetProjectId);
+    for (const pid of sourceProjectIds) {
+      await this.invalidateProjectCache(pid);
+    }
+
+    // Invalidate individual thumbnail caches
+    for (const tid of existingThumbnails.map(t => t.id)) {
+      await this.cache.del(`thumbnail:${tid}`);
+    }
+
+    console.log(
+      `📦 Bulk moved ${result.count} thumbnails to project ${targetProjectId}`
+    );
+    return { count: result.count, movedIds: existingThumbnails.map(t => t.id) };
   }
 
   // Cache invalidation helper methods

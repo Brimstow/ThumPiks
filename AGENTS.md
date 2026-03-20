@@ -165,6 +165,7 @@ IF changes are lost:
 8. ❌ **Not warning about potential data loss** - User's work is SACRED!
 9. ❌ **Violating DRY (Don't Repeat Yourself) principle** - See section below!
 10. ❌ **Starting servers without checking if ports are in use** - See Server Lifecycle section!
+11. ❌ **Using `prisma migrate dev` instead of `prisma db push`** - See Prisma Schema Changes section!
 
 ---
 
@@ -186,20 +187,22 @@ ELSE:
 ### Parameters (Use Only When Needed)
 
 **Ports:**
-| Service  | Port | URL                    |
+| Service | Port | URL |
 | -------- | ---- | ---------------------- |
-| Frontend | 8556 | http://localhost:8556  |
-| Backend  | 8550 | http://localhost:8550  |
-| Redis    | 8520 | redis://localhost:8520 |
+| Frontend | 8556 | http://localhost:8556 |
+| Backend | 8550 | http://localhost:8550 |
+| Redis | 8520 | redis://localhost:8520 |
 
 **Commands:**
+
 ```bash
 npm run stop:all      # Stop all servers
-npm run build:all     # Build all services  
+npm run build:all     # Build all services
 npm run start:all     # Start all servers
 ```
 
 **Full restart sequence (when needed):**
+
 ```bash
 npm run stop:all && npm run build:all && npm run start:all
 ```
@@ -207,12 +210,14 @@ npm run stop:all && npm run build:all && npm run start:all
 ### When to Apply These Parameters
 
 **✅ USE these parameters when:**
+
 - User explicitly requests rebuild/restart
 - Testing with Playwright MCP (use correct port)
 - Port conflict errors occur (EADDRINUSE)
 - User reports stale content or "site not loading"
 
 **🚫 IGNORE these parameters when:**
+
 - Task is code-only (editing, reading, searching)
 - Task is documentation or planning
 - No server interaction required
@@ -221,6 +226,7 @@ npm run stop:all && npm run build:all && npm run start:all
 ### Verification (When Executed)
 
 After server restart, confirm:
+
 1. Login page appears → Cache cleared, frontend rebuilt
 2. No console errors → Check DevTools
 3. Correct port responded → `http://localhost:8556`
@@ -239,13 +245,15 @@ After server restart, confirm:
 
 **What Happened:**  
 Model tier configuration had the same model IDs hardcoded **9 times** across 4 tool configurations:
+
 - `google/gemini-2.5-flash-image` appeared 5 times
 - `google/gemini-3-pro-image-preview` appeared 4 times
 - `black-forest-labs/flux-schnell` (non-existent model) appeared 2 times
 
 When Windsurf AI tried to update the Flash tier model, it had to change multiple locations and **missed updating 2 places**, leaving broken FLUX references.
 
-**Impact:**  
+**Impact:**
+
 - Flash tier didn't generate images (API errors)
 - Inconsistent configuration across tools
 - High maintenance burden
@@ -253,48 +261,52 @@ When Windsurf AI tried to update the Flash tier model, it had to change multiple
 
 **Resolution:**  
 Refactored to use centralized provider configuration:
+
 ```typescript
 // SINGLE SOURCE OF TRUTH
 const TIER_PROVIDER_MAP = {
-  flash: 'comet',      // Change ONE line to switch ALL Flash tiers
-  standard: 'openrouter',
-  pro: 'openrouter',
+  flash: "comet", // Change ONE line to switch ALL Flash tiers
+  standard: "openrouter",
+  pro: "openrouter",
 };
 
 // Helper functions resolve models from central config
-modelId: getModelForTier('flash')  // ✅ DRY compliant
+modelId: getModelForTier("flash"); // ✅ DRY compliant
 // NOT: modelId: 'flux-schnell'     // ❌ Hardcoded duplication
 ```
 
 ### DRY Violation Patterns to Avoid
 
 #### ❌ BAD: Hardcoded Duplication
+
 ```typescript
 // Tool 1
 const tool1Config = {
-  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Hardcoded
+  flash: { modelId: "google/gemini-2.5-flash-image" }, // Hardcoded
 };
 
 // Tool 2
 const tool2Config = {
-  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Duplicated!
+  flash: { modelId: "google/gemini-2.5-flash-image" }, // Duplicated!
 };
 
 // Tool 3
 const tool3Config = {
-  flash: { modelId: 'google/gemini-2.5-flash-image' }  // Duplicated!
+  flash: { modelId: "google/gemini-2.5-flash-image" }, // Duplicated!
 };
 ```
 
 **Problems:**
+
 - Need to update 3+ places when changing model
 - Easy to miss locations (inconsistency)
 - No compile-time guarantee of consistency
 
 #### ✅ GOOD: Centralized Configuration
+
 ```typescript
 // Single source of truth
-const FLASH_MODEL = 'google/gemini-2.5-flash-image';
+const FLASH_MODEL = "google/gemini-2.5-flash-image";
 
 // All tools reference the central value
 const tool1Config = { flash: { modelId: FLASH_MODEL } };
@@ -303,12 +315,13 @@ const tool3Config = { flash: { modelId: FLASH_MODEL } };
 ```
 
 #### ✅ BETTER: Provider-Tier Mapping
+
 ```typescript
 // Centralized provider-tier mapping
 const TIER_PROVIDERS = {
-  flash: 'comet',
-  standard: 'openrouter',
-  pro: 'openrouter',
+  flash: "comet",
+  standard: "openrouter",
+  pro: "openrouter",
 };
 
 // Helper function resolves model dynamically
@@ -318,7 +331,7 @@ function getModelForTier(tier: TierId): string {
 }
 
 // All tools use the helper
-const tool1Config = { flash: { modelId: getModelForTier('flash') } };
+const tool1Config = { flash: { modelId: getModelForTier("flash") } };
 ```
 
 ### When to Apply DRY
@@ -344,11 +357,13 @@ Before committing configuration changes:
 ### Exception: When Duplication is OK
 
 **Special Cases** (document why):
+
 - Tool-specific overrides (e.g., face-swap uses Seedream, not generic Flash model)
 - Performance-critical inline values (rare)
 - Third-party API responses (can't control format)
 
 **ALWAYS add a comment explaining the exception:**
+
 ```typescript
 modelId: 'bytedance-seed/seedream-4.5',  // Special case: Seedream optimized for faces
 ```
@@ -666,6 +681,7 @@ You are a **polyglot JS/TS coding assistant** for the Thumbnail Maker project.
 - **Database (Prisma + PostgreSQL) – Declarative**
   - All DB access goes through the **Prisma client**.
   - Prefer Prisma's typed query API; raw SQL is allowed only in clearly justified helpers, not in controllers or React code.
+  - **Schema changes: see Prisma Schema Changes section below.**
 
 - **Workers / Heavy AI Processing**
   - Heavy or long-running AI/image work should run in **Web Workers or backend jobs**, not in the React render path.
@@ -731,6 +747,65 @@ You are a **polyglot JS/TS coding assistant** for the Thumbnail Maker project.
 
 ---
 
+## 🗄️ PRISMA SCHEMA CHANGES (MANDATORY)
+
+**This rule prevents accidental data loss during development.**
+
+### The Golden Rule
+
+**ALWAYS use `npx prisma db push` for schema changes during development. NEVER use `npx prisma migrate dev` unless explicitly asked by the user.**
+
+### Why This Matters
+
+| Command                | What It Does                                                                              | Risk                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `prisma db push`       | Applies schema diff to DB directly. Warns before destructive changes. No migration files. | **Low** — warns you, won't silently drop data       |
+| `prisma migrate dev`   | Creates SQL migration file, may prompt to reset DB if drift detected.                     | **HIGH** — can drop all data if schema drift exists |
+| `prisma migrate reset` | Drops entire DB and re-applies all migrations from scratch.                               | **EXTREME** — total data loss                       |
+
+### Required Workflow
+
+```
+1. Edit prisma/schema.prisma
+2. Stop the backend server (Prisma DLL is locked while running)
+3. Run: npx prisma db push
+4. Run: npx prisma generate  (regenerate the typed client)
+5. Restart the backend server
+```
+
+### When `prisma db push` Warns About Destructive Changes
+
+If `prisma db push` says it needs to drop a column or table:
+
+1. **STOP** — do NOT accept the prompt
+2. **WARN** the user: "This schema change would drop column X / table Y. Proceed?"
+3. **Only continue** with explicit user approval
+4. Consider creating a manual migration script if data migration is needed
+
+### When `prisma migrate dev` IS Acceptable
+
+- User explicitly says "create a migration" or "I want migration files"
+- Preparing for production deployment (migrations are required for production)
+- User explicitly asks for `prisma migrate dev`
+
+### Incident That Created This Rule
+
+**Date:** March 2026
+**What Happened:** Agent used `prisma migrate dev` after schema changes. Prisma detected schema drift and prompted to reset the database. This risked dropping all development data.
+**Resolution:** Switched to `prisma db push` workflow for development. Migration files created only when preparing for production.
+
+**User's data is SACRED. Use `db push` first. Always.**
+
+### Common Mistakes
+
+- ❌ Running `prisma migrate dev` by default for schema changes
+- ❌ Running `prisma migrate reset` without explicit user permission
+- ❌ Accepting destructive prompts from `prisma db push` without warning the user
+- ❌ Forgetting to stop the backend before running `prisma generate` (DLL locked on Windows)
+- ❌ Forgetting to run `prisma generate` after `db push` (stale types in code)
+
+---
+
 ## 🧪 TESTING CONVENTIONS (CONDITIONAL REFERENCE)
 
 **Parameters loaded on-demand. Apply ONLY when the task explicitly involves writing or fixing tests.**
@@ -749,12 +824,14 @@ ELSE:
 ### When to Apply These Conventions
 
 **✅ USE when:**
+
 - User says "write tests", "add tests", "we should test this"
 - Pre-push hook fails due to coverage thresholds
 - A test is failing and you need to investigate
 - User says "fix the tests" or "all tests must pass"
 
 **🚫 IGNORE when:**
+
 - Task is feature implementation only
 - Task is UI, routing, or config work
 - No tests are mentioned or implied
@@ -791,8 +868,8 @@ ReferenceError: Cannot access 'mockPrisma' before initialization
 
 ```typescript
 // Factory uses only inline values — no external variable references
-jest.mock('../../../utils/prisma-factory', () => ({
-  getPrisma: jest.fn(() => ({})),  // ← inline, no variable reference
+jest.mock("../../../utils/prisma-factory", () => ({
+  getPrisma: jest.fn(() => ({})), // ← inline, no variable reference
 }));
 
 // Stable mock object declared AFTER the jest.mock calls
@@ -809,22 +886,24 @@ beforeEach(() => {
 **✅ CORRECT — Global storage for PrismaClient pattern (when `new PrismaClient()` is called at module level):**
 
 ```typescript
-jest.mock('@prisma/client', () => {
+jest.mock("@prisma/client", () => {
   const store = { myTable: { findMany: jest.fn(), create: jest.fn() } };
-  (global as any).__myModuleMock = store;  // store in global to avoid TDZ
+  (global as any).__myModuleMock = store; // store in global to avoid TDZ
   return { PrismaClient: jest.fn().mockImplementation(() => store) };
 });
 
 // Getter function reads from global — no TDZ risk
-function getMock() { return (global as any).__myModuleMock; }
+function getMock() {
+  return (global as any).__myModuleMock;
+}
 ```
 
 **❌ WRONG — References outer variable inside factory:**
 
 ```typescript
 const mockPrisma = { user: { findUnique: jest.fn() } }; // ← TDZ: accessed before init
-jest.mock('../../../utils/prisma-factory', () => ({
-  getPrisma: jest.fn(() => mockPrisma),  // ← crashes at runtime
+jest.mock("../../../utils/prisma-factory", () => ({
+  getPrisma: jest.fn(() => mockPrisma), // ← crashes at runtime
 }));
 ```
 
@@ -842,11 +921,12 @@ export class MyService {
 
   constructor(sleepFn?: (ms: number) => Promise<void>) {
     // Real implementation in production; no-op injected in tests
-    this.sleep = sleepFn ?? ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.sleep =
+      sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   private async pollUntilDone(): Promise<void> {
-    await this.sleep(1000);  // Uses injected fn — instant in tests
+    await this.sleep(1000); // Uses injected fn — instant in tests
   }
 }
 ```
@@ -857,7 +937,7 @@ export class MyService {
 const noopSleep = () => Promise.resolve();
 
 beforeEach(() => {
-  service = new MyService(noopSleep);  // polling resolves instantly
+  service = new MyService(noopSleep); // polling resolves instantly
 });
 ```
 
@@ -871,12 +951,12 @@ When a service has retry logic (exponential backoff), **terminal states must be 
 
 ```typescript
 // WRONG — plain Error has no retryable=false, retry loop will retry it
-throw new Error('Prediction was canceled');
+throw new Error("Prediction was canceled");
 
 // CORRECT — explicitly non-retryable
 throw Object.assign(
-  new Error('Prediction was canceled'),
-  { isRetryable: false }  // ← retry loop checks this and bails immediately
+  new Error("Prediction was canceled"),
+  { isRetryable: false }, // ← retry loop checks this and bails immediately
 );
 ```
 
@@ -887,14 +967,14 @@ Terminal states that must NEVER retry: `failed`, `canceled`, `invalid_input`, `f
 ### Test Structure Template
 
 ```typescript
-describe('ServiceName', () => {
+describe("ServiceName", () => {
   let service: ServiceName;
 
   beforeEach(() => {
     jest.clearAllMocks();
     // Set env vars needed by service
-    process.env.MY_API_KEY = 'test-key';
-    service = new ServiceName(noopSleep);  // inject no-op for timing
+    process.env.MY_API_KEY = "test-key";
+    service = new ServiceName(noopSleep); // inject no-op for timing
   });
 
   afterEach(() => {
@@ -902,22 +982,20 @@ describe('ServiceName', () => {
     delete process.env.MY_API_KEY;
   });
 
-  describe('methodName', () => {
-    it('describes expected behavior for given input', async () => {
+  describe("methodName", () => {
+    it("describes expected behavior for given input", async () => {
       // arrange
-      mockDep.method.mockResolvedValueOnce({ id: '1', status: 'ok' });
+      mockDep.method.mockResolvedValueOnce({ id: "1", status: "ok" });
       // act
-      const result = await service.methodName('input');
+      const result = await service.methodName("input");
       // assert
-      expect(result).toBe('expected');
+      expect(result).toBe("expected");
     });
   });
 });
 ```
 
 ---
-
-
 
 ### Core Philosophy: Tests Are Contracts, Not Obstacles
 

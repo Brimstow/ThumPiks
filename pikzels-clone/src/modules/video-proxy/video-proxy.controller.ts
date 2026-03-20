@@ -4,6 +4,22 @@ import { videoProxyService } from './video-proxy.service';
 import { ytDlpUtil, YtDlpVideoInfo } from './yt-dlp.util';
 import { extractFramesFromVideo } from './ffmpeg-frames.util';
 import { logger } from '../../utils/logger';
+import { AuthRequest } from '../../types/auth';
+import {
+  getFrameCycles,
+  getFrameCycleByIndex,
+  appendFrameCycle,
+  getFrameCyclesMeta as getCyclesMeta,
+  StoredFrame,
+  storeFramePool,
+  generateCycleFromPool,
+  clearFrameData,
+  POOL_EXTRACT_COUNT,
+} from './frame-cycle-cache.service';
+import {
+  checkFrameRateLimit,
+  recordFrameExtraction,
+} from './frame-rate-limit.service';
 
 /**
  * Cache resolved CDN URLs so the browser's Range requests
@@ -213,7 +229,9 @@ export class VideoProxyController {
       upstream.data.on('error', (error: Error) => {
         logger.error('Upstream stream error', error);
         if (!res.headersSent) {
-          res.status(500).json({ success: false, error: 'Stream error occurred' });
+          res
+            .status(500)
+            .json({ success: false, error: 'Stream error occurred' });
         }
       });
 
@@ -412,7 +430,8 @@ export class VideoProxyController {
         return;
       }
 
-      const frames = await videoProxyService.getYouTubeStoryboardFrames(videoId);
+      const frames =
+        await videoProxyService.getYouTubeStoryboardFrames(videoId);
 
       res.json({
         success: true,
@@ -427,7 +446,10 @@ export class VideoProxyController {
       logger.error('Failed to get storyboard frames', error as Error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get storyboard frames',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to get storyboard frames',
       });
     }
   }
@@ -441,7 +463,9 @@ export class VideoProxyController {
       const { url } = req.query;
 
       if (!url || typeof url !== 'string') {
-        res.status(400).json({ success: false, error: 'URL parameter is required' });
+        res
+          .status(400)
+          .json({ success: false, error: 'URL parameter is required' });
         return;
       }
 
@@ -455,7 +479,8 @@ export class VideoProxyController {
       logger.error('Failed to get video frames', error as Error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get video frames',
+        error:
+          error instanceof Error ? error.message : 'Failed to get video frames',
       });
     }
   }
@@ -463,19 +488,37 @@ export class VideoProxyController {
   /**
    * GET /api/video/frames/stream
    * SSE endpoint — streams real-time progress as frames are extracted.
+   *
+   * Query params:
+   *   url     — video URL (required)
+   *   cycle   — "new" to extract fresh frames, or a number to return a cached cycle
+   *
+   * When cycle is a number and it exists in cache, frames are returned instantly
+   * without re-extraction. When cycle="new" (or omitted for first extraction),
+   * frames are extracted with randomized timestamps and stored as a new cycle.
+   *
+   * Rate limiting is enforced per user plan (see subscription.config.ts).
+   * Rate limit info is sent as the first SSE event.
+   *
    * Events:
-   *   phase:resolving  — getting video info + stream URL
-   *   phase:extracting — extracting frame N of M
-   *   phase:done       — all frames extracted, includes full data
-   *   phase:error      — extraction failed
+   *   ratelimit  — rate limit info (dailyUsed, dailyLimit, etc.)
+   *   progress   — phase:resolving | extracting
+   *   frame      — individual frame extracted
+   *   complete   — all frames ready (includes cycleIndex, totalCycles)
+   *   error      — extraction failed
    */
   async getVideoFramesStream(req: Request, res: Response): Promise<void> {
-    const { url } = req.query;
+    const { url, cycle } = req.query;
 
     if (!url || typeof url !== 'string') {
-      res.status(400).json({ success: false, error: 'URL parameter is required' });
+      res
+        .status(400)
+        .json({ success: false, error: 'URL parameter is required' });
       return;
     }
+
+    // Identify user (optional auth — anonymous users get free-tier limits)
+    const userId = (req as AuthRequest).user?.id ?? `anon:${req.ip}`;
 
     // SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -492,11 +535,16 @@ export class VideoProxyController {
 
     // Abort flag — stop work if the client disconnects
     let aborted = false;
-    req.on('close', () => { aborted = true; });
+    req.on('close', () => {
+      aborted = true;
+    });
 
     try {
-      // Phase 1: Resolve video info
-      send('progress', { phase: 'resolving', message: 'Getting video info...' });
+      // Phase 1: Connecting — resolve video metadata
+      send('progress', {
+        phase: 'connecting',
+        message: 'Connecting to video...',
+      });
 
       const info = await videoProxyService.getVideoInfo(url);
 
@@ -510,35 +558,155 @@ export class VideoProxyController {
         uploader: info.uploader,
       };
 
-      send('progress', { phase: 'resolving', message: 'Getting stream URL...' });
+      send('progress', {
+        phase: 'analyzing',
+        message: 'Analyzing video metadata...',
+      });
 
-      if (!info.duration || info.duration <= 0) {
-        // No duration — fall back to regular endpoint
-        send('progress', { phase: 'resolving', message: 'Falling back to thumbnails...' });
-        const result = await videoProxyService.getVideoFrames(url);
-        send('complete', { frames: result.frames, videoInfo: result.videoInfo });
+      // ── Return a cached cycle if requested by index ──
+      if (cycle !== undefined && cycle !== 'new') {
+        const cycleIdx = parseInt(cycle as string, 10);
+        if (!isNaN(cycleIdx)) {
+          const cached = await getFrameCycleByIndex(
+            userId,
+            info.videoId,
+            cycleIdx
+          );
+          if (cached) {
+            const meta = await getCyclesMeta(userId, info.videoId);
+            send('complete', {
+              frames: cached.frames,
+              videoInfo,
+              cycleIndex: cached.cycleIndex,
+              totalCycles: meta?.totalCycles ?? 1,
+            });
+            res.end();
+            return;
+          }
+          // Cycle not found — fall through to extract new
+        }
+      }
+
+      // ── Regenerate: try instant shuffle from pool first ──
+      const isRegenerate = cycle === 'new';
+
+      if (isRegenerate) {
+        // Check rate limit before regeneration
+        const rateCheck = await checkFrameRateLimit(userId, info.videoId, true);
+        send('ratelimit', {
+          dailyUsed: rateCheck.dailyUsed,
+          dailyLimit: rateCheck.dailyLimit,
+          urlRegenerateUsed: rateCheck.urlRegenerateUsed,
+          urlRegenerateLimit: rateCheck.urlRegenerateLimit,
+          planType: rateCheck.planType,
+        });
+
+        if (!rateCheck.allowed) {
+          send('error', { message: rateCheck.reason });
+          res.end();
+          return;
+        }
+
+        // Try instant shuffle from existing pool
+        const poolCycle = await generateCycleFromPool(userId, info.videoId);
+        if (poolCycle) {
+          // Record rate limit usage
+          await recordFrameExtraction(userId, info.videoId, true);
+          send('complete', {
+            frames: poolCycle.frames,
+            videoInfo,
+            cycleIndex: poolCycle.cycleIndex,
+            totalCycles: poolCycle.totalCycles,
+          });
+          res.end();
+          return;
+        }
+        // No pool exists — fall through to full extraction
+      }
+
+      // ── Check if we already have cycles cached (first visit returns cycle 0) ──
+      const existingCycles = await getFrameCycles(userId, info.videoId);
+      const hasExisting = existingCycles && existingCycles.cycles.length > 0;
+
+      if (!isRegenerate && hasExisting) {
+        // Return the latest cached cycle
+        const latest =
+          existingCycles!.cycles[existingCycles!.cycles.length - 1]!;
+        send('complete', {
+          frames: latest.frames,
+          videoInfo,
+          cycleIndex: latest.cycleIndex,
+          totalCycles: existingCycles!.cycles.length,
+        });
         res.end();
         return;
       }
 
+      // ── Rate limit check (before expensive extraction) ──
+      if (!isRegenerate) {
+        const rateCheck = await checkFrameRateLimit(
+          userId,
+          info.videoId,
+          false
+        );
+        send('ratelimit', {
+          dailyUsed: rateCheck.dailyUsed,
+          dailyLimit: rateCheck.dailyLimit,
+          urlRegenerateUsed: rateCheck.urlRegenerateUsed,
+          urlRegenerateLimit: rateCheck.urlRegenerateLimit,
+          planType: rateCheck.planType,
+        });
+
+        if (!rateCheck.allowed) {
+          send('error', { message: rateCheck.reason });
+          res.end();
+          return;
+        }
+      }
+
+      // ── No duration → fall back to thumbnail-only mode ──
+      if (!info.duration || info.duration <= 0) {
+        send('progress', {
+          phase: 'analyzing',
+          message: 'Falling back to thumbnails...',
+        });
+        const result = await videoProxyService.getVideoFrames(url);
+        send('complete', {
+          frames: result.frames,
+          videoInfo: result.videoInfo,
+          cycleIndex: 0,
+          totalCycles: 1,
+        });
+        res.end();
+        return;
+      }
+
+      send('progress', {
+        phase: 'preparing',
+        message: 'Preparing stream for extraction...',
+      });
       const streamUrl = await ytDlpUtil.getStreamUrl(url, 'best');
 
       if (aborted) return;
 
-      send('progress', { phase: 'extracting', current: 0, total: 8, message: 'Starting frame extraction...' });
+      // Phase 2: Extract POOL_EXTRACT_COUNT frames (over-extract for instant regeneration)
+      const extractCount = POOL_EXTRACT_COUNT;
+      send('progress', {
+        phase: 'extracting',
+        current: 0,
+        total: extractCount,
+        message: 'Starting frame extraction...',
+      });
 
-      // Phase 2: Extract frames with progress
       const extracted = await extractFramesFromVideo(
         streamUrl,
         info.duration!,
-        info.videoId,
-        8,
+        extractCount,
         1280,
         720,
-        (event) => {
+        event => {
           if (aborted) return;
           if (event.phase === 'extracting' && !event.frame) {
-            // Starting extraction of this frame
             send('progress', {
               phase: 'extracting',
               current: event.current,
@@ -546,7 +714,6 @@ export class VideoProxyController {
               message: `Extracting frame ${event.current} of ${event.total}...`,
             });
           } else if (event.phase === 'extracting' && event.frame) {
-            // Frame completed — send as a preview
             send('frame', {
               index: event.current - 1,
               current: event.current,
@@ -558,26 +725,93 @@ export class VideoProxyController {
             });
           }
         },
+        true // always randomize timestamps for pool diversity
       );
 
       if (aborted) return;
 
-      // Phase 3: Send complete result
-      const frames = extracted.map((f) => ({
+      // Phase 3: Clear old data and store fresh pool in Redis
+      const allStoredFrames: StoredFrame[] = extracted.map(f => ({
         url: `data:image/jpeg;base64,${f.buffer.toString('base64')}`,
         label: f.label,
         width: 1280,
         height: 720,
       }));
 
-      send('complete', { frames, videoInfo });
+      // Wipe old pool + cycles so stale frames never mix with new ones
+      await clearFrameData(userId, info.videoId);
+      await storeFramePool(userId, info.videoId, allStoredFrames);
+
+      // Phase 4: Pick first 8 as cycle 0 and store
+      const firstCycleFrames = allStoredFrames.slice(0, 8);
+      const { cycle: newCycle, totalCycles } = await appendFrameCycle(
+        userId,
+        info.videoId,
+        firstCycleFrames
+      );
+
+      // Record successful extraction for rate limiting
+      await recordFrameExtraction(userId, info.videoId, isRegenerate);
+
+      send('complete', {
+        frames: firstCycleFrames,
+        videoInfo,
+        cycleIndex: newCycle.cycleIndex,
+        totalCycles,
+      });
       res.end();
     } catch (error) {
       logger.error('SSE frame extraction failed', error as Error);
       send('error', {
-        message: error instanceof Error ? error.message : 'Frame extraction failed',
+        message:
+          error instanceof Error ? error.message : 'Frame extraction failed',
       });
       res.end();
+    }
+  }
+
+  /**
+   * GET /api/video/frames/cycles
+   * Returns metadata about stored frame cycles for a user+video.
+   * Query params: url (required)
+   */
+  async getFrameCyclesMeta(req: Request, res: Response): Promise<void> {
+    const { url } = req.query;
+    if (!url || typeof url !== 'string') {
+      res
+        .status(400)
+        .json({ success: false, error: 'URL parameter is required' });
+      return;
+    }
+
+    const userId = (req as AuthRequest).user?.id ?? `anon:${req.ip}`;
+
+    try {
+      const info = await videoProxyService.getVideoInfo(url);
+      const meta = await getCyclesMeta(userId, info.videoId);
+      const rateCheck = await checkFrameRateLimit(userId, info.videoId, true);
+
+      res.json({
+        success: true,
+        data: {
+          videoId: info.videoId,
+          ...(meta ?? { totalCycles: 0, cycles: [] }),
+          rateLimit: {
+            dailyUsed: rateCheck.dailyUsed,
+            dailyLimit: rateCheck.dailyLimit,
+            urlRegenerateUsed: rateCheck.urlRegenerateUsed,
+            urlRegenerateLimit: rateCheck.urlRegenerateLimit,
+            planType: rateCheck.planType,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to get frame cycles meta', error as Error);
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to get frame cycles',
+      });
     }
   }
 

@@ -6,6 +6,7 @@ import {
   getThumbnailById,
   updateThumbnail,
   deleteThumbnail,
+  bulkMoveThumbnails,
   generateThumbnail,
   downloadThumbnail,
   applyEdits,
@@ -75,6 +76,18 @@ router.post(
 router.get('/', cacheMiddleware({ ttl: 300 }), (req, res) =>
   getThumbnails(req as AuthRequest, res)
 );
+
+// Bulk move thumbnails between projects
+router.post(
+  '/bulk-move',
+  invalidateCacheMiddleware([
+    `api:*:/thumbnails:*`,
+    `thumbnail:*`,
+    CacheKeys.userThumbnails('*'),
+  ]),
+  (req, res) => bulkMoveThumbnails(req as AuthRequest, res)
+);
+
 router.get('/:id', cacheMiddleware({ ttl: 600 }), (req, res) =>
   getThumbnailById(req as AuthRequest, res)
 );

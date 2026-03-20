@@ -606,7 +606,7 @@ describe('User App API Routes Tests', () => {
         expect(response.status).toBe(400);
         expect(response.body).toHaveProperty(
           'error',
-          'Title, prompt, and projectId are required'
+          'Title and projectId are required'
         );
       });
     });

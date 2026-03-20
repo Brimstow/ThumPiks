@@ -15,7 +15,8 @@ module.exports = {
     ecmaFeatures: {
       jsx: true
     },
-    project: './tsconfig.json'
+    project: './tsconfig.json',
+    tsconfigRootDir: __dirname
   },
   rules: {
     // Naming conventions

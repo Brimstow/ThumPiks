@@ -36,22 +36,25 @@ export class UserUrlHistoryService {
           title: data.title ?? existing.title,
           platform: data.platform ?? existing.platform,
           thumbnailUrl: data.thumbnailUrl ?? existing.thumbnailUrl,
-          selectedFrameTime: data.selectedFrameTime ?? existing.selectedFrameTime,
+          selectedFrameTime:
+            data.selectedFrameTime ?? existing.selectedFrameTime,
           createdAt: new Date(), // bump to top of recents
         },
       });
-      console.log(`🔗 URL history updated: ${updated.id} for user ${data.userId}`);
+      console.log(
+        `🔗 URL history updated: ${updated.id} for user ${data.userId}`
+      );
       return updated;
     }
 
-    // Enforce limit: keep last 20, evict oldest
+    // Enforce limit: keep last 50 total, evict oldest UNPINNED entry
     const count = await this.prisma.userUrlHistory.count({
       where: { userId: data.userId },
     });
 
-    if (count >= 20) {
+    if (count >= 50) {
       const oldest = await this.prisma.userUrlHistory.findFirst({
-        where: { userId: data.userId },
+        where: { userId: data.userId, pinned: false },
         orderBy: { createdAt: 'asc' },
       });
       if (oldest) {
@@ -75,16 +78,18 @@ export class UserUrlHistoryService {
     return entry;
   }
 
-  async getHistory(userId: string, limit = 20) {
+  async getHistory(userId: string, limit = 50) {
     return this.prisma.userUrlHistory.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
   }
 
   async deleteEntry(id: string, userId: string) {
-    const entry = await this.prisma.userUrlHistory.findUnique({ where: { id } });
+    const entry = await this.prisma.userUrlHistory.findUnique({
+      where: { id },
+    });
 
     if (!entry) {
       throw new Error('Entry not found');
@@ -95,6 +100,50 @@ export class UserUrlHistoryService {
 
     await this.prisma.userUrlHistory.delete({ where: { id } });
     return { success: true };
+  }
+
+  async togglePin(id: string, userId: string) {
+    const entry = await this.prisma.userUrlHistory.findUnique({
+      where: { id },
+    });
+    if (!entry) throw new Error('Entry not found');
+    if (entry.userId !== userId) throw new Error('Forbidden');
+
+    const updated = await this.prisma.userUrlHistory.update({
+      where: { id },
+      data: { pinned: !entry.pinned },
+    });
+    console.log(`🔗 URL ${updated.pinned ? 'pinned' : 'unpinned'}: ${id}`);
+    return updated;
+  }
+
+  async bulkDelete(ids: string[], userId: string) {
+    // Verify all entries belong to this user
+    const entries = await this.prisma.userUrlHistory.findMany({
+      where: { id: { in: ids }, userId },
+      select: { id: true },
+    });
+    const validIds = entries.map(e => e.id);
+    if (validIds.length === 0) throw new Error('No valid entries found');
+
+    const result = await this.prisma.userUrlHistory.deleteMany({
+      where: { id: { in: validIds } },
+    });
+    console.log(
+      `🔗 URL history bulk deleted: ${result.count} entries for user ${userId}`
+    );
+    return { success: true, deletedCount: result.count };
+  }
+
+  async clearAll(userId: string, includePinned = false) {
+    const where: { userId: string; pinned?: boolean } = { userId };
+    if (!includePinned) where.pinned = false;
+
+    const result = await this.prisma.userUrlHistory.deleteMany({ where });
+    console.log(
+      `🔗 URL history cleared: ${result.count} entries for user ${userId}`
+    );
+    return { success: true, deletedCount: result.count };
   }
 }
 

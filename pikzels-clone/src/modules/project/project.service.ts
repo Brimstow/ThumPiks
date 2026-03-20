@@ -177,13 +177,28 @@ export class ProjectService {
           orderBy.createdAt = 'desc';
         }
 
-        return this.prisma.project.findMany({
+        const projects = await this.prisma.project.findMany({
           where,
           orderBy,
           include: {
             Thumbnail_Project_featuredThumbnailIdToThumbnail: true,
+            _count: {
+              select: { Thumbnail_Thumbnail_projectIdToProject: true },
+            },
           },
         });
+
+        // Map _count to a flat thumbnailCount field for frontend
+        return projects.map(p => ({
+          ...p,
+          thumbnailCount: p._count?.Thumbnail_Thumbnail_projectIdToProject ?? 0,
+          featuredThumbnail: p.Thumbnail_Project_featuredThumbnailIdToThumbnail
+            ? {
+                imageUrl:
+                  p.Thumbnail_Project_featuredThumbnailIdToThumbnail.imageUrl,
+              }
+            : null,
+        }));
       },
       300 // Cache for 5 minutes
     );

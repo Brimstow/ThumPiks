@@ -926,9 +926,15 @@ const ProjectsPage: React.FC = () => {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                      <Calendar className="w-3 h-3" />
-                      Edited {formatTimeAgo(project.updatedAt)}
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" />
+                        {(project as any).thumbnailCount ?? 0} thumbnails
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        Edited {formatTimeAgo(project.updatedAt)}
+                      </span>
                     </div>
                   </div>
                 );

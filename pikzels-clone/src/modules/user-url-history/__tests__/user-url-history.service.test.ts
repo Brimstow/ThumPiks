@@ -6,7 +6,10 @@ jest.mock('../../../utils/prisma-factory', () => ({
 // Mock uuid
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid-url-1') }));
 
-import { UserUrlHistoryService, getUserUrlHistoryService } from '../user-url-history.service';
+import {
+  UserUrlHistoryService,
+  getUserUrlHistoryService,
+} from '../user-url-history.service';
 
 // Injected via constructor to avoid module-level getPrisma() issue
 const mockPrisma: any = {
@@ -48,7 +51,11 @@ describe('UserUrlHistoryService', () => {
     describe('when URL already exists for user', () => {
       it('updates existing entry and bumps createdAt', async () => {
         mockPrisma.userUrlHistory.findUnique.mockResolvedValue(baseEntry);
-        const updated = { ...baseEntry, title: 'Updated Title', createdAt: new Date() };
+        const updated = {
+          ...baseEntry,
+          title: 'Updated Title',
+          createdAt: new Date(),
+        };
         mockPrisma.userUrlHistory.update.mockResolvedValue(updated);
 
         const result = await service.upsertUrl({
@@ -58,7 +65,12 @@ describe('UserUrlHistoryService', () => {
         });
 
         expect(mockPrisma.userUrlHistory.findUnique).toHaveBeenCalledWith({
-          where: { userId_url: { userId: 'user-abc', url: 'https://youtube.com/watch?v=abc123' } },
+          where: {
+            userId_url: {
+              userId: 'user-abc',
+              url: 'https://youtube.com/watch?v=abc123',
+            },
+          },
         });
         expect(mockPrisma.userUrlHistory.update).toHaveBeenCalledWith({
           where: { id: baseEntry.id },
@@ -71,7 +83,10 @@ describe('UserUrlHistoryService', () => {
         mockPrisma.userUrlHistory.findUnique.mockResolvedValue(baseEntry);
         mockPrisma.userUrlHistory.update.mockResolvedValue(baseEntry);
 
-        await service.upsertUrl({ userId: 'user-abc', url: 'https://youtube.com/watch?v=abc123' });
+        await service.upsertUrl({
+          userId: 'user-abc',
+          url: 'https://youtube.com/watch?v=abc123',
+        });
 
         expect(mockPrisma.userUrlHistory.update).toHaveBeenCalledWith({
           where: { id: baseEntry.id },
@@ -111,15 +126,18 @@ describe('UserUrlHistoryService', () => {
         expect(result).toEqual(baseEntry);
       });
 
-      it('evicts oldest entry when at limit (20)', async () => {
-        mockPrisma.userUrlHistory.count.mockResolvedValue(20);
+      it('evicts oldest unpinned entry when at limit (50)', async () => {
+        mockPrisma.userUrlHistory.count.mockResolvedValue(50);
         const oldestEntry = { id: 'oldest-id' };
         mockPrisma.userUrlHistory.findFirst.mockResolvedValue(oldestEntry);
 
-        await service.upsertUrl({ userId: 'user-abc', url: 'https://new-url.com' });
+        await service.upsertUrl({
+          userId: 'user-abc',
+          url: 'https://new-url.com',
+        });
 
         expect(mockPrisma.userUrlHistory.findFirst).toHaveBeenCalledWith({
-          where: { userId: 'user-abc' },
+          where: { userId: 'user-abc', pinned: false },
           orderBy: { createdAt: 'asc' },
         });
         expect(mockPrisma.userUrlHistory.delete).toHaveBeenCalledWith({
@@ -131,7 +149,10 @@ describe('UserUrlHistoryService', () => {
       it('handles null optional fields gracefully', async () => {
         mockPrisma.userUrlHistory.count.mockResolvedValue(0);
 
-        await service.upsertUrl({ userId: 'user-abc', url: 'https://example.com' });
+        await service.upsertUrl({
+          userId: 'user-abc',
+          url: 'https://example.com',
+        });
 
         expect(mockPrisma.userUrlHistory.create).toHaveBeenCalledWith({
           data: expect.objectContaining({
@@ -146,15 +167,15 @@ describe('UserUrlHistoryService', () => {
   });
 
   describe('getHistory', () => {
-    it('returns recent entries ordered by date desc', async () => {
+    it('returns entries ordered by pinned then date desc', async () => {
       mockPrisma.userUrlHistory.findMany.mockResolvedValue([baseEntry]);
 
       const result = await service.getHistory('user-abc');
 
       expect(mockPrisma.userUrlHistory.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-abc' },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
+        orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+        take: 50,
       });
       expect(result).toEqual([baseEntry]);
     });
@@ -182,12 +203,19 @@ describe('UserUrlHistoryService', () => {
 
     it('throws when entry not found', async () => {
       mockPrisma.userUrlHistory.findUnique.mockResolvedValue(null);
-      await expect(service.deleteEntry('bad-id', 'user-abc')).rejects.toThrow('Entry not found');
+      await expect(service.deleteEntry('bad-id', 'user-abc')).rejects.toThrow(
+        'Entry not found'
+      );
     });
 
     it('throws when user does not own entry', async () => {
-      mockPrisma.userUrlHistory.findUnique.mockResolvedValue({ ...baseEntry, userId: 'other-user' });
-      await expect(service.deleteEntry('mock-uuid-url-1', 'user-abc')).rejects.toThrow('Forbidden');
+      mockPrisma.userUrlHistory.findUnique.mockResolvedValue({
+        ...baseEntry,
+        userId: 'other-user',
+      });
+      await expect(
+        service.deleteEntry('mock-uuid-url-1', 'user-abc')
+      ).rejects.toThrow('Forbidden');
     });
   });
 

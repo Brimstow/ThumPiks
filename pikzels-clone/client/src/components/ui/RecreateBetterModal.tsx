@@ -25,10 +25,10 @@ import {
   Users,
   Type,
   BarChart3,
-  Check,
 } from 'lucide-react';
 import { authPost } from '../../utils/api';
 import { useImageActions, enhancePromptFromAnalysis, calculateRecreateBetterCost } from '../../hooks/useImageActions';
+import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 import type { RecreateBetterModalProps, RecreateBetterStage } from '../../types/image-actions.types';
 import type { VisionAnalysisResult } from '../../types/vision.types';
 
@@ -44,7 +44,8 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
   onImageGenerated,
   onSave,
 }) => {
-  const { saveToLibrary, openInEditor, downloadImage } = useImageActions();
+  const { openInEditor, downloadImage } = useImageActions();
+  const { triggerSave, SaveModal } = useSaveThumbnail();
 
   // Self-management state (used when no props provided)
   const [internalOpen, setInternalOpen] = useState(false);
@@ -79,9 +80,6 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
   // Generation state
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
-  // Save state
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Calculate credit cost
   const creditCost = calculateRecreateBetterCost(!!existingAnalysis);
@@ -134,7 +132,6 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       setImprovedPrompt('');
       setImprovements([]);
       setGeneratedImageUrl(null);
-      setSaveSuccess(false);
     }
   }, [isOpen, existingAnalysis]);
 
@@ -205,25 +202,15 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
     }
   }, [improvedPrompt, onImageGenerated]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!generatedImageUrl) return;
 
-    setIsSaving(true);
-    try {
-      const result = await saveToLibrary(generatedImageUrl, {
-        title: `Improved Thumbnail ${new Date().toLocaleDateString()}`,
-        platform: 'youtube',
-      });
-
-      if (result.success) {
-        setSaveSuccess(true);
-        onSave?.(generatedImageUrl);
-        setTimeout(() => onClose(), 1500);
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  }, [generatedImageUrl, saveToLibrary, onSave, onClose]);
+    triggerSave(generatedImageUrl, {
+      title: `Improved Thumbnail ${new Date().toLocaleDateString()}`,
+      source: 'recreate-better',
+      prompt: improvedPrompt || undefined,
+    });
+  }, [generatedImageUrl, triggerSave, improvedPrompt]);
 
   const handleEdit = useCallback(() => {
     if (generatedImageUrl) {
@@ -451,17 +438,10 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           onClick={handleSave}
-          disabled={isSaving || saveSuccess}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
         >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : saveSuccess ? (
-            <Check className="w-4 h-4" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          {saveSuccess ? 'Saved!' : 'Save'}
+          <Save className="w-4 h-4" />
+          Save
         </button>
 
         <button
@@ -554,6 +534,7 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
           {stage === 'error' && renderErrorStage()}
         </div>
       </div>
+      {SaveModal}
     </div>
   );
 };

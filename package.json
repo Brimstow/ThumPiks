@@ -24,9 +24,12 @@
     "axios": "^1.11.0"
   },
   "lint-staged": {
-    "pikzels-clone/**/*.{ts,tsx,js,jsx}": [
+    "pikzels-clone/**/*.{ts,tsx}": [
       "cd pikzels-clone && prettier --write",
       "cd pikzels-clone && eslint --fix"
+    ],
+    "pikzels-clone/**/*.{js,jsx}": [
+      "cd pikzels-clone && prettier --write"
     ],
     "pikzels-clone/**/*.{json,md}": [
       "cd pikzels-clone && prettier --write"

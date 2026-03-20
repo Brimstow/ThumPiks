@@ -9,7 +9,7 @@ import {
 
 /**
  * Cloudinary Storage Provider
- * 
+ *
  * Handles image uploads to Cloudinary CDN with support for:
  * - Permanent thumbnail storage
  * - Temporary visual search uploads (with TTL)
@@ -17,7 +17,7 @@ import {
  * - CDN delivery
  */
 export class CloudinaryProvider implements StorageProvider {
-  name: 'cloudinary' = 'cloudinary';
+  name = 'cloudinary' as const;
   private configured = false;
 
   constructor() {
@@ -26,12 +26,12 @@ export class CloudinaryProvider implements StorageProvider {
 
   private configure(): void {
     const cloudinaryUrl = process.env.CLOUDINARY_URL;
-    
+
     if (cloudinaryUrl) {
       // CLOUDINARY_URL format: cloudinary://api_key:api_secret@cloud_name
       // Parse and configure explicitly for reliability
       const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
-      if (match && match[1] && match[2] && match[3]) {
+      if (match?.[1] && match[2] && match[3]) {
         cloudinary.config({
           api_key: match[1],
           api_secret: match[2],
@@ -64,7 +64,7 @@ export class CloudinaryProvider implements StorageProvider {
 
   async isAvailable(): Promise<boolean> {
     if (!this.configured) return false;
-    
+
     try {
       await cloudinary.api.ping();
       return true;
@@ -151,15 +151,21 @@ export class CloudinaryProvider implements StorageProvider {
     }
   }
 
-  getTransformedUrl(publicId: string, transformation: ImageTransformation): string {
+  getTransformedUrl(
+    publicId: string,
+    transformation: ImageTransformation
+  ): string {
     const transformOptions: any = {};
 
     if (transformation.width) transformOptions.width = transformation.width;
     if (transformation.height) transformOptions.height = transformation.height;
     if (transformation.crop) transformOptions.crop = transformation.crop;
-    if (transformation.quality) transformOptions.quality = transformation.quality;
-    if (transformation.format) transformOptions.fetch_format = transformation.format;
-    if (transformation.gravity) transformOptions.gravity = transformation.gravity;
+    if (transformation.quality)
+      transformOptions.quality = transformation.quality;
+    if (transformation.format)
+      transformOptions.fetch_format = transformation.format;
+    if (transformation.gravity)
+      transformOptions.gravity = transformation.gravity;
 
     return cloudinary.url(publicId, {
       secure: true,
@@ -167,7 +173,11 @@ export class CloudinaryProvider implements StorageProvider {
     });
   }
 
-  async healthCheck(): Promise<{ healthy: boolean; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    healthy: boolean;
+    latency?: number;
+    error?: string;
+  }> {
     if (!this.configured) {
       return { healthy: false, error: 'Not configured' };
     }

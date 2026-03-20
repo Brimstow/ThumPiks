@@ -11,6 +11,7 @@ module.exports = {
     ecmaVersion: 2020,
     sourceType: 'module',
     project: './tsconfig.json',
+    tsconfigRootDir: __dirname,
   },
   ignorePatterns: [
     '**/*.test.ts',
@@ -39,6 +40,7 @@ module.exports = {
       {
         selector: 'function',
         format: ['camelCase', 'PascalCase'],
+        leadingUnderscore: 'allow',
       },
       {
         selector: 'variable',
@@ -71,4 +73,30 @@ module.exports = {
     node: true,
     es6: true,
   },
+  overrides: [
+    {
+      files: ['*.js', '*.cjs', '*.mjs'],
+      parserOptions: {
+        project: null,
+      },
+      rules: {
+        // Disable type-aware rules for plain JS files
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
+        '@typescript-eslint/restrict-template-expressions': 'off',
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/require-await': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+        '@typescript-eslint/await-thenable': 'off',
+        '@typescript-eslint/unbound-method': 'off',
+        '@typescript-eslint/prefer-nullish-coalescing': 'off',
+        '@typescript-eslint/prefer-optional-chain': 'off',
+        '@typescript-eslint/naming-convention': 'off',
+        '@typescript-eslint/consistent-type-definitions': 'off',
+      },
+    },
+  ],
 };

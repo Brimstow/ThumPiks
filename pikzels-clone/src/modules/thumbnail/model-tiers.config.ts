@@ -22,7 +22,12 @@
 
 export type ModelTierId = 'flash' | 'standard' | 'pro';
 
-export type TieredToolId = 'generate' | 'inpaint' | 'face-swap' | 'upscale';
+export type TieredToolId =
+  | 'generate'
+  | 'generate-text'
+  | 'inpaint'
+  | 'face-swap'
+  | 'upscale';
 
 /**
  * A single tier definition with all UI metadata.
@@ -129,18 +134,18 @@ const PROVIDER_MODEL_LABELS: Record<AIProvider, Record<ModelTierId, string>> = {
 
 /**
  * Global tier-to-provider mapping (SINGLE SOURCE OF TRUTH)
- * 
+ *
  * Change ONE line here to switch ALL tools using that tier to a different provider.
- * 
+ *
  * Example: To switch all Flash tiers from Comet to ZenMux:
  *   flash: 'comet' → flash: 'zenmux'
- * 
+ *
  * This will automatically update generate, inpaint, face-swap, and upscale Flash tiers.
  */
 const TIER_PROVIDER_MAP: Record<ModelTierId, AIProvider> = {
-  flash: 'comet',      // Fast, cost-effective - uses Comet FLUX Schnell
+  flash: 'comet', // Fast, cost-effective - uses Comet FLUX Schnell
   standard: 'openrouter', // Balanced - uses OpenRouter Gemini 2.5
-  pro: 'openrouter',   // Best quality - uses OpenRouter Gemini 3 Pro
+  pro: 'openrouter', // Best quality - uses OpenRouter Gemini 3 Pro
 };
 
 /**
@@ -204,7 +209,7 @@ const TIER_BASE: Record<
  * Flash    → FLUX Schnell (Comet): fastest, cheapest, good for quick iterations
  * Standard → Gemini 2.5 Flash Image (OpenRouter): balanced quality and speed (default)
  * Pro      → Gemini 3 Pro Image (OpenRouter): highest quality, 2K/4K support, slower
- * 
+ *
  * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP. To change providers,
  * update TIER_PROVIDER_MAP at the top of this file.
  */
@@ -248,7 +253,7 @@ const generateTiers: ToolTierConfig = {
  * Flash    → FLUX Schnell (Comet): fast, decent contextual edits
  * Standard → Gemini 3 Pro Image (OpenRouter): strong context understanding (default)
  * Pro      → GPT-5 Image (OpenRouter): premium editing precision
- * 
+ *
  * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP.
  */
 const inpaintTiers: ToolTierConfig = {
@@ -291,7 +296,7 @@ const inpaintTiers: ToolTierConfig = {
  * Flash    → FLUX Schnell (Comet): fast, acceptable face quality
  * Standard → Seedream 4.5 (OpenRouter): portrait-optimized, natural results (default)
  * Pro      → Gemini 3 Pro Image (OpenRouter): highest fidelity face reconstruction
- * 
+ *
  * NOTE: Standard tier uses Seedream 4.5 (special case for face-optimized model).
  */
 const faceSwapTiers: ToolTierConfig = {
@@ -333,7 +338,7 @@ const faceSwapTiers: ToolTierConfig = {
  *
  * Standard → Gemini 2.5 Flash Image (OpenRouter): fast, good detail preservation (default)
  * Pro      → Gemini 3 Pro Image (OpenRouter): native 2K/4K, maximum detail
- * 
+ *
  * NOTE: Upscale does not have a Flash tier. Only Standard and Pro.
  */
 const upscaleTiers: ToolTierConfig = {
@@ -361,6 +366,51 @@ const upscaleTiers: ToolTierConfig = {
   ],
 };
 
+/**
+ * AI text generation tiers (chat completions, text-only — no image output).
+ *
+ * Flash    → Gemini 2.5 Flash: fastest, cheapest, good suggestions (default)
+ * Standard → Gemini 2.5 Pro: smarter reasoning, more creative
+ * Pro      → GPT-4o: premium quality, best creative writing
+ *
+ * NOTE: These are text-only models, not image models. All go through OpenRouter
+ * chat/completions. Model IDs are defined directly (not via TIER_PROVIDER_MAP)
+ * since the image provider map doesn't apply to text generation.
+ */
+const generateTextTiers: ToolTierConfig = {
+  toolId: 'generate-text',
+  defaultTierId: 'flash',
+  tiers: [
+    {
+      ...TIER_BASE.flash,
+      tagline: 'Quick text ideas',
+      modelId: 'google/gemini-2.5-flash',
+      modelLabel: 'Gemini 2.5 Flash',
+      credits: 1,
+      estimatedTime: '~2s',
+      isDefault: true,
+    },
+    {
+      ...TIER_BASE.standard,
+      tagline: 'Smarter, more creative suggestions',
+      modelId: 'google/gemini-2.5-pro',
+      modelLabel: 'Gemini 2.5 Pro',
+      credits: 2,
+      estimatedTime: '~5s',
+      badge: 'More Creative',
+    },
+    {
+      ...TIER_BASE.pro,
+      tagline: 'Premium AI, best text quality',
+      modelId: 'openai/gpt-4o',
+      modelLabel: 'GPT-4o',
+      credits: 3,
+      estimatedTime: '~4s',
+      badge: 'Best Quality',
+    },
+  ],
+};
+
 // ============================================
 // MASTER CONFIG (exported)
 // ============================================
@@ -373,6 +423,7 @@ const upscaleTiers: ToolTierConfig = {
  */
 export const TOOL_TIER_CONFIG: Record<TieredToolId, ToolTierConfig> = {
   generate: generateTiers,
+  'generate-text': generateTextTiers,
   inpaint: inpaintTiers,
   'face-swap': faceSwapTiers,
   upscale: upscaleTiers,
@@ -384,6 +435,7 @@ export const TOOL_TIER_CONFIG: Record<TieredToolId, ToolTierConfig> = {
  */
 export const TIERED_TOOL_IDS: TieredToolId[] = [
   'generate',
+  'generate-text',
   'inpaint',
   'face-swap',
   'upscale',

@@ -23,10 +23,10 @@ export interface PlatformConfig {
 
 /**
  * Video Proxy Service
- * 
+ *
  * Uses yt-dlp for unified video fetching across 1000+ platforms:
  * - YouTube, Instagram, TikTok, Twitter/X, Twitch, Facebook, Vimeo, Reddit, etc.
- * 
+ *
  * Architecture:
  * - Tier 1: yt-dlp (primary) - handles all platforms with unified interface
  * - Tier 2: Platform storyboards (fallback) - for quick preview without download
@@ -192,19 +192,19 @@ class VideoProxyService {
    */
   async getVideoInfo(url: string): Promise<VideoInfo> {
     const detected = this.detectPlatform(url);
-    
+
     try {
       // Use yt-dlp for all platforms
       const ytInfo = await ytDlpUtil.getVideoInfo(url);
       return this.convertYtDlpInfo(ytInfo, detected);
     } catch (error) {
       logger.error(`yt-dlp failed for ${url}`, error as Error);
-      
+
       // Fallback: Return basic info for YouTube using storyboard API
       if (detected?.platform === 'youtube') {
         return this.getYouTubeStoryboardInfo(detected.videoId);
       }
-      
+
       throw error;
     }
   }
@@ -218,14 +218,14 @@ class VideoProxyService {
     quality?: string
   ): Promise<{ stream: Readable; info: VideoInfo }> {
     const detected = this.detectPlatform(url);
-    
+
     try {
       // Get info and stream in parallel
       const [ytInfo, stream] = await Promise.all([
         ytDlpUtil.getVideoInfo(url),
         ytDlpUtil.getVideoStream(url, quality === 'worst' ? 'worst' : 'best'),
       ]);
-      
+
       const info = this.convertYtDlpInfo(ytInfo, detected);
       return { stream, info };
     } catch (error) {
@@ -243,7 +243,7 @@ class VideoProxyService {
     if (this.detectPlatform(url)) {
       return true;
     }
-    
+
     // Then check yt-dlp for other supported sites
     try {
       return await ytDlpUtil.isSupported(url);
@@ -280,12 +280,12 @@ class VideoProxyService {
    */
   private async getYouTubeStoryboardInfo(videoId: string): Promise<VideoInfo> {
     logger.info(`Using YouTube storyboard fallback for ${videoId}`);
-    
+
     // Try to get basic info from oEmbed API
     try {
       const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
       const response = await axios.get(oembedUrl, { timeout: 5000 });
-      
+
       return {
         title: response.data.title || `YouTube Video ${videoId}`,
         thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
@@ -314,7 +314,13 @@ class VideoProxyService {
    */
   async getVideoFrames(url: string): Promise<{
     frames: { url: string; label: string; width?: number; height?: number }[];
-    videoInfo: { title: string; videoId: string; platform: string; duration?: number; uploader?: string };
+    videoInfo: {
+      title: string;
+      videoId: string;
+      platform: string;
+      duration?: number;
+      uploader?: string;
+    };
   }> {
     const detected = this.detectPlatform(url);
 
@@ -322,7 +328,13 @@ class VideoProxyService {
     const ytInfo = await ytDlpUtil.getVideoInfo(url);
     const info = this.convertYtDlpInfo(ytInfo, detected);
 
-    const videoInfo: { title: string; videoId: string; platform: string; duration?: number; uploader?: string } = {
+    const videoInfo: {
+      title: string;
+      videoId: string;
+      platform: string;
+      duration?: number;
+      uploader?: string;
+    } = {
       title: info.title,
       videoId: info.videoId,
       platform: info.platform,
@@ -343,13 +355,12 @@ class VideoProxyService {
         const extracted = await extractFramesFromVideo(
           streamUrl,
           info.duration,
-          info.videoId,  // cache key — same video = instant return
-          8,             // 8 frames
-          1280,          // 1280×720
-          720,
+          8, // 8 frames
+          1280, // 1280×720
+          720
         );
 
-        const frames = extracted.map((f) => ({
+        const frames = extracted.map(f => ({
           url: `data:image/jpeg;base64,${f.buffer.toString('base64')}`,
           label: f.label,
           width: 1280,
@@ -360,20 +371,35 @@ class VideoProxyService {
       } catch (ffmpegError) {
         logger.warn(
           `FFmpeg frame extraction failed for ${url}, falling back to thumbnails`,
-          ffmpegError as Error,
+          ffmpegError as Error
         );
         // Fall through to thumbnail fallback
       }
     }
 
     // Step 3: Fallback — use platform thumbnails
-    const frames: { url: string; label: string; width?: number; height?: number }[] = [];
+    const frames: {
+      url: string;
+      label: string;
+      width?: number;
+      height?: number;
+    }[] = [];
 
     if (detected?.platform === 'youtube') {
       const videoId = detected.videoId;
       const ytFrames = [
-        { suffix: 'maxresdefault', label: 'Official Thumbnail (HD)', w: 1280, h: 720 },
-        { suffix: 'sddefault', label: 'Official Thumbnail (SD)', w: 640, h: 480 },
+        {
+          suffix: 'maxresdefault',
+          label: 'Official Thumbnail (HD)',
+          w: 1280,
+          h: 720,
+        },
+        {
+          suffix: 'sddefault',
+          label: 'Official Thumbnail (SD)',
+          w: 640,
+          h: 480,
+        },
         { suffix: '1', label: 'Frame — Early', w: 480, h: 360 },
         { suffix: '2', label: 'Frame — Middle', w: 480, h: 360 },
         { suffix: '3', label: 'Frame — Late', w: 480, h: 360 },
@@ -381,7 +407,7 @@ class VideoProxyService {
       ];
 
       const checks = await Promise.allSettled(
-        ytFrames.map(async (f) => {
+        ytFrames.map(async f => {
           const frameUrl = `https://img.youtube.com/vi/${videoId}/${f.suffix}.jpg`;
           const resp = await axios.head(frameUrl, { timeout: 3000 });
           if (resp.status === 200) {
@@ -399,13 +425,21 @@ class VideoProxyService {
     } else if (ytInfo.thumbnails && ytInfo.thumbnails.length > 0) {
       const seen = new Set<string>();
       const sorted = [...ytInfo.thumbnails]
-        .filter((t) => t.url && !t.url.includes('storyboard'))
-        .sort((a, b) => ((b.width || 0) * (b.height || 0)) - ((a.width || 0) * (a.height || 0)));
+        .filter(t => t.url && !t.url.includes('storyboard'))
+        .sort(
+          (a, b) =>
+            (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0)
+        );
 
       for (const t of sorted) {
         if (seen.has(t.url)) continue;
         seen.add(t.url);
-        const frame: { url: string; label: string; width?: number; height?: number } = {
+        const frame: {
+          url: string;
+          label: string;
+          width?: number;
+          height?: number;
+        } = {
           url: t.url,
           label: t.id || `${t.width || '?'}x${t.height || '?'}`,
         };
@@ -416,7 +450,7 @@ class VideoProxyService {
       }
     }
 
-    if (ytInfo.thumbnail && !frames.some((f) => f.url === ytInfo.thumbnail)) {
+    if (ytInfo.thumbnail && !frames.some(f => f.url === ytInfo.thumbnail)) {
       frames.unshift({ url: ytInfo.thumbnail, label: 'Primary Thumbnail' });
     }
 
@@ -431,20 +465,28 @@ class VideoProxyService {
     // YouTube storyboard sprite URLs
     // These are pre-generated preview images at regular intervals
     const storyboardUrls: string[] = [];
-    
+
     // L1 = low quality, L2 = medium quality storyboards
     for (let i = 0; i < 4; i++) {
       storyboardUrls.push(
         `https://i.ytimg.com/sb/${videoId}/storyboard3_L2/M${i}.jpg`
       );
     }
-    
+
     // Also include standard thumbnails as fallback
-    const thumbnailQualities = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault', 'default'];
+    const thumbnailQualities = [
+      'maxresdefault',
+      'sddefault',
+      'hqdefault',
+      'mqdefault',
+      'default',
+    ];
     for (const quality of thumbnailQualities) {
-      storyboardUrls.push(`https://img.youtube.com/vi/${videoId}/${quality}.jpg`);
+      storyboardUrls.push(
+        `https://img.youtube.com/vi/${videoId}/${quality}.jpg`
+      );
     }
-    
+
     return storyboardUrls;
   }
 }

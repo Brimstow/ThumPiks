@@ -37,6 +37,8 @@ export interface GenerateTextOptions {
   count?: number;
   maxLength?: number;
   existingText?: string;
+  /** Quality tier for model selection (flash/standard/pro) */
+  tier?: string;
 }
 
 export interface GenerateFromImageOptions {
@@ -49,6 +51,8 @@ export interface GenerateFromImageOptions {
   tone?: TextTone;
   count?: number;
   maxLength?: number;
+  /** Quality tier for model selection (flash/standard/pro) */
+  tier?: string;
 }
 
 export interface UseAITextGeneratorReturn {
@@ -93,7 +97,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
   } = useAIToolsStore();
 
   const generateTitles = useCallback(async (options: GenerateTextOptions): Promise<AITextSuggestion[]> => {
-    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60 } = options;
+    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60, tier } = options;
 
     if (!prompt.trim()) {
       setError('Prompt is required');
@@ -110,6 +114,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
         tone,
         count,
         maxLength,
+        tier,
       });
 
       if (!response.ok) {
@@ -165,6 +170,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
       tone = 'clickbait',
       count = 4,
       maxLength = 30,
+      tier,
     } = options;
 
     if (!imageUrl && !imageBase64) {
@@ -220,6 +226,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
         tone,
         count,
         maxLength,
+        tier,
       });
       return result;
     } finally {

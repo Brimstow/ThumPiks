@@ -29,6 +29,9 @@ export interface SubscriptionPlan {
     privateModeDefault?: boolean;
     earlyAccess?: boolean;
     customTemplates?: boolean;
+    /** Frame extraction limits — -1 means unlimited */
+    frameExtractionsPerDay: number;
+    frameRegeneratesPerUrl: number;
   };
   /** Provider-specific product/price IDs */
   stripe: {
@@ -61,6 +64,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       abTesting: false,
       analytics: false,
       support: 'Community',
+      frameExtractionsPerDay: 5,
+      frameRegeneratesPerUrl: 1,
     },
     stripe: { monthlyPriceId: '', annualPriceId: '' },
     polar: { monthlyProductId: '', annualProductId: '' },
@@ -80,6 +85,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       abTesting: 2,
       analytics: true,
       support: 'Email',
+      frameExtractionsPerDay: 20,
+      frameRegeneratesPerUrl: 3,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_STARTER_MONTHLY || '',
@@ -107,6 +114,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       support: 'Priority',
       customTemplates: true,
       earlyAccess: true,
+      frameExtractionsPerDay: -1,
+      frameRegeneratesPerUrl: -1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_PRO_MONTHLY || '',
@@ -135,6 +144,8 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       privateModeDefault: true,
       earlyAccess: true,
       customTemplates: true,
+      frameExtractionsPerDay: -1,
+      frameRegeneratesPerUrl: -1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_ULTRA_PRO_MONTHLY || '',

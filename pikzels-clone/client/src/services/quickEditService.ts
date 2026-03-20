@@ -91,10 +91,11 @@ export interface UrlHistoryEntry {
   platform: string | null;
   thumbnailUrl: string | null;
   selectedFrameTime: number | null;
+  pinned: boolean;
   createdAt: string;
 }
 
-export async function getUrlHistory(limit = 20): Promise<UrlHistoryEntry[]> {
+export async function getUrlHistory(limit = 50): Promise<UrlHistoryEntry[]> {
   const res = await authGet(`/api/url-history?limit=${limit}`);
   if (!res.ok) throw new Error('Failed to fetch URL history');
   const data = await res.json();
@@ -119,6 +120,23 @@ export async function deleteUrlHistoryEntry(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete entry');
 }
 
+export async function clearAllUrlHistory(includePinned = false): Promise<void> {
+  const res = await authDelete(`/api/url-history/all${includePinned ? '?includePinned=true' : ''}`);
+  if (!res.ok) throw new Error('Failed to clear URL history');
+}
+
+export async function togglePinUrl(id: string): Promise<UrlHistoryEntry> {
+  const res = await authPatch(`/api/url-history/${id}/pin`, {});
+  if (!res.ok) throw new Error('Failed to toggle pin');
+  const data = await res.json();
+  return data.entry;
+}
+
+export async function bulkDeleteUrls(ids: string[]): Promise<void> {
+  const res = await authPost('/api/url-history/bulk-delete', { ids });
+  if (!res.ok) throw new Error('Failed to bulk delete');
+}
+
 // ============================================
 // VIDEO FRAMES (Frame Picker)
 // ============================================
@@ -139,6 +157,27 @@ export interface VideoFramesResult {
     duration?: number;
     uploader?: string;
   };
+  /** Index of the current frame cycle (0-based) */
+  cycleIndex?: number;
+  /** Total number of stored cycles for this user+video */
+  totalCycles?: number;
+}
+
+/** Rate limit info returned by the SSE ratelimit event */
+export interface FrameRateLimitInfo {
+  dailyUsed: number;
+  dailyLimit: number;
+  urlRegenerateUsed: number;
+  urlRegenerateLimit: number;
+  planType: string;
+}
+
+/** Metadata about stored frame cycles */
+export interface FrameCyclesMeta {
+  videoId: string;
+  totalCycles: number;
+  cycles: { cycleIndex: number; frameCount: number; extractedAt: string }[];
+  rateLimit: FrameRateLimitInfo;
 }
 
 export async function fetchVideoFrames(url: string): Promise<VideoFramesResult> {
@@ -153,25 +192,33 @@ export async function fetchVideoFrames(url: string): Promise<VideoFramesResult> 
 
 /** Progress event emitted during streaming frame extraction */
 export interface FrameExtractionProgress {
-  phase: 'resolving' | 'extracting' | 'done' | 'error';
+  phase: 'connecting' | 'analyzing' | 'preparing' | 'resolving' | 'extracting' | 'done' | 'error';
   message: string;
   current?: number;
   total?: number;
   /** Partial frame received — can be shown as a preview immediately */
   frame?: VideoFrame;
+  /** Rate limit info (sent once at start of extraction) */
+  rateLimit?: FrameRateLimitInfo;
 }
 
 /**
  * Streaming version of fetchVideoFrames using SSE.
  * Calls onProgress as each frame is extracted so the UI can show real progress.
  * Returns the complete VideoFramesResult when done.
+ *
+ * @param url        Video URL to extract frames from
+ * @param onProgress Callback for extraction progress events
+ * @param cycle      "new" to regenerate fresh frames, or a cycle index number to load cached
  */
 export async function fetchVideoFramesStreaming(
   url: string,
   onProgress: (progress: FrameExtractionProgress) => void,
+  cycle?: 'new' | number,
 ): Promise<VideoFramesResult> {
   const apiBaseUrl = (await import('../config/environment')).default.apiBaseUrl;
-  const endpoint = `${apiBaseUrl}/api/video/frames/stream?url=${encodeURIComponent(url)}`;
+  const cycleParam = cycle !== undefined ? `&cycle=${cycle}` : '';
+  const endpoint = `${apiBaseUrl}/api/video/frames/stream?url=${encodeURIComponent(url)}${cycleParam}`;
 
   const res = await fetch(endpoint, {
     method: 'GET',
@@ -233,10 +280,18 @@ export async function fetchVideoFramesStreaming(
                   height: data.height,
                 },
               });
+            } else if (currentEvent === 'ratelimit') {
+              onProgress({
+                phase: 'resolving',
+                message: 'Checking rate limits...',
+                rateLimit: data as FrameRateLimitInfo,
+              });
             } else if (currentEvent === 'complete') {
               result = {
                 frames: data.frames,
                 videoInfo: data.videoInfo,
+                cycleIndex: data.cycleIndex,
+                totalCycles: data.totalCycles,
               };
               onProgress({ phase: 'done', message: 'Frames ready!' });
             } else if (currentEvent === 'error') {
@@ -270,6 +325,22 @@ export async function fetchVideoFramesStreaming(
 
     pump();
   });
+}
+
+/**
+ * Fetch metadata about stored frame cycles for a video URL.
+ * Returns cycle count, per-cycle info, and rate limit status.
+ */
+export async function fetchFrameCyclesMeta(
+  url: string,
+): Promise<FrameCyclesMeta> {
+  const res = await authGet(`/api/video/frames/cycles?url=${encodeURIComponent(url)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch cycles' }));
+    throw new Error(err.error || 'Failed to fetch cycles');
+  }
+  const json = await res.json();
+  return json.data;
 }
 
 // ============================================

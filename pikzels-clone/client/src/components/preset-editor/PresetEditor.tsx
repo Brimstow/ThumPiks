@@ -25,7 +25,7 @@ import type {
   DrawingLayer,
 } from '../editor/types/editor.types';
 import type { ExtractedFrame } from '../../services/video';
-import { authPost } from '../../utils/api';
+import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 import './PresetEditor.css';
 
 // ============================================================================
@@ -70,8 +70,8 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
   // ---- UI state ---
   const [sideTab, setSideTab] = useState<SideTab>('ai');
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const { triggerSave, SaveModal } = useSaveThumbnail();
 
   // Chat state
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
@@ -320,37 +320,19 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
   }, []);
 
   // ---- Save to thumbnails collection ---
-  const handleSaveToCollection = useCallback(async () => {
-    setIsSaving(true);
+  const handleSaveToCollection = useCallback(() => {
     setSaveMenuOpen(false);
-    try {
-      const preview = getCanvasPreview();
-      if (!preview) throw new Error('Could not capture canvas');
-
-      const response = await authPost('/api/thumbnails', {
-        title: `${preset.name} Thumbnail`,
-        imageUrl: preview,
-        prompt: `Created with ${preset.name} preset editor`,
-        parameters: {
-          width: preset.width,
-          height: preset.height,
-          platform: preset.platform,
-        },
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Save failed');
-      }
-
-      markSaved();
-      alert('Thumbnail saved to your collection!');
-    } catch (err: any) {
-      alert(err.message || 'Failed to save');
-    } finally {
-      setIsSaving(false);
+    const preview = getCanvasPreview();
+    if (!preview) {
+      alert('Could not capture canvas');
+      return;
     }
-  }, [getCanvasPreview, preset, markSaved]);
+
+    triggerSave(preview, {
+      title: `${preset.name} Thumbnail`,
+      source: 'preset-editor',
+    });
+  }, [getCanvasPreview, preset.name, triggerSave]);
 
   // ---- Continue in full editor ---
   const handleContinueInFullEditor = useCallback(() => {
@@ -406,9 +388,8 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
             <button
               className="pe-btn pe-btn--primary"
               onClick={handleSaveToCollection}
-              disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              Save
             </button>
             <button
               className="pe-btn pe-btn--primary pe-btn--dropdown"
@@ -613,6 +594,7 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
       {saveMenuOpen && (
         <div className="preset-editor__overlay" onClick={() => setSaveMenuOpen(false)} />
       )}
+      {SaveModal}
     </div>
   );
 };

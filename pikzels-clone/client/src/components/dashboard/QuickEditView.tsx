@@ -2,14 +2,16 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Link2, Sparkles, UploadCloud, ArrowLeft, Download, RotateCcw,
-  Wand2, Loader2, X, Check,
-  Clock, ChevronRight, AlertCircle, Grid, Camera, Trash2, Save, Eye, Command,
+  Wand2, Loader2, X, Check, Pencil,
+  Clock, ChevronRight, ChevronLeft, AlertCircle, Grid, Camera, Trash2, Save, Eye, Command,
+  Star, Search, CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Type, Plus,
 } from 'lucide-react';
 import type { VisionAnalysisResult } from '../../types/vision.types';
 import {
   detectPlatform, isValidUrl, getUrlHistory, saveUrlHistory,
+  deleteUrlHistoryEntry, clearAllUrlHistory, togglePinUrl, bulkDeleteUrls,
   uploadAsset, fetchVideoFramesStreaming, UrlHistoryEntry, VideoFrame,
-  FrameExtractionProgress,
+  FrameExtractionProgress, FrameRateLimitInfo,
 } from '../../services/quickEditService';
 import { authPost } from '../../utils/api';
 import AICommandBar from '../editor/components/AICommandBar';
@@ -21,8 +23,8 @@ import {
   SlotEditor,
   CompositionEngine,
 } from '../../features/composition-templates';
-import ThumbnailActionBar from '../ui/ThumbnailActionBar';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
+import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 
 // ============================================
 // TYPES
@@ -160,7 +162,11 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   // URL path state
   const [urlInput, setUrlInput] = useState(persisted.urlInput || '');
   const [urlHistory, setUrlHistory] = useState<UrlHistoryEntry[]>([]);
-  const [filteredHistory, setFilteredHistory] = useState<UrlHistoryEntry[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+  const [showAllRecent, setShowAllRecent] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   // AI generate state
   const [aiPrompt, setAiPrompt] = useState(persisted.aiPrompt || '');
@@ -192,6 +198,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const [videoTitle, setVideoTitle] = useState(persisted.videoTitle || '');
   const [selectedFrameIdx, setSelectedFrameIdx] = useState<number | null>(persisted.selectedFrameIdx ?? null);
 
+  // Frame cycle state (regeneration + cycle navigation)
+  const [currentCycleIndex, setCurrentCycleIndex] = useState<number>(0);
+  const [totalCycles, setTotalCycles] = useState<number>(1);
+  const [rateLimitInfo, setRateLimitInfo] = useState<FrameRateLimitInfo | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  // Client-side cycle cache — prev/next reads from here, zero network calls
+  const cycleCache = useRef<Map<number, VideoFrame[]>>(new Map());
+
   // Loading states
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -200,6 +215,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   // Frame extraction progress (SSE streaming)
   const [extractionProgress, setExtractionProgress] = useState<FrameExtractionProgress | null>(null);
   const [previewFrames, setPreviewFrames] = useState<VideoFrame[]>([]);
+
+  // Save thumbnail modal (DRY — uses shared useSaveThumbnail hook)
+  const { triggerSave, SaveModal, isSaving } = useSaveThumbnail();
 
   // "Add Your Face" state — persisted in localStorage so user only uploads once
   const FACE_STORAGE_KEY = 'quickedit_face_photo';
@@ -254,6 +272,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
   // Smart Text — consolidated hook for vision-aware AI text generation
   const aiText = useAITextGenerator();
+  const [textTier] = useState<'flash' | 'standard' | 'pro'>('standard');
 
   const handleApplyComposition = useCallback(async () => {
     if (!layouts.selectedTemplate || !layouts.compositionState) return;
@@ -319,9 +338,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
   const loadUrlHistory = useCallback(async () => {
     try {
-      const history = await getUrlHistory(10);
+      const history = await getUrlHistory(50);
       setUrlHistory(history);
-      setFilteredHistory(history);
     } catch {
       // Silent fail — history is nice-to-have
     }
@@ -333,18 +351,99 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     }
   }, [view, loadUrlHistory]);
 
-  useEffect(() => {
-    if (urlInput.trim()) {
-      const filtered = urlHistory.filter(
-        (h) =>
-          h.url.toLowerCase().includes(urlInput.toLowerCase()) ||
-          (h.title && h.title.toLowerCase().includes(urlInput.toLowerCase()))
-      );
-      setFilteredHistory(filtered);
-    } else {
-      setFilteredHistory(urlHistory);
+  const handleDeleteUrlEntry = useCallback(async (id: string) => {
+    try {
+      await deleteUrlHistoryEntry(id);
+      setUrlHistory((prev) => prev.filter((h) => h.id !== id));
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    } catch {
+      // Silent fail
     }
-  }, [urlInput, urlHistory]);
+  }, []);
+
+  const handleTogglePin = useCallback(async (id: string) => {
+    try {
+      const updated = await togglePinUrl(id);
+      setUrlHistory((prev) =>
+        prev.map((h) => (h.id === id ? { ...h, pinned: updated.pinned } : h))
+          .sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          })
+      );
+    } catch {
+      // Silent fail
+    }
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      await bulkDeleteUrls(Array.from(selectedIds));
+      setUrlHistory((prev) => prev.filter((h) => !selectedIds.has(h.id)));
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    } catch {
+      // Silent fail
+    }
+  }, [selectedIds]);
+
+  const handleClearAllHistory = useCallback(async () => {
+    if (!confirmClearAll) {
+      setConfirmClearAll(true);
+      setTimeout(() => setConfirmClearAll(false), 3000);
+      return;
+    }
+    try {
+      await clearAllUrlHistory(false); // keep pinned
+      setUrlHistory((prev) => prev.filter((h) => h.pinned));
+      setConfirmClearAll(false);
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    } catch {
+      // Silent fail
+    }
+  }, [confirmClearAll]);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Derived: split pinned/unpinned, apply search filter
+  const pinnedEntries = urlHistory.filter((h) => h.pinned);
+  const recentEntries = urlHistory.filter((h) => !h.pinned);
+
+  const filteredPinned = searchFilter
+    ? pinnedEntries.filter((h) =>
+        h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        (h.title && h.title.toLowerCase().includes(searchFilter.toLowerCase()))
+      )
+    : pinnedEntries;
+
+  const filteredRecent = searchFilter
+    ? recentEntries.filter((h) =>
+        h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        (h.title && h.title.toLowerCase().includes(searchFilter.toLowerCase()))
+      )
+    : recentEntries;
+
+  const RECENT_COLLAPSED_COUNT = 5;
+  const visibleRecent = showAllRecent ? filteredRecent : filteredRecent.slice(0, RECENT_COLLAPSED_COUNT);
+  const hiddenRecentCount = filteredRecent.length - RECENT_COLLAPSED_COUNT;
+  const allVisibleIds = [...filteredPinned, ...filteredRecent].map((h) => h.id);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
+
+  const handleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allVisibleIds));
+    }
+  }, [allSelected, allVisibleIds]);
 
   // ============================================
   // HANDLERS
@@ -377,6 +476,11 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         setExtractionProgress(progress);
         setLoadingMessage(progress.message);
 
+        // Capture rate limit info from the SSE ratelimit event
+        if (progress.rateLimit) {
+          setRateLimitInfo(progress.rateLimit);
+        }
+
         // Accumulate preview frames as they arrive
         if (progress.frame) {
           setPreviewFrames((prev) => [...prev, progress.frame!]);
@@ -384,9 +488,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       });
 
       if (result.frames.length > 0) {
+        // Reset cycle cache for new URL and cache the first cycle
+        cycleCache.current.clear();
+        const idx = result.cycleIndex ?? 0;
+        cycleCache.current.set(idx, result.frames);
         setVideoFrames(result.frames);
         setVideoTitle(result.videoInfo.title);
         setSelectedFrameIdx(null);
+        setCurrentCycleIndex(idx);
+        setTotalCycles(result.totalCycles ?? 1);
         setView('frame-picker');
       } else {
         throw new Error('No frames found for this video');
@@ -403,6 +513,72 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
   const handleFrameSelect = (idx: number) => {
     setSelectedFrameIdx(idx);
+  };
+
+  const handleRegenerateFrames = async () => {
+    if (!urlInput.trim() || isRegenerating) return;
+    setIsRegenerating(true);
+    setError(null);
+    setPreviewFrames([]);
+
+    try {
+      const result = await fetchVideoFramesStreaming(urlInput, (progress) => {
+        if (progress.rateLimit) {
+          setRateLimitInfo(progress.rateLimit);
+        }
+        if (progress.frame) {
+          setPreviewFrames((prev) => [...prev, progress.frame!]);
+        }
+      }, 'new');
+
+      if (result.frames.length > 0) {
+        const idx = result.cycleIndex ?? 0;
+        cycleCache.current.set(idx, result.frames);
+        setVideoFrames(result.frames);
+        setSelectedFrameIdx(null);
+        setCurrentCycleIndex(idx);
+        setTotalCycles(result.totalCycles ?? 1);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Regeneration failed');
+    } finally {
+      setIsRegenerating(false);
+      setPreviewFrames([]);
+    }
+  };
+
+  const handleCycleNavigation = async (direction: 'prev' | 'next') => {
+    const targetCycle = direction === 'prev'
+      ? currentCycleIndex - 1
+      : currentCycleIndex + 1;
+    if (targetCycle < 0 || targetCycle >= totalCycles) return;
+
+    // Instant swap from client-side cache (no network call)
+    const cached = cycleCache.current.get(targetCycle);
+    if (cached) {
+      setVideoFrames(cached);
+      setSelectedFrameIdx(null);
+      setCurrentCycleIndex(targetCycle);
+      return;
+    }
+
+    // Cache miss — fetch from backend (rare: e.g. page refresh)
+    setError(null);
+    try {
+      const result = await fetchVideoFramesStreaming(urlInput, (progress) => {
+        if (progress.rateLimit) setRateLimitInfo(progress.rateLimit);
+      }, targetCycle);
+
+      if (result.frames.length > 0) {
+        cycleCache.current.set(result.cycleIndex ?? targetCycle, result.frames);
+        setVideoFrames(result.frames);
+        setSelectedFrameIdx(null);
+        setCurrentCycleIndex(result.cycleIndex ?? targetCycle);
+        setTotalCycles(result.totalCycles ?? totalCycles);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load cycle');
+    }
   };
 
   const handleFrameConfirm = () => {
@@ -825,6 +1001,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         await aiText.generateFromImage({
           imageUrl: resultImageUrl,
           fallbackPrompt: videoTitle || undefined,
+          tier: textTier,
         });
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Text generation failed');
@@ -878,10 +1055,16 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
+    // Get display container size so we can scale text to match what user sees
+    const displayRect = canvasRef.current?.getBoundingClientRect();
+    const displayHeight = displayRect?.height || 360;
+    const scale = canvas.height / displayHeight;
+
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
     for (const overlay of textOverlays) {
-      const scaledFontSize = (overlay.fontSize / 100) * canvas.height;
+      // Display uses `fontSize * 0.5` CSS px — scale that up to canvas resolution
+      const scaledFontSize = overlay.fontSize * 0.5 * scale;
       ctx.font = `${overlay.fontWeight} ${scaledFontSize}px ${overlay.fontFamily || 'sans-serif'}`;
       ctx.fillStyle = overlay.color;
       ctx.textBaseline = 'top';
@@ -959,26 +1142,33 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
   const handleSave = async () => {
     if (!resultImageUrl) return;
-    setLoading(true);
-    setLoadingMessage('Saving...');
-    setError(null);
 
-    try {
-      if (textOverlays.length > 0) {
+    // Flatten text overlays onto the image if any exist
+    let imageToSave = resultImageUrl;
+    if (textOverlays.length > 0) {
+      setLoading(true);
+      setLoadingMessage('Flattening overlays...');
+      try {
         const composited = await compositeCanvas();
         if (composited) {
+          imageToSave = composited;
           setResultImageUrl(composited);
           setOriginalImageUrl((prev) => prev || resultImageUrl);
           setTextOverlays([]);
           setActiveOverlayId(null);
         }
+      } finally {
+        setLoading(false);
+        setLoadingMessage('');
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setLoading(false);
-      setLoadingMessage('');
     }
+
+    // Open save modal with pre-filled metadata
+    triggerSave(imageToSave, {
+      title: videoTitle || undefined,
+      source: 'quick-edit',
+      prompt: aiPrompt || undefined,
+    });
   };
 
   // ============================================
@@ -1155,36 +1345,245 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       </div>
 
       {/* URL History */}
-      {filteredHistory.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-medium text-gray-500 uppercase mb-3 flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5" />
-            Recent URLs
-          </h3>
-          <div className="space-y-2">
-            {filteredHistory.slice(0, 5).map((entry) => (
+      {urlHistory.length > 0 && (
+        <div className="mt-6 space-y-4">
+
+          {/* Toolbar: Search + Actions */}
+          <div className="flex items-center gap-2">
+            {urlHistory.length > 5 && (
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                <input
+                  type="text"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  placeholder="Search URLs..."
+                  className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/30
+                             text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-600
+                             transition-colors"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-1 ml-auto">
               <button
-                key={entry.id}
-                onClick={() => { setUrlInput(entry.url); }}
-                className="w-full text-left px-4 py-3 rounded-xl bg-gray-800/50
-                           border border-gray-700/30 hover:border-gray-600
-                           transition-colors group flex items-center gap-3"
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+                className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+                  selectMode
+                    ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
+                }`}
+                title="Toggle select mode"
               >
-                <Link2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-gray-300 truncate text-sm">{entry.url}</p>
-                  {entry.title && (
-                    <p className="text-gray-500 text-xs truncate">{entry.title}</p>
-                  )}
-                </div>
-                {entry.platform && (
-                  <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-0.5 rounded">
-                    {entry.platform}
-                  </span>
-                )}
+                {selectMode ? 'Cancel' : 'Select'}
               </button>
-            ))}
+              <button
+                onClick={handleClearAllHistory}
+                className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+                  confirmClearAll
+                    ? 'bg-red-600/20 text-red-400 border border-red-500/30'
+                    : 'text-gray-500 hover:text-red-400 hover:bg-gray-800/60'
+                }`}
+                title={confirmClearAll ? 'Click again to confirm' : 'Clear recent URLs (keeps saved)'}
+              >
+                {confirmClearAll ? 'Confirm?' : 'Clear recent'}
+              </button>
+            </div>
           </div>
+
+          {/* Bulk Action Bar */}
+          {selectMode && (
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-800/80 border border-gray-700/40">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+                title={allSelected ? 'Deselect all' : 'Select all'}
+              >
+                {allSelected
+                  ? <CheckSquare className="w-3.5 h-3.5 text-purple-400" />
+                  : <Square className="w-3.5 h-3.5" />
+                }
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300
+                             bg-red-500/10 px-2.5 py-1 rounded-md transition-colors ml-auto"
+                  title={`Delete ${selectedIds.size} selected`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Delete {selectedIds.size} selected
+                </button>
+              )}
+              {selectedIds.size === 0 && (
+                <span className="text-xs text-gray-600 ml-auto">Click items to select</span>
+              )}
+            </div>
+          )}
+
+          {/* Saved/Pinned Section */}
+          {filteredPinned.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-amber-500/80 uppercase mb-2 flex items-center gap-1.5">
+                <Star className="w-3 h-3 fill-amber-500/80" />
+                Saved ({filteredPinned.length})
+              </h3>
+              <div className="space-y-1.5">
+                {filteredPinned.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl bg-gray-800/50
+                               border transition-colors group flex items-center gap-2 ${
+                      selectedIds.has(entry.id)
+                        ? 'border-purple-500/50 bg-purple-900/10'
+                        : 'border-amber-600/20 hover:border-amber-500/30'
+                    }`}
+                  >
+                    {selectMode && (
+                      <button
+                        onClick={() => handleToggleSelect(entry.id)}
+                        className="flex-shrink-0 text-gray-500 hover:text-purple-400 transition-colors"
+                        title="Toggle selection"
+                      >
+                        {selectedIds.has(entry.id)
+                          ? <CheckSquare className="w-4 h-4 text-purple-400" />
+                          : <Square className="w-4 h-4" />
+                        }
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setUrlInput(entry.url); }}
+                      className="flex-1 min-w-0 flex items-center gap-2.5 text-left"
+                      title="Use this URL"
+                    >
+                      <Link2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-300 truncate text-sm">{entry.url}</p>
+                        {entry.title && (
+                          <p className="text-gray-500 text-xs truncate">{entry.title}</p>
+                        )}
+                      </div>
+                      {entry.platform && (
+                        <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-0.5 rounded flex-shrink-0">
+                          {entry.platform}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleTogglePin(entry.id)}
+                      className="p-1 rounded-lg text-amber-500 hover:text-amber-400
+                                 hover:bg-amber-500/10 transition-all flex-shrink-0"
+                      title="Unpin URL"
+                    >
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUrlEntry(entry.id)}
+                      className="p-1 rounded-lg text-gray-600 hover:text-red-400
+                                 hover:bg-red-500/10 opacity-0 group-hover:opacity-100
+                                 transition-all flex-shrink-0"
+                      title="Remove from history"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Section */}
+          {filteredRecent.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-gray-500 uppercase mb-2 flex items-center gap-1.5">
+                <Clock className="w-3 h-3" />
+                Recent ({filteredRecent.length})
+              </h3>
+              <div className="space-y-1.5">
+                {visibleRecent.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl bg-gray-800/50
+                               border transition-colors group flex items-center gap-2 ${
+                      selectedIds.has(entry.id)
+                        ? 'border-purple-500/50 bg-purple-900/10'
+                        : 'border-gray-700/30 hover:border-gray-600'
+                    }`}
+                  >
+                    {selectMode && (
+                      <button
+                        onClick={() => handleToggleSelect(entry.id)}
+                        className="flex-shrink-0 text-gray-500 hover:text-purple-400 transition-colors"
+                        title="Toggle selection"
+                      >
+                        {selectedIds.has(entry.id)
+                          ? <CheckSquare className="w-4 h-4 text-purple-400" />
+                          : <Square className="w-4 h-4" />
+                        }
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setUrlInput(entry.url); }}
+                      className="flex-1 min-w-0 flex items-center gap-2.5 text-left"
+                      title="Use this URL"
+                    >
+                      <Link2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-300 truncate text-sm">{entry.url}</p>
+                        {entry.title && (
+                          <p className="text-gray-500 text-xs truncate">{entry.title}</p>
+                        )}
+                      </div>
+                      {entry.platform && (
+                        <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-0.5 rounded flex-shrink-0">
+                          {entry.platform}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleTogglePin(entry.id)}
+                      className="p-1 rounded-lg text-gray-600 hover:text-amber-400
+                                 hover:bg-amber-500/10 opacity-0 group-hover:opacity-100
+                                 transition-all flex-shrink-0"
+                      title="Save this URL"
+                    >
+                      <Star className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUrlEntry(entry.id)}
+                      className="p-1 rounded-lg text-gray-600 hover:text-red-400
+                                 hover:bg-red-500/10 opacity-0 group-hover:opacity-100
+                                 transition-all flex-shrink-0"
+                      title="Remove from history"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* Show More / Show Less */}
+              {hiddenRecentCount > 0 && (
+                <button
+                  onClick={() => setShowAllRecent(!showAllRecent)}
+                  className="mt-2 w-full text-center text-xs text-gray-500 hover:text-gray-300
+                             py-1.5 rounded-lg hover:bg-gray-800/40 transition-colors
+                             flex items-center justify-center gap-1"
+                  title={showAllRecent ? 'Show less' : `Show ${hiddenRecentCount} more`}
+                >
+                  {showAllRecent ? (
+                    <><ChevronUp className="w-3 h-3" /> Show less</>
+                  ) : (
+                    <><ChevronDown className="w-3 h-3" /> Show {hiddenRecentCount} more</>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Empty search state */}
+          {searchFilter && filteredPinned.length === 0 && filteredRecent.length === 0 && (
+            <p className="text-center text-sm text-gray-600 py-4">No URLs match &ldquo;{searchFilter}&rdquo;</p>
+          )}
         </div>
       )}
     </div>
@@ -1335,6 +1734,59 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           <Check className="w-4 h-4" />
           Use This Frame
         </button>
+      </div>
+
+      {/* Regenerate + Cycle Navigation Bar */}
+      <div className="flex items-center justify-between mb-4 bg-gray-800/40 border border-gray-700/40 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-3">
+          {/* Cycle navigation */}
+          {totalCycles > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleCycleNavigation('prev')}
+                disabled={currentCycleIndex <= 0}
+                className="p-1.5 rounded-lg bg-gray-700/60 hover:bg-gray-600 text-gray-300
+                           disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Previous cycle"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-gray-400 text-xs font-medium px-1 tabular-nums">
+                {currentCycleIndex + 1} / {totalCycles}
+              </span>
+              <button
+                onClick={() => handleCycleNavigation('next')}
+                disabled={currentCycleIndex >= totalCycles - 1}
+                className="p-1.5 rounded-lg bg-gray-700/60 hover:bg-gray-600 text-gray-300
+                           disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Next cycle"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Regenerate button */}
+          <button
+            onClick={handleRegenerateFrames}
+            disabled={isRegenerating}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                       bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30
+                       text-amber-400 text-sm font-medium
+                       disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Extract new frames with different timestamps"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+          </button>
+        </div>
+
+        {/* Rate limit info */}
+        {rateLimitInfo && rateLimitInfo.dailyLimit !== -1 && (
+          <div className="text-gray-500 text-xs">
+            {rateLimitInfo.dailyUsed}/{rateLimitInfo.dailyLimit} extractions today
+          </div>
+        )}
       </div>
 
       {videoFrames.length === 0 ? (
@@ -1549,95 +2001,181 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             </div>
           )}
         </div>
+
+        {/* Action Buttons — 3 across, 2 rows */}
+        {resultImageUrl && (
+          <div className="space-y-2 mt-4">
+            {/* Row 1: Recreate, Enhance, Edit */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('recreateBetterState', JSON.stringify({
+                    imageUrl: resultImageUrl,
+                    existingAnalysis: null,
+                  }));
+                  window.dispatchEvent(new CustomEvent('openRecreateBetter', {
+                    detail: { imageUrl: resultImageUrl },
+                  }));
+                }}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500
+                           text-white font-medium disabled:opacity-50 transition-all text-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Recreate
+              </button>
+              <button
+                onClick={handleEnhance}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-cyan-600 hover:bg-cyan-500
+                           text-white font-medium disabled:opacity-50 transition-all text-sm"
+              >
+                <Wand2 className="w-4 h-4" />
+                Enhance
+              </button>
+              <button
+                onClick={() => navigate('/dashboard/editor', { state: { initialImage: resultImageUrl, source: 'quick-edit' } })}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-slate-700 hover:bg-slate-600
+                           text-white font-medium disabled:opacity-50 transition-colors text-sm"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit
+              </button>
+            </div>
+            {/* Row 2: Revert, Download, Save */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRevert}
+                disabled={loading || resultImageUrl === originalImageUrl}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-gray-700 hover:bg-gray-600
+                           text-white font-medium disabled:opacity-50 transition-all text-sm"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Revert
+              </button>
+              <button
+                onClick={handleDownload}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-emerald-600 hover:bg-emerald-500
+                           text-white font-medium disabled:opacity-50 transition-colors text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={loading || isSaving}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
+                           bg-blue-600 hover:bg-blue-500
+                           text-white font-medium disabled:opacity-50 transition-colors text-sm"
+              >
+                <Save className="w-4 h-4" />
+                Save
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tools Panel */}
       <div className="lg:w-72 flex flex-col gap-3">
-        <h3 className="text-sm font-medium text-gray-400 uppercase mb-1">Quick Tools</h3>
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="text-sm font-medium text-gray-400 uppercase flex-shrink-0">Quick Tools</h3>
+          <button
+            onClick={toggleCommandBar}
+            className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl
+                       bg-gradient-to-r from-purple-600/20 to-pink-600/20
+                       border border-purple-500/30 hover:border-purple-500/50
+                       hover:from-purple-600/30 hover:to-pink-600/30
+                       text-white transition-all text-sm group"
+            title="AI Command Bar (Ctrl+K)"
+          >
+            <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
+            <span className="flex-1 text-left">Ask AI</span>
+            <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 flex-shrink-0">
+              Ctrl+K
+            </kbd>
+          </button>
+        </div>
 
-        {/* AI Command Bar Trigger */}
-        <button
-          onClick={toggleCommandBar}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl
-                     bg-gradient-to-r from-purple-600/20 to-pink-600/20
-                     border border-purple-500/30 hover:border-purple-500/50
-                     hover:from-purple-600/30 hover:to-pink-600/30
-                     text-white transition-all text-sm group"
-          title="AI Command Bar (Ctrl+K)"
-        >
-          <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300" />
-          <span className="flex-1 text-left">Ask AI anything...</span>
-          <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">
-            Ctrl+K
-          </kbd>
-        </button>
-
-        {/* Layouts */}
-        {showCompositionPanel ? (
-          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-            {layouts.selectedTemplate && layouts.compositionState ? (
-              <div className="flex flex-col gap-2">
-                <SlotEditor
-                  template={layouts.selectedTemplate}
-                  compositionState={layouts.compositionState}
-                  onFillSlot={layouts.fillSlot}
-                  onClearSlot={layouts.clearSlot}
-                  onFillTextSlot={layouts.fillTextSlot}
-                  onClearTextSlot={layouts.clearTextSlot}
-                  availableImages={[
-                    ...(resultImageUrl ? [{ label: 'Current image', url: resultImageUrl }] : []),
-                    ...(facePhoto ? [{ label: 'Your face', url: facePhoto }] : []),
-                    ...(originalImageUrl && originalImageUrl !== resultImageUrl
-                      ? [{ label: 'Original', url: originalImageUrl }]
-                      : []),
-                  ]}
-                />
-                <div className="flex gap-2 p-3 pt-0">
-                  <button
-                    onClick={() => layouts.clearTemplate()}
-                    className="flex-1 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600
-                               text-gray-300 text-sm transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleApplyComposition}
-                    disabled={loading || !layouts.isComplete()}
-                    className="flex-1 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500
-                               text-white text-sm font-medium disabled:opacity-50 transition-colors
-                               flex items-center justify-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Apply
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <TemplatePicker
-                  templates={layouts.filteredTemplates}
-                  selectedTemplateId={layouts.selectedTemplate?.id ?? null}
-                  categoryFilter={layouts.categoryFilter}
-                  searchQuery={layouts.searchQuery}
-                  onCategoryChange={layouts.setCategoryFilter}
-                  onSearchChange={layouts.setSearchQuery}
-                  onSelectTemplate={layouts.selectTemplate}
-                  onClearTemplate={() => setShowCompositionPanel(false)}
-                />
-              </div>
+        {/* Add Your Face */}
+        <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-pink-400" />
+              Add Your Face
+            </span>
+            {facePhoto && (
+              <button
+                onClick={clearFacePhoto}
+                className="text-gray-500 hover:text-red-400 transition-colors"
+                aria-label="Remove face photo"
+                title="Remove saved face"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
-        ) : (
-          <button
-            onClick={() => setShowCompositionPanel(true)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
-                       border border-gray-700/50 hover:border-indigo-500/30 hover:bg-gray-800
-                       text-gray-300 transition-all text-sm"
-          >
-            <Grid className="w-5 h-5 text-indigo-400" />
-            Layouts
-          </button>
-        )}
+
+          {/* Hidden file input */}
+          <input
+            ref={faceInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFacePhotoUpload}
+            className="hidden"
+            aria-label="Upload face photo"
+          />
+
+          {facePhoto ? (
+            <div className="flex items-center gap-3">
+              <img
+                src={facePhoto}
+                alt="Your face"
+                className="w-12 h-12 rounded-lg object-cover border-2 border-pink-500/40 flex-shrink-0"
+              />
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                <button
+                  onClick={handleFaceSwap}
+                  disabled={loading || !resultImageUrl}
+                  className="w-full px-3 py-2 rounded-lg bg-pink-600 hover:bg-pink-500
+                             text-white text-sm font-medium disabled:opacity-50
+                             transition-colors flex items-center justify-center gap-1.5"
+                >
+                  {loading && loadingMessage.includes('face') ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Swap Face
+                </button>
+                <button
+                  onClick={() => faceInputRef.current?.click()}
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Change photo
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => faceInputRef.current?.click()}
+              className="w-full flex flex-col items-center gap-2 py-4 rounded-lg border-2 border-dashed
+                         border-gray-600 hover:border-pink-500/40 hover:bg-gray-800/50
+                         text-gray-400 hover:text-gray-300 transition-all cursor-pointer"
+            >
+              <Camera className="w-6 h-6" />
+              <span className="text-xs">Upload a photo of yourself</span>
+              <span className="text-[10px] text-gray-600">Saved for next time</span>
+            </button>
+          )}
+        </div>
 
         {/* Smart Text */}
         {showTextInput ? (
@@ -1648,7 +2186,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 Smart Text
               </span>
               <button
-                onClick={() => { setShowTextInput(false); aiText.clearSuggestions(); }}
+                onClick={() => setShowTextInput(false)}
                 className="text-gray-500 hover:text-gray-300"
                 aria-label="Close text panel"
               >
@@ -1744,9 +2282,60 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                        text-gray-300 transition-all text-sm"
           >
             <Sparkles className="w-5 h-5 text-purple-400" />
-            Smart Text
+            {textOverlays.length > 0 ? '+ Add Another Text' : 'Smart Text'}
             <span className="ml-auto text-[10px] text-gray-600">AI-styled</span>
           </button>
+        )}
+
+        {/* Text layer list — click to select/edit, X to delete */}
+        {textOverlays.length > 0 && (
+          <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden">
+            <div className="px-3 py-2 border-b border-gray-700/50 flex items-center gap-2">
+              <Type className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                Your Text ({textOverlays.length})
+              </span>
+            </div>
+            <div className="divide-y divide-gray-700/30">
+              {textOverlays.map((overlay) => (
+                <div
+                  key={overlay.id}
+                  onClick={() => setActiveOverlayId(overlay.id === activeOverlayId ? null : overlay.id)}
+                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-all group
+                    ${overlay.id === activeOverlayId
+                      ? 'bg-purple-600/15 border-l-2 border-l-purple-500'
+                      : 'hover:bg-gray-700/30 border-l-2 border-l-transparent'
+                    }`}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+                    style={{ backgroundColor: overlay.color }}
+                  />
+                  <span className="text-sm text-gray-300 truncate flex-1" style={{ fontFamily: overlay.fontFamily }}>
+                    {overlay.text}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeOverlay(overlay.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-0.5"
+                    aria-label={`Remove text: ${overlay.text}`}
+                    title="Remove this text"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {!showTextInput && (
+              <button
+                onClick={() => setShowTextInput(true)}
+                className="w-full px-3 py-2 text-xs text-purple-400 hover:text-purple-300
+                           hover:bg-purple-600/10 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3 h-3" />
+                Add Another Text
+              </button>
+            )}
+          </div>
         )}
 
         {/* Selected Text Overlay Editor */}
@@ -1857,151 +2446,93 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           );
         })()}
 
-        {/* Add Your Face */}
-        <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-300 flex items-center gap-2">
-              <Camera className="w-4 h-4 text-pink-400" />
-              Add Your Face
-            </span>
-            {facePhoto && (
+        {/* Layouts */}
+        {showCompositionPanel ? (
+          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden max-h-[400px] flex flex-col group/layouts relative">
+            <div className="flex items-center justify-between px-3 pt-3 pb-1 flex-shrink-0">
+              <span className="text-sm font-medium text-gray-300 flex items-center gap-1.5">
+                <Grid className="w-3.5 h-3.5 text-indigo-400" />
+                Layouts
+              </span>
               <button
-                onClick={clearFacePhoto}
-                className="text-gray-500 hover:text-red-400 transition-colors"
-                aria-label="Remove face photo"
-                title="Remove saved face"
+                onClick={() => { setShowCompositionPanel(false); layouts.clearTemplate(); }}
+                className="text-gray-500 hover:text-gray-300"
+                aria-label="Close layouts panel"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+            <div className="hidden group-hover/layouts:flex items-center justify-center gap-1.5
+                            absolute bottom-2 left-1/2 -translate-x-1/2 z-10
+                            bg-black/85 text-white text-xs px-3 py-1.5 rounded-full
+                            shadow-lg pointer-events-none whitespace-nowrap">
+              <svg className="w-3 h-3 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+              Scroll for more templates
+            </div>
+            {layouts.selectedTemplate && layouts.compositionState ? (
+              <div className="flex flex-col gap-2">
+                <SlotEditor
+                  template={layouts.selectedTemplate}
+                  compositionState={layouts.compositionState}
+                  onFillSlot={layouts.fillSlot}
+                  onClearSlot={layouts.clearSlot}
+                  onFillTextSlot={layouts.fillTextSlot}
+                  onClearTextSlot={layouts.clearTextSlot}
+                  availableImages={[
+                    ...(resultImageUrl ? [{ label: 'Current image', url: resultImageUrl }] : []),
+                    ...(facePhoto ? [{ label: 'Your face', url: facePhoto }] : []),
+                    ...(originalImageUrl && originalImageUrl !== resultImageUrl
+                      ? [{ label: 'Original', url: originalImageUrl }]
+                      : []),
+                  ]}
+                />
+                <div className="flex gap-2 p-3 pt-0">
+                  <button
+                    onClick={() => layouts.clearTemplate()}
+                    className="flex-1 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600
+                               text-gray-300 text-sm transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleApplyComposition}
+                    disabled={loading || !layouts.isComplete()}
+                    className="flex-1 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500
+                               text-white text-sm font-medium disabled:opacity-50 transition-colors
+                               flex items-center justify-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Apply
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <TemplatePicker
+                  templates={layouts.filteredTemplates}
+                  selectedTemplateId={layouts.selectedTemplate?.id ?? null}
+                  categoryFilter={layouts.categoryFilter}
+                  searchQuery={layouts.searchQuery}
+                  onCategoryChange={layouts.setCategoryFilter}
+                  onSearchChange={layouts.setSearchQuery}
+                  onSelectTemplate={layouts.selectTemplate}
+                  onClearTemplate={() => setShowCompositionPanel(false)}
+                />
+              </div>
             )}
           </div>
-
-          {/* Hidden file input */}
-          <input
-            ref={faceInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFacePhotoUpload}
-            className="hidden"
-            aria-label="Upload face photo"
-          />
-
-          {facePhoto ? (
-            <div className="flex items-center gap-3">
-              {/* Face thumbnail */}
-              <img
-                src={facePhoto}
-                alt="Your face"
-                className="w-12 h-12 rounded-lg object-cover border-2 border-pink-500/40 flex-shrink-0"
-              />
-              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                <button
-                  onClick={handleFaceSwap}
-                  disabled={loading || !resultImageUrl}
-                  className="w-full px-3 py-2 rounded-lg bg-pink-600 hover:bg-pink-500
-                             text-white text-sm font-medium disabled:opacity-50
-                             transition-colors flex items-center justify-center gap-1.5"
-                >
-                  {loading && loadingMessage.includes('face') ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Check className="w-3.5 h-3.5" />
-                  )}
-                  Swap Face
-                </button>
-                <button
-                  onClick={() => faceInputRef.current?.click()}
-                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  Change photo
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => faceInputRef.current?.click()}
-              className="w-full flex flex-col items-center gap-2 py-4 rounded-lg border-2 border-dashed
-                         border-gray-600 hover:border-pink-500/40 hover:bg-gray-800/50
-                         text-gray-400 hover:text-gray-300 transition-all cursor-pointer"
-            >
-              <Camera className="w-6 h-6" />
-              <span className="text-xs">Upload a photo of yourself</span>
-              <span className="text-[10px] text-gray-600">Saved for next time</span>
-            </button>
-          )}
-        </div>
-
-        {/* Enhance */}
-        <button
-          onClick={handleEnhance}
-          disabled={loading}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
-                     border border-gray-700/50 hover:border-cyan-500/30 hover:bg-gray-800
-                     text-gray-300 transition-all text-sm disabled:opacity-50"
-        >
-          <Wand2 className="w-5 h-5 text-cyan-400" />
-          Enhance
-        </button>
-
-        {/* Revert */}
-        <button
-          onClick={handleRevert}
-          disabled={loading || resultImageUrl === originalImageUrl}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
-                     border border-gray-700/50 hover:border-gray-500/30 hover:bg-gray-800
-                     text-gray-300 transition-all text-sm disabled:opacity-50"
-        >
-          <RotateCcw className="w-5 h-5 text-gray-400" />
-          Revert to Original
-        </button>
-
-        {/* Divider */}
-        <hr className="border-gray-700/50 my-2" />
-
-        {/* Save — flatten text overlays into image */}
-        {textOverlays.length > 0 && (
+        ) : (
           <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                       bg-blue-600 hover:bg-blue-500 text-white font-medium
-                       disabled:opacity-50 transition-colors text-sm"
+            onClick={() => setShowCompositionPanel(true)}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
+                       border border-gray-700/50 hover:border-indigo-500/30 hover:bg-gray-800
+                       text-gray-300 transition-all text-sm"
           >
-            <Save className="w-4 h-4" />
-            Save
+            <Grid className="w-5 h-5 text-indigo-400" />
+            Layouts
           </button>
         )}
 
-        {/* Download — hero button */}
-        <button
-          onClick={handleDownload}
-          disabled={loading || !resultImageUrl}
-          className="flex items-center justify-center gap-2 px-4 py-4 rounded-xl
-                     bg-emerald-600 hover:bg-emerald-500 text-white font-semibold
-                     disabled:opacity-50 transition-colors text-base shadow-lg shadow-emerald-900/30"
-        >
-          <Download className="w-5 h-5" />
-          Download
-        </button>
-
-        {/* More Actions */}
-        {resultImageUrl && (
-          <>
-            <hr className="border-gray-700/50 my-2" />
-            <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">More Actions</h4>
-            <ThumbnailActionBar
-              context={{
-                imageUrl: resultImageUrl,
-                sourceSettings: {
-                  prompt: aiPrompt || undefined,
-                  style: selectedStyle || undefined,
-                },
-              }}
-              visibleActions={['save', 'edit', 'recreateBetter']}
-              variant="vertical"
-            />
-          </>
-        )}
       </div>
     </div>
   );
@@ -2028,6 +2559,31 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       {loading && view !== 'result' && view !== 'frame-picker' && (
         <div className="fixed inset-0 z-40 bg-gray-900/90 flex items-center justify-center">
           <div className="w-full max-w-lg mx-4 bg-gray-800 rounded-2xl border border-gray-700 p-6 shadow-2xl">
+            {/* Phase step indicator */}
+            {extractionProgress && (
+              <div className="flex items-center gap-1 mb-5">
+                {(['connecting', 'analyzing', 'preparing', 'extracting'] as const).map((phase, idx) => {
+                  const phases = ['connecting', 'analyzing', 'preparing', 'extracting'];
+                  const currentIdx = phases.indexOf(extractionProgress.phase);
+                  const isActive = extractionProgress.phase === phase;
+                  const isDone = currentIdx > idx;
+                  return (
+                    <React.Fragment key={phase}>
+                      <div className={`flex items-center gap-1.5 ${isActive ? 'text-purple-400' : isDone ? 'text-green-400' : 'text-gray-600'}`}>
+                        <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                          isActive ? 'bg-purple-400 animate-pulse' : isDone ? 'bg-green-400' : 'bg-gray-600'
+                        }`} />
+                        <span className="text-[10px] font-medium uppercase tracking-wider">
+                          {phase === 'connecting' ? 'Connect' : phase === 'analyzing' ? 'Analyze' : phase === 'preparing' ? 'Prepare' : 'Extract'}
+                        </span>
+                      </div>
+                      {idx < 3 && <div className={`flex-1 h-px ${isDone ? 'bg-green-400/40' : 'bg-gray-700'}`} />}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Phase & message */}
             <div className="flex items-center gap-3 mb-4">
               {extractionProgress?.phase === 'extracting' ? (
@@ -2063,10 +2619,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               </div>
             )}
 
-            {/* Live frame previews */}
+            {/* Live frame previews (show only first 8 in the grid) */}
             {previewFrames.length > 0 && (
               <div className="grid grid-cols-4 gap-2 mt-2">
-                {previewFrames.map((frame, idx) => (
+                {previewFrames.slice(0, 8).map((frame, idx) => (
                   <div
                     key={idx}
                     className="aspect-video rounded-lg overflow-hidden border border-gray-600/50 animate-in fade-in zoom-in-95 duration-300"
@@ -2078,9 +2634,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                     />
                   </div>
                 ))}
-                {/* Placeholder slots for remaining frames */}
-                {extractionProgress?.total && Array.from(
-                  { length: Math.max(0, extractionProgress.total - previewFrames.length) },
+                {/* Placeholder slots for remaining visible frames (up to 8) */}
+                {extractionProgress?.total && previewFrames.length < 8 && Array.from(
+                  { length: Math.max(0, 8 - previewFrames.length) },
                   (_, i) => (
                     <div
                       key={`placeholder-${i}`}
@@ -2091,9 +2647,18 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               </div>
             )}
 
-            {!extractionProgress?.total && (
+            {/* Extraction count badge (when extracting more than 8) */}
+            {previewFrames.length > 8 && extractionProgress?.total && (
+              <p className="text-gray-500 text-xs text-center mt-2">
+                Extracting {previewFrames.length} of {extractionProgress.total} frames for instant regeneration...
+              </p>
+            )}
+
+            {!extractionProgress?.total && extractionProgress && (
               <p className="text-gray-500 text-xs text-center">
-                Analyzing video and preparing extraction...
+                {extractionProgress.phase === 'connecting' && 'Reaching the video server...'}
+                {extractionProgress.phase === 'analyzing' && 'Reading video metadata and duration...'}
+                {extractionProgress.phase === 'preparing' && 'Resolving best quality stream...'}
               </p>
             )}
           </div>
@@ -2127,6 +2692,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           ]}
         />
       )}
+
+      {/* Save Thumbnail Modal */}
+      {SaveModal}
 
       {/* Recreate Better Modal */}
       <RecreateBetterModal />

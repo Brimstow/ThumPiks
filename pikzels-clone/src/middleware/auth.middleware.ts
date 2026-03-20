@@ -126,6 +126,62 @@ export const authenticateToken = async (
   }
 };
 
+/**
+ * Optional authentication middleware.
+ * If a valid token is present, attaches user to request.
+ * If no token or invalid token, silently continues (req.user = undefined).
+ * Useful for endpoints that work for both logged-in and anonymous users
+ * but offer enhanced behaviour (e.g. higher rate limits) when authenticated.
+ */
+export const optionalAuth = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    let token = (req as any).cookies?.token;
+    if (!token) {
+      const authHeader = req.headers['authorization'];
+      token = authHeader?.split(' ')[1];
+    }
+    if (!token) {
+      next();
+      return;
+    }
+
+    const decoded = EnhancedJWTService.verifyAccessToken(token);
+    if (!decoded) {
+      next();
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, email: true, name: true, emailVerified: true },
+    });
+
+    if (user) {
+      (req as AuthRequest).user = {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        role: 'user' as UserRole,
+        permissions: [
+          'thumbnails:read',
+          'thumbnails:write',
+          'projects:read',
+          'projects:write',
+        ] as Permission[],
+        sessionId: decoded.sessionId || 'legacy-session',
+        lastActivity: new Date(),
+      } as SecureUser;
+    }
+  } catch {
+    // Silently continue without auth
+  }
+  next();
+};
+
 // Refresh token middleware
 export const authenticateRefreshToken = async (
   req: AuthRequest,

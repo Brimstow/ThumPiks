@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CanvasEditor from '../components/CanvasEditor';
-import { authPost } from '../utils/api';
+import { useSaveThumbnail } from '../hooks/useSaveThumbnail';
 
 interface CanvasData {
   imageData: string;
@@ -15,37 +15,18 @@ interface CanvasData {
 const CanvasEditorPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
+  const { triggerSave, SaveModal } = useSaveThumbnail();
 
   const handleClose = () => {
     navigate('/dashboard');
   };
 
-  const handleSave = async (canvasData: CanvasData) => {
-    try {
-      const response = await authPost('/api/thumbnails', {
-        title: 'Canvas Thumbnail',
-        imageUrl: canvasData.imageData,
-        prompt: 'Created with Canvas Editor',
-        parameters: {
-          width: canvasData.metadata.width,
-          height: canvasData.metadata.height,
-          tool: canvasData.metadata.tool,
-        },
-      });
-
-      if (response.ok) {
-        console.log('Canvas saved successfully');
-        navigate('/dashboard');
-      } else {
-        const error = await response.json();
-        console.error('Save failed:', error);
-        alert(`Failed to save: ${error.message || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Save error:', error);
-      alert('Failed to save canvas. Please try again.');
-    }
-  };
+  const handleSave = useCallback((canvasData: CanvasData) => {
+    triggerSave(canvasData.imageData, {
+      title: 'Canvas Thumbnail',
+      source: 'canvas-editor',
+    });
+  }, [triggerSave]);
 
   return (
     <div className="h-screen w-screen overflow-hidden">
@@ -54,6 +35,7 @@ const CanvasEditorPage: React.FC = () => {
         onClose={handleClose} 
         onSave={handleSave} 
       />
+      {SaveModal}
     </div>
   );
 };

@@ -74,13 +74,14 @@ const TEST_USERS: TestUser[] = [
 
 // Subscription plans for test accounts (varied tiers for testing)
 // 999999 credits = effectively unlimited for staging/QA
+// All tester accounts get ultra_pro + unlimited credits so every tier is accessible
 const TEST_SUBSCRIPTIONS: Record<string, { planType: string; credits: number }> = {
   'ultratester@thumpiks.com': { planType: 'ultra_pro', credits: 999999 },
-  'testerllm@example.com':    { planType: 'pro', credits: 200 },
+  'testerllm@example.com':    { planType: 'ultra_pro', credits: 999999 },
   'admin@example.com':        { planType: 'ultra_pro', credits: 999999 },
-  'tester1@example.com':      { planType: 'starter', credits: 50 },
-  'tester2@example.com':      { planType: 'free', credits: 5 },
-  'tester3@example.com':      { planType: 'ultra_pro', credits: 600 },
+  'tester1@example.com':      { planType: 'ultra_pro', credits: 999999 },
+  'tester2@example.com':      { planType: 'ultra_pro', credits: 999999 },
+  'tester3@example.com':      { planType: 'ultra_pro', credits: 999999 },
 };
 
 /**
@@ -280,8 +281,17 @@ async function seedSubscriptions() {
       });
 
       if (existingSub) {
+        // Update existing subscription to match seed config
+        await prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            planType: plan.planType,
+            creditsBalance: plan.credits,
+            creditsUsed: 0,
+          },
+        });
         existing++;
-        console.log(`   ✅ ${email} already has subscription: ${existingSub.planType} (${existingSub.creditsBalance} credits)`);
+        console.log(`   ♻️  ${email} updated → ${plan.planType} (${plan.credits} credits)`);
         continue;
       }
 

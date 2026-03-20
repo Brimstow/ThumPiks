@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useImageActions } from '../../hooks/useImageActions';
+import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 import type {
   ThumbnailActionBarProps,
   ImageAction,
@@ -92,13 +93,13 @@ export const ThumbnailActionBar: React.FC<ThumbnailActionBarProps> = ({
   disabled = false,
 }) => {
   const {
-    saveToLibrary,
     openInEditor,
     downloadImage,
     regenerate,
     startRecreateBetter,
     isLoading,
   } = useImageActions();
+  const { triggerSave, SaveModal, isSaving } = useSaveThumbnail();
 
   const [successAction, setSuccessAction] = useState<ImageAction | null>(null);
   const [errorAction, setErrorAction] = useState<ImageAction | null>(null);
@@ -129,13 +130,14 @@ export const ThumbnailActionBar: React.FC<ThumbnailActionBarProps> = ({
   // ACTION HANDLERS
   // ============================================
 
-  const handleSave = useCallback(async () => {
-    const result = await saveToLibrary(context.imageUrl, {
+  const handleSave = useCallback(() => {
+    triggerSave(context.imageUrl, {
       title: context.title,
       platform: context.platform,
+      prompt: context.sourceSettings?.prompt,
+      source: 'image-action-bar',
     });
-    handleResult(result);
-  }, [context, saveToLibrary, handleResult]);
+  }, [context, triggerSave]);
 
   const handleEdit = useCallback(() => {
     openInEditor(context.imageUrl, {
@@ -203,7 +205,7 @@ export const ThumbnailActionBar: React.FC<ThumbnailActionBarProps> = ({
 
     if (!isAvailable) return null;
 
-    const loading = isLoading[config.id];
+    const loading = config.id === 'save' ? isSaving : isLoading[config.id];
     const success = successAction === config.id;
     const error = errorAction === config.id;
     const isDisabled = disabled || loading || Object.values(isLoading).some(v => v);
@@ -263,9 +265,12 @@ export const ThumbnailActionBar: React.FC<ThumbnailActionBarProps> = ({
   };
 
   return (
-    <div className={`${containerClasses[variant]} ${className}`}>
-      {ACTION_CONFIGS.map(renderActionButton)}
-    </div>
+    <>
+      <div className={`${containerClasses[variant]} ${className}`}>
+        {ACTION_CONFIGS.map(renderActionButton)}
+      </div>
+      {SaveModal}
+    </>
   );
 };
 

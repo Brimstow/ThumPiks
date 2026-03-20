@@ -166,17 +166,17 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
 
     const { title, imageUrl, prompt, parameters, projectId } = req.body;
 
-    // Validate required fields
-    if (!title || !prompt || !projectId) {
+    // Validate required fields — prompt is optional for non-AI flows
+    if (!title || !projectId) {
       return res.status(400).json({
-        error: 'Title, prompt, and projectId are required',
+        error: 'Title and projectId are required',
       });
     }
 
     const thumbnail = await getThumbnailService().createThumbnail({
       title,
       imageUrl: imageUrl || '',
-      prompt,
+      prompt: prompt || '',
       parameters: parameters || {},
       projectId,
       userId: req.user.id,
@@ -289,7 +289,7 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
     }
 
-    const { title, imageUrl, prompt, parameters } = req.body;
+    const { title, imageUrl, prompt, parameters, projectId } = req.body;
 
     const thumbnail = await getThumbnailService().getThumbnailById(id);
 
@@ -302,11 +302,24 @@ export const updateThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    // If moving to a new project, validate the target project belongs to this user
+    if (projectId && projectId !== (thumbnail as any).projectId) {
+      const { ProjectService } = await import('../project/project.service');
+      const projectService = new ProjectService();
+      const targetProject = await projectService.getProjectById(projectId);
+      if (!targetProject || targetProject.userId !== req.user.id) {
+        return res
+          .status(403)
+          .json({ error: 'Target project not found or not owned by you' });
+      }
+    }
+
     const updatedThumbnail = await getThumbnailService().updateThumbnail(id, {
       title,
       imageUrl,
       prompt,
       parameters,
+      projectId,
     });
 
     return res.status(200).json({ thumbnail: updatedThumbnail });
@@ -351,6 +364,47 @@ export const deleteThumbnail = async (req: AuthRequest, res: Response) => {
     return res.status(204).send();
   } catch (error) {
     console.error('Error deleting thumbnail:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const bulkMoveThumbnails = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { thumbnailIds, targetProjectId } = req.body;
+
+    if (!Array.isArray(thumbnailIds) || thumbnailIds.length === 0) {
+      return res.status(400).json({ error: 'thumbnailIds array is required' });
+    }
+    if (!targetProjectId) {
+      return res.status(400).json({ error: 'targetProjectId is required' });
+    }
+
+    // Validate target project belongs to user
+    const { ProjectService } = await import('../project/project.service');
+    const projectService = new ProjectService();
+    const targetProject = await projectService.getProjectById(targetProjectId);
+    if (!targetProject || targetProject.userId !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: 'Target project not found or not owned by you' });
+    }
+
+    const result = await getThumbnailService().bulkMoveThumbnails(
+      thumbnailIds,
+      targetProjectId,
+      req.user.id
+    );
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    if (error.message === 'No valid thumbnails found') {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error('Error bulk moving thumbnails:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -1076,11 +1130,9 @@ export const recategorizeThumbnail = async (
     const { platform } = req.body;
     const validPlatforms = ['youtube', 'tiktok', 'instagram', 'twitter'];
     if (!platform || !validPlatforms.includes(platform)) {
-      return res
-        .status(400)
-        .json({
-          error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}`,
-        });
+      return res.status(400).json({
+        error: `Invalid platform. Must be one of: ${validPlatforms.join(', ')}`,
+      });
     }
 
     const thumbnail = await getThumbnailService().recategorizeThumbnail(
@@ -2167,8 +2219,8 @@ export const hardDeleteThumbnail = async (req: AuthRequest, res: Response) => {
 /**
  * Generate AI-powered text suggestions for thumbnail titles
  * Uses OpenRouter chat completions (text-only, no image generation)
- * Cost: 1 credit per generation
- * Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number }
+ * Cost: tier-based (1-3 credits) via model-tiers.config
+ * Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number, tier?: string }
  */
 export const aiGenerateText = async (req: AuthRequest, res: Response) => {
   try {
@@ -2182,6 +2234,7 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
       tone = 'clickbait',
       count = 5,
       maxLength = 60,
+      tier,
     } = req.body;
 
     if (!prompt) {
@@ -2194,12 +2247,14 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Credit check & deduction (1 credit for text generation)
-    const creditCost = 1;
+    // Resolve model and credit cost from tier config
+    const textModel =
+      resolveModelFromTier(tier, 'generate-text') || 'google/gemini-2.5-flash';
+    const creditCost = getCreditCostForTier(tier, 'generate-text');
     const deducted = await deductCredits(
       req.user.id,
       creditCost,
-      'AI text generation'
+      `AI text generation - ${tier || 'flash'} tier`
     );
     if (!deducted) {
       return res.status(402).json({
@@ -2231,6 +2286,9 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
         'curiosity',
       ];
 
+      // Variation seed to ensure unique results each call
+      const variationSeed = Math.random().toString(36).slice(2, 8);
+
       const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
 
 Rules:
@@ -2238,6 +2296,7 @@ Rules:
 - Text must be readable at thumbnail size (short, impactful)
 - Use UPPERCASE for key words to simulate thumbnail text styling
 - Tone: ${toneInstructions[tone] || toneInstructions.clickbait}
+- IMPORTANT: Be creative and produce COMPLETELY DIFFERENT suggestions each time. Never repeat previous ideas. Surprise the user with fresh angles.
 ${context ? `- Context: ${context}` : ''}
 
 For each suggestion, assign one of these styles: ${styleTypes.join(', ')}
@@ -2245,9 +2304,6 @@ Also assign a click-worthiness score from 0.0 to 1.0.
 
 Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
 [{"text": "YOU WON'T BELIEVE This!", "style": "curiosity", "score": 0.92}]`;
-
-      // Use a text-only model via OpenRouter chat completions
-      const textModel = 'google/gemini-2.5-flash';
 
       const apiUrl =
         process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
@@ -2263,9 +2319,12 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
           model: textModel,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
+            {
+              role: 'user',
+              content: `${prompt}\n\n[variation: ${variationSeed}]`,
+            },
           ],
-          temperature: 0.9,
+          temperature: 1.0,
           max_tokens: 1024,
         }),
       });
@@ -2348,6 +2407,7 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
       emitAnalyticsEvent(req.user.id, 'ai-tool', 'generate-text', 'ai-text', {
         promptLength: prompt.length,
         tone,
+        tier: tier || 'flash',
         suggestionsCount: suggestions.length,
       });
 
@@ -2355,6 +2415,7 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
         success: true,
         suggestions,
         model: textModel,
+        tier: tier || 'flash',
         creditCost,
       });
     } catch (apiError) {
