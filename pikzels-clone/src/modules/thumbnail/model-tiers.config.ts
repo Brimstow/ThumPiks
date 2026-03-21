@@ -369,9 +369,9 @@ const upscaleTiers: ToolTierConfig = {
 /**
  * AI text generation tiers (chat completions, text-only — no image output).
  *
- * Flash    → Gemini 2.5 Flash: fastest, cheapest, good suggestions (default)
- * Standard → Gemini 2.5 Pro: smarter reasoning, more creative
- * Pro      → GPT-4o: premium quality, best creative writing
+ * Flash    → GPT-4.1 Nano: fastest, cheapest, excellent JSON compliance (default)
+ * Standard → GPT-4.1 Mini: best quality-per-dollar, mature structured output
+ * Pro      → GPT-4.1: premium quality, highest accuracy, native structured output
  *
  * NOTE: These are text-only models, not image models. All go through OpenRouter
  * chat/completions. Model IDs are defined directly (not via TIER_PROVIDER_MAP)
@@ -384,8 +384,8 @@ const generateTextTiers: ToolTierConfig = {
     {
       ...TIER_BASE.flash,
       tagline: 'Quick text ideas',
-      modelId: 'google/gemini-2.5-flash',
-      modelLabel: 'Gemini 2.5 Flash',
+      modelId: 'openai/gpt-4.1-nano',
+      modelLabel: 'GPT-4.1 Nano',
       credits: 1,
       estimatedTime: '~2s',
       isDefault: true,
@@ -393,8 +393,8 @@ const generateTextTiers: ToolTierConfig = {
     {
       ...TIER_BASE.standard,
       tagline: 'Smarter, more creative suggestions',
-      modelId: 'google/gemini-2.5-pro',
-      modelLabel: 'Gemini 2.5 Pro',
+      modelId: 'openai/gpt-4.1-mini',
+      modelLabel: 'GPT-4.1 Mini',
       credits: 2,
       estimatedTime: '~5s',
       badge: 'More Creative',
@@ -402,8 +402,8 @@ const generateTextTiers: ToolTierConfig = {
     {
       ...TIER_BASE.pro,
       tagline: 'Premium AI, best text quality',
-      modelId: 'openai/gpt-4o',
-      modelLabel: 'GPT-4o',
+      modelId: 'openai/gpt-4.1',
+      modelLabel: 'GPT-4.1',
       credits: 3,
       estimatedTime: '~4s',
       badge: 'Best Quality',

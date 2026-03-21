@@ -2249,7 +2249,7 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
 
     // Resolve model and credit cost from tier config
     const textModel =
-      resolveModelFromTier(tier, 'generate-text') || 'google/gemini-2.5-flash';
+      resolveModelFromTier(tier, 'generate-text') || 'openai/gpt-4.1-nano';
     const creditCost = getCreditCostForTier(tier, 'generate-text');
     const deducted = await deductCredits(
       req.user.id,
@@ -2286,9 +2286,6 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
         'curiosity',
       ];
 
-      // Variation seed to ensure unique results each call
-      const variationSeed = Math.random().toString(36).slice(2, 8);
-
       const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
 
 Rules:
@@ -2297,13 +2294,11 @@ Rules:
 - Use UPPERCASE for key words to simulate thumbnail text styling
 - Tone: ${toneInstructions[tone] || toneInstructions.clickbait}
 - IMPORTANT: Be creative and produce COMPLETELY DIFFERENT suggestions each time. Never repeat previous ideas. Surprise the user with fresh angles.
+- CRITICAL: Spell all names, brands, and proper nouns EXACTLY as provided in the prompt or context. Never alter, phonetically substitute, or "improve" proper nouns.
 ${context ? `- Context: ${context}` : ''}
 
 For each suggestion, assign one of these styles: ${styleTypes.join(', ')}
-Also assign a click-worthiness score from 0.0 to 1.0.
-
-Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
-[{"text": "YOU WON'T BELIEVE This!", "style": "curiosity", "score": 0.92}]`;
+Also assign a click-worthiness score from 0.0 to 1.0.`;
 
       const apiUrl =
         process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
@@ -2321,11 +2316,41 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
             { role: 'system', content: systemPrompt },
             {
               role: 'user',
-              content: `${prompt}\n\n[variation: ${variationSeed}]`,
+              content: prompt,
             },
           ],
-          temperature: 1.0,
+          temperature: 0.5,
           max_tokens: 1024,
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'thumbnail_suggestions',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  suggestions: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        text: { type: 'string' },
+                        style: {
+                          type: 'string',
+                          enum: ['bold', 'question', 'listicle', 'emotional', 'curiosity'],
+                        },
+                        score: { type: 'number' },
+                      },
+                      required: ['text', 'style', 'score'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ['suggestions'],
+                additionalProperties: false,
+              },
+            },
+          },
         }),
       });
 
@@ -2346,28 +2371,35 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
       };
       const content = data.choices?.[0]?.message?.content || '';
 
-      // Parse the JSON response
+      // Parse the JSON response — structured output should return { suggestions: [...] }
       let suggestions: Array<{ text: string; style: string; score: number }>;
       try {
-        // Strip markdown code fences if present
+        // Strip markdown code fences if present (safety net)
         const cleaned = content
           .replace(/```json?\s*/g, '')
           .replace(/```\s*/g, '')
           .trim();
-        suggestions = JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
 
-        if (!Array.isArray(suggestions)) {
-          throw new Error('Response is not an array');
+        // Structured output wraps in { suggestions: [...] }, but handle bare array too
+        const rawSuggestions = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.suggestions)
+            ? parsed.suggestions
+            : null;
+
+        if (!rawSuggestions) {
+          throw new Error('Response has no suggestions array');
         }
 
         // Validate and sanitize
-        suggestions = suggestions
+        suggestions = rawSuggestions
           .filter(
-            s => s && typeof s.text === 'string' && s.text.trim().length > 0
+            (s: any) => s && typeof s.text === 'string' && s.text.trim().length > 2
           )
           .slice(0, count)
-          .map(s => ({
-            text: s.text.trim().slice(0, maxLength + 20), // Allow slight overflow
+          .map((s: any) => ({
+            text: s.text.trim().slice(0, maxLength + 20),
             style: styleTypes.includes(s.style) ? s.style : 'bold',
             score:
               typeof s.score === 'number'
@@ -2375,21 +2407,24 @@ Respond ONLY with a valid JSON array. No markdown, no explanation. Example:
                 : 0.8,
           }));
       } catch {
-        // If JSON parsing fails, try to extract text lines
-        const lines = content
-          .split('\n')
-          .filter(
-            (l: string) =>
-              l.trim().length > 0 && l.trim().length <= maxLength + 20
-          );
-        suggestions = lines.slice(0, count).map((line: string, i: number) => ({
-          text: line
-            .replace(/^\d+[.)]\s*/, '')
-            .replace(/^["']|["']$/g, '')
-            .trim(),
-          style: styleTypes[i % styleTypes.length] as string,
-          score: 0.75,
-        }));
+        // Bulletproof fallback: extract "text" values via regex, filter JSON artifacts
+        const textMatches: string[] = [];
+        const textRegex = /"text"\s*:\s*"([^"]+)"/g;
+        let match: RegExpExecArray | null;
+        while ((match = textRegex.exec(content)) !== null) {
+          if (match[1]) textMatches.push(match[1]);
+        }
+
+        // Filter out JSON syntax artifacts and too-short entries
+        const jsonArtifacts = /[{}[\]"`:]/;
+        suggestions = textMatches
+          .filter(t => t.trim().length > 2 && !jsonArtifacts.test(t.trim().slice(0, 3)))
+          .slice(0, count)
+          .map((text: string, i: number) => ({
+            text: text.trim().slice(0, maxLength + 20),
+            style: styleTypes[i % styleTypes.length] as string,
+            score: 0.75,
+          }));
       }
 
       if (suggestions.length === 0) {
