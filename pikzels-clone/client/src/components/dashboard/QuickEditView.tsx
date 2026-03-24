@@ -1,28 +1,61 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Link2, Sparkles, UploadCloud, ArrowLeft, Download, RotateCcw,
-  Wand2, Loader2, X, Check, Pencil,
-  Clock, ChevronRight, ChevronLeft, AlertCircle, Grid, Camera, Trash2, Save, Eye, Command,
-  Star, Search, CheckSquare, Square, ChevronDown, ChevronUp, RefreshCw, Type, Plus,
+  Link2,
+  Sparkles,
+  UploadCloud,
+  ArrowLeft,
+  Download,
+  RotateCcw,
+  Wand2,
+  Loader2,
+  X,
+  Check,
+  Pencil,
+  Eraser,
+  Clipboard,
+  Clock,
+  ChevronRight,
+  ChevronLeft,
+  AlertCircle,
+  Grid,
+  Camera,
+  Trash2,
+  Save,
+  Eye,
+  Command,
+  Star,
+  Search,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Type,
+  Plus,
 } from 'lucide-react';
 import type { VisionAnalysisResult } from '../../types/vision.types';
 import {
-  detectPlatform, isValidUrl, getUrlHistory, saveUrlHistory,
-  deleteUrlHistoryEntry, clearAllUrlHistory, togglePinUrl, bulkDeleteUrls,
-  uploadAsset, fetchVideoFramesStreaming, UrlHistoryEntry, VideoFrame,
-  FrameExtractionProgress, FrameRateLimitInfo,
+  detectPlatform,
+  isValidUrl,
+  getUrlHistory,
+  saveUrlHistory,
+  deleteUrlHistoryEntry,
+  clearAllUrlHistory,
+  togglePinUrl,
+  bulkDeleteUrls,
+  uploadAsset,
+  fetchVideoFramesStreaming,
+  UrlHistoryEntry,
+  VideoFrame,
+  FrameExtractionProgress,
+  FrameRateLimitInfo,
 } from '../../services/quickEditService';
 import { authPost } from '../../utils/api';
 import AICommandBar from '../editor/components/AICommandBar';
 import { useQuickEditCommandExecutor } from './hooks/useQuickEditCommandExecutor';
 import { useAITextGenerator } from '../../hooks/useAITextGenerator';
-import {
-  useLayouts,
-  TemplatePicker,
-  SlotEditor,
-  CompositionEngine,
-} from '../../features/composition-templates';
+// Layouts available via Canvas Editor — removed from Quick Edit sidebar
 import RecreateBetterModal from '../ui/RecreateBetterModal';
 import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 
@@ -30,7 +63,13 @@ import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 // TYPES
 // ============================================
 
-type ViewState = 'start' | 'url-input' | 'frame-picker' | 'ai-generate' | 'upload' | 'result';
+type ViewState =
+  | 'start'
+  | 'url-input'
+  | 'frame-picker'
+  | 'ai-generate'
+  | 'upload'
+  | 'result';
 
 interface TextOverlay {
   id: string;
@@ -58,18 +97,99 @@ interface QuickEditViewProps {
 // ============================================
 
 const STYLE_PRESETS = [
-  { id: 'bold', label: 'Bold', emoji: '🎨', prompt: 'vibrant colors, eye-catching, high contrast, bold' },
-  { id: 'minimalist', label: 'Minimal', emoji: '✨', prompt: 'clean, minimalist, modern design' },
-  { id: 'dramatic', label: 'Dramatic', emoji: '🎭', prompt: 'dramatic lighting, intense' },
-  { id: 'cinematic', label: 'Cinematic', emoji: '🎬', prompt: 'cinematic, movie poster style, epic' },
-  { id: 'professional', label: 'Pro', emoji: '💼', prompt: 'professional, clean, corporate' },
-  { id: 'creative', label: 'Creative', emoji: '💜', prompt: 'creative, artistic, unique style' },
-  { id: 'gaming', label: 'Gaming', emoji: '🎮', prompt: 'gaming style, neon glow, futuristic' },
-  { id: 'vibrant', label: 'Vibrant', emoji: '🌈', prompt: 'vibrant, saturated, colorful, energetic' },
-  { id: 'retro', label: 'Retro', emoji: '📼', prompt: 'retro style, vintage aesthetic, nostalgic' },
-  { id: 'neon', label: 'Neon', emoji: '💡', prompt: 'neon glow, cyberpunk, futuristic lights' },
-  { id: 'natural', label: 'Natural', emoji: '🌿', prompt: 'natural, organic, warm tones' },
+  {
+    id: 'bold',
+    label: 'Bold',
+    emoji: '🎨',
+    prompt: 'vibrant colors, eye-catching, high contrast, bold',
+    samplePrompt:
+      'Person pointing at camera with shocked expression, massive bold text, red-yellow background bursting with energy',
+  },
+  {
+    id: 'minimalist',
+    label: 'Minimal',
+    emoji: '✨',
+    prompt: 'clean, minimalist, modern design',
+    samplePrompt:
+      'Single bold subject on a pure white background, minimal text, lots of breathing room, modern flat design',
+  },
+  {
+    id: 'dramatic',
+    label: 'Dramatic',
+    emoji: '🎭',
+    prompt: 'dramatic lighting, intense',
+    samplePrompt:
+      'Intense close-up face with deep shadows, stormy sky backdrop, dramatic moody lighting and high contrast',
+  },
+  {
+    id: 'cinematic',
+    label: 'Cinematic',
+    emoji: '🎬',
+    prompt: 'cinematic, movie poster style, epic',
+    samplePrompt:
+      'Epic wide-angle shot with lens flare and film grain, movie poster composition, dark dramatic color grading',
+  },
+  {
+    id: 'professional',
+    label: 'Pro',
+    emoji: '💼',
+    prompt: 'professional, clean, corporate',
+    samplePrompt:
+      'Confident presenter against a clean studio backdrop, sharp professional attire, bold clear title text',
+  },
+  {
+    id: 'creative',
+    label: 'Creative',
+    emoji: '💜',
+    prompt: 'creative, artistic, unique style',
+    samplePrompt:
+      'Surreal collage with floating elements, unexpected visual twist, bold mixed colors and artistic typography',
+  },
+  {
+    id: 'gaming',
+    label: 'Gaming',
+    emoji: '🎮',
+    prompt: 'gaming style, neon glow, futuristic',
+    samplePrompt:
+      'Epic gamer mid-action with neon HUD overlay, explosion in the background, futuristic glow effects',
+  },
+  {
+    id: 'vibrant',
+    label: 'Vibrant',
+    emoji: '🌈',
+    prompt: 'vibrant, saturated, colorful, energetic',
+    samplePrompt:
+      'Colorful energetic scene with saturated rainbow tones, dynamic movement, high-contrast pop art feel',
+  },
+  {
+    id: 'retro',
+    label: 'Retro',
+    emoji: '📼',
+    prompt: 'retro style, vintage aesthetic, nostalgic',
+    samplePrompt:
+      '80s VHS aesthetic with film grain, retro pastel palette, vintage typography and warm nostalgic feel',
+  },
+  {
+    id: 'neon',
+    label: 'Neon',
+    emoji: '💡',
+    prompt: 'neon glow, cyberpunk, futuristic lights',
+    samplePrompt:
+      'Cyberpunk street at night with glowing neon signs, dark rain-soaked atmosphere, futuristic moody vibes',
+  },
+  {
+    id: 'natural',
+    label: 'Natural',
+    emoji: '🌿',
+    prompt: 'natural, organic, warm tones',
+    samplePrompt:
+      'Sun-drenched outdoor scene with earthy greens and warm golden light, authentic real-world feel',
+  },
 ];
+
+// Demo video for "Try an Example" — stable, well-known public video
+const EXAMPLE_VIDEO_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+const EXAMPLE_VIDEO_LABEL = 'Rick Astley – Never Gonna Give You Up';
 
 const THUMBNAIL_FONTS = [
   { label: 'Impact', value: 'Impact, Arial Black, sans-serif' },
@@ -119,16 +239,337 @@ function savePersistedState(state: PersistedState): void {
   try {
     // Skip saving if frames contain large base64 data (>2MB total)
     const framesSize = JSON.stringify(state.videoFrames).length;
-    const toSave: PersistedState = framesSize > 2_000_000
-      ? { ...state, videoFrames: [] }
-      : state;
+    const toSave: PersistedState =
+      framesSize > 2_000_000 ? { ...state, videoFrames: [] } : state;
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(toSave));
   } catch {
     // sessionStorage full — silently fail
   }
 }
 
-const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpenEditor }) => {
+// ============================================
+// CONSTANTS FOR SMART TEXT STYLING
+// ============================================
+
+const MOOD_FONTS: Record<string, string> = {
+  dramatic: 'Oswald, Impact, sans-serif',
+  intense: 'Oswald, Impact, sans-serif',
+  dark: 'Oswald, Impact, sans-serif',
+  energetic: 'Bangers, Impact, cursive',
+  fun: 'Bangers, Poppins, cursive',
+  playful: 'Bangers, Poppins, cursive',
+  happy: 'Poppins, Nunito, sans-serif',
+  bright: 'Poppins, Nunito, sans-serif',
+  calm: 'Quicksand, Nunito, sans-serif',
+  mysterious: 'Playfair Display, Georgia, serif',
+  elegant: 'Playfair Display, Georgia, serif',
+  professional: 'Montserrat, Arial, sans-serif',
+  serious: 'Montserrat, Oswald, sans-serif',
+  bold: 'Impact, Arial Black, sans-serif',
+};
+
+function isColorDark(hex: string): boolean {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
+
+const DEFAULT_SMART_STYLE: Partial<TextOverlay> = {
+  fontFamily: 'Impact, Arial Black, sans-serif',
+  color: '#FFFFFF',
+  fontWeight: '900',
+  fontSize: 80,
+  textStroke: '2px rgba(0,0,0,0.8)',
+  textShadow: '3px 3px 6px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.4)',
+  letterSpacing: '2px',
+  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  maxWidth: 90,
+};
+
+// ============================================
+// SMART TEXT ITEM — plain row, no popover
+// ============================================
+
+interface SmartTextItemProps {
+  overlay: TextOverlay;
+  isActive: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}
+
+const SmartTextItem: React.FC<SmartTextItemProps> = ({
+  overlay,
+  isActive,
+  onSelect,
+  onRemove,
+}) => (
+  <div
+    onClick={onSelect}
+    className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-all group
+      ${
+        isActive
+          ? 'bg-purple-600/15 border-l-2 border-l-purple-500'
+          : 'hover:bg-gray-700/30 border-l-2 border-l-transparent'
+      }`}
+  >
+    <span
+      className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
+      style={{ backgroundColor: overlay.color }}
+    />
+    <span
+      className="text-sm text-gray-300 truncate flex-1"
+      style={{ fontFamily: overlay.fontFamily }}
+    >
+      {overlay.text}
+    </span>
+    <button
+      onClick={e => {
+        e.stopPropagation();
+        onRemove();
+      }}
+      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-0.5"
+      aria-label={`Remove text: ${overlay.text}`}
+      title="Remove this text"
+    >
+      <X className="w-3 h-3" />
+    </button>
+  </div>
+);
+
+// ============================================
+// FLOATING EDIT PANEL — draggable, spawns at Smart Text button
+// ============================================
+
+interface FloatingEditPanelProps {
+  overlay: TextOverlay;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+  onUpdate: (updates: Partial<TextOverlay>) => void;
+}
+
+const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
+  overlay,
+  anchorRef,
+  onClose,
+  onUpdate,
+}) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const draggingPanel = useRef(false);
+  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+
+  // Position panel near the Smart Text button on first render
+  useEffect(() => {
+    if (anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect();
+      const panelW = 284;
+      // Place to the left of the right-side panel, above anchor
+      let x = r.left - panelW - 8;
+      let y = r.top;
+      // If not enough space to the left, place above
+      if (x < 8) {
+        x = Math.max(8, r.right - panelW);
+        y = r.top - 10;
+      }
+      setPos({ x, y });
+    }
+  }, [anchorRef]);
+
+  const onMouseDownHeader = (e: React.MouseEvent) => {
+    if (!pos) return;
+    draggingPanel.current = true;
+    dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingPanel.current) return;
+      const dx = e.clientX - dragStart.current.mx;
+      const dy = e.clientY - dragStart.current.my;
+      setPos({ x: dragStart.current.px + dx, y: dragStart.current.py + dy });
+    };
+    const onUp = () => {
+      draggingPanel.current = false;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  if (!pos) return null;
+
+  return (
+    <div
+      ref={panelRef}
+      style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
+        zIndex: 9999,
+        width: 284,
+      }}
+      className="smart-text-edit-popover bg-gray-800 rounded-xl border border-purple-500/30 shadow-2xl"
+    >
+      {/* Drag handle header */}
+      <div
+        onMouseDown={onMouseDownHeader}
+        className="flex items-center justify-between px-3 py-2.5 border-b border-gray-700/60
+                   cursor-grab active:cursor-grabbing select-none rounded-t-xl
+                   bg-gray-750 hover:bg-gray-700/50 transition-colors"
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-gray-500">⠿</span>
+          <span className="text-xs font-medium text-purple-300 uppercase tracking-wider">
+            Edit Text
+          </span>
+        </div>
+        <button
+          onMouseDown={e => e.stopPropagation()}
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-700"
+          aria-label="Close edit panel"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="p-3 space-y-2.5">
+        {/* Text input */}
+        <input
+          type="text"
+          value={overlay.text}
+          onChange={e => onUpdate({ text: e.target.value })}
+          className="w-full px-2.5 py-1.5 rounded-lg bg-gray-900 border border-gray-700
+                     text-white text-sm focus:outline-none focus:border-purple-500"
+        />
+
+        {/* Font picker */}
+        <div>
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">
+            Font
+          </span>
+          <div className="grid grid-cols-2 gap-1">
+            {THUMBNAIL_FONTS.map(f => (
+              <button
+                key={f.label}
+                onClick={() => onUpdate({ fontFamily: f.value })}
+                className={`px-2 py-1.5 rounded text-xs text-left truncate transition-all
+                  ${
+                    overlay.fontFamily === f.value
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-900 text-gray-400 hover:bg-gray-700 hover:text-white'
+                  }`}
+                style={{ fontFamily: f.value }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color picker */}
+        <div>
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">
+            Color
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              '#FFFFFF',
+              '#000000',
+              '#FF0000',
+              '#FFD600',
+              '#00E676',
+              '#2979FF',
+              '#FF6D00',
+              '#E040FB',
+            ].map(c => (
+              <button
+                key={c}
+                onClick={() => onUpdate({ color: c })}
+                className={`w-6 h-6 rounded-full border-2 transition-all ${
+                  overlay.color === c
+                    ? 'border-purple-400 scale-110'
+                    : 'border-gray-600 hover:border-gray-400'
+                }`}
+                style={{ backgroundColor: c }}
+                aria-label={`Set text color to ${c}`}
+                title={c}
+              />
+            ))}
+            <label
+              className="relative w-6 h-6 rounded-full border-2 border-dashed border-gray-500 hover:border-gray-300 cursor-pointer flex items-center justify-center transition-colors"
+              title="Custom color"
+            >
+              <span className="text-gray-400 text-[10px] leading-none">+</span>
+              <input
+                type="color"
+                value={overlay.color}
+                onChange={e => onUpdate({ color: e.target.value })}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                aria-label="Custom text color"
+                title="Pick custom color"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Size slider */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 w-6">Size</span>
+          <input
+            type="range"
+            min={30}
+            max={120}
+            value={overlay.fontSize}
+            onChange={e => onUpdate({ fontSize: Number(e.target.value) })}
+            className="flex-1 accent-purple-500"
+            aria-label="Text size"
+            title="Text size"
+          />
+          <span className="text-gray-400 text-[10px] w-6">
+            {overlay.fontSize}
+          </span>
+        </div>
+
+        {/* Banner toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-gray-500 uppercase">
+            Background banner
+          </span>
+          <button
+            onClick={() =>
+              onUpdate({
+                backgroundColor: overlay.backgroundColor
+                  ? ''
+                  : 'rgba(0,0,0,0.6)',
+              })
+            }
+            aria-label="Toggle background banner"
+            title="Toggle background banner"
+            className={`w-9 h-5 rounded-full transition-colors relative
+              ${overlay.backgroundColor ? 'bg-purple-600' : 'bg-gray-700'}`}
+          >
+            <span
+              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform
+                ${overlay.backgroundColor ? 'left-[18px]' : 'left-0.5'}`}
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuickEditView: React.FC<QuickEditViewProps> = ({
+  onClose: _onClose,
+  onOpenEditor,
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -143,8 +584,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     // Route state takes priority (e.g. "From YouTube" navigates with initialView)
     if (routeState?.initialView) return routeState.initialView;
     // Only restore persisted view when it has meaningful context to resume
-    if (persisted.view === 'result' && persisted.resultImageUrl) return 'result';
-    if (persisted.view === 'frame-picker' && persisted.videoFrames?.length) return 'frame-picker';
+    if (persisted.view === 'result' && persisted.resultImageUrl)
+      return 'result';
+    if (persisted.view === 'frame-picker' && persisted.videoFrames?.length)
+      return 'frame-picker';
     // All other cases (sidebar click, shallow views) start fresh
     return 'start';
   });
@@ -157,7 +600,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     if (routeState?.initialView) {
       window.history.replaceState({}, '');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // URL path state
   const [urlInput, setUrlInput] = useState(persisted.urlInput || '');
@@ -167,17 +610,27 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  // Clipboard paste status for URL panel
+  const [clipboardStatus, setClipboardStatus] = useState<
+    'idle' | 'pasting' | 'pasted' | 'error'
+  >('idle');
 
   // AI generate state
   const [aiPrompt, setAiPrompt] = useState(persisted.aiPrompt || '');
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(persisted.selectedStyle ?? null);
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(
+    persisted.selectedStyle ?? null
+  );
 
   // Upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Result state
-  const [resultImageUrl, setResultImageUrl] = useState<string | null>(persisted.resultImageUrl ?? null);
-  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(persisted.originalImageUrl ?? null);
+  const [resultImageUrl, setResultImageUrl] = useState<string | null>(
+    persisted.resultImageUrl ?? null
+  );
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(
+    persisted.originalImageUrl ?? null
+  );
 
   // Text overlay state
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
@@ -191,21 +644,73 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   // Drag state
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Resize state
+  type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+  const [resizing, setResizing] = useState<{
+    id: string;
+    handle: ResizeHandle;
+  } | null>(null);
+  const resizeStartRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    fontSize: number;
+    maxWidth: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Canvas container size — used to scale text proportionally
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  // Ref for the Smart Text button — used to position the floating edit panel
+  const smartTextBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const ro = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setCanvasSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    ro.observe(canvasRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   // Frame picker state
-  const [videoFrames, setVideoFrames] = useState<VideoFrame[]>(persisted.videoFrames || []);
+  const [videoFrames, setVideoFrames] = useState<VideoFrame[]>(
+    persisted.videoFrames || []
+  );
   const [videoTitle, setVideoTitle] = useState(persisted.videoTitle || '');
-  const [selectedFrameIdx, setSelectedFrameIdx] = useState<number | null>(persisted.selectedFrameIdx ?? null);
+  const [selectedFrameIdx, setSelectedFrameIdx] = useState<number | null>(
+    persisted.selectedFrameIdx ?? null
+  );
 
   // Frame cycle state (regeneration + cycle navigation)
   const [currentCycleIndex, setCurrentCycleIndex] = useState<number>(0);
   const [totalCycles, setTotalCycles] = useState<number>(1);
-  const [rateLimitInfo, setRateLimitInfo] = useState<FrameRateLimitInfo | null>(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState<FrameRateLimitInfo | null>(
+    null
+  );
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Client-side cycle cache — prev/next reads from here, zero network calls
   const cycleCache = useRef<Map<number, VideoFrame[]>>(new Map());
+
+  // Frame state cleanup — used when leaving frame-based flows (Paste Link)
+  // to prevent stale frames from appearing in AI Generate / Upload Image paths
+  const clearFrameState = useCallback(() => {
+    setVideoFrames([]);
+    setVideoTitle('');
+    setSelectedFrameIdx(null);
+    setCurrentCycleIndex(0);
+    setTotalCycles(1);
+    cycleCache.current.clear();
+  }, []);
 
   // Loading states
   const [loading, setLoading] = useState(false);
@@ -213,7 +718,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const [error, setError] = useState<string | null>(null);
 
   // Frame extraction progress (SSE streaming)
-  const [extractionProgress, setExtractionProgress] = useState<FrameExtractionProgress | null>(null);
+  const [extractionProgress, setExtractionProgress] =
+    useState<FrameExtractionProgress | null>(null);
   const [previewFrames, setPreviewFrames] = useState<VideoFrame[]>([]);
 
   // Save thumbnail modal (DRY — uses shared useSaveThumbnail hook)
@@ -222,14 +728,21 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   // "Add Your Face" state — persisted in localStorage so user only uploads once
   const FACE_STORAGE_KEY = 'quickedit_face_photo';
   const [facePhoto, setFacePhoto] = useState<string | null>(() => {
-    try { return localStorage.getItem(FACE_STORAGE_KEY); } catch { return null; }
+    try {
+      return localStorage.getItem(FACE_STORAGE_KEY);
+    } catch {
+      return null;
+    }
   });
   const faceInputRef = useRef<HTMLInputElement>(null);
 
   // AI Command Bar state
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [isCommandBarLoading] = useState(false);
-  const toggleCommandBar = useCallback(() => setIsCommandBarOpen((prev) => !prev), []);
+  const toggleCommandBar = useCallback(
+    () => setIsCommandBarOpen(prev => !prev),
+    []
+  );
 
   // Refs for stable hook callbacks (avoid stale closures)
   const textOverlaysRef = useRef(textOverlays);
@@ -242,22 +755,24 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   facePhotoRef.current = facePhoto;
 
   const commandExecutor = useQuickEditCommandExecutor({
-    addTextOverlay: (overlay) => {
-      setTextOverlays((prev) => [...prev, overlay]);
+    addTextOverlay: overlay => {
+      setTextOverlays(prev => [...prev, overlay]);
       setActiveOverlayId(overlay.id);
       setShowOverlayHint(overlay.id);
       setTimeout(() => setShowOverlayHint(null), 3000);
     },
     updateOverlayProp: (id, patch) => {
-      setTextOverlays((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+      setTextOverlays(prev =>
+        prev.map(o => (o.id === id ? { ...o, ...patch } : o))
+      );
     },
-    removeOverlay: (id) => {
-      setTextOverlays((prev) => prev.filter((o) => o.id !== id));
+    removeOverlay: id => {
+      setTextOverlays(prev => prev.filter(o => o.id !== id));
       if (activeOverlayIdRef.current === id) setActiveOverlayId(null);
     },
     setActiveOverlayId,
     getResultImageUrl: () => resultImageUrlRef.current,
-    setResultImageUrl: (url) => setResultImageUrl(url),
+    setResultImageUrl: url => setResultImageUrl(url),
     setLoading,
     setLoadingMessage,
     setError,
@@ -266,55 +781,38 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     getFacePhoto: () => facePhotoRef.current,
   });
 
-  // Layouts
-  const layouts = useLayouts();
-  const [showCompositionPanel, setShowCompositionPanel] = useState(false);
-
   // Smart Text — consolidated hook for vision-aware AI text generation
   const aiText = useAITextGenerator();
   const [textTier] = useState<'flash' | 'standard' | 'pro'>('standard');
 
-  const handleApplyComposition = useCallback(async () => {
-    if (!layouts.selectedTemplate || !layouts.compositionState) return;
-    const missing = layouts.getMissingSlots();
-    if (missing.length > 0) {
-      setError(`Fill required slots: ${missing.join(', ')}`);
-      return;
-    }
-    setLoading(true);
-    setLoadingMessage('Rendering layout...');
-    try {
-      const dataUrl = await CompositionEngine.renderToDataUrl(
-        layouts.selectedTemplate,
-        layouts.compositionState
-      );
-      setResultImageUrl(dataUrl);
-      setShowCompositionPanel(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to render layout');
-    } finally {
-      setLoading(false);
-      setLoadingMessage('');
-    }
-  }, [layouts]);
-
-  const handleFacePhotoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setFacePhoto(dataUrl);
-      try { localStorage.setItem(FACE_STORAGE_KEY, dataUrl); } catch { /* full */ }
-    };
-    reader.readAsDataURL(file);
-    // Reset so the same file can be re-selected
-    e.target.value = '';
-  }, []);
+  const handleFacePhotoUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const dataUrl = ev.target?.result as string;
+        setFacePhoto(dataUrl);
+        try {
+          localStorage.setItem(FACE_STORAGE_KEY, dataUrl);
+        } catch {
+          /* full */
+        }
+      };
+      reader.readAsDataURL(file);
+      // Reset so the same file can be re-selected
+      e.target.value = '';
+    },
+    []
+  );
 
   const clearFacePhoto = useCallback(() => {
     setFacePhoto(null);
-    try { localStorage.removeItem(FACE_STORAGE_KEY); } catch { /* */ }
+    try {
+      localStorage.removeItem(FACE_STORAGE_KEY);
+    } catch {
+      /* */
+    }
   }, []);
 
   // Persist state on changes
@@ -330,7 +828,17 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       aiPrompt,
       selectedStyle,
     });
-  }, [view, urlInput, videoTitle, selectedFrameIdx, resultImageUrl, originalImageUrl, videoFrames, aiPrompt, selectedStyle]);
+  }, [
+    view,
+    urlInput,
+    videoTitle,
+    selectedFrameIdx,
+    resultImageUrl,
+    originalImageUrl,
+    videoFrames,
+    aiPrompt,
+    selectedStyle,
+  ]);
 
   // ============================================
   // URL HISTORY
@@ -354,8 +862,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const handleDeleteUrlEntry = useCallback(async (id: string) => {
     try {
       await deleteUrlHistoryEntry(id);
-      setUrlHistory((prev) => prev.filter((h) => h.id !== id));
-      setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      setUrlHistory(prev => prev.filter(h => h.id !== id));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch {
       // Silent fail
     }
@@ -364,11 +876,14 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const handleTogglePin = useCallback(async (id: string) => {
     try {
       const updated = await togglePinUrl(id);
-      setUrlHistory((prev) =>
-        prev.map((h) => (h.id === id ? { ...h, pinned: updated.pinned } : h))
+      setUrlHistory(prev =>
+        prev
+          .map(h => (h.id === id ? { ...h, pinned: updated.pinned } : h))
           .sort((a, b) => {
             if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            return (
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
           })
       );
     } catch {
@@ -380,7 +895,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     if (selectedIds.size === 0) return;
     try {
       await bulkDeleteUrls(Array.from(selectedIds));
-      setUrlHistory((prev) => prev.filter((h) => !selectedIds.has(h.id)));
+      setUrlHistory(prev => prev.filter(h => !selectedIds.has(h.id)));
       setSelectedIds(new Set());
       setSelectMode(false);
     } catch {
@@ -396,7 +911,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     }
     try {
       await clearAllUrlHistory(false); // keep pinned
-      setUrlHistory((prev) => prev.filter((h) => h.pinned));
+      setUrlHistory(prev => prev.filter(h => h.pinned));
       setConfirmClearAll(false);
       setSelectedIds(new Set());
       setSelectMode(false);
@@ -406,36 +921,44 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   }, [confirmClearAll]);
 
   const handleToggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
+    setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   // Derived: split pinned/unpinned, apply search filter
-  const pinnedEntries = urlHistory.filter((h) => h.pinned);
-  const recentEntries = urlHistory.filter((h) => !h.pinned);
+  const pinnedEntries = urlHistory.filter(h => h.pinned);
+  const recentEntries = urlHistory.filter(h => !h.pinned);
 
   const filteredPinned = searchFilter
-    ? pinnedEntries.filter((h) =>
-        h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
-        (h.title && h.title.toLowerCase().includes(searchFilter.toLowerCase()))
+    ? pinnedEntries.filter(
+        h =>
+          h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
+          (h.title &&
+            h.title.toLowerCase().includes(searchFilter.toLowerCase()))
       )
     : pinnedEntries;
 
   const filteredRecent = searchFilter
-    ? recentEntries.filter((h) =>
-        h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
-        (h.title && h.title.toLowerCase().includes(searchFilter.toLowerCase()))
+    ? recentEntries.filter(
+        h =>
+          h.url.toLowerCase().includes(searchFilter.toLowerCase()) ||
+          (h.title &&
+            h.title.toLowerCase().includes(searchFilter.toLowerCase()))
       )
     : recentEntries;
 
   const RECENT_COLLAPSED_COUNT = 5;
-  const visibleRecent = showAllRecent ? filteredRecent : filteredRecent.slice(0, RECENT_COLLAPSED_COUNT);
+  const visibleRecent = showAllRecent
+    ? filteredRecent
+    : filteredRecent.slice(0, RECENT_COLLAPSED_COUNT);
   const hiddenRecentCount = filteredRecent.length - RECENT_COLLAPSED_COUNT;
-  const allVisibleIds = [...filteredPinned, ...filteredRecent].map((h) => h.id);
-  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
+  const allVisibleIds = [...filteredPinned, ...filteredRecent].map(h => h.id);
+  const allSelected =
+    allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
 
   const handleSelectAll = useCallback(() => {
     if (allSelected) {
@@ -472,7 +995,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       }).catch(() => {});
 
       // Stream frame extraction with real-time progress
-      const result = await fetchVideoFramesStreaming(urlInput, (progress) => {
+      const result = await fetchVideoFramesStreaming(urlInput, progress => {
         setExtractionProgress(progress);
         setLoadingMessage(progress.message);
 
@@ -483,7 +1006,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
         // Accumulate preview frames as they arrive
         if (progress.frame) {
-          setPreviewFrames((prev) => [...prev, progress.frame!]);
+          setPreviewFrames(prev => [...prev, progress.frame!]);
         }
       });
 
@@ -502,7 +1025,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         throw new Error('No frames found for this video');
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
+      setError(
+        err instanceof Error ? err.message : 'Something went wrong. Try again.'
+      );
     } finally {
       setLoading(false);
       setLoadingMessage('');
@@ -510,6 +1035,39 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       setPreviewFrames([]);
     }
   };
+
+  // ============================================
+  // PASTE FROM CLIPBOARD — reads clipboard text and fills URL input
+  // ============================================
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      setClipboardStatus('pasting');
+      const text = await navigator.clipboard.readText();
+      const trimmed = text?.trim() ?? '';
+      if (
+        trimmed &&
+        (trimmed.startsWith('http') || trimmed.startsWith('www.'))
+      ) {
+        setUrlInput(trimmed);
+        setClipboardStatus('pasted');
+      } else {
+        setClipboardStatus('error');
+      }
+      setTimeout(() => setClipboardStatus('idle'), 2000);
+    } catch {
+      // Clipboard API requires HTTPS or explicit user gesture; fail gracefully
+      setClipboardStatus('error');
+      setTimeout(() => setClipboardStatus('idle'), 2000);
+    }
+  }, []);
+
+  // ============================================
+  // TRY AN EXAMPLE — pre-loads a known demo video URL
+  // ============================================
+  const handleTryExample = useCallback(() => {
+    setUrlInput(EXAMPLE_VIDEO_URL);
+    setError(null);
+  }, []);
 
   const handleFrameSelect = (idx: number) => {
     setSelectedFrameIdx(idx);
@@ -522,14 +1080,18 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     setPreviewFrames([]);
 
     try {
-      const result = await fetchVideoFramesStreaming(urlInput, (progress) => {
-        if (progress.rateLimit) {
-          setRateLimitInfo(progress.rateLimit);
-        }
-        if (progress.frame) {
-          setPreviewFrames((prev) => [...prev, progress.frame!]);
-        }
-      }, 'new');
+      const result = await fetchVideoFramesStreaming(
+        urlInput,
+        progress => {
+          if (progress.rateLimit) {
+            setRateLimitInfo(progress.rateLimit);
+          }
+          if (progress.frame) {
+            setPreviewFrames(prev => [...prev, progress.frame!]);
+          }
+        },
+        'new'
+      );
 
       if (result.frames.length > 0) {
         const idx = result.cycleIndex ?? 0;
@@ -548,9 +1110,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   };
 
   const handleCycleNavigation = async (direction: 'prev' | 'next') => {
-    const targetCycle = direction === 'prev'
-      ? currentCycleIndex - 1
-      : currentCycleIndex + 1;
+    const targetCycle =
+      direction === 'prev' ? currentCycleIndex - 1 : currentCycleIndex + 1;
     if (targetCycle < 0 || targetCycle >= totalCycles) return;
 
     // Instant swap from client-side cache (no network call)
@@ -565,9 +1126,13 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     // Cache miss — fetch from backend (rare: e.g. page refresh)
     setError(null);
     try {
-      const result = await fetchVideoFramesStreaming(urlInput, (progress) => {
-        if (progress.rateLimit) setRateLimitInfo(progress.rateLimit);
-      }, targetCycle);
+      const result = await fetchVideoFramesStreaming(
+        urlInput,
+        progress => {
+          if (progress.rateLimit) setRateLimitInfo(progress.rateLimit);
+        },
+        targetCycle
+      );
 
       if (result.frames.length > 0) {
         cycleCache.current.set(result.cycleIndex ?? targetCycle, result.frames);
@@ -599,7 +1164,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     setLoadingMessage('Creating your thumbnail with AI...');
 
     try {
-      const stylePreset = STYLE_PRESETS.find((s) => s.id === selectedStyle);
+      const stylePreset = STYLE_PRESETS.find(s => s.id === selectedStyle);
       const fullPrompt = stylePreset
         ? `${aiPrompt}, ${stylePreset.prompt}`
         : aiPrompt;
@@ -612,7 +1177,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Generation failed' }));
+        const err = await res
+          .json()
+          .catch(() => ({ error: 'Generation failed' }));
         throw new Error(err.error || 'Generation failed');
       }
 
@@ -620,6 +1187,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
       // Same response format as AI Tools: { success, images: string[] }
       if (data.success && data.images && data.images.length > 0) {
+        // Clear frame state when AI generates — AI images don't need frame picking
+        clearFrameState();
         setResultImageUrl(data.images[0]);
         setOriginalImageUrl(data.images[0]);
         aiText.clearVisionAnalysis();
@@ -629,7 +1198,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         throw new Error('No image returned from AI');
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'AI generation failed. Try again.');
+      setError(
+        err instanceof Error ? err.message : 'AI generation failed. Try again.'
+      );
     } finally {
       setLoading(false);
       setLoadingMessage('');
@@ -667,6 +1238,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             name: file.name,
           });
 
+          // Clear frame state when uploading — uploaded images don't need frame picking
+          clearFrameState();
           setResultImageUrl(asset.url);
           setOriginalImageUrl(asset.url);
           aiText.clearVisionAnalysis();
@@ -723,7 +1296,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       maxWidth: 90,
     };
 
-    setTextOverlays((prev) => [...prev, overlay]);
+    setTextOverlays(prev => [...prev, overlay]);
     setNewTextValue('');
     setShowTextInput(false);
     setActiveOverlayId(overlay.id);
@@ -732,19 +1305,19 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   };
 
   const updateOverlayProp = (id: string, patch: Partial<TextOverlay>) => {
-    setTextOverlays((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
+    setTextOverlays(prev =>
+      prev.map(o => (o.id === id ? { ...o, ...patch } : o))
     );
   };
 
   const removeOverlay = (id: string) => {
-    setTextOverlays((prev) => prev.filter((o) => o.id !== id));
+    setTextOverlays(prev => prev.filter(o => o.id !== id));
     if (activeOverlayId === id) setActiveOverlayId(null);
   };
 
   const handleDragStart = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const overlay = textOverlays.find((o) => o.id === id);
+    const overlay = textOverlays.find(o => o.id === id);
     if (!overlay || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -767,10 +1340,14 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       const x = ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100;
       const y = ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100;
 
-      setTextOverlays((prev) =>
-        prev.map((o) =>
+      setTextOverlays(prev =>
+        prev.map(o =>
           o.id === dragging
-            ? { ...o, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
+            ? {
+                ...o,
+                x: Math.max(0, Math.min(100, x)),
+                y: Math.max(0, Math.min(100, y)),
+              }
             : o
         )
       );
@@ -794,8 +1371,102 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   }, [dragging, handleDragMove, handleDragEnd]);
 
   // ============================================
-  // AI TOOLS (face swap, enhance)
+  // RESIZE HANDLERS
   // ============================================
+
+  const handleResizeStart = (
+    id: string,
+    handle: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const overlay = textOverlays.find(o => o.id === id);
+    if (!overlay) return;
+    resizeStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      fontSize: overlay.fontSize,
+      maxWidth: overlay.maxWidth,
+      x: overlay.x,
+      y: overlay.y,
+    };
+    setResizing({ id, handle });
+  };
+
+  const handleResizeMove = useCallback(
+    (e: MouseEvent) => {
+      if (!resizing || !resizeStartRef.current || !canvasRef.current) return;
+      const { id, handle } = resizing;
+      const start = resizeStartRef.current;
+      const rect = canvasRef.current.getBoundingClientRect();
+
+      const dx = ((e.clientX - start.mouseX) / rect.width) * 100; // % of canvas width
+      const dy = ((e.clientY - start.mouseY) / rect.height) * 100; // % of canvas height
+
+      // Vertical handles affect fontSize (dy maps to font size change)
+      // Horizontal handles affect maxWidth
+      // Corner handles affect both
+      const affectsH = handle === 'w' || handle === 'nw' || handle === 'sw';
+      const affectsE = handle === 'e' || handle === 'ne' || handle === 'se';
+      const affectsN = handle === 'n' || handle === 'nw' || handle === 'ne';
+      const affectsS = handle === 's' || handle === 'sw' || handle === 'se';
+
+      let newFontSize = start.fontSize;
+      let newMaxWidth = start.maxWidth;
+      let newX = start.x;
+      let newY = start.y;
+
+      // Width: east increases, west decreases (and shifts x)
+      if (affectsE)
+        newMaxWidth = Math.max(10, Math.min(100, start.maxWidth + dx));
+      if (affectsH) {
+        newMaxWidth = Math.max(10, Math.min(100, start.maxWidth - dx));
+        newX = Math.max(0, Math.min(100, start.x + dx));
+      }
+
+      // Height (font size): south increases, north decreases (and shifts y)
+      // dy is in % of canvas height; convert to fontSize units (same 720 reference)
+      const dyFont = dy * (720 / 100);
+      if (affectsS)
+        newFontSize = Math.max(20, Math.min(200, start.fontSize + dyFont));
+      if (affectsN) {
+        newFontSize = Math.max(20, Math.min(200, start.fontSize - dyFont));
+        newY = Math.max(0, Math.min(100, start.y + dy));
+      }
+
+      setTextOverlays(prev =>
+        prev.map(o =>
+          o.id === id
+            ? {
+                ...o,
+                fontSize: newFontSize,
+                maxWidth: newMaxWidth,
+                x: newX,
+                y: newY,
+              }
+            : o
+        )
+      );
+    },
+    [resizing]
+  );
+
+  const handleResizeEnd = useCallback(() => {
+    setResizing(null);
+    resizeStartRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (resizing) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleResizeEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [resizing, handleResizeMove, handleResizeEnd]);
 
   const handleFaceSwap = async () => {
     if (!resultImageUrl || !facePhoto) return;
@@ -810,7 +1481,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Face swap failed' }));
+        const err = await res
+          .json()
+          .catch(() => ({ error: 'Face swap failed' }));
         throw new Error(err.error || 'Face swap failed');
       }
 
@@ -836,22 +1509,58 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
     try {
       const res = await authPost('/api/thumbnails/ai/enhance', {
-        imageUrl: resultImageUrl,
+        image: resultImageUrl,
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Enhancement failed' }));
+        const err = await res
+          .json()
+          .catch(() => ({ error: 'Enhancement failed' }));
         throw new Error(err.error || 'Enhancement failed');
       }
 
       const data = await res.json();
-      if (data.imageUrl) {
-        setResultImageUrl(data.imageUrl);
+      if (data.images?.length > 0) {
+        setResultImageUrl(data.images[0]);
         aiText.clearVisionAnalysis();
         aiText.clearSuggestions();
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Enhancement failed');
+    } finally {
+      setLoading(false);
+      setLoadingMessage('');
+    }
+  };
+
+  // ============================================
+  // REMOVE BACKGROUND — one-click, FREE (local TensorFlow)
+  // ============================================
+  const handleRemoveBackground = async () => {
+    if (!resultImageUrl) return;
+    setLoading(true);
+    setLoadingMessage('Removing background...');
+    setError(null);
+    try {
+      const res = await authPost('/api/thumbnails/ai/remove-background', {
+        image: resultImageUrl,
+      });
+      if (!res.ok) {
+        const err = await res
+          .json()
+          .catch(() => ({ error: 'Background removal failed' }));
+        throw new Error(err.error || 'Background removal failed');
+      }
+      const data = await res.json();
+      if (data.images?.length > 0) {
+        setResultImageUrl(data.images[0]);
+        aiText.clearVisionAnalysis();
+        aiText.clearSuggestions();
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Background removal failed'
+      );
     } finally {
       setLoading(false);
       setLoadingMessage('');
@@ -873,90 +1582,57 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   // Text generation is handled by aiText hook (shared with Editor)
   // ============================================
 
-  // Thumbnail font presets mapped by mood keywords
-  const MOOD_FONTS: Record<string, string> = {
-    dramatic: 'Oswald, Impact, sans-serif',
-    intense: 'Oswald, Impact, sans-serif',
-    dark: 'Oswald, Impact, sans-serif',
-    energetic: 'Bangers, Impact, cursive',
-    fun: 'Bangers, Poppins, cursive',
-    playful: 'Bangers, Poppins, cursive',
-    happy: 'Poppins, Nunito, sans-serif',
-    bright: 'Poppins, Nunito, sans-serif',
-    calm: 'Quicksand, Nunito, sans-serif',
-    mysterious: 'Playfair Display, Georgia, serif',
-    elegant: 'Playfair Display, Georgia, serif',
-    professional: 'Montserrat, Arial, sans-serif',
-    serious: 'Montserrat, Oswald, sans-serif',
-    bold: 'Impact, Arial Black, sans-serif',
-  };
+  const computeStyleFromAnalysis = useCallback(
+    (analysis: VisionAnalysisResult): Partial<TextOverlay> => {
+      const { dominantColor, mood, colorContrast, colorPalette } =
+        analysis.elements;
 
-  const isColorDark = (hex: string): boolean => {
-    const c = hex.replace('#', '');
-    const r = parseInt(c.substring(0, 2), 16);
-    const g = parseInt(c.substring(2, 4), 16);
-    const b = parseInt(c.substring(4, 6), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-  };
+      // Font from mood
+      const moodLower = (mood || '').toLowerCase();
+      const fontFamily =
+        Object.entries(MOOD_FONTS).find(([key]) =>
+          moodLower.includes(key)
+        )?.[1] || 'Impact, Arial Black, sans-serif';
 
-  const computeStyleFromAnalysis = useCallback((analysis: VisionAnalysisResult): Partial<TextOverlay> => {
-    const { dominantColor, mood, colorContrast, colorPalette } = analysis.elements;
+      // Text color: contrast with dominant
+      const bgDark = isColorDark(dominantColor || '#000000');
+      let color = bgDark ? '#FFFFFF' : '#000000';
+      if (colorPalette?.length > 0) {
+        const contrasty = colorPalette.find(c => isColorDark(c) !== bgDark);
+        if (contrasty) color = contrasty;
+      }
 
-    // Font from mood
-    const moodLower = (mood || '').toLowerCase();
-    const fontFamily = Object.entries(MOOD_FONTS).find(
-      ([key]) => moodLower.includes(key)
-    )?.[1] || 'Impact, Arial Black, sans-serif';
+      // Stroke and shadow based on contrast
+      const strokeColor = bgDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)';
+      const textStroke = `2px ${strokeColor}`;
+      const textShadow =
+        colorContrast === 'low'
+          ? '3px 3px 6px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.5)'
+          : '2px 2px 4px rgba(0,0,0,0.7)';
 
-    // Text color: contrast with dominant
-    const bgDark = isColorDark(dominantColor || '#000000');
-    let color = bgDark ? '#FFFFFF' : '#000000';
-    if (colorPalette?.length > 0) {
-      const contrasty = colorPalette.find(c => isColorDark(c) !== bgDark);
-      if (contrasty) color = contrasty;
-    }
+      // Background banner: semi-transparent dominant color or dark overlay
+      const bgHex = dominantColor || '#000000';
+      const bgR = parseInt(bgHex.replace('#', '').substring(0, 2), 16);
+      const bgG = parseInt(bgHex.replace('#', '').substring(2, 4), 16);
+      const bgB = parseInt(bgHex.replace('#', '').substring(4, 6), 16);
+      const backgroundColor = bgDark
+        ? `rgba(0, 0, 0, 0.6)`
+        : `rgba(${bgR}, ${bgG}, ${bgB}, 0.7)`;
 
-    // Stroke and shadow based on contrast
-    const strokeColor = bgDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)';
-    const textStroke = `2px ${strokeColor}`;
-    const textShadow = colorContrast === 'low'
-      ? '3px 3px 6px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.5)'
-      : '2px 2px 4px rgba(0,0,0,0.7)';
-
-    // Background banner: semi-transparent dominant color or dark overlay
-    const bgHex = dominantColor || '#000000';
-    const bgR = parseInt(bgHex.replace('#', '').substring(0, 2), 16);
-    const bgG = parseInt(bgHex.replace('#', '').substring(2, 4), 16);
-    const bgB = parseInt(bgHex.replace('#', '').substring(4, 6), 16);
-    const backgroundColor = bgDark
-      ? `rgba(0, 0, 0, 0.6)`
-      : `rgba(${bgR}, ${bgG}, ${bgB}, 0.7)`;
-
-    return {
-      fontFamily,
-      color,
-      fontWeight: '900',
-      fontSize: 80,
-      textStroke,
-      textShadow,
-      letterSpacing: '2px',
-      backgroundColor,
-      maxWidth: 90,
-    };
-  }, []);
-
-  // Professional default style (used when vision API is unavailable)
-  const DEFAULT_SMART_STYLE: Partial<TextOverlay> = {
-    fontFamily: 'Impact, Arial Black, sans-serif',
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 80,
-    textStroke: '2px rgba(0,0,0,0.8)',
-    textShadow: '3px 3px 6px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.4)',
-    letterSpacing: '2px',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    maxWidth: 90,
-  };
+      return {
+        fontFamily,
+        color,
+        fontWeight: '900',
+        fontSize: 80,
+        textStroke,
+        textShadow,
+        letterSpacing: '2px',
+        backgroundColor,
+        maxWidth: 90,
+      };
+    },
+    []
+  );
 
   /** Build overlay style from vision analysis (if cached) or defaults */
   const getSmartStyle = useCallback((): Partial<TextOverlay> => {
@@ -989,7 +1665,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         backgroundColor: style.backgroundColor || '',
         maxWidth: style.maxWidth || 90,
       };
-      setTextOverlays((prev) => [...prev, overlay]);
+      setTextOverlays(prev => [...prev, overlay]);
       setActiveOverlayId(overlay.id);
       setShowTextInput(false);
       setNewTextValue('');
@@ -1026,7 +1702,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       backgroundColor: style.backgroundColor || '',
       maxWidth: style.maxWidth || 90,
     };
-    setTextOverlays((prev) => [...prev, overlay]);
+    setTextOverlays(prev => [...prev, overlay]);
     setActiveOverlayId(overlay.id);
     aiText.clearSuggestions();
     setShowOverlayHint(overlay.id);
@@ -1055,16 +1731,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // Get display container size so we can scale text to match what user sees
-    const displayRect = canvasRef.current?.getBoundingClientRect();
-    const displayHeight = displayRect?.height || 360;
-    const scale = canvas.height / displayHeight;
-
+    // Get display container size (kept for reference, not used in font scaling)
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
     for (const overlay of textOverlays) {
-      // Display uses `fontSize * 0.5` CSS px — scale that up to canvas resolution
-      const scaledFontSize = overlay.fontSize * 0.5 * scale;
+      // Scale font proportionally: same formula as display (overlay.fontSize / 720 * canvasHeight)
+      const scaledFontSize = (overlay.fontSize / 720) * canvas.height;
       ctx.font = `${overlay.fontWeight} ${scaledFontSize}px ${overlay.fontFamily || 'sans-serif'}`;
       ctx.fillStyle = overlay.color;
       ctx.textBaseline = 'top';
@@ -1153,7 +1825,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         if (composited) {
           imageToSave = composited;
           setResultImageUrl(composited);
-          setOriginalImageUrl((prev) => prev || resultImageUrl);
+          setOriginalImageUrl(prev => prev || resultImageUrl);
           setTextOverlays([]);
           setActiveOverlayId(null);
         }
@@ -1236,8 +1908,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                      bg-gray-800/50 border border-gray-700/50 hover:border-purple-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
-          <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center
-                          group-hover:bg-purple-500/20 transition-colors">
+          <div
+            className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center
+                          group-hover:bg-purple-500/20 transition-colors"
+          >
             <Link2 className="w-8 h-8 text-purple-400" />
           </div>
           <div>
@@ -1253,8 +1927,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                      bg-gray-800/50 border border-gray-700/50 hover:border-amber-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center
-                          group-hover:bg-amber-500/20 transition-colors">
+          <div
+            className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center
+                          group-hover:bg-amber-500/20 transition-colors"
+          >
             <Sparkles className="w-8 h-8 text-amber-400" />
           </div>
           <div>
@@ -1270,8 +1946,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                      bg-gray-800/50 border border-gray-700/50 hover:border-emerald-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center
-                          group-hover:bg-emerald-500/20 transition-colors">
+          <div
+            className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center
+                          group-hover:bg-emerald-500/20 transition-colors"
+          >
             <UploadCloud className="w-8 h-8 text-emerald-400" />
           </div>
           <div>
@@ -1291,7 +1969,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     <div className="max-w-2xl mx-auto px-4 py-8">
       <button
         onClick={() => {
-          if (enteredFromExternal && view === (routeState?.initialView)) {
+          if (enteredFromExternal && view === routeState?.initialView) {
             // Go back to the page that navigated here (e.g. CreatePlusPage)
             navigate(-1);
           } else {
@@ -1313,8 +1991,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           <input
             type="url"
             value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+            onChange={e => setUrlInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleUrlSubmit()}
             placeholder="https://youtube.com/watch?v=..."
             className="w-full px-4 py-3 pr-10 rounded-xl bg-gray-800 border border-gray-700
                        text-white placeholder-gray-500 focus:outline-none focus:border-purple-500
@@ -1339,15 +2017,55 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                      text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed
                      transition-colors flex items-center gap-2"
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
           Go
+        </button>
+      </div>
+
+      {/* Quick Actions — Paste from Clipboard + Try an Example */}
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          onClick={handlePasteFromClipboard}
+          disabled={clipboardStatus === 'pasting'}
+          type="button"
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all flex-1
+            ${
+              clipboardStatus === 'pasted'
+                ? 'bg-green-500/15 border-green-500/40 text-green-400'
+                : clipboardStatus === 'error'
+                  ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                  : 'bg-gray-800/60 border-gray-700/50 text-gray-300 hover:border-purple-500/40 hover:text-white'
+            }`}
+        >
+          <Clipboard className="w-4 h-4 flex-shrink-0" />
+          {clipboardStatus === 'pasting'
+            ? 'Reading...'
+            : clipboardStatus === 'pasted'
+              ? '✓ Link pasted!'
+              : clipboardStatus === 'error'
+                ? 'Nothing to paste'
+                : 'Paste from Clipboard'}
+        </button>
+        <button
+          onClick={handleTryExample}
+          type="button"
+          title={`Try with: ${EXAMPLE_VIDEO_LABEL}`}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700/50
+                     bg-gray-800/60 text-gray-400 hover:text-white hover:border-amber-500/40
+                     text-sm font-medium transition-all whitespace-nowrap"
+        >
+          <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          Try an Example
         </button>
       </div>
 
       {/* URL History */}
       {urlHistory.length > 0 && (
         <div className="mt-6 space-y-4">
-
           {/* Toolbar: Search + Actions */}
           <div className="flex items-center gap-2">
             {urlHistory.length > 5 && (
@@ -1356,7 +2074,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 <input
                   type="text"
                   value={searchFilter}
-                  onChange={(e) => setSearchFilter(e.target.value)}
+                  onChange={e => setSearchFilter(e.target.value)}
                   placeholder="Search URLs..."
                   className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/30
                              text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-600
@@ -1366,7 +2084,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             )}
             <div className="flex items-center gap-1 ml-auto">
               <button
-                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+                onClick={() => {
+                  setSelectMode(!selectMode);
+                  setSelectedIds(new Set());
+                }}
                 className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
                   selectMode
                     ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
@@ -1383,7 +2104,11 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                     ? 'bg-red-600/20 text-red-400 border border-red-500/30'
                     : 'text-gray-500 hover:text-red-400 hover:bg-gray-800/60'
                 }`}
-                title={confirmClearAll ? 'Click again to confirm' : 'Clear recent URLs (keeps saved)'}
+                title={
+                  confirmClearAll
+                    ? 'Click again to confirm'
+                    : 'Clear recent URLs (keeps saved)'
+                }
               >
                 {confirmClearAll ? 'Confirm?' : 'Clear recent'}
               </button>
@@ -1398,10 +2123,11 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
                 title={allSelected ? 'Deselect all' : 'Select all'}
               >
-                {allSelected
-                  ? <CheckSquare className="w-3.5 h-3.5 text-purple-400" />
-                  : <Square className="w-3.5 h-3.5" />
-                }
+                {allSelected ? (
+                  <CheckSquare className="w-3.5 h-3.5 text-purple-400" />
+                ) : (
+                  <Square className="w-3.5 h-3.5" />
+                )}
                 {allSelected ? 'Deselect all' : 'Select all'}
               </button>
               {selectedIds.size > 0 && (
@@ -1416,7 +2142,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 </button>
               )}
               {selectedIds.size === 0 && (
-                <span className="text-xs text-gray-600 ml-auto">Click items to select</span>
+                <span className="text-xs text-gray-600 ml-auto">
+                  Click items to select
+                </span>
               )}
             </div>
           )}
@@ -1429,15 +2157,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 Saved ({filteredPinned.length})
               </h3>
               <div className="space-y-1.5">
-                {filteredPinned.map((entry) => (
+                {filteredPinned.map(entry => (
                   <div
                     key={entry.id}
                     className={`w-full text-left px-3 py-2.5 rounded-xl bg-gray-800/50
                                border transition-colors group flex items-center gap-2 ${
-                      selectedIds.has(entry.id)
-                        ? 'border-purple-500/50 bg-purple-900/10'
-                        : 'border-amber-600/20 hover:border-amber-500/30'
-                    }`}
+                                 selectedIds.has(entry.id)
+                                   ? 'border-purple-500/50 bg-purple-900/10'
+                                   : 'border-amber-600/20 hover:border-amber-500/30'
+                               }`}
                   >
                     {selectMode && (
                       <button
@@ -1445,22 +2173,29 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                         className="flex-shrink-0 text-gray-500 hover:text-purple-400 transition-colors"
                         title="Toggle selection"
                       >
-                        {selectedIds.has(entry.id)
-                          ? <CheckSquare className="w-4 h-4 text-purple-400" />
-                          : <Square className="w-4 h-4" />
-                        }
+                        {selectedIds.has(entry.id) ? (
+                          <CheckSquare className="w-4 h-4 text-purple-400" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
                       </button>
                     )}
                     <button
-                      onClick={() => { setUrlInput(entry.url); }}
+                      onClick={() => {
+                        setUrlInput(entry.url);
+                      }}
                       className="flex-1 min-w-0 flex items-center gap-2.5 text-left"
                       title="Use this URL"
                     >
                       <Link2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-gray-300 truncate text-sm">{entry.url}</p>
+                        <p className="text-gray-300 truncate text-sm">
+                          {entry.url}
+                        </p>
                         {entry.title && (
-                          <p className="text-gray-500 text-xs truncate">{entry.title}</p>
+                          <p className="text-gray-500 text-xs truncate">
+                            {entry.title}
+                          </p>
                         )}
                       </div>
                       {entry.platform && (
@@ -1500,15 +2235,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 Recent ({filteredRecent.length})
               </h3>
               <div className="space-y-1.5">
-                {visibleRecent.map((entry) => (
+                {visibleRecent.map(entry => (
                   <div
                     key={entry.id}
                     className={`w-full text-left px-3 py-2.5 rounded-xl bg-gray-800/50
                                border transition-colors group flex items-center gap-2 ${
-                      selectedIds.has(entry.id)
-                        ? 'border-purple-500/50 bg-purple-900/10'
-                        : 'border-gray-700/30 hover:border-gray-600'
-                    }`}
+                                 selectedIds.has(entry.id)
+                                   ? 'border-purple-500/50 bg-purple-900/10'
+                                   : 'border-gray-700/30 hover:border-gray-600'
+                               }`}
                   >
                     {selectMode && (
                       <button
@@ -1516,22 +2251,29 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                         className="flex-shrink-0 text-gray-500 hover:text-purple-400 transition-colors"
                         title="Toggle selection"
                       >
-                        {selectedIds.has(entry.id)
-                          ? <CheckSquare className="w-4 h-4 text-purple-400" />
-                          : <Square className="w-4 h-4" />
-                        }
+                        {selectedIds.has(entry.id) ? (
+                          <CheckSquare className="w-4 h-4 text-purple-400" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
                       </button>
                     )}
                     <button
-                      onClick={() => { setUrlInput(entry.url); }}
+                      onClick={() => {
+                        setUrlInput(entry.url);
+                      }}
                       className="flex-1 min-w-0 flex items-center gap-2.5 text-left"
                       title="Use this URL"
                     >
                       <Link2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-gray-300 truncate text-sm">{entry.url}</p>
+                        <p className="text-gray-300 truncate text-sm">
+                          {entry.url}
+                        </p>
                         {entry.title && (
-                          <p className="text-gray-500 text-xs truncate">{entry.title}</p>
+                          <p className="text-gray-500 text-xs truncate">
+                            {entry.title}
+                          </p>
                         )}
                       </div>
                       {entry.platform && (
@@ -1568,12 +2310,21 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                   className="mt-2 w-full text-center text-xs text-gray-500 hover:text-gray-300
                              py-1.5 rounded-lg hover:bg-gray-800/40 transition-colors
                              flex items-center justify-center gap-1"
-                  title={showAllRecent ? 'Show less' : `Show ${hiddenRecentCount} more`}
+                  title={
+                    showAllRecent
+                      ? 'Show less'
+                      : `Show ${hiddenRecentCount} more`
+                  }
                 >
                   {showAllRecent ? (
-                    <><ChevronUp className="w-3 h-3" /> Show less</>
+                    <>
+                      <ChevronUp className="w-3 h-3" /> Show less
+                    </>
                   ) : (
-                    <><ChevronDown className="w-3 h-3" /> Show {hiddenRecentCount} more</>
+                    <>
+                      <ChevronDown className="w-3 h-3" /> Show{' '}
+                      {hiddenRecentCount} more
+                    </>
                   )}
                 </button>
               )}
@@ -1581,9 +2332,13 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           )}
 
           {/* Empty search state */}
-          {searchFilter && filteredPinned.length === 0 && filteredRecent.length === 0 && (
-            <p className="text-center text-sm text-gray-600 py-4">No URLs match &ldquo;{searchFilter}&rdquo;</p>
-          )}
+          {searchFilter &&
+            filteredPinned.length === 0 &&
+            filteredRecent.length === 0 && (
+              <p className="text-center text-sm text-gray-600 py-4">
+                No URLs match &ldquo;{searchFilter}&rdquo;
+              </p>
+            )}
         </div>
       )}
     </div>
@@ -1596,7 +2351,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const renderAiGenerate = () => (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <button
-        onClick={() => { setView('start'); setError(null); }}
+        onClick={() => {
+          setView('start');
+          setError(null);
+        }}
         className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -1604,27 +2362,55 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       </button>
 
       <h2 className="text-2xl font-bold text-white mb-2">Generate with AI</h2>
-      <p className="text-gray-400 mb-6">Describe your thumbnail and we'll create it.</p>
+      <p className="text-gray-400 mb-6">
+        Tap a style to load a sample prompt — or write your own below.
+      </p>
 
-      <textarea
-        value={aiPrompt}
-        onChange={(e) => setAiPrompt(e.target.value)}
-        placeholder="e.g. A person reacting with shock, neon background, bold text saying 'NO WAY'"
-        rows={3}
-        className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700
-                   text-white placeholder-gray-500 focus:outline-none focus:border-amber-500
-                   transition-colors resize-none"
-        autoFocus
-      />
+      <div className="relative">
+        <textarea
+          value={aiPrompt}
+          onChange={e => setAiPrompt(e.target.value)}
+          placeholder="e.g. A person reacting with shock, neon background, bold text saying 'NO WAY'"
+          rows={3}
+          className="w-full px-4 py-3 pr-9 rounded-xl bg-gray-800 border border-gray-700
+                     text-white placeholder-gray-500 focus:outline-none focus:border-amber-500
+                     transition-colors resize-none"
+          autoFocus
+        />
+        {aiPrompt && (
+          <button
+            type="button"
+            onClick={() => {
+              setAiPrompt('');
+              setSelectedStyle(null);
+            }}
+            className="absolute top-2.5 right-2.5 text-gray-500 hover:text-white transition-colors"
+            aria-label="Clear prompt"
+            title="Clear prompt"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
 
       {/* Style Presets */}
       <div className="mt-4">
         <p className="text-sm text-gray-500 mb-3">Style (optional)</p>
         <div className="flex flex-wrap gap-2">
-          {STYLE_PRESETS.map((style) => (
+          {STYLE_PRESETS.map(style => (
             <button
               key={style.id}
-              onClick={() => setSelectedStyle(selectedStyle === style.id ? null : style.id)}
+              onClick={() => {
+                if (selectedStyle === style.id) {
+                  // Same chip tapped again — deselect and clear
+                  setSelectedStyle(null);
+                  setAiPrompt('');
+                } else {
+                  // New style — select it and fill the sample prompt
+                  setSelectedStyle(style.id);
+                  setAiPrompt(style.samplePrompt);
+                }
+              }}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all
                 ${
                   selectedStyle === style.id
@@ -1667,7 +2453,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
   const renderUpload = () => (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <button
-        onClick={() => { setView('start'); setError(null); }}
+        onClick={() => {
+          setView('start');
+          setError(null);
+        }}
         className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -1675,10 +2464,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       </button>
 
       <h2 className="text-2xl font-bold text-white mb-2">Upload an image</h2>
-      <p className="text-gray-400 mb-6">Drop your image here or click to browse.</p>
+      <p className="text-gray-400 mb-6">
+        Drop your image here or click to browse.
+      </p>
 
       <div
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={e => e.preventDefault()}
         onDrop={handleFileDrop}
         onClick={() => fileInputRef.current?.click()}
         className="flex flex-col items-center justify-center gap-4 p-12 rounded-2xl
@@ -1690,7 +2481,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           <p className="text-gray-300 font-medium">
             Drag & drop or <span className="text-emerald-400">browse</span>
           </p>
-          <p className="text-gray-500 text-sm mt-1">JPG, PNG, WebP — up to 10MB</p>
+          <p className="text-gray-500 text-sm mt-1">
+            JPG, PNG, WebP — up to 10MB
+          </p>
         </div>
       </div>
 
@@ -1713,7 +2506,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
       <div className="flex items-center justify-between mb-6">
         <div>
           <button
-            onClick={() => { setView('url-input'); setError(null); }}
+            onClick={() => {
+              setView('url-input');
+              setError(null);
+            }}
             className="flex items-center gap-2 text-gray-400 hover:text-white mb-3 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -1721,7 +2517,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           </button>
           <h2 className="text-2xl font-bold text-white">Pick a frame</h2>
           {videoTitle && (
-            <p className="text-gray-400 text-sm mt-1 truncate max-w-lg">{videoTitle}</p>
+            <p className="text-gray-400 text-sm mt-1 truncate max-w-lg">
+              {videoTitle}
+            </p>
           )}
         </div>
         <button
@@ -1776,7 +2574,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                        disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Extract new frames with different timestamps"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`}
+            />
             {isRegenerating ? 'Regenerating...' : 'Regenerate'}
           </button>
         </div>
@@ -1784,7 +2584,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         {/* Rate limit info */}
         {rateLimitInfo && rateLimitInfo.dailyLimit !== -1 && (
           <div className="text-gray-500 text-xs">
-            {rateLimitInfo.dailyUsed}/{rateLimitInfo.dailyLimit} extractions today
+            {rateLimitInfo.dailyUsed}/{rateLimitInfo.dailyLimit} extractions
+            today
           </div>
         )}
       </div>
@@ -1802,9 +2603,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               onClick={() => handleFrameSelect(idx)}
               className={`group relative rounded-xl overflow-hidden border-2 transition-all duration-200
                 aspect-video bg-gray-900
-                ${selectedFrameIdx === idx
-                  ? 'border-purple-500 ring-2 ring-purple-500/30 scale-[1.02]'
-                  : 'border-gray-700/50 hover:border-gray-500'
+                ${
+                  selectedFrameIdx === idx
+                    ? 'border-purple-500 ring-2 ring-purple-500/30 scale-[1.02]'
+                    : 'border-gray-700/50 hover:border-gray-500'
                 }`}
             >
               <img
@@ -1812,23 +2614,29 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 alt={frame.label}
                 className="w-full h-full object-cover"
                 loading="lazy"
-                onError={(e) => {
+                onError={e => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
 
               {/* Selection indicator */}
               {selectedFrameIdx === idx && (
-                <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-purple-500
-                                flex items-center justify-center shadow-lg">
+                <div
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-purple-500
+                                flex items-center justify-center shadow-lg"
+                >
                   <Check className="w-4 h-4 text-white" />
                 </div>
               )}
 
               {/* Label badge */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent
-                              px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <p className="text-white text-xs font-medium truncate">{frame.label}</p>
+              <div
+                className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent
+                              px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <p className="text-white text-xs font-medium truncate">
+                  {frame.label}
+                </p>
               </div>
             </button>
           ))}
@@ -1837,8 +2645,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
 
       {/* Bottom confirm bar (mobile friendly) */}
       {selectedFrameIdx !== null && (
-        <div className="mt-6 flex items-center justify-between bg-gray-800/60 border border-gray-700/50
-                        rounded-xl px-5 py-4">
+        <div
+          className="mt-6 flex items-center justify-between bg-gray-800/60 border border-gray-700/50
+                        rounded-xl px-5 py-4"
+        >
           <div className="flex items-center gap-3">
             <img
               src={videoFrames[selectedFrameIdx].url}
@@ -1851,7 +2661,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               </p>
               {videoFrames[selectedFrameIdx].width && (
                 <p className="text-gray-500 text-xs">
-                  {videoFrames[selectedFrameIdx].width} × {videoFrames[selectedFrameIdx].height}
+                  {videoFrames[selectedFrameIdx].width} ×{' '}
+                  {videoFrames[selectedFrameIdx].height}
                 </p>
               )}
             </div>
@@ -1881,6 +2692,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
+                clearFrameState();
                 setView('start');
                 setResultImageUrl(null);
                 setOriginalImageUrl(null);
@@ -1937,8 +2749,37 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           )}
 
           {/* Text Overlays */}
-          {textOverlays.map((overlay) => {
+          {textOverlays.map(overlay => {
             const hasBg = !!overlay.backgroundColor;
+            const isActive = activeOverlayId === overlay.id;
+            // Scale fontSize proportionally to canvas container height
+            // Reference height is 720px (the natural canvas height baseline)
+            const scaledFontSize =
+              canvasSize.height > 0
+                ? (overlay.fontSize / 720) * canvasSize.height
+                : overlay.fontSize * 0.5;
+
+            // Resize handle positions: [handle-id, cursor, top%, left%, translateX, translateY]
+            const handles: Array<
+              [
+                'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w',
+                string,
+                string,
+                string,
+                string,
+                string,
+              ]
+            > = [
+              ['nw', 'nw-resize', '0', '0', '-50%', '-50%'],
+              ['n', 'n-resize', '0', '50%', '-50%', '-50%'],
+              ['ne', 'ne-resize', '0', '100%', '-50%', '-50%'],
+              ['e', 'e-resize', '50%', '100%', '-50%', '-50%'],
+              ['se', 'se-resize', '100%', '100%', '-50%', '-50%'],
+              ['s', 's-resize', '100%', '50%', '-50%', '-50%'],
+              ['sw', 'sw-resize', '100%', '0', '-50%', '-50%'],
+              ['w', 'w-resize', '50%', '0', '-50%', '-50%'],
+            ];
+
             return (
               <div
                 key={overlay.id}
@@ -1947,11 +2788,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                   left: `${overlay.x}%`,
                   top: `${overlay.y}%`,
                   maxWidth: `${overlay.maxWidth || 90}%`,
-                  fontSize: `${overlay.fontSize * 0.5}px`,
+                  fontSize: `${scaledFontSize}px`,
                   color: overlay.color,
                   fontWeight: overlay.fontWeight,
                   fontFamily: overlay.fontFamily || 'Impact, sans-serif',
-                  textShadow: overlay.textShadow || '2px 2px 4px rgba(0,0,0,0.7)',
+                  textShadow:
+                    overlay.textShadow || '2px 2px 4px rgba(0,0,0,0.7)',
                   WebkitTextStroke: overlay.textStroke || undefined,
                   letterSpacing: overlay.letterSpacing || undefined,
                   backgroundColor: hasBg ? overlay.backgroundColor : undefined,
@@ -1963,12 +2805,16 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                   overflowWrap: 'break-word',
                   textTransform: 'uppercase' as const,
                   lineHeight: 1.15,
+                  // Dashed selection border when active
+                  outline: isActive
+                    ? '1.5px dashed rgba(168,85,247,0.85)'
+                    : undefined,
+                  outlineOffset: '4px',
                 }}
-                onMouseDown={(e) => {
+                onMouseDown={e => {
                   e.preventDefault();
                   handleDragStart(overlay.id, e);
                 }}
-                className={`${activeOverlayId === overlay.id ? 'ring-2 ring-purple-500 ring-offset-1 ring-offset-transparent rounded' : ''}`}
               >
                 {overlay.text}
                 {showOverlayHint === overlay.id && (
@@ -1976,18 +2822,42 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                     Drag to move · Click to edit
                   </span>
                 )}
-                {activeOverlayId === overlay.id && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeOverlay(overlay.id);
-                    }}
-                    aria-label="Remove text overlay"
-                    className="absolute -top-3 -right-3 w-5 h-5 bg-red-500 rounded-full
-                               flex items-center justify-center"
-                  >
-                    <X className="w-3 h-3 text-white" />
-                  </button>
+                {isActive && (
+                  <>
+                    {/* Delete button */}
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        removeOverlay(overlay.id);
+                      }}
+                      aria-label="Remove text overlay"
+                      className="absolute -top-3 -right-3 w-5 h-5 bg-red-500 rounded-full
+                                 flex items-center justify-center z-10"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                    {/* 8 Resize handles */}
+                    {handles.map(([h, cur, top, left, tx, ty]) => (
+                      <div
+                        key={h}
+                        onMouseDown={e => handleResizeStart(overlay.id, h, e)}
+                        style={{
+                          position: 'absolute',
+                          top,
+                          left,
+                          transform: `translate(${tx}, ${ty})`,
+                          cursor: cur,
+                          width: 10,
+                          height: 10,
+                          background: '#fff',
+                          border: '1.5px solid #a855f7',
+                          borderRadius: 2,
+                          zIndex: 20,
+                          boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+                        }}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
             );
@@ -2009,13 +2879,18 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
-                  sessionStorage.setItem('recreateBetterState', JSON.stringify({
-                    imageUrl: resultImageUrl,
-                    existingAnalysis: null,
-                  }));
-                  window.dispatchEvent(new CustomEvent('openRecreateBetter', {
-                    detail: { imageUrl: resultImageUrl },
-                  }));
+                  sessionStorage.setItem(
+                    'recreateBetterState',
+                    JSON.stringify({
+                      imageUrl: resultImageUrl,
+                      existingAnalysis: null,
+                    })
+                  );
+                  window.dispatchEvent(
+                    new CustomEvent('openRecreateBetter', {
+                      detail: { imageUrl: resultImageUrl },
+                    })
+                  );
                 }}
                 disabled={loading}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
@@ -2036,7 +2911,14 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                 Enhance
               </button>
               <button
-                onClick={() => navigate('/dashboard/editor', { state: { initialImage: resultImageUrl, source: 'quick-edit' } })}
+                onClick={() =>
+                  navigate('/dashboard/editor', {
+                    state: {
+                      initialImage: resultImageUrl,
+                      source: 'quick-edit',
+                    },
+                  })
+                }
                 disabled={loading}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl
                            bg-slate-700 hover:bg-slate-600
@@ -2083,26 +2965,64 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
         )}
       </div>
 
+      {/* Floating Edit Panel — spawns at Smart Text button, draggable */}
+      {activeOverlayId &&
+        (() => {
+          const activeOverlay = textOverlays.find(
+            o => o.id === activeOverlayId
+          );
+          return activeOverlay ? (
+            <FloatingEditPanel
+              key={activeOverlayId}
+              overlay={activeOverlay}
+              anchorRef={smartTextBtnRef}
+              onClose={() => setActiveOverlayId(null)}
+              onUpdate={updates => updateOverlayProp(activeOverlayId, updates)}
+            />
+          ) : null;
+        })()}
+
       {/* Tools Panel */}
       <div className="lg:w-72 flex flex-col gap-3">
-        <div className="flex items-center gap-3 mb-1">
-          <h3 className="text-sm font-medium text-gray-400 uppercase flex-shrink-0">Quick Tools</h3>
-          <button
-            onClick={toggleCommandBar}
-            className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl
-                       bg-gradient-to-r from-purple-600/20 to-pink-600/20
-                       border border-purple-500/30 hover:border-purple-500/50
-                       hover:from-purple-600/30 hover:to-pink-600/30
-                       text-white transition-all text-sm group"
-            title="AI Command Bar (Ctrl+K)"
-          >
-            <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
-            <span className="flex-1 text-left">Ask AI</span>
-            <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 flex-shrink-0">
-              Ctrl+K
-            </kbd>
-          </button>
-        </div>
+        <h3 className="text-sm font-medium text-gray-400 uppercase mb-1">
+          Quick Tools
+        </h3>
+
+        {/* Ask AI */}
+        <button
+          onClick={toggleCommandBar}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl
+                     bg-gradient-to-r from-purple-600/20 to-pink-600/20
+                     border border-purple-500/30 hover:border-purple-500/50
+                     hover:from-purple-600/30 hover:to-pink-600/30
+                     text-white transition-all text-sm group"
+          title="AI Command Bar (Ctrl+K)"
+        >
+          <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
+          <span className="flex-1 text-left">Ask AI Anything...</span>
+          <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 flex-shrink-0">
+            Ctrl+K
+          </kbd>
+        </button>
+
+        {/* Remove Background — free, runs locally */}
+        <button
+          onClick={handleRemoveBackground}
+          disabled={loading || !resultImageUrl}
+          type="button"
+          title="Remove background — free, runs locally"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl
+                     bg-emerald-600/10 border border-emerald-500/30
+                     hover:border-emerald-500/50 hover:bg-emerald-600/20
+                     text-white transition-all text-sm group
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Eraser className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300 flex-shrink-0" />
+          <span className="flex-1 text-left">Remove Background</span>
+          <span className="text-[10px] text-emerald-500 bg-emerald-900/40 px-1.5 py-0.5 rounded border border-emerald-800/60 flex-shrink-0">
+            Free
+          </span>
+        </button>
 
         {/* Add Your Face */}
         <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3 space-y-2.5">
@@ -2134,7 +3054,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           />
 
           {facePhoto ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <img
                 src={facePhoto}
                 alt="Your face"
@@ -2172,7 +3092,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             >
               <Camera className="w-6 h-6" />
               <span className="text-xs">Upload a photo of yourself</span>
-              <span className="text-[10px] text-gray-600">Saved for next time</span>
+              <span className="text-[10px] text-gray-600">
+                Saved for next time
+              </span>
             </button>
           )}
         </div>
@@ -2216,11 +3138,20 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               )}
             </button>
 
+            {/* Error message */}
+            {aiText.error && !aiText.isGenerating && (
+              <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+                {aiText.error}
+              </div>
+            )}
+
             {/* AI Suggestions */}
             {aiText.suggestions.length > 0 && (
               <div className="space-y-1.5">
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Pick one:</span>
-                {aiText.suggestions.map((s) => (
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+                  Pick one:
+                </span>
+                {aiText.suggestions.map(s => (
                   <button
                     key={s.id}
                     onClick={() => applyAiSuggestion(s.text)}
@@ -2237,7 +3168,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             {/* Divider */}
             <div className="flex items-center gap-2">
               <hr className="flex-1 border-gray-700" />
-              <span className="text-[10px] text-gray-600 uppercase">or type your own</span>
+              <span className="text-[10px] text-gray-600 uppercase">
+                or type your own
+              </span>
               <hr className="flex-1 border-gray-700" />
             </div>
 
@@ -2245,8 +3178,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             <input
               type="text"
               value={newTextValue}
-              onChange={(e) => setNewTextValue(e.target.value)}
-              onKeyDown={(e) => {
+              onChange={e => setNewTextValue(e.target.value)}
+              onKeyDown={e => {
                 if (e.key === 'Enter' && newTextValue.trim()) {
                   handleSmartText(newTextValue.trim());
                 }
@@ -2276,6 +3209,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
           </div>
         ) : (
           <button
+            ref={smartTextBtnRef}
             onClick={() => setShowTextInput(true)}
             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
                        border border-gray-700/50 hover:border-purple-500/30 hover:bg-gray-800
@@ -2297,32 +3231,14 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               </span>
             </div>
             <div className="divide-y divide-gray-700/30">
-              {textOverlays.map((overlay) => (
-                <div
+              {textOverlays.map(overlay => (
+                <SmartTextItem
                   key={overlay.id}
-                  onClick={() => setActiveOverlayId(overlay.id === activeOverlayId ? null : overlay.id)}
-                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-all group
-                    ${overlay.id === activeOverlayId
-                      ? 'bg-purple-600/15 border-l-2 border-l-purple-500'
-                      : 'hover:bg-gray-700/30 border-l-2 border-l-transparent'
-                    }`}
-                >
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-600"
-                    style={{ backgroundColor: overlay.color }}
-                  />
-                  <span className="text-sm text-gray-300 truncate flex-1" style={{ fontFamily: overlay.fontFamily }}>
-                    {overlay.text}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeOverlay(overlay.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-0.5"
-                    aria-label={`Remove text: ${overlay.text}`}
-                    title="Remove this text"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
+                  overlay={overlay}
+                  isActive={overlay.id === activeOverlayId}
+                  onSelect={() => setActiveOverlayId(overlay.id)}
+                  onRemove={() => removeOverlay(overlay.id)}
+                />
               ))}
             </div>
             {!showTextInput && (
@@ -2337,202 +3253,6 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             )}
           </div>
         )}
-
-        {/* Selected Text Overlay Editor */}
-        {activeOverlayId && (() => {
-          const active = textOverlays.find((o) => o.id === activeOverlayId);
-          if (!active) return null;
-          return (
-            <div className="bg-gray-800 rounded-xl p-3 border border-purple-500/30 space-y-2.5">
-              <span className="text-xs font-medium text-purple-300 uppercase tracking-wider">Edit Text</span>
-
-              {/* Inline text editor */}
-              <input
-                type="text"
-                value={active.text}
-                onChange={(e) => updateOverlayProp(active.id, { text: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-gray-900 border border-gray-700
-                           text-white text-sm focus:outline-none focus:border-purple-500"
-              />
-
-              {/* Font picker */}
-              <div>
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Font</span>
-                <div className="grid grid-cols-2 gap-1">
-                  {THUMBNAIL_FONTS.map((f) => (
-                    <button
-                      key={f.label}
-                      onClick={() => updateOverlayProp(active.id, { fontFamily: f.value })}
-                      className={`px-2 py-1.5 rounded text-xs text-left truncate transition-all
-                        ${active.fontFamily === f.value
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-900 text-gray-400 hover:bg-gray-700 hover:text-white'
-                        }`}
-                      style={{ fontFamily: f.value }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Color picker */}
-              <div>
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Color</span>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {['#FFFFFF', '#000000', '#FF0000', '#FFD600', '#00E676', '#2979FF', '#FF6D00', '#E040FB'].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => updateOverlayProp(active.id, { color: c })}
-                      className={`w-6 h-6 rounded-full border-2 transition-all ${
-                        active.color === c ? 'border-purple-400 scale-110' : 'border-gray-600 hover:border-gray-400'
-                      }`}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Set text color to ${c}`}
-                      title={c}
-                    />
-                  ))}
-                  <label className="relative w-6 h-6 rounded-full border-2 border-dashed border-gray-500 hover:border-gray-300 cursor-pointer flex items-center justify-center transition-colors" title="Custom color">
-                    <span className="text-gray-400 text-[10px] leading-none">+</span>
-                    <input
-                      type="color"
-                      value={active.color}
-                      onChange={(e) => updateOverlayProp(active.id, { color: e.target.value })}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      aria-label="Custom text color"
-                      title="Pick custom color"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {/* Size slider */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-500 w-6">Size</span>
-                <input
-                  type="range"
-                  min={30}
-                  max={120}
-                  value={active.fontSize}
-                  onChange={(e) => updateOverlayProp(active.id, { fontSize: Number(e.target.value) })}
-                  className="flex-1 accent-purple-500"
-                  aria-label="Text size"
-                  title="Text size"
-                />
-                <span className="text-gray-400 text-[10px] w-6">{active.fontSize}</span>
-              </div>
-
-              {/* Banner toggle */}
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-500 uppercase">Background banner</span>
-                <button
-                  onClick={() => {
-                    updateOverlayProp(active.id, {
-                      backgroundColor: active.backgroundColor ? '' : 'rgba(0, 0, 0, 0.6)',
-                    });
-                  }}
-                  aria-label="Toggle background banner"
-                  title="Toggle background banner"
-                  className={`w-9 h-5 rounded-full transition-colors relative
-                    ${active.backgroundColor ? 'bg-purple-600' : 'bg-gray-700'}`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform
-                      ${active.backgroundColor ? 'left-[18px]' : 'left-0.5'}`}
-                  />
-                </button>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Layouts */}
-        {showCompositionPanel ? (
-          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden max-h-[400px] flex flex-col group/layouts relative">
-            <div className="flex items-center justify-between px-3 pt-3 pb-1 flex-shrink-0">
-              <span className="text-sm font-medium text-gray-300 flex items-center gap-1.5">
-                <Grid className="w-3.5 h-3.5 text-indigo-400" />
-                Layouts
-              </span>
-              <button
-                onClick={() => { setShowCompositionPanel(false); layouts.clearTemplate(); }}
-                className="text-gray-500 hover:text-gray-300"
-                aria-label="Close layouts panel"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="hidden group-hover/layouts:flex items-center justify-center gap-1.5
-                            absolute bottom-2 left-1/2 -translate-x-1/2 z-10
-                            bg-black/85 text-white text-xs px-3 py-1.5 rounded-full
-                            shadow-lg pointer-events-none whitespace-nowrap">
-              <svg className="w-3 h-3 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-              Scroll for more templates
-            </div>
-            {layouts.selectedTemplate && layouts.compositionState ? (
-              <div className="flex flex-col gap-2">
-                <SlotEditor
-                  template={layouts.selectedTemplate}
-                  compositionState={layouts.compositionState}
-                  onFillSlot={layouts.fillSlot}
-                  onClearSlot={layouts.clearSlot}
-                  onFillTextSlot={layouts.fillTextSlot}
-                  onClearTextSlot={layouts.clearTextSlot}
-                  availableImages={[
-                    ...(resultImageUrl ? [{ label: 'Current image', url: resultImageUrl }] : []),
-                    ...(facePhoto ? [{ label: 'Your face', url: facePhoto }] : []),
-                    ...(originalImageUrl && originalImageUrl !== resultImageUrl
-                      ? [{ label: 'Original', url: originalImageUrl }]
-                      : []),
-                  ]}
-                />
-                <div className="flex gap-2 p-3 pt-0">
-                  <button
-                    onClick={() => layouts.clearTemplate()}
-                    className="flex-1 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600
-                               text-gray-300 text-sm transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleApplyComposition}
-                    disabled={loading || !layouts.isComplete()}
-                    className="flex-1 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500
-                               text-white text-sm font-medium disabled:opacity-50 transition-colors
-                               flex items-center justify-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Apply
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <TemplatePicker
-                  templates={layouts.filteredTemplates}
-                  selectedTemplateId={layouts.selectedTemplate?.id ?? null}
-                  categoryFilter={layouts.categoryFilter}
-                  searchQuery={layouts.searchQuery}
-                  onCategoryChange={layouts.setCategoryFilter}
-                  onSearchChange={layouts.setSearchQuery}
-                  onSelectTemplate={layouts.selectTemplate}
-                  onClearTemplate={() => setShowCompositionPanel(false)}
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowCompositionPanel(true)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50
-                       border border-gray-700/50 hover:border-indigo-500/30 hover:bg-gray-800
-                       text-gray-300 transition-all text-sm"
-          >
-            <Grid className="w-5 h-5 text-indigo-400" />
-            Layouts
-          </button>
-        )}
-
       </div>
     </div>
   );
@@ -2545,8 +3265,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
     <div className="min-h-[60vh]">
       {/* Error toast */}
       {error && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm bg-red-500/90 text-white
-                        px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top">
+        <div
+          className="fixed top-4 right-4 z-50 max-w-sm bg-red-500/90 text-white
+                        px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-top"
+        >
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           <p className="text-sm flex-1">{error}</p>
           <button onClick={() => setError(null)} aria-label="Dismiss error">
@@ -2562,22 +3284,52 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
             {/* Phase step indicator */}
             {extractionProgress && (
               <div className="flex items-center gap-1 mb-5">
-                {(['connecting', 'analyzing', 'preparing', 'extracting'] as const).map((phase, idx) => {
-                  const phases = ['connecting', 'analyzing', 'preparing', 'extracting'];
+                {(
+                  [
+                    'connecting',
+                    'analyzing',
+                    'preparing',
+                    'extracting',
+                  ] as const
+                ).map((phase, idx) => {
+                  const phases = [
+                    'connecting',
+                    'analyzing',
+                    'preparing',
+                    'extracting',
+                  ];
                   const currentIdx = phases.indexOf(extractionProgress.phase);
                   const isActive = extractionProgress.phase === phase;
                   const isDone = currentIdx > idx;
                   return (
                     <React.Fragment key={phase}>
-                      <div className={`flex items-center gap-1.5 ${isActive ? 'text-purple-400' : isDone ? 'text-green-400' : 'text-gray-600'}`}>
-                        <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                          isActive ? 'bg-purple-400 animate-pulse' : isDone ? 'bg-green-400' : 'bg-gray-600'
-                        }`} />
+                      <div
+                        className={`flex items-center gap-1.5 ${isActive ? 'text-purple-400' : isDone ? 'text-green-400' : 'text-gray-600'}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                            isActive
+                              ? 'bg-purple-400 animate-pulse'
+                              : isDone
+                                ? 'bg-green-400'
+                                : 'bg-gray-600'
+                          }`}
+                        />
                         <span className="text-[10px] font-medium uppercase tracking-wider">
-                          {phase === 'connecting' ? 'Connect' : phase === 'analyzing' ? 'Analyze' : phase === 'preparing' ? 'Prepare' : 'Extract'}
+                          {phase === 'connecting'
+                            ? 'Connect'
+                            : phase === 'analyzing'
+                              ? 'Analyze'
+                              : phase === 'preparing'
+                                ? 'Prepare'
+                                : 'Extract'}
                         </span>
                       </div>
-                      {idx < 3 && <div className={`flex-1 h-px ${isDone ? 'bg-green-400/40' : 'bg-gray-700'}`} />}
+                      {idx < 3 && (
+                        <div
+                          className={`flex-1 h-px ${isDone ? 'bg-green-400/40' : 'bg-gray-700'}`}
+                        />
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -2597,20 +3349,25 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
               )}
               <div>
                 <p className="text-white font-medium">{loadingMessage}</p>
-                {extractionProgress?.phase === 'extracting' && extractionProgress.total && (
-                  <p className="text-gray-400 text-xs mt-0.5">
-                    {extractionProgress.current} of {extractionProgress.total} frames
-                  </p>
-                )}
+                {extractionProgress?.phase === 'extracting' &&
+                  extractionProgress.total && (
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      {extractionProgress.current} of {extractionProgress.total}{' '}
+                      frames
+                    </p>
+                  )}
               </div>
             </div>
 
             {/* Progress bar */}
-            {extractionProgress?.phase === 'extracting' && extractionProgress.total ? (
+            {extractionProgress?.phase === 'extracting' &&
+            extractionProgress.total ? (
               <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-4">
                 <div
                   className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${((extractionProgress.current || 0) / extractionProgress.total) * 100}%` }}
+                  style={{
+                    width: `${((extractionProgress.current || 0) / extractionProgress.total) * 100}%`,
+                  }}
                 />
               </div>
             ) : (
@@ -2635,30 +3392,36 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({ onClose: _onClose, onOpen
                   </div>
                 ))}
                 {/* Placeholder slots for remaining visible frames (up to 8) */}
-                {extractionProgress?.total && previewFrames.length < 8 && Array.from(
-                  { length: Math.max(0, 8 - previewFrames.length) },
-                  (_, i) => (
-                    <div
-                      key={`placeholder-${i}`}
-                      className="aspect-video rounded-lg border border-gray-700/50 bg-gray-700/30 animate-pulse"
-                    />
-                  )
-                )}
+                {extractionProgress?.total &&
+                  previewFrames.length < 8 &&
+                  Array.from(
+                    { length: Math.max(0, 8 - previewFrames.length) },
+                    (_, i) => (
+                      <div
+                        key={`placeholder-${i}`}
+                        className="aspect-video rounded-lg border border-gray-700/50 bg-gray-700/30 animate-pulse"
+                      />
+                    )
+                  )}
               </div>
             )}
 
             {/* Extraction count badge (when extracting more than 8) */}
             {previewFrames.length > 8 && extractionProgress?.total && (
               <p className="text-gray-500 text-xs text-center mt-2">
-                Extracting {previewFrames.length} of {extractionProgress.total} frames for instant regeneration...
+                Extracting {previewFrames.length} of {extractionProgress.total}{' '}
+                frames for instant regeneration...
               </p>
             )}
 
             {!extractionProgress?.total && extractionProgress && (
               <p className="text-gray-500 text-xs text-center">
-                {extractionProgress.phase === 'connecting' && 'Reaching the video server...'}
-                {extractionProgress.phase === 'analyzing' && 'Reading video metadata and duration...'}
-                {extractionProgress.phase === 'preparing' && 'Resolving best quality stream...'}
+                {extractionProgress.phase === 'connecting' &&
+                  'Reaching the video server...'}
+                {extractionProgress.phase === 'analyzing' &&
+                  'Reading video metadata and duration...'}
+                {extractionProgress.phase === 'preparing' &&
+                  'Resolving best quality stream...'}
               </p>
             )}
           </div>

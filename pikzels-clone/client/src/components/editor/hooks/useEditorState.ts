@@ -223,6 +223,66 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'REMOVE_LAYERS_BATCH': {
+      // Remove multiple layers in a single history entry (for undo/redo)
+      const idsToRemove = new Set(action.layerIds);
+      const newLayers = state.layers.filter(l => !idsToRemove.has(l.id));
+      const newLayerOrder = state.layerOrder.filter(id => !idsToRemove.has(id));
+      const newSelection = {
+        layerIds: state.selection.layerIds.filter(id => !idsToRemove.has(id)),
+      };
+      const hist = pushHistory(
+        state, 
+        `Remove ${action.layerIds.length} layers`, 
+        newLayers, 
+        newLayerOrder, 
+        newSelection, 
+        state.adjustments
+      );
+      
+      return {
+        ...state,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
+    case 'REMOVE_LAYERS_BY_GROUP': {
+      // Remove all layers sharing a groupId (for template group removal)
+      const layersToRemove = state.layers
+        .filter(l => l.groupId === action.groupId)
+        .map(l => l.id);
+      
+      if (layersToRemove.length === 0) return state;
+
+      const idsToRemove = new Set(layersToRemove);
+      const newLayers = state.layers.filter(l => !idsToRemove.has(l.id));
+      const newLayerOrder = state.layerOrder.filter(id => !idsToRemove.has(id));
+      const newSelection = {
+        layerIds: state.selection.layerIds.filter(id => !idsToRemove.has(id)),
+      };
+      const hist = pushHistory(
+        state, 
+        `Remove template group (${layersToRemove.length} layers)`, 
+        newLayers, 
+        newLayerOrder, 
+        newSelection, 
+        state.adjustments
+      );
+      
+      return {
+        ...state,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
     case 'UPDATE_LAYER': {
       const newLayers = state.layers.map(layer =>
         layer.id === action.layerId

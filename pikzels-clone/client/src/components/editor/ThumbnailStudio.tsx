@@ -23,6 +23,13 @@ import {
   SlotEditor,
   compositionToLayers,
 } from '../../features/composition-templates';
+import type { LayoutPreset, CompositionState } from '../../features/composition-templates';
+import {
+  TemplateDragDropProvider,
+  CanvasDropZone,
+  TrashDropZone,
+  useTemplateDragDropContext,
+} from '../../features/drag-drop';
 import { EditorModeToggle, useEditorMode } from '../../features/editor-mode';
 import { ChatPanel, useChatConversation, useChatActions } from '../../features/ai-chat';
 import type { PlatformPresetContext } from '../../features/ai-chat';
@@ -1115,7 +1122,8 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
 
     const { layers: newLayers } = compositionToLayers(
       layouts.selectedTemplate,
-      layouts.compositionState
+      layouts.compositionState,
+      { groupId: crypto.randomUUID() }
     );
 
     // Add each layer to the editor via dispatch
@@ -1126,7 +1134,61 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     layouts.clearTemplate();
   }, [layouts, dispatch]);
 
+  /**
+   * Handle template dropped on canvas from drag-and-drop.
+   * Creates layers from the template and adds them to the editor.
+   */
+  const handleTemplateDropOnCanvas = useCallback((
+    template: LayoutPreset,
+    compositionState: CompositionState,
+    _dropPosition: { x: number; y: number }
+  ) => {
+    // Generate a shared groupId for all layers from this drop
+    const groupId = crypto.randomUUID();
+
+    const { layers: newLayers } = compositionToLayers(
+      template,
+      compositionState,
+      { groupId }
+    );
+
+    // Add each layer to the editor
+    // Note: drop position is not used for offset since templates have
+    // their own coordinate system. Future enhancement could adjust
+    // layer positions based on drop point.
+    for (const layer of newLayers) {
+      dispatch({ type: 'ADD_LAYER', layer });
+    }
+  }, [dispatch]);
+
+  /**
+   * Handle layer dropped on trash zone.
+   * Removes the layer (or all layers in its group if groupId is provided).
+   */
+  const handleLayerDropToTrash = useCallback((layerId: string, groupId?: string) => {
+    if (groupId) {
+      // Remove all layers in the group
+      dispatch({ type: 'REMOVE_LAYERS_BY_GROUP', groupId });
+    } else {
+      // Remove single layer
+      dispatch({ type: 'REMOVE_LAYER', layerId });
+    }
+  }, [dispatch]);
+
+  /**
+   * Get count of layers sharing a groupId (for trash zone confirmation).
+   */
+  const getGroupLayerCount = useCallback((groupId: string): number => {
+    return state.layers.filter(l => l.groupId === groupId).length;
+  }, [state.layers]);
+
   return (
+    <TemplateDragDropProvider
+      onDropTemplate={handleTemplateDropOnCanvas}
+      onDropLayerToTrash={handleLayerDropToTrash}
+      canvasWidth={state.canvas.width}
+      canvasHeight={state.canvas.height}
+    >
     <div className={`thumbnail-studio ${isFullCanvas ? 'thumbnail-studio--fullscreen' : ''}`}>
       {/* Top Toolbar */}
       <header className="editor-toolbar">
@@ -1316,7 +1378,8 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
           onSettingsChange={(settings) => dispatch({ type: 'UPDATE_TOOL_SETTINGS', settings })}
         />
 
-        {/* Canvas Area with Floating Toolbar */}
+        {/* Canvas Area with Floating Toolbar - Wrapped in CanvasDropZone for template drag-drop */}
+        <CanvasDropZone>
         <div ref={canvasContainerRef} className="canvas-area-wrapper">
           <CanvasEngine
             state={state}
@@ -1387,6 +1450,11 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
               canvasContainerRef={canvasContainerRef}
             />
           )}
+          
+          {/* Trash Zone - appears when dragging a layer for removal */}
+          <TrashDropZone
+            getGroupLayerCount={getGroupLayerCount}
+          />
           
           {/* AI Command Bar Trigger Button */}
           <button
@@ -1501,6 +1569,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             }}
           />
         </div>
+        </CanvasDropZone>
 
         {/* Toggle panel button (visible when collapsed or in fullscreen) */}
         {(isPanelCollapsed || isFullCanvas) && !isFullCanvas && (
@@ -1971,6 +2040,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         isLoading={isAILoading}
       />
     </div>
+    </TemplateDragDropProvider>
   );
 };
 

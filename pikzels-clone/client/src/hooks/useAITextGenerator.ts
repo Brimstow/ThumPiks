@@ -188,7 +188,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
       if (!analysis) {
         const visionBody = imageBase64
           ? { imageBase64 }
-          : { image: imageUrl };
+          : { imageUrl };
         const vRes = await authPost('/api/vision/describe', visionBody);
         if (vRes.ok) {
           analysis = await vRes.json() as VisionAnalysisResult;

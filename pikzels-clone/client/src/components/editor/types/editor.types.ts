@@ -67,6 +67,8 @@ export interface BaseLayer {
   effects: LayerEffect[];
   mask?: LayerMask;
   parentId?: string; // For grouped layers
+  /** Shared ID for layers created from the same template drop (Phase 3 bidirectional drag support) */
+  groupId?: string;
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -355,6 +357,8 @@ export interface AIGenerationResult {
 export type EditorAction =
   | { type: 'ADD_LAYER'; layer: Layer }
   | { type: 'REMOVE_LAYER'; layerId: string }
+  | { type: 'REMOVE_LAYERS_BATCH'; layerIds: string[] }
+  | { type: 'REMOVE_LAYERS_BY_GROUP'; groupId: string }
   | { type: 'UPDATE_LAYER'; layerId: string; updates: Partial<Layer> }
   | { type: 'REORDER_LAYERS'; layerIds: string[] }
   | { type: 'GROUP_LAYERS'; layerIds: string[] }

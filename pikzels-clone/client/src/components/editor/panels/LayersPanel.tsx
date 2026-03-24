@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { Layer, LayerType, BlendMode, Selection } from '../types/editor.types';
 import { getDisclosurePref, setDisclosurePref } from '../../ui/CollapsibleSection';
 import { useEditorMode } from '../../../features/editor-mode';
-import { LayerSortableList, SortableLayerItem, DragInstructions } from '../../../features/drag-drop';
+import { LayerSortableList, SortableLayerItem, DragInstructions, LayerDragHandle } from '../../../features/drag-drop';
 
 interface LayersPanelProps {
   layers: Layer[];
@@ -216,7 +216,12 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
   };
 
   return (
-    <div className="layers-panel">
+    <div 
+      className="layers-panel"
+      id="layers-panel"
+      role="region"
+      aria-label="Layers panel. Manage and reorder canvas layers."
+    >
       {/* Header */}
       <div className="layers-panel__header">
         <span className="layers-panel__title">Layers</span>
@@ -346,7 +351,11 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
       )}
 
       {/* Layer list */}
-      <div className="layers-list">
+      <div 
+        className="layers-list"
+        role="list"
+        aria-label="Layer list"
+      >
         {orderedLayers.length === 0 ? (
           <div style={{
             padding: '24px',
@@ -364,7 +373,13 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
                 <div
                   className={`layer-item ${selection.layerIds.includes(layer.id) ? 'layer-item--selected' : ''}`}
                   onClick={(e) => onLayerSelect(layer.id, e.shiftKey || e.ctrlKey || e.metaKey)}
+                  role="listitem"
+                  aria-label={`Layer: ${layer.name}, type: ${layer.type}${!layer.visible ? ', hidden' : ''}${layer.locked ? ', locked' : ''}`}
+                  aria-selected={selection.layerIds.includes(layer.id)}
                 >
+                  {/* Drag handle for removing layer - draggable to trash zone */}
+                  <LayerDragHandle layer={layer} />
+                  
                   <button
                     className={`layer-item__visibility ${!layer.visible ? 'layer-item__visibility--hidden' : ''}`}
                     onClick={(e) => {
@@ -403,16 +418,18 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
                         onLayerDuplicate(layer.id);
                       }}
                       title="Duplicate"
+                      aria-label={`Duplicate layer ${layer.name}`}
                     >
                       <Icons.Copy />
                     </button>
                     <button
-                      className="layer-item__action"
+                      className="layer-item__action layer-item__action--delete"
                       onClick={(e) => {
                         e.stopPropagation();
                         onLayerDelete(layer.id);
                       }}
                       title="Delete"
+                      aria-label={`Delete layer ${layer.name}`}
                     >
                       <Icons.Trash />
                     </button>
