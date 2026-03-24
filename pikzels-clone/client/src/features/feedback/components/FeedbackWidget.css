@@ -1,0 +1,287 @@
+/* FeedbackWidget.css - Floating feedback widget */
+
+/* Right-edge Hotjar-style tab */
+.feedback-trigger {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9998;
+  width: 32px;
+  height: auto;
+  padding: 14px 6px;
+  border: none;
+  border-radius: 8px 0 0 8px;
+  background: var(--color-indigo-600, #6366f1);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -2px 0 12px rgba(99, 102, 241, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.feedback-trigger:hover {
+  transform: translateY(-50%) translateX(-2px);
+  box-shadow: -4px 0 16px rgba(99, 102, 241, 0.45);
+  background: var(--color-indigo-500, #818cf8);
+}
+
+/* Overlay backdrop */
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  animation: feedback-fade-in 0.15s ease-out;
+}
+
+@keyframes feedback-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Main panel */
+.feedback-panel {
+  width: 400px;
+  max-height: calc(100vh - 48px);
+  background: var(--color-gray-900, #111827);
+  border: 1px solid var(--color-gray-700, #374151);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: feedback-slide-up 0.2s ease-out;
+}
+
+@keyframes feedback-slide-up {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-gray-700, #374151);
+}
+
+.feedback-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-gray-100, #f3f4f6);
+}
+
+.feedback-close {
+  background: none;
+  border: none;
+  color: var(--color-gray-400, #9ca3af);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.feedback-close:hover {
+  color: var(--color-gray-200, #e5e7eb);
+  background: var(--color-gray-800, #1f2937);
+}
+
+/* Body / Form */
+.feedback-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.feedback-type-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.feedback-type-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid var(--color-gray-700, #374151);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-gray-400, #9ca3af);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.feedback-type-btn:hover {
+  border-color: var(--color-gray-500, #6b7280);
+  color: var(--color-gray-200, #e5e7eb);
+}
+
+.feedback-type-btn.active {
+  border-color: var(--color-indigo-500, #6366f1);
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-indigo-400, #818cf8);
+}
+
+.feedback-type-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.feedback-field {
+  margin-bottom: 14px;
+}
+
+.feedback-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-gray-300, #d1d5db);
+  margin-bottom: 6px;
+}
+
+.feedback-field input,
+.feedback-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-gray-700, #374151);
+  border-radius: 8px;
+  background: var(--color-gray-800, #1f2937);
+  color: var(--color-gray-100, #f3f4f6);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.feedback-field input:focus,
+.feedback-field textarea:focus {
+  border-color: var(--color-indigo-500, #6366f1);
+}
+
+.feedback-field textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.feedback-field .char-count {
+  font-size: 11px;
+  color: var(--color-gray-500, #6b7280);
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* Submit */
+.feedback-submit {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-indigo-600, #6366f1);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.feedback-submit:hover:not(:disabled) {
+  background: var(--color-indigo-500, #818cf8);
+}
+
+.feedback-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Error */
+.feedback-error {
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: var(--color-red-400, #f87171);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+/* Success */
+.feedback-success {
+  text-align: center;
+  padding: 32px 20px;
+}
+
+.feedback-success-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-green-400, #4ade80);
+}
+
+.feedback-success h4 {
+  margin: 0 0 8px;
+  color: var(--color-gray-100, #f3f4f6);
+  font-size: 16px;
+}
+
+.feedback-success p {
+  margin: 0 0 20px;
+  color: var(--color-gray-400, #9ca3af);
+  font-size: 14px;
+}
+
+.feedback-success-btn {
+  padding: 8px 20px;
+  border: 1px solid var(--color-gray-600, #4b5563);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-gray-300, #d1d5db);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feedback-success-btn:hover {
+  background: var(--color-gray-800, #1f2937);
+}
+
+/* Mobile: hide feedback tab entirely (feedback routes through chatbot) */
+@media (max-width: 767px) {
+  .feedback-trigger {
+    display: none;
+  }
+
+  .feedback-overlay {
+    display: none;
+  }
+}
