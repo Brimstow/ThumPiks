@@ -23,7 +23,8 @@ import {
   Search,
   Maximize2,
   Minimize2,
-  Zap
+  Zap,
+  MessageSquare
 } from 'lucide-react';
 
 interface AdminNavItem {
@@ -179,6 +180,29 @@ const AdminLayout: React.FC = () => {
       icon: <Globe size={20} />,
       path: '/admin/sitemap',
       permission: 'content.view'
+    },
+    {
+      id: 'support',
+      label: 'Support',
+      icon: <MessageSquare size={20} />,
+      path: '/admin/support',
+      permission: 'support.view',
+      children: [
+        {
+          id: 'feedback-tickets',
+          label: 'Feedback & Tickets',
+          icon: <MessageSquare size={16} />,
+          path: '/admin/support',
+          permission: 'support.view'
+        },
+        {
+          id: 'notifications',
+          label: 'Notification Routing',
+          icon: <Bell size={16} />,
+          path: '/admin/support/notifications',
+          permission: 'support.view'
+        },
+      ]
     },
     {
       id: 'analytics',

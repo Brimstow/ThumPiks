@@ -16,6 +16,7 @@ import {
   Square,
   X,
   GripVertical,
+  Sparkles,
 } from 'lucide-react';
 import { authGet, authPost, authPut, authDelete } from '../../utils/api';
 import { DragDropProvider } from '@dnd-kit/react';
@@ -671,12 +672,22 @@ const ProjectDetail: React.FC = () => {
                 Save thumbnails to this project from Quick Edit, the Canvas
                 Editor, or AI generation tools.
               </p>
-              <button
-                onClick={() => navigate('/quick-edit')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-all"
-              >
-                Go to Quick Edit
-              </button>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <button
+                  onClick={() => navigate('/dashboard/quick-edit')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Quick Edit
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard/editor')}
+                  className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Canvas Editor
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">

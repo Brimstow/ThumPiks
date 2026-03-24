@@ -2286,14 +2286,19 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
         'curiosity',
       ];
 
+      // Random session seed injected into system prompt to ensure unique results each call
+      const sessionSeed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
       const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
+
+Session: ${sessionSeed}
 
 Rules:
 - Each suggestion must be ${maxLength} characters or fewer
 - Text must be readable at thumbnail size (short, impactful)
 - Use UPPERCASE for key words to simulate thumbnail text styling
 - Tone: ${toneInstructions[tone] || toneInstructions.clickbait}
-- IMPORTANT: Be creative and produce COMPLETELY DIFFERENT suggestions each time. Never repeat previous ideas. Surprise the user with fresh angles.
+- IMPORTANT: Be creative and produce COMPLETELY DIFFERENT suggestions each time. Never repeat previous ideas. Explore totally new angles, phrasings, and hooks every session.
 - CRITICAL: Spell all names, brands, and proper nouns EXACTLY as provided in the prompt or context. Never alter, phonetically substitute, or "improve" proper nouns.
 ${context ? `- Context: ${context}` : ''}
 
@@ -2319,7 +2324,7 @@ Also assign a click-worthiness score from 0.0 to 1.0.`;
               content: prompt,
             },
           ],
-          temperature: 0.5,
+          temperature: 0.7,
           max_tokens: 1024,
           response_format: {
             type: 'json_schema',

@@ -65,6 +65,9 @@ import editorChatRoutes from './modules/editor-chat/editor-chat.routes';
 import compositionLayoutRoutes from './modules/composition-layout/composition-layout.routes';
 import youtubeTrendingRoutes from './modules/youtube-trending/youtube-trending.routes';
 import brandKitRoutes from './modules/brand-kit/brand-kit.routes';
+import feedbackRoutes from './modules/feedback/feedback.routes';
+import feedbackAdminRoutes from './modules/feedback/feedback.admin.routes';
+import globalChatRoutes from './modules/global-chat/global-chat.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -72,6 +75,8 @@ import userManagementRoutes from './modules/admin/user-management.routes';
 import analyticsAdminRoutes from './modules/admin/analytics.routes';
 import systemMonitoringRoutes from './modules/admin/system-monitoring.routes';
 import sitemapRoutes from './modules/admin/sitemap.routes';
+import notificationConfigRoutes from './modules/notification-config/notification-config.routes';
+import { startDigestScheduler } from './schedulers/digest.scheduler';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8550;
@@ -144,7 +149,7 @@ const prodOrigins = process.env.CORS_ORIGIN?.split(',') || [];
 const corsOptions = {
   origin: isDev ? [...devOrigins, ...prodOrigins] : prodOrigins,
   credentials: true, // Always enable credentials for HttpOnly cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -223,12 +228,14 @@ app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/editor-command', editorCommandRoutes);
 app.use('/api/editor-chat', editorChatRoutes);
+app.use('/api/global-chat', globalChatRoutes);
 app.use('/api/visual-search', visualSearchRoutes);
 app.use('/api/ab-tests', abTestingRoutes);
 app.use('/api/user-assets', userAssetRoutes);
 app.use('/api/url-history', urlHistoryRoutes);
 app.use('/api/youtube-trending', youtubeTrendingRoutes);
 app.use('/api/brand-kit', brandKitRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -236,6 +243,8 @@ app.use('/api/admin/users', userManagementRoutes);
 app.use('/api/admin/analytics', analyticsAdminRoutes);
 app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
+app.use('/api/admin/support', feedbackAdminRoutes);
+app.use('/api/admin/notifications', notificationConfigRoutes);
 
 // Health check endpoint - MUST be before error handler for Railway healthchecks
 app.get('/health', async (_req, res) => {
@@ -404,6 +413,9 @@ async function initializeServer() {
       console.log(
         `📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`
       );
+
+      // Start digest scheduler
+      startDigestScheduler();
     });
 
     return server;

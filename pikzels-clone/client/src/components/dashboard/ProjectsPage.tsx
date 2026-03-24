@@ -525,7 +525,6 @@ const ProjectsPage: React.FC = () => {
    */
   const getIconColor = (project: Project): string => {
     if (project.folderType === 'folder') return 'text-yellow-500';
-    if (project.featuredThumbnail) return 'text-blue-500';
     return 'text-slate-400';
   };
 
@@ -813,7 +812,10 @@ const ProjectsPage: React.FC = () => {
 
                     {/* Context Menu Button */}
                     {!bulkSelectMode && (
-                      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div
+                        className="absolute z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ top: '26px', right: '8px' }}
+                      >
                         <button
                           onClick={e => {
                             e.stopPropagation();
@@ -890,30 +892,113 @@ const ProjectsPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="aspect-video bg-slate-900 rounded-xl border border-slate-800/80 overflow-hidden relative mb-3 shadow-lg transition-all duration-300 group-hover:border-slate-600 group-hover:shadow-xl">
-                      {/* Featured Thumbnail */}
-                      {project.featuredThumbnail?.imageUrl ? (
-                        <img
-                          src={project.featuredThumbnail.imageUrl}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
-                          alt={project.name}
+                    {/* ── ALL CARDS: folder tab + body shape ── */}
+                    <div className="mb-3" style={{ width: '100%' }}>
+                      {/* === TAB === */}
+                      <div style={{ display: 'flex', alignItems: 'flex-end', height: '20px' }}>
+                        <div className="bg-slate-800 border-t border-l border-r border-slate-800/80"
+                          style={{
+                            width: '45%',
+                            height: '20px',
+                            borderBottom: 'none',
+                            borderRadius: '12px 12px 0 0',
+                          }}
                         />
-                      ) : (
-                        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-black flex items-center justify-center h-full">
-                          <Icon
-                            className={`w-16 h-16 ${iconColor} opacity-50`}
-                          />
-                        </div>
-                      )}
+                      </div>
 
-                      {/* Folder Badge */}
-                      {project.folderType === 'folder' && (
-                        <div className="absolute top-2 left-2 bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg">
-                          <span className="text-yellow-400 text-[10px] font-bold uppercase">
-                            Folder
-                          </span>
+                      {/* === BODY === */}
+                      <div
+                        className="relative w-full overflow-hidden border border-slate-800/80 shadow-lg transition-all duration-300 group-hover:border-slate-600 group-hover:shadow-xl"
+                        style={{
+                          paddingBottom: '62.5%',
+                          borderRadius: '0 12px 12px 12px',
+                        }}
+                      >
+                        <div className="absolute inset-0">
+                          {project.previewThumbnails && project.previewThumbnails.length > 0 ? (
+                            /* Thumbnail 2x2 grid */
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gridTemplateRows: '1fr 1fr',
+                                gap: '4px',
+                                padding: '8px',
+                                width: '100%',
+                                height: '100%',
+                                boxSizing: 'border-box',
+                                backgroundColor: '#0f172a',
+                              }}
+                            >
+                              {project.previewThumbnails.slice(0, 4).map((thumb, idx) => (
+                                <div
+                                  key={thumb.id}
+                                  style={{
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    borderRadius: '4px',
+                                    backgroundColor: '#1e293b',
+                                  }}
+                                >
+                                  <img
+                                    src={thumb.imageUrl}
+                                    alt={thumb.title || `Thumbnail ${idx + 1}`}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ))}
+                              {Array.from({ length: Math.max(0, 4 - project.previewThumbnails.length) }).map((_, idx) => (
+                                <div
+                                  key={`empty-${idx}`}
+                                  className="bg-slate-800/50"
+                                  style={{ borderRadius: '4px' }}
+                                />
+                              ))}
+                            </div>
+                          ) : project.featuredThumbnail?.imageUrl ? (
+                            <img
+                              src={project.featuredThumbnail.imageUrl}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
+                              alt={project.name}
+                            />
+                          ) : (
+                            /* Empty — original gradient + centered icon */
+                            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-black flex items-center justify-center w-full h-full">
+                              <Icon className={`w-16 h-16 ${iconColor} opacity-50`} />
+                            </div>
+                          )}
+
+                          {/* Folder Badge — original style */}
+                          {project.folderType === 'folder' && (
+                            <div className="absolute top-2 left-2 bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg">
+                              <span className="text-yellow-400 text-[10px] font-bold uppercase">Folder</span>
+                            </div>
+                          )}
+
+                          {/* Count badge */}
+                          {project.thumbnailCount !== undefined && project.thumbnailCount > 0 && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: '6px',
+                                right: '6px',
+                                backgroundColor: 'rgba(0,0,0,0.65)',
+                                backdropFilter: 'blur(4px)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                zIndex: 10,
+                              }}
+                            >
+                              <ImageIcon style={{ width: '10px', height: '10px', color: '#cbd5e1' }} />
+                              <span style={{ fontSize: '10px', fontWeight: 500, color: '#e2e8f0' }}>{project.thumbnailCount}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
 
                     <h3 className="text-sm font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors truncate">

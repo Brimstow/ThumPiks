@@ -24,7 +24,13 @@ export class AnalyticsEventHandlers {
   private flushTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.startBatchProcessor();
+    if (!this.isTestEnvironment()) {
+      this.startBatchProcessor();
+    }
+  }
+
+  private isTestEnvironment(): boolean {
+    return process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
   }
 
   /**
@@ -291,6 +297,7 @@ export class AnalyticsEventHandlers {
         await this.flushEventQueue();
       }
     }, this.flushInterval);
+    this.flushTimer.unref?.();
   }
 
   /**
@@ -364,6 +371,7 @@ export class AnalyticsEventHandlers {
   async cleanup(): Promise<void> {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
+      this.flushTimer = null;
     }
 
     // Flush any remaining events

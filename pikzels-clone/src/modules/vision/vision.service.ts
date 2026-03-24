@@ -102,6 +102,25 @@ export class VisionService {
     const visionModel =
       process.env.OPENROUTER_MODEL_VISION || 'google/gemini-2.5-flash';
 
+    // If image is a localhost URL (dev), fetch it and convert to base64
+    // since external AI models cannot access localhost
+    let resolvedImageUrl = imageUrl;
+    if (
+      !imageUrl.startsWith('data:') &&
+      (imageUrl.includes('localhost') || imageUrl.includes('127.0.0.1'))
+    ) {
+      try {
+        const imgResponse = await fetch(imageUrl);
+        if (imgResponse.ok) {
+          const buffer = await imgResponse.buffer();
+          const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+          resolvedImageUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+        }
+      } catch (err: any) {
+        console.warn('Failed to convert localhost image to base64:', err.message);
+      }
+    }
+
     const requestBody = {
       model: visionModel,
       messages: [
@@ -114,7 +133,7 @@ export class VisionService {
           content: [
             {
               type: 'image_url' as const,
-              image_url: { url: imageUrl },
+              image_url: { url: resolvedImageUrl },
             },
             {
               type: 'text' as const,

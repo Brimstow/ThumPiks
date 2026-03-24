@@ -121,7 +121,7 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
         startAnalysis();
       }
     }
-  }, [isOpen, stage, existingAnalysis]);
+  }, [isOpen, stage, existingAnalysis]);  
 
   // Reset state when modal closes
   useEffect(() => {

@@ -74,6 +74,8 @@ import AdminSettings from './components/admin/AdminSettings';
 import RolePermissionManagement from './components/admin/RolePermissionManagement';
 import ContentManagement from './components/admin/ContentManagement';
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
+import FeedbackManagement from './components/admin/FeedbackManagement';
+import NotificationConfigAdmin from './components/admin/NotificationConfigAdmin';
 
 // Simple test component
 const TestPage = () => (
@@ -401,6 +403,24 @@ function App() {
                   element={
                     <AdminProtectedRoute requiredPermissions={['content.view']}>
                       <ContentManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+
+                {/* Support / Feedback Management */}
+                <Route
+                  path="support"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['support.view']}>
+                      <FeedbackManagement />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="support/notifications"
+                  element={
+                    <AdminProtectedRoute requiredPermissions={['support.view']}>
+                      <NotificationConfigAdmin />
                     </AdminProtectedRoute>
                   }
                 />

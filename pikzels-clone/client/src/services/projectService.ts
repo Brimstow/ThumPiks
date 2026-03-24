@@ -1,5 +1,12 @@
 // Project service types for the ProjectsPage component
 
+// Preview thumbnail type for folder previews
+export interface PreviewThumbnail {
+  id: string;
+  imageUrl: string;
+  title?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -21,6 +28,8 @@ export interface Project {
   featuredThumbnail?: {
     imageUrl: string;
   };
+  // Preview thumbnails for folder cards
+  previewThumbnails?: PreviewThumbnail[];
 }
 
 export interface ProjectTreeNode {

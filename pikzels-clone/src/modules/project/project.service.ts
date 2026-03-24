@@ -185,6 +185,16 @@ export class ProjectService {
             _count: {
               select: { Thumbnail_Thumbnail_projectIdToProject: true },
             },
+            // Include preview thumbnails for folder cards (up to 4)
+            Thumbnail_Thumbnail_projectIdToProject: {
+              take: 4,
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                imageUrl: true,
+                title: true,
+              },
+            },
           },
         });
 
@@ -198,6 +208,12 @@ export class ProjectService {
                   p.Thumbnail_Project_featuredThumbnailIdToThumbnail.imageUrl,
               }
             : null,
+          // Map preview thumbnails
+          previewThumbnails: p.Thumbnail_Thumbnail_projectIdToProject.map(t => ({
+            id: t.id,
+            imageUrl: t.imageUrl,
+            title: t.title,
+          })),
         }));
       },
       300 // Cache for 5 minutes

@@ -12,22 +12,16 @@ interface LogContext {
   [key: string]: any;
 }
 
+const isTestEnv = (): boolean =>
+  process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
+
 // Create logs directory path
 const logsDir = path.join(process.cwd(), 'logs');
 
-// Winston logger setup for production
-const winstonLogger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: {
-    service: 'thumbnail-maker-studio',
-    environment: process.env.NODE_ENV || 'development',
-  },
-  transports: [
+const transports: winston.transport[] = [];
+
+if (!isTestEnv()) {
+  transports.push(
     // Application logs
     new DailyRotateFile({
       filename: path.join(logsDir, 'app-%DATE%.log'),
@@ -53,12 +47,27 @@ const winstonLogger = winston.createLogger({
       maxSize: '20m',
       maxFiles: '90d',
       level: 'warn',
-    }),
-  ],
+    })
+  );
+}
+
+// Winston logger setup for production
+const winstonLogger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: 'thumbnail-maker-studio',
+    environment: process.env.NODE_ENV || 'development',
+  },
+  transports,
 });
 
 // Add console transport for development
-if (isDevelopmentEnv()) {
+if (!isTestEnv() && isDevelopmentEnv()) {
   winstonLogger.add(
     new winston.transports.Console({
       format: winston.format.combine(
@@ -70,7 +79,7 @@ if (isDevelopmentEnv()) {
 }
 
 // Production-like: JSON console transport for Railway stdout capture
-if (isProductionLike()) {
+if (!isTestEnv() && isProductionLike()) {
   winstonLogger.add(
     new winston.transports.Console({
       format: winston.format.combine(
@@ -85,7 +94,7 @@ if (isProductionLike()) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let axiomTransport: any = null;
 
-if (process.env.AXIOM_TOKEN) {
+if (!isTestEnv() && process.env.AXIOM_TOKEN) {
   try {
     // Dynamic require for graceful degradation if package is not installed
     // eslint-disable-next-line @typescript-eslint/no-var-requires

@@ -53,7 +53,13 @@ export class SocialShareEventHandlers {
   };
 
   constructor() {
-    this.startRetryProcessor();
+    if (!this.isTestEnvironment()) {
+      this.startRetryProcessor();
+    }
+  }
+
+  private isTestEnvironment(): boolean {
+    return process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
   }
 
   /**
@@ -236,9 +242,10 @@ export class SocialShareEventHandlers {
       if (job.retryCount <= this.maxRetries) {
         // Add to retry queue
         const retryDelay = this.retryDelays[job.retryCount - 1] || 10000;
-        setTimeout(() => {
+        const retryTimeout = setTimeout(() => {
           this.retryQueue.push(job);
         }, retryDelay);
+        retryTimeout.unref?.();
         
         console.log(`🔄 Retry scheduled for ${job.platform} in ${retryDelay}ms (attempt ${job.retryCount}/${this.maxRetries})`);
         return;
@@ -344,6 +351,7 @@ export class SocialShareEventHandlers {
         }
       }
     }, 1000); // Check every second
+    this.retryProcessorInterval.unref?.();
   }
 
   /**

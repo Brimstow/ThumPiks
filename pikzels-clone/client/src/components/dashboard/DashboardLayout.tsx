@@ -31,6 +31,8 @@ import SearchModal from '../search/SearchModal';
 import { authGet } from '../../utils/api';
 import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
 import { OnboardingOverlay } from '../../features/onboarding';
+import { FeedbackWidget } from '../../features/feedback';
+import { GlobalChatWidget } from '../../features/global-chat';
 
 interface Subscription {
   creditsBalance: number;
@@ -502,6 +504,12 @@ const DashboardLayout: React.FC = () => {
           </nav>
         </>
       )}
+
+      {/* Feedback Widget */}
+      <FeedbackWidget />
+
+      {/* Global Chat Widget */}
+      <GlobalChatWidget />
 
       {/* Search Modal */}
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
