@@ -7,9 +7,20 @@
  */
 
 /**
- * Drag event types for announcements
+ * Drag event types for layer announcements
  */
 export type DragEventType = 'pickup' | 'move' | 'drop' | 'cancel';
+
+/**
+ * Drag event types for template announcements
+ */
+export type TemplateDragEventType = 
+  | 'pickup'
+  | 'over-canvas'
+  | 'over-trash'
+  | 'drop-canvas'
+  | 'drop-trash'
+  | 'cancel';
 
 /**
  * Build screen reader announcement for layer drag operations.
@@ -76,3 +87,75 @@ export function isMoveDownKey(key: string): boolean {
 export function isCancelKey(key: string): boolean {
   return DRAG_KEYS.CANCEL.includes(key as typeof DRAG_KEYS.CANCEL[number]);
 }
+
+/**
+ * Build screen reader announcement for template drag operations.
+ * 
+ * @param event - The template drag event type
+ * @param templateName - Name of the template being dragged
+ * @param layerCount - Number of layers in the template (optional)
+ * @returns Announcement string for aria-live region
+ */
+export function buildTemplateAnnouncement(
+  event: TemplateDragEventType,
+  templateName: string,
+  layerCount?: number
+): string {
+  const layerInfo = layerCount ? `${layerCount} layer${layerCount !== 1 ? 's' : ''}` : 'layers';
+  
+  switch (event) {
+    case 'pickup':
+      return `Template "${templateName}" picked up. Use arrow keys to move, Enter to drop on canvas, Escape to cancel.`;
+    case 'over-canvas':
+      return `Over canvas drop zone. Release or press Enter to add as ${layerInfo}.`;
+    case 'over-trash':
+      return `Over trash zone. Release or press Enter to remove layer.`;
+    case 'drop-canvas':
+      return `Template "${templateName}" added to canvas as ${layerInfo}.`;
+    case 'drop-trash':
+      return `Layer removed from canvas.`;
+    case 'cancel':
+      return `Drag cancelled. "${templateName}" returned to original position.`;
+  }
+}
+
+/**
+ * Build screen reader announcement for layer removal operations.
+ * 
+ * @param layerName - Name of the layer being removed
+ * @param isGroupRemoval - Whether removing entire template group
+ * @param groupLayerCount - Number of layers in the group (if applicable)
+ * @returns Announcement string for aria-live region
+ */
+export function buildLayerRemovalAnnouncement(
+  layerName: string,
+  isGroupRemoval: boolean = false,
+  groupLayerCount?: number
+): string {
+  if (isGroupRemoval && groupLayerCount && groupLayerCount > 1) {
+    return `Removed ${groupLayerCount} layers from template group.`;
+  }
+  return `Layer "${layerName}" removed from canvas.`;
+}
+
+/**
+ * Screen reader instructions text for template drag operations.
+ * Used for aria-describedby references.
+ */
+export const TEMPLATE_DRAG_INSTRUCTIONS = 
+  'To pick up a draggable template, press Space or Enter. ' +
+  'While dragging, use Arrow keys to move. ' +
+  'Press Enter to drop on the canvas, or Escape to cancel.';
+
+/**
+ * Screen reader instructions text for layer drag operations (reordering).
+ * Used for aria-describedby references.
+ */
+export const LAYER_DRAG_INSTRUCTIONS = 
+  'Press Space or Enter to pick up. Use Arrow keys to move. ' +
+  'Press Space or Enter to drop. Press Escape to cancel.';
+
+/**
+ * Keyboard movement step size in pixels for arrow key navigation
+ */
+export const KEYBOARD_MOVE_STEP = 10;
