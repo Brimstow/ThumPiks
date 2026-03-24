@@ -2,17 +2,23 @@
  * TemplatePicker Component
  *
  * Visual grid of composition templates with category filtering,
- * search, and SVG wireframe previews.  When a template is selected,
+ * search, and SVG wireframe previews. When a template is selected,
  * it shows the slot drop-zones for filling.
+ *
+ * All templates are rendered with DraggableTemplateCard which uses
+ * @dnd-kit/react's useDraggable hook. The library is designed to
+ * handle 50-100+ draggable instances efficiently via ref callbacks.
  *
  * Designed for use in both Quick Edit and Advanced Editor.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import type {
   LayoutPreset,
   TemplateCategory,
+  CompositionState,
 } from '../types';
+import { DraggableTemplateCard } from '../../drag-drop';
 import './TemplatePicker.css';
 
 // ============================================
@@ -59,8 +65,6 @@ const TemplatePicker: React.FC<TemplatePickerProps> = ({
   onSelectTemplate,
   onClearTemplate,
 }) => {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
   return (
     <div className="comp-picker">
       {/* Header */}
@@ -109,33 +113,42 @@ const TemplatePicker: React.FC<TemplatePickerProps> = ({
         ))}
       </div>
 
-      {/* Template grid */}
+      {/* Template grid - all templates are draggable */}
       <div className="comp-picker-grid">
         {templates.length === 0 && (
           <div className="comp-picker-empty">No templates match your search.</div>
         )}
-        {templates.map((tmpl) => (
-          <button
-            key={tmpl.id}
-            className={`comp-picker-card ${selectedTemplateId === tmpl.id ? 'comp-picker-card--selected' : ''} ${hoveredId === tmpl.id ? 'comp-picker-card--hover' : ''}`}
-            onClick={() => onSelectTemplate(tmpl.id)}
-            onMouseEnter={() => setHoveredId(tmpl.id)}
-            onMouseLeave={() => setHoveredId(null)}
-            title={tmpl.description}
-          >
-            <div
-              className="comp-picker-card-preview"
-              dangerouslySetInnerHTML={{ __html: tmpl.wireframeSvg }}
-            />
-            <div className="comp-picker-card-info">
-              <span className="comp-picker-card-name">{tmpl.name}</span>
-              <span className="comp-picker-card-slots">
-                {tmpl.slots.length} image{tmpl.slots.length !== 1 ? 's' : ''}
-                {tmpl.textSlots.length > 0 && ` + ${tmpl.textSlots.length} text`}
-              </span>
-            </div>
-          </button>
-        ))}
+        {templates.map((tmpl) => {
+          const emptyState: CompositionState = {
+            templateId: tmpl.id,
+            slotFills: [],
+            textFills: [],
+          };
+          const isSelected = selectedTemplateId === tmpl.id;
+
+          return (
+            <DraggableTemplateCard
+              key={tmpl.id}
+              template={tmpl}
+              compositionState={emptyState}
+              isSelected={isSelected}
+              onClick={() => onSelectTemplate(tmpl.id)}
+              disabled={false}
+            >
+              <div
+                className="comp-picker-card-preview"
+                dangerouslySetInnerHTML={{ __html: tmpl.wireframeSvg }}
+              />
+              <div className="comp-picker-card-info">
+                <span className="comp-picker-card-name">{tmpl.name}</span>
+                <span className="comp-picker-card-slots">
+                  {tmpl.slots.length} image{tmpl.slots.length !== 1 ? 's' : ''}
+                  {tmpl.textSlots.length > 0 && ` + ${tmpl.textSlots.length} text`}
+                </span>
+              </div>
+            </DraggableTemplateCard>
+          );
+        })}
       </div>
     </div>
   );
