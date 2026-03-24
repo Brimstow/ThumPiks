@@ -275,12 +275,16 @@ async function seedSubscriptions() {
         continue;
       }
 
-      // Check if subscription already exists
+      // Find the same subscription the app reads (most recent by createdAt)
       const existingSub = await prisma.subscription.findFirst({
         where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
       });
 
       if (existingSub) {
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
         // Update existing subscription to match seed config
         await prisma.subscription.update({
           where: { id: existingSub.id },
@@ -288,6 +292,8 @@ async function seedSubscriptions() {
             planType: plan.planType,
             creditsBalance: plan.credits,
             creditsUsed: 0,
+            periodEnd,
+            status: 'active',
           },
         });
         existing++;
