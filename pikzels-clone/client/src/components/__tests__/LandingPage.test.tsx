@@ -90,7 +90,7 @@ jest.mock('lucide-react', () => ({
   EyeOff: () => <span data-testid="icon-eyeoff">EyeOff</span>,
 }));
 
-import { ThumPiksLanding } from '../PikzelsLanding';
+import { ThumPiksLanding } from '../ThumPiksLanding';
 
 const renderLanding = () =>
   render(
@@ -103,7 +103,7 @@ const renderLanding = () =>
 // FUNCTIONAL TESTS
 // ============================================
 
-describe('PikzelsLanding - Functional Tests', () => {
+describe('ThumPiksLanding - Functional Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -456,7 +456,7 @@ describe('PikzelsLanding - Functional Tests', () => {
 // AUTH MODAL TESTS (Functional + Security)
 // ============================================
 
-describe('PikzelsLanding - Auth Modals', () => {
+describe('ThumPiksLanding - Auth Modals', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -639,7 +639,7 @@ describe('PikzelsLanding - Auth Modals', () => {
 // SECURITY TESTS
 // ============================================
 
-describe('PikzelsLanding - Security Tests', () => {
+describe('ThumPiksLanding - Security Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -850,7 +850,7 @@ describe('PikzelsLanding - Security Tests', () => {
 // DEBUG & EXPORT TESTS
 // ============================================
 
-describe('PikzelsLanding - Debug & Export Tests', () => {
+describe('ThumPiksLanding - Debug & Export Tests', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     localStorage.clear();
@@ -866,7 +866,7 @@ describe('PikzelsLanding - Debug & Export Tests', () => {
   });
 
   it('exports ThumPiksLanding as default export', () => {
-    const defaultExport = require('../PikzelsLanding').default;
+    const defaultExport = require('../ThumPiksLanding').default;
     expect(defaultExport).toBeDefined();
     expect(defaultExport).toBe(ThumPiksLanding);
   });

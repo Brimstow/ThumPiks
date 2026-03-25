@@ -5,8 +5,8 @@ import '@testing-library/jest-dom';
 import App from '../App';
 
 // Mock all the page components
-jest.mock('../components/LandingPage', () => {
-  return function MockLandingPage() {
+jest.mock('../components/ThumPiksLanding', () => {
+  return function MockThumPiksLanding() {
     return <div data-testid="landing-page">Landing Page</div>;
   };
 });

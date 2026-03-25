@@ -2,9 +2,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import LandingPage from './components/LandingPage';
 import LandingPage2 from './components/LandingPage2';
-import ThumPiksLanding from './components/PikzelsLanding';
+import ThumPiksLanding from './components/ThumPiksLanding';
 import ThumPiksTest from './components/PikzelsTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
@@ -64,18 +63,8 @@ import './styles/animations.css';
 // Admin Components
 import AdminLogin from './components/admin/AdminLogin';
 import AdminLayout from './components/admin/AdminLayout';
-import AdminDashboard from './components/admin/AdminDashboard';
-import UserManagement from './components/admin/UserManagement';
-import SitemapAdmin from './components/admin/SitemapAdmin';
-import AnalyticsDashboard from './components/admin/AnalyticsDashboard';
-import SystemHealthMonitoring from './components/admin/SystemHealthMonitoring';
-import AuditLogs from './components/admin/AuditLogs';
-import AdminSettings from './components/admin/AdminSettings';
-import RolePermissionManagement from './components/admin/RolePermissionManagement';
-import ContentManagement from './components/admin/ContentManagement';
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
-import FeedbackManagement from './components/admin/FeedbackManagement';
-import NotificationConfigAdmin from './components/admin/NotificationConfigAdmin';
+import { renderAdminRoutes } from './features/admin';
 
 // Simple test component
 const TestPage = () => (
@@ -353,149 +342,7 @@ function App() {
                   </AdminProtectedRoute>
                 }
               >
-                <Route index element={<AdminDashboard />} />
-
-                {/* User Management */}
-                <Route
-                  path="users"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['users.view']}>
-                      <UserManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="users/roles"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['admin.roles']}>
-                      <RolePermissionManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Content Management */}
-                <Route
-                  path="content"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/thumbnails"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/templates"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/projects"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Support / Feedback Management */}
-                <Route
-                  path="support"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['support.view']}>
-                      <FeedbackManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="support/notifications"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['support.view']}>
-                      <NotificationConfigAdmin />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Sitemap */}
-                <Route
-                  path="sitemap"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <SitemapAdmin />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Analytics */}
-                <Route
-                  path="analytics"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="analytics/users"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="analytics/performance"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* System Management */}
-                <Route
-                  path="system/health"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['system.health']}
-                    >
-                      <SystemHealthMonitoring />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="system/logs"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['system.logs']}>
-                      <AuditLogs />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="system/settings"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['system.config']}
-                    >
-                      <AdminSettings />
-                    </AdminProtectedRoute>
-                  }
-                />
+                {renderAdminRoutes()}
               </Route>
 
               {/* Test pages - Development Only */}

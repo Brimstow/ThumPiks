@@ -25,7 +25,7 @@ jest.mock('../contexts/ThemeContext', () => ({
 }));
 
 // Mock all components - must use __esModule + default since AppContent uses require().default
-jest.mock('../components/LandingPage', () => ({
+jest.mock('../components/ThumPiksLanding', () => ({
   __esModule: true,
   default: () => <div data-testid="landing-page">Landing Page Component</div>
 }));
@@ -129,7 +129,7 @@ const AppContent = () => {
   const { Routes, Route } = require('react-router-dom');
   const { AuthProvider } = require('../contexts/AuthContext');
   const { ThemeProvider } = require('../contexts/ThemeContext');
-  const LandingPage = require('../components/LandingPage').default;
+  const LandingPage = require('../components/ThumPiksLanding').default;
   const Login = require('../components/auth/Login').default;
   const Register = require('../components/auth/Register').default;
   const ForgotPassword = require('../components/auth/ForgotPassword').default;
