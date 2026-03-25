@@ -139,6 +139,32 @@ export class OAuthService {
           },
         });
 
+        // Check if user has a subscription, create free one if not
+        const existingSubscription = await prisma.subscription.findFirst({
+          where: { userId: user.id },
+        });
+
+        if (!existingSubscription) {
+          await prisma.subscription.create({
+            data: {
+              id: uuidv4(),
+              userId: user.id,
+              planType: 'free',
+              status: 'active',
+              creditsBalance: 150, // Free plan credits
+              creditsUsed: 0,
+              periodStart: new Date(),
+              periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+              billingProvider: 'none',
+            },
+          });
+
+          logger.info('Created free subscription for existing OAuth user', {
+            userId: user.id,
+            email: user.email,
+          });
+        }
+
         logger.info('OAuth login successful', {
           userId: user.id,
           provider: oauthProfile.provider,
@@ -165,7 +191,22 @@ export class OAuthService {
           },
         });
 
-        logger.info('OAuth user created', {
+        // Create free subscription for new OAuth user
+        await prisma.subscription.create({
+          data: {
+            id: uuidv4(),
+            userId: user.id,
+            planType: 'free',
+            status: 'active',
+            creditsBalance: 150, // Free plan credits
+            creditsUsed: 0,
+            periodStart: new Date(),
+            periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+            billingProvider: 'none',
+          },
+        });
+
+        logger.info('OAuth user created with free subscription', {
           userId: user.id,
           provider: oauthProfile.provider,
           email: oauthProfile.email,

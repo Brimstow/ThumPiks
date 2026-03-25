@@ -96,7 +96,22 @@ export class AuthService {
         },
       });
 
-      logger.info('User registered successfully', {
+      // Create free subscription for new user
+      await prisma.subscription.create({
+        data: {
+          id: uuidv4(),
+          userId: user.id,
+          planType: 'free',
+          status: 'active',
+          creditsBalance: 150, // Free plan credits
+          creditsUsed: 0,
+          periodStart: new Date(),
+          periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          billingProvider: 'none',
+        },
+      });
+
+      logger.info('User registered successfully with free subscription', {
         userId: user.id,
         email: user.email,
         username: user.username,
