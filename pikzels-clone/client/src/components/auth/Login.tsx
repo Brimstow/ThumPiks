@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { OAUTH_URLS } from '../../config/environment';
 
 const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
@@ -61,7 +62,7 @@ const Login: React.FC = () => {
           {/* Google OAuth Button */}
           <button
             onClick={() => {
-              window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8550'}/api/auth/google`;
+              window.location.href = OAUTH_URLS.google;
             }}
             className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg py-3 px-4 flex items-center justify-center gap-3 transition-colors text-sm font-medium text-gray-700 dark:text-gray-200 mb-4"
           >

@@ -12,6 +12,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { OAUTH_URLS } from '../config/environment';
 import AnimatedBackground from './AnimatedBackground';
 import ForgotPasswordModal from './auth/ForgotPasswordModal';
 import UsernameInput from './auth/UsernameInput';
@@ -1221,7 +1222,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                         sessionStorage.setItem('pendingIncludeFace', pendingIncludeFace);
                       }
                       // Redirect to Google OAuth
-                      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8550'}/api/auth/google`;
+                      window.location.href = OAUTH_URLS.google;
                     }}
                     className="w-full border border-gray-700 bg-gray-800/50 hover:bg-gray-800 rounded-lg py-3 px-4 flex items-center justify-center gap-3 transition-colors text-sm font-medium"
                   >
@@ -1444,7 +1445,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 <div className="space-y-4 mb-6">
                   <button 
                     onClick={() => {
-                      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8550'}/api/auth/google`;
+                      window.location.href = OAUTH_URLS.google;
                     }}
                     className="w-full border border-gray-700 bg-gray-800/50 hover:bg-gray-800 rounded-lg py-3 px-4 flex items-center justify-center gap-3 transition-colors text-sm font-medium">
                     <svg
