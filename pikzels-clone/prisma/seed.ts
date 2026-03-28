@@ -70,6 +70,13 @@ const TEST_USERS: TestUser[] = [
     name: 'Ultra Tester',
     username: 'ultratester',
   },
+  {
+    email: 'tester1.thumpiks@gmail.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Polar Tester',
+    username: 'polartester',
+  },
 ];
 
 // Subscription plans for test accounts (varied tiers for testing)
