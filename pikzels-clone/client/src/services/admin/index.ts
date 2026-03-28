@@ -15,6 +15,8 @@ export {
   isAdminAuthenticated,
 } from './adminApiClient';
 
+export { createAdminService } from './createAdminService';
+
 export { adminAuthService } from './adminAuthService';
 export { adminUserService } from './adminUserService';
 export { adminAnalyticsService } from './adminAnalyticsService';

@@ -7,6 +7,37 @@
  */
 
 // =========================================================================
+// Errors
+// =========================================================================
+
+export type BillingErrorCode =
+  | 'INVALID_EMAIL'
+  | 'INVALID_PRODUCT'
+  | 'PROVIDER_VALIDATION'
+  | 'PROVIDER_AUTH'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'UNKNOWN';
+
+export class BillingError extends Error {
+  readonly code: BillingErrorCode;
+  readonly userMessage: string;
+  readonly providerDetails: Record<string, unknown>;
+
+  constructor(opts: {
+    code: BillingErrorCode;
+    message: string;
+    userMessage: string;
+    providerDetails?: Record<string, unknown>;
+  }) {
+    super(opts.message);
+    this.name = 'BillingError';
+    this.code = opts.code;
+    this.userMessage = opts.userMessage;
+    this.providerDetails = opts.providerDetails ?? {};
+  }
+}
+
+// =========================================================================
 // Shared Types
 // =========================================================================
 
@@ -21,6 +52,10 @@ export interface CheckoutParams {
   productId: string;
   successUrl: string;
   cancelUrl: string;
+  /** Polar discount ID to auto-apply at checkout (beta pricing) */
+  discountId?: string | undefined;
+  /** Allow users to enter promo codes at checkout (e.g. LAUNCH15) */
+  allowDiscountCodes?: boolean | undefined;
 }
 
 export interface CheckoutResult {

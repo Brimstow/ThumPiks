@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap, TrendingUp, Calendar, Download, AlertCircle, CreditCard, ArrowRight, Check, Clock, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { authGet, authPost } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
+import { usePricingData } from '../../hooks/usePricingData';
 
 interface CreditTransaction {
   id: string;
@@ -25,15 +26,6 @@ interface Subscription {
   billingCycle: string;
 }
 
-interface CreditPack {
-  id: string;
-  name: string;
-  credits: number;
-  price: number;
-  savings?: string;
-  popular?: boolean;
-}
-
 const CreditsPage: React.FC = () => {
   const navigate = useNavigate();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -44,36 +36,7 @@ const CreditsPage: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const creditPacks: CreditPack[] = [
-    {
-      id: 'pack_50',
-      name: 'Starter Pack',
-      credits: 50,
-      price: 9,
-    },
-    {
-      id: 'pack_100',
-      name: 'Value Pack',
-      credits: 100,
-      price: 15,
-      savings: 'Save $3',
-      popular: true,
-    },
-    {
-      id: 'pack_250',
-      name: 'Pro Pack',
-      credits: 250,
-      price: 35,
-      savings: 'Save $10',
-    },
-    {
-      id: 'pack_500',
-      name: 'Ultra Pack',
-      credits: 500,
-      price: 60,
-      savings: 'Save $30',
-    },
-  ];
+  const { creditPacks, loading: pricingLoading } = usePricingData();
 
   useEffect(() => {
     fetchData();
@@ -174,7 +137,7 @@ const CreditsPage: React.FC = () => {
     ? filteredTransactions 
     : filteredTransactions.slice(0, 10);
 
-  if (loading) {
+  if (loading || pricingLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -365,10 +328,10 @@ const CreditsPage: React.FC = () => {
                   <p className="text-sm text-slate-400">credits</p>
                 </div>
 
-                {pack.savings && (
+                {pack.savings != null && (
                   <div className="text-center mb-4">
                     <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">
-                      {pack.savings}
+                      {typeof pack.savings === 'number' ? `Save $${pack.savings}` : pack.savings}
                     </span>
                   </div>
                 )}

@@ -8,16 +8,22 @@
 import { Polar } from '@polar-sh/sdk';
 import { getPrisma } from '../../../utils/prisma-factory';
 import { logger } from '../../../utils/logger';
-import type {
-  BillingProvider,
-  BillingProviderName,
-  CheckoutParams,
-  CheckoutResult,
-  CreditPackCheckoutParams,
-  PortalSessionResult,
-  Invoice,
-  PaymentMethod,
+import {
+  BillingError,
+  type BillingErrorCode,
+  type BillingProvider,
+  type BillingProviderName,
+  type CheckoutParams,
+  type CheckoutResult,
+  type CreditPackCheckoutParams,
+  type PortalSessionResult,
+  type Invoice,
+  type PaymentMethod,
 } from '../billing-provider.interface';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { HTTPValidationError } = require('@polar-sh/sdk/models/errors/httpvalidationerror.js') as {
+  HTTPValidationError: new (...args: unknown[]) => Error & { detail?: Array<{ loc: Array<string | number>; msg: string; type: string }> };
+};
 
 const prisma = getPrisma();
 
@@ -81,20 +87,39 @@ export class PolarBillingProvider implements BillingProvider {
   }
 
   async createCheckoutSession(params: CheckoutParams): Promise<CheckoutResult> {
-    const { userId, email, planId, billingCycle, productId, successUrl } =
-      params;
+    const {
+      userId, email, planId, billingCycle, productId, successUrl,
+      discountId, allowDiscountCodes,
+    } = params;
 
     try {
-      const checkout = await this.polar.checkouts.create({
+      const checkoutParams: Record<string, unknown> = {
         products: [productId],
         successUrl,
         customerEmail: email,
+        allowDiscountCodes: false,
+        requireBillingAddress: false,
+        isBusinessCustomer: false,
         metadata: {
           userId,
           planId,
           billingCycle,
         },
-      });
+      };
+
+      // Auto-apply beta discount if provided
+      if (discountId) {
+        checkoutParams.discountId = discountId;
+      }
+
+      // Allow user-entered promo codes (e.g. LAUNCH15)
+      if (allowDiscountCodes) {
+        checkoutParams.allowDiscountCodes = true;
+      }
+
+      const checkout = await this.polar.checkouts.create(
+        checkoutParams as Parameters<typeof this.polar.checkouts.create>[0]
+      );
 
       logger.info('Polar checkout session created', {
         userId,
@@ -107,11 +132,7 @@ export class PolarBillingProvider implements BillingProvider {
         url: checkout.url,
       };
     } catch (error) {
-      logger.error('Failed to create Polar checkout', error as Error, {
-        userId,
-        planId,
-      });
-      throw error;
+      throw parsePolarError(error, { userId, planId, email });
     }
   }
 
@@ -245,5 +266,78 @@ export class PolarBillingProvider implements BillingProvider {
     // Polar manages payment methods in their hosted checkout/portal.
     // No API to list saved payment methods.
     return [];
+  }
+}
+
+// =========================================================================
+// Polar Error Parsing
+// =========================================================================
+
+function parsePolarError(
+  error: unknown,
+  context: Record<string, unknown>,
+): BillingError {
+  // Polar SDK validation error (422) — has structured detail array
+  if (error instanceof HTTPValidationError) {
+    const details = (error as InstanceType<typeof HTTPValidationError>).detail ?? [];
+    const messages = details.map((d: { msg: string }) => d.msg);
+    const fields = details.map((d: { loc?: Array<string | number> }) => d.loc?.join('.') ?? 'unknown');
+
+    // Classify by field
+    const code = classifyPolarValidationError(details);
+    const userMessage = buildUserMessage(code, details);
+
+    logger.error('Polar API validation error', error as unknown as Error, {
+      ...context,
+      billingErrorCode: code,
+      validationFields: fields,
+      validationMessages: messages,
+    });
+
+    return new BillingError({
+      code,
+      message: `Polar validation error: ${messages[0]}`,
+      userMessage,
+      providerDetails: { fields, messages },
+    });
+  }
+
+  // Generic Polar SDK or network error
+  const msg = error instanceof Error ? error.message : String(error);
+
+  logger.error('Polar API error', error instanceof Error ? error : new Error(msg), context);
+
+  return new BillingError({
+    code: 'UNKNOWN',
+    message: `Polar error: ${msg}`,
+    userMessage: 'Something went wrong with the payment provider. Please try again.',
+    providerDetails: { rawMessage: msg },
+  });
+}
+
+function classifyPolarValidationError(
+  details: Array<{ loc: Array<string | number>; msg: string; type: string }>,
+): BillingErrorCode {
+  for (const d of details) {
+    const field = d.loc?.join('.') ?? '';
+    if (field.includes('customer_email') || d.msg.includes('email')) return 'INVALID_EMAIL';
+    if (field.includes('product_id') || field.includes('products')) return 'INVALID_PRODUCT';
+  }
+  return 'PROVIDER_VALIDATION';
+}
+
+function buildUserMessage(
+  code: BillingErrorCode,
+  details: Array<{ msg: string }>,
+): string {
+  switch (code) {
+    case 'INVALID_EMAIL':
+      return 'Your account email address is not accepted by our payment provider. Please update your email in Account Settings and try again.';
+    case 'INVALID_PRODUCT':
+      return 'This plan is temporarily unavailable. Please try again later or contact support.';
+    case 'PROVIDER_VALIDATION':
+      return `Checkout could not be completed: ${details[0]?.msg ?? 'validation error'}. Please try again or contact support.`;
+    default:
+      return 'Something went wrong with checkout. Please try again.';
   }
 }

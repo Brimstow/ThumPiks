@@ -15,6 +15,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [debugMode, setDebugMode] = useState(debug);
+  const debugModeRef = useRef(debug);
 
   // Toggle debug mode with Ctrl+Shift+D
   useEffect(() => {
@@ -33,6 +34,10 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
+
+  useEffect(() => {
+    debugModeRef.current = debugMode;
+  }, [debugMode]);
 
   // Determine quality immediately (synchronous) to avoid re-renders
   const getDeviceQuality = (): {
@@ -267,7 +272,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    let startTime = Date.now();
+    const startTime = Date.now();
     let localFrameCount = 0;
     let lastFpsCheck = Date.now();
 
@@ -275,24 +280,28 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
 
     function render() {
       if (!gl || !canvas) {
-        console.error('AnimatedBackground: Canvas or GL context lost!');
+        if (debugModeRef.current) {
+          console.error('AnimatedBackground: Canvas or GL context lost!');
+        }
         return;
       }
 
       // FPS monitoring
       localFrameCount++;
-      setFrameCount(prev => prev + 1);
       const now = Date.now();
-      if (now - lastFpsCheck > 1000) {
+      if (debugModeRef.current && now - lastFpsCheck > 1000) {
         const currentFps = localFrameCount;
-        console.log(`AnimatedBackground FPS: ${currentFps}`);
         setFps(currentFps);
+        setFrameCount(prev => prev + localFrameCount);
         localFrameCount = 0;
         lastFpsCheck = now;
 
         if (currentFps < 20 && quality !== 'low') {
           console.warn('Low FPS detected, consider reducing quality');
         }
+      } else if (now - lastFpsCheck > 1000) {
+        localFrameCount = 0;
+        lastFpsCheck = now;
       }
 
       // Calculate time - freeze when paused using ref
@@ -308,7 +317,9 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
         frozenTimeRef.current = null;
         currentTime = (Date.now() - startTime) / 1000;
       }
-      setCurrentTime(currentTime);
+      if (debugModeRef.current) {
+        setCurrentTime(currentTime);
+      }
 
       // Render
       gl.clearColor(0.0, 0.0, 0.0, 0.0);
@@ -338,7 +349,9 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
       }
     }
 
-    console.log('AnimatedBackground: Starting animation loop...');
+    if (debugModeRef.current) {
+      console.log('AnimatedBackground: Starting animation loop...');
+    }
 
     // Store references on the GL context for resume functionality
     (gl as any).__shaderProgram = shaderProgram;
@@ -354,7 +367,9 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     animationIdRef.current = requestAnimationFrame(render);
 
     return () => {
-      console.log('AnimatedBackground: Cleanup called - stopping animation');
+      if (debugModeRef.current) {
+        console.log('AnimatedBackground: Cleanup called - stopping animation');
+      }
       setIsAnimating(false);
       window.removeEventListener('resize', resizeCanvas);
       if (animationIdRef.current) {

@@ -3278,7 +3278,14 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
       )}
 
       {/* Loading overlay for non-result views */}
-      {loading && view !== 'result' && view !== 'frame-picker' && (
+      {loading && view !== 'result' && view !== 'frame-picker' && (() => {
+        // Color theme based on which mode triggered loading
+        const loadingColors = view === 'ai-generate'
+          ? { spinner: 'text-amber-400', dot: 'bg-amber-400', dotBg: 'bg-amber-500/20', dotText: 'text-amber-400', bar: 'from-amber-400 to-yellow-500', barPulse: 'from-amber-400/60 to-yellow-500/60' }
+          : view === 'upload'
+          ? { spinner: 'text-emerald-400', dot: 'bg-emerald-400', dotBg: 'bg-emerald-500/20', dotText: 'text-emerald-400', bar: 'from-emerald-500 to-green-400', barPulse: 'from-emerald-500/60 to-green-400/60' }
+          : { spinner: 'text-purple-400', dot: 'bg-purple-400', dotBg: 'bg-purple-500/20', dotText: 'text-purple-400', bar: 'from-purple-500 to-pink-500', barPulse: 'from-purple-500/60 to-pink-500/60' };
+        return (
         <div className="fixed inset-0 z-40 bg-gray-900/90 flex items-center justify-center">
           <div className="w-full max-w-lg mx-4 bg-gray-800 rounded-2xl border border-gray-700 p-6 shadow-2xl">
             {/* Phase step indicator */}
@@ -3304,12 +3311,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                   return (
                     <React.Fragment key={phase}>
                       <div
-                        className={`flex items-center gap-1.5 ${isActive ? 'text-purple-400' : isDone ? 'text-green-400' : 'text-gray-600'}`}
+                        className={`flex items-center gap-1.5 ${isActive ? loadingColors.dotText : isDone ? 'text-green-400' : 'text-gray-600'}`}
                       >
                         <div
                           className={`w-2 h-2 rounded-full transition-colors duration-300 ${
                             isActive
-                              ? 'bg-purple-400 animate-pulse'
+                              ? `${loadingColors.dot} animate-pulse`
                               : isDone
                                 ? 'bg-green-400'
                                 : 'bg-gray-600'
@@ -3339,13 +3346,13 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             {/* Phase & message */}
             <div className="flex items-center gap-3 mb-4">
               {extractionProgress?.phase === 'extracting' ? (
-                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <span className="text-purple-400 font-bold text-sm">
+                <div className={`w-8 h-8 rounded-full ${loadingColors.dotBg} flex items-center justify-center`}>
+                  <span className={`${loadingColors.dotText} font-bold text-sm`}>
                     {extractionProgress.current || 0}
                   </span>
                 </div>
               ) : (
-                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                <Loader2 className={`w-6 h-6 ${loadingColors.spinner} animate-spin`} />
               )}
               <div>
                 <p className="text-white font-medium">{loadingMessage}</p>
@@ -3364,7 +3371,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             extractionProgress.total ? (
               <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-4">
                 <div
-                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                  className={`h-full bg-gradient-to-r ${loadingColors.bar} rounded-full transition-all duration-500 ease-out`}
                   style={{
                     width: `${((extractionProgress.current || 0) / extractionProgress.total) * 100}%`,
                   }}
@@ -3372,7 +3379,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
               </div>
             ) : (
               <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-4">
-                <div className="h-full w-1/3 bg-gradient-to-r from-purple-500/60 to-pink-500/60 rounded-full animate-pulse" />
+                <div className={`h-full w-1/3 bg-gradient-to-r ${loadingColors.barPulse} rounded-full animate-pulse`} />
               </div>
             )}
 
@@ -3426,7 +3433,8 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {view === 'start' && renderStartScreen()}
       {view === 'url-input' && renderUrlInput()}

@@ -37,6 +37,62 @@ const ASSET_TYPE_BADGE: Record<string, { label: string; className: string }> = {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+let uploadsAssetsCache: UserAsset[] | null = null;
+let uploadsAssetsPromise: Promise<UserAsset[]> | null = null;
+let uploadsStorageCache: { usage: { totalBytes: number; count: number }; counts: Record<string, number> } | null = null;
+let uploadsStoragePromise: Promise<{ usage: { totalBytes: number; count: number }; counts: Record<string, number> }> | null = null;
+
+async function fetchDefaultUploadsAssetsWithCache(): Promise<UserAsset[]> {
+  if (uploadsAssetsCache) {
+    return uploadsAssetsCache;
+  }
+
+  if (!uploadsAssetsPromise) {
+    uploadsAssetsPromise = getUserAssets(undefined)
+      .then((data) => {
+        uploadsAssetsCache = data;
+        return data;
+      })
+      .catch((err) => {
+        uploadsAssetsPromise = null;
+        throw err;
+      });
+  }
+
+  return uploadsAssetsPromise;
+}
+
+async function fetchUploadsStorageWithCache(): Promise<{ usage: { totalBytes: number; count: number }; counts: Record<string, number> }> {
+  if (uploadsStorageCache) {
+    return uploadsStorageCache;
+  }
+
+  if (!uploadsStoragePromise) {
+    uploadsStoragePromise = getStorageUsage()
+      .then((data) => {
+        uploadsStorageCache = data;
+        return data;
+      })
+      .catch((err) => {
+        uploadsStoragePromise = null;
+        throw err;
+      });
+  }
+
+  return uploadsStoragePromise;
+}
+
+export async function prefetchUploadsData(): Promise<void> {
+  try {
+    await Promise.all([
+      fetchDefaultUploadsAssetsWithCache(),
+      fetchUploadsStorageWithCache(),
+    ]);
+  } catch (err) {
+    console.error('Error prefetching uploads data:', err);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // DRAG-DROP HELPERS
 // ═══════════════════════════════════════════════════════════════════
@@ -73,8 +129,8 @@ const DroppableFilterTab: React.FC<{
 
 const UploadsPage: React.FC = () => {
   // Asset data
-  const [assets, setAssets] = useState<UserAsset[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assets, setAssets] = useState<UserAsset[]>(uploadsAssetsCache ?? []);
+  const [loading, setLoading] = useState(uploadsAssetsCache === null);
   const [error, setError] = useState<string | null>(null);
 
   // Filters & search
@@ -82,8 +138,8 @@ const UploadsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Storage
-  const [storageUsage, setStorageUsage] = useState<{ totalBytes: number; count: number } | null>(null);
-  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  const [storageUsage, setStorageUsage] = useState<{ totalBytes: number; count: number } | null>(uploadsStorageCache?.usage ?? null);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>(uploadsStorageCache?.counts ?? {});
 
   // Upload
   const [isUploading, setIsUploading] = useState(false);
@@ -104,10 +160,19 @@ const UploadsPage: React.FC = () => {
 
   const fetchAssets = useCallback(async () => {
     try {
+      const isDefaultFilter = typeFilter === 'all';
+      if (isDefaultFilter && uploadsAssetsCache) {
+        setAssets(uploadsAssetsCache);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      const filterParam = typeFilter === 'all' ? undefined : typeFilter;
-      const data = await getUserAssets(filterParam);
+      const data = isDefaultFilter
+        ? await fetchDefaultUploadsAssetsWithCache()
+        : await getUserAssets(typeFilter);
+
       setAssets(data);
     } catch (err) {
       console.error('Error fetching assets:', err);
@@ -119,7 +184,13 @@ const UploadsPage: React.FC = () => {
 
   const fetchStorageUsage = useCallback(async () => {
     try {
-      const data = await getStorageUsage();
+      if (uploadsStorageCache) {
+        setStorageUsage(uploadsStorageCache.usage);
+        setTypeCounts(uploadsStorageCache.counts);
+        return;
+      }
+
+      const data = await fetchUploadsStorageWithCache();
       setStorageUsage(data.usage);
       setTypeCounts(data.counts);
     } catch (err) {

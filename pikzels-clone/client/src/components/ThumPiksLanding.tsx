@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,6 +15,9 @@ import { useAuth } from '../contexts/AuthContext';
 import AnimatedBackground from './AnimatedBackground';
 import ForgotPasswordModal from './auth/ForgotPasswordModal';
 import UsernameInput from './auth/UsernameInput';
+import { usePricingData } from '../hooks/usePricingData';
+import type { PricingPlan, PricingFaq } from '../hooks/usePricingData';
+import BetaPhaseBanner from './shared/BetaPhaseBanner';
 type ThumPiksLandingProps = Record<string, never>;
 // Row 1: Top carousel thumbnails with bold text overlays
 const thumbnailImagesRow1 = [
@@ -40,10 +43,284 @@ const thumbnailImagesRow2 = [
   '/images/thumbnails/thumbnail-lifestyle-2.png',
 ];
 
+const PLATFORMS = [
+  { name: 'YouTube', placeholder: 'Drop link to your YouTube video' },
+  { name: 'TikTok', placeholder: 'Drop link to your TikTok video' },
+  { name: 'Instagram', placeholder: 'Drop link to your Instagram Reel' },
+  { name: 'Twitter', placeholder: 'Drop link to your Twitter post' },
+];
+
+// ---------------------------------------------------------------------------
+// Helper: format a single feature value for display
+// ---------------------------------------------------------------------------
+function formatFeatureValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
+interface PlatformTypingHeadlineProps {
+  onPlatformChange: (index: number) => void;
+}
+
+const PlatformTypingHeadline: React.FC<PlatformTypingHeadlineProps> = memo(
+  ({ onPlatformChange }) => {
+    const [currentPlatformIndex, setCurrentPlatformIndex] = React.useState(0);
+    const [displayedText, setDisplayedText] = React.useState('');
+    const [isDeleting, setIsDeleting] = React.useState(false);
+    const [isPaused, setIsPaused] = React.useState(false);
+    const [showCursor, setShowCursor] = React.useState(true);
+    const currentPlatform = PLATFORMS[currentPlatformIndex];
+
+    React.useEffect(() => {
+      onPlatformChange(currentPlatformIndex);
+    }, [currentPlatformIndex, onPlatformChange]);
+
+    React.useEffect(() => {
+      const typingSpeed = 150;
+      const deletingSpeed = 75;
+      const pauseAfterComplete = 2500;
+      const pauseBeforeTyping = 400;
+
+      const targetText = currentPlatform.name;
+
+      if (isPaused) {
+        const pauseTimer = setTimeout(() => {
+          setIsPaused(false);
+          setShowCursor(true);
+        }, pauseBeforeTyping);
+        return () => clearTimeout(pauseTimer);
+      }
+
+      const timer = setTimeout(() => {
+        if (!isDeleting) {
+          if (displayedText.length < targetText.length) {
+            setDisplayedText(targetText.slice(0, displayedText.length + 1));
+          } else {
+            setTimeout(() => setIsDeleting(true), pauseAfterComplete);
+          }
+        } else if (displayedText.length > 0) {
+          setDisplayedText(displayedText.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setShowCursor(false);
+          setIsPaused(true);
+          setCurrentPlatformIndex((prev) => (prev + 1) % PLATFORMS.length);
+        }
+      }, isDeleting ? deletingSpeed : typingSpeed);
+
+      return () => clearTimeout(timer);
+    }, [displayedText, isDeleting, isPaused, currentPlatform.name]);
+
+    return (
+      <>
+        {displayedText}
+        {showCursor && <span className="animate-pulse">|</span>}
+      </>
+    );
+  }
+);
+
+// ---------------------------------------------------------------------------
+// PricingCard sub-component
+// ---------------------------------------------------------------------------
+interface PricingCardProps {
+  plan: PricingPlan;
+  billingCycle: 'monthly' | 'annual';
+  onCta: () => void;
+}
+
+function formatPrice(amount: number): { dollars: string; cents: string; hasCents: boolean } {
+  const dollars = Math.floor(amount);
+  const cents = Math.round((amount - dollars) * 100);
+  return {
+    dollars: dollars.toString(),
+    cents: cents.toString().padStart(2, '0'),
+    hasCents: cents > 0,
+  };
+}
+
+const PricingCard: React.FC<PricingCardProps> = memo(({ plan, billingCycle, onCta }) => {
+  const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+  const originalPrice = billingCycle === 'monthly' ? plan.originalMonthlyPrice : plan.originalAnnualPrice;
+  const showStrikethrough = plan.hasDiscount && originalPrice > price;
+  const { dollars, cents, hasCents } = formatPrice(price);
+  const discountPercent = showStrikethrough ? Math.round((1 - price / originalPrice) * 100) : 0;
+  const isFree = plan.monthlyPrice === 0;
+
+  const featureEntries = useMemo<Array<{ label: string; positive: boolean }>>(() => {
+    const entries: Array<{ label: string; positive: boolean }> = [];
+
+  // Thumbnails
+  entries.push({
+    label: `${plan.credits} AI thumbnail credits/month`,
+    positive: true,
+  });
+
+  // Resolution
+  if (plan.features.resolution) {
+    entries.push({ label: `${plan.features.resolution} resolution`, positive: true });
+  }
+
+  // Watermark
+  entries.push({
+    label: plan.features.watermark ? 'Includes watermark' : 'No watermark',
+    positive: !plan.features.watermark,
+  });
+
+  // Face swap
+  if (plan.features.faceSwap !== undefined) {
+    if (typeof plan.features.faceSwap === 'boolean') {
+      entries.push({
+        label: plan.features.faceSwap ? 'Face swap' : 'No face swap',
+        positive: plan.features.faceSwap,
+      });
+    } else if (typeof plan.features.faceSwap === 'number') {
+      entries.push({
+        label: `Face swap (${plan.features.faceSwap}/month)`,
+        positive: true,
+      });
+    }
+  }
+
+  // A/B Testing
+  if (plan.features.abTesting !== undefined) {
+    if (typeof plan.features.abTesting === 'boolean') {
+      entries.push({
+        label: plan.features.abTesting ? 'A/B testing' : 'No A/B testing',
+        positive: plan.features.abTesting,
+      });
+    } else if (typeof plan.features.abTesting === 'number') {
+      entries.push({
+        label: `A/B testing (${plan.features.abTesting} variants)`,
+        positive: true,
+      });
+    }
+  }
+
+  // Analytics
+  if (plan.features.analytics !== undefined) {
+    entries.push({
+      label: plan.features.analytics ? 'Analytics & brand kit' : 'No analytics',
+      positive: plan.features.analytics,
+    });
+  }
+
+  // Support
+  if (plan.features.support) {
+    entries.push({
+      label: formatFeatureValue(plan.features.support),
+      positive: true,
+    });
+  }
+
+  // Early access
+  if (plan.features.earlyAccess !== undefined) {
+    entries.push({
+      label: 'Early access to new features',
+      positive: Boolean(plan.features.earlyAccess),
+    });
+  }
+
+  // Private mode
+  if (plan.features.privateModeDefault !== undefined) {
+    entries.push({
+      label: 'All generations private',
+      positive: Boolean(plan.features.privateModeDefault),
+    });
+  }
+
+    return entries;
+  }, [plan.features, plan.credits]);
+
+  const cardClasses = plan.popular
+    ? 'bg-gray-900/50 border-2 border-blue-600 rounded-2xl p-8 relative'
+    : 'bg-gray-900/50 border border-gray-800 rounded-2xl p-8';
+
+  const ctaClasses = plan.popular
+    ? 'w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors'
+    : 'w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors';
+
+  const ctaLabel = isFree ? 'Start Free' : 'Get Started';
+
+  let subNote: string | null = null;
+  if (isFree) {
+    subNote = 'No credit card required';
+  } else if (billingCycle === 'annual' && plan.annualSavings > 0) {
+    subNote = `Save ${plan.annualSavings}% annually`;
+  } else if (!isFree) {
+    subNote = plan.popular ? '14-day free trial included' : '7-day free trial';
+  }
+
+  return (
+    <div className={cardClasses}>
+      {plan.popular && (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+          <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
+            MOST POPULAR
+          </div>
+        </div>
+      )}
+
+      <div className={`mb-6 ${plan.popular ? 'pt-6' : ''}`}>
+        <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          {plan.name}
+        </div>
+        <div className="mb-2">
+          <span className="text-5xl font-light">${dollars}</span>
+          {hasCents && <sup className="text-xl font-light">{cents}</sup>}
+          <span className="text-lg text-gray-400">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
+        </div>
+        {showStrikethrough && (
+          <div className="flex items-center gap-1.5 text-sm">
+            <span className="text-red-400 font-semibold">-{discountPercent}%</span>
+            <span className="text-gray-500 line-through">${originalPrice}/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+          </div>
+        )}
+        <div className="text-sm text-gray-400">{plan.description}</div>
+      </div>
+
+      <div className="space-y-4 mb-8">
+        {featureEntries.map((feat, idx) => (
+          <div
+            key={idx}
+            className={`flex items-center gap-3 text-sm ${
+              feat.positive ? '' : 'text-gray-600'
+            }`}
+          >
+            {feat.positive ? (
+              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+            ) : (
+              <X className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{feat.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={onCta} className={ctaClasses}>
+        {ctaLabel}
+      </button>
+      {subNote && (
+        <div className="text-center text-xs text-gray-500 mt-3">{subNote}</div>
+      )}
+    </div>
+  );
+});
+
 // @component: ThumPiksLanding
 export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { phase, spotsLeft, spotsTotal, endsAt, plans, faqs, loading: pricingLoading, error: pricingError } = usePricingData();
+  const hasBetaDiscount = phase && phase.discountPercentMonthly > 0;
+  const annualSavingsPercent = useMemo(() => {
+    const paid = plans.find(p => p.monthlyPrice > 0);
+    if (!paid || paid.monthlyPrice === 0) return 25;
+    const monthlyTotal = paid.monthlyPrice * 12;
+    return Math.round((1 - paid.annualPrice / monthlyTotal) * 100);
+  }, [plans]);
   const [openFaq, setOpenFaq] = React.useState<number | null>(null);
   const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'annual'>(
     'monthly'
@@ -59,21 +336,11 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   const [showFaceModal, setShowFaceModal] = React.useState(false);
   const [faceImage, setFaceImage] = React.useState<string | null>(null);
 
-  // Platform typing animation state
   const [currentPlatformIndex, setCurrentPlatformIndex] = React.useState(0);
-  const [displayedText, setDisplayedText] = React.useState('');
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [isPaused, setIsPaused] = React.useState(false);
-  const [showCursor, setShowCursor] = React.useState(true);
-  
-  const platforms = [
-    { name: 'YouTube', placeholder: 'Drop link to your YouTube video' },
-    { name: 'TikTok', placeholder: 'Drop link to your TikTok video' },
-    { name: 'Instagram', placeholder: 'Drop link to your Instagram Reel' },
-    { name: 'Twitter', placeholder: 'Drop link to your Twitter post' },
-  ];
-  
-  const currentPlatform = platforms[currentPlatformIndex];
+  const currentPlatform = PLATFORMS[currentPlatformIndex];
+  const handlePlatformChange = useCallback((index: number) => {
+    setCurrentPlatformIndex((prev) => (prev === index ? prev : index));
+  }, []);
 
   // Sign up fields
   const [signupName, setSignupName] = React.useState('');
@@ -186,14 +453,14 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   };
 
   // Unified auth action: authenticated users bypass modals, others see signup
-  const handleAuthAction = () => {
+  const handleAuthAction = useCallback(() => {
     const token = localStorage.getItem('token');
     if (token) {
       navigate('/dashboard');
     } else {
       setShowSignup(true);
     }
-  };
+  }, [navigate, setShowSignup]);
 
   const scrollToPricing = () => {
     const pricingSection = document.getElementById('pricing');
@@ -208,50 +475,6 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
       faqSection.scrollIntoView({ behavior: 'smooth' });
     }
   };
-
-  // Platform typing animation effect
-  React.useEffect(() => {
-    const typingSpeed = 150; // ms per character (slower for readability)
-    const deletingSpeed = 75; // faster deletion
-    const pauseAfterComplete = 2500; // pause at full word
-    const pauseBeforeTyping = 400; // brief pause before starting new word (cursor hidden)
-    
-    const targetText = currentPlatform.name;
-    
-    // Handle the brief pause state (cursor hidden)
-    if (isPaused) {
-      const pauseTimer = setTimeout(() => {
-        setIsPaused(false);
-        setShowCursor(true);
-      }, pauseBeforeTyping);
-      return () => clearTimeout(pauseTimer);
-    }
-    
-    const timer = setTimeout(() => {
-      if (!isDeleting) {
-        // Typing forward
-        if (displayedText.length < targetText.length) {
-          setDisplayedText(targetText.slice(0, displayedText.length + 1));
-        } else {
-          // Finished typing, pause then start deleting
-          setTimeout(() => setIsDeleting(true), pauseAfterComplete);
-        }
-      } else {
-        // Deleting backward
-        if (displayedText.length > 0) {
-          setDisplayedText(displayedText.slice(0, -1));
-        } else {
-          // Finished deleting, hide cursor briefly, then move to next platform
-          setIsDeleting(false);
-          setShowCursor(false);
-          setIsPaused(true);
-          setCurrentPlatformIndex((prev) => (prev + 1) % platforms.length);
-        }
-      }
-    }, isDeleting ? deletingSpeed : typingSpeed);
-    
-    return () => clearTimeout(timer);
-  }, [displayedText, isDeleting, isPaused, currentPlatformIndex, currentPlatform.name, platforms.length]);
 
   // Handle ESC key to close modals
   React.useEffect(() => {
@@ -359,8 +582,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               Generate Stunning{' '}
               <br />
               <span className="text-blue-500">
-                {displayedText}
-                {showCursor && <span className="animate-pulse">|</span>}
+                <PlatformTypingHeadline onPlatformChange={handlePlatformChange} />
               </span>
               <br />
               Thumbnails with AI
@@ -624,291 +846,88 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             </div>
 
             <div className="flex items-center justify-center mb-12">
-              <div className="flex items-center gap-0 bg-gray-900 border border-gray-800 rounded-full px-1 py-1 relative w-fit">
-                <motion.div
-                  className="absolute top-1 bottom-1 bg-blue-600 rounded-full"
-                  animate={{
-                    x: billingCycle === 'monthly' ? 0 : 'calc(100% + 8px)',
-                  }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 300,
-                    damping: 30,
-                  }}
+              <div className="relative inline-flex bg-gray-900 rounded-full p-1 border border-gray-800">
+                <div
+                  className="absolute top-1 bottom-1 bg-blue-600 rounded-full transition-none"
                   style={{
-                    width: 'calc(50% - 4px)',
+                    left: billingCycle === 'monthly' ? 4 : '50%',
+                    right: billingCycle === 'monthly' ? '50%' : 4,
                   }}
                 />
-
                 <button
                   onClick={() => setBillingCycle('monthly')}
-                  className="relative z-10 px-8 py-3 text-sm font-medium transition-colors"
+                  className="relative z-10 px-8 py-3 rounded-full text-sm font-medium flex items-center gap-1.5"
+                  style={{ color: billingCycle === 'monthly' ? '#ffffff' : '#9ca3af' }}
                 >
-                  <motion.span
-                    animate={{
-                      color: billingCycle === 'monthly' ? '#ffffff' : '#9ca3af',
-                    }}
-                    transition={{
-                      duration: 0.2,
-                    }}
-                  >
-                    Monthly
-                  </motion.span>
+                  Monthly
+                  {hasBetaDiscount && (
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: billingCycle === 'monthly' ? '#22c55e' : '#60a5fa' }}
+                    >
+                      -{phase.discountPercentMonthly}%
+                    </span>
+                  )}
                 </button>
-
                 <button
                   onClick={() => setBillingCycle('annual')}
-                  className="relative z-10 px-8 py-3 text-sm font-medium transition-colors flex items-center gap-1.5"
+                  className="relative z-10 px-8 py-3 rounded-full text-sm font-medium flex items-center gap-1.5"
+                  style={{ color: billingCycle === 'annual' ? '#ffffff' : '#9ca3af' }}
                 >
-                  <motion.span
-                    animate={{
-                      color: billingCycle === 'annual' ? '#ffffff' : '#9ca3af',
-                    }}
-                    transition={{
-                      duration: 0.2,
-                    }}
-                  >
-                    Annual
-                  </motion.span>
-                  <motion.span
-                    animate={{
-                      color: billingCycle === 'annual' ? '#22c55e' : '#60a5fa',
-                      opacity: billingCycle === 'annual' ? 1 : 0.8,
-                    }}
-                    transition={{
-                      duration: 0.2,
-                    }}
+                  Annual
+                  <span
                     className="text-sm font-bold"
+                    style={{ color: billingCycle === 'annual' ? '#22c55e' : '#60a5fa' }}
                   >
-                    -25%
-                  </motion.span>
+                    -{hasBetaDiscount ? phase.discountPercentAnnual : annualSavingsPercent}%
+                  </span>
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              {/* FREE TIER */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-                <div className="mb-6">
-                  <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Free
-                  </div>
-                  <div className="text-5xl font-light mb-2">
-                    $0
-                    <span className="text-lg text-gray-400">/month</span>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Try before you subscribe
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>5 AI thumbnails/month</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Basic styles & templates</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>720p resolution</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>Includes watermark</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>No face swap</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    <span>Community support only</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleAuthAction}
-                  className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
-                >
-                  Start Free
-                </button>
-                <div className="text-center text-xs text-gray-500 mt-3">
-                  No credit card required
-                </div>
+            {pricingLoading && (
+              <div className="flex items-center justify-center py-20 text-gray-400">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-3" />
+                Loading pricing plans…
               </div>
+            )}
 
-              {/* STARTER TIER */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-                <div className="mb-6">
-                  <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Starter
-                  </div>
-                  <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '19' : '15'}
-                    <span className="text-lg text-gray-400">/month</span>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Perfect for new creators
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>50 AI thumbnails/month</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>All 9 AI tools</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>1080p HD resolution</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>No watermark</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Multi-format export</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Email support</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleAuthAction}
-                  className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
-                >
-                  Get Started
-                </button>
-                <div className="text-center text-xs text-gray-500 mt-3">
-                  {billingCycle === 'annual' && 'Save 21% annually'}
-                  {billingCycle === 'monthly' && '7-day free trial'}
-                </div>
+            {pricingError && !pricingLoading && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="mb-2">Unable to load pricing plans right now.</p>
+                <p className="text-sm text-gray-500">Please refresh the page or check back shortly.</p>
               </div>
+            )}
 
-              {/* CREATOR PRO TIER - MOST POPULAR */}
-              <div className="bg-gray-900/50 border-2 border-blue-600 rounded-2xl p-8 relative">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
-                    MOST POPULAR
-                  </div>
-                </div>
+            {!pricingLoading && !pricingError && phase && (
+              <BetaPhaseBanner
+                phase={phase}
+                spotsLeft={spotsLeft}
+                spotsTotal={spotsTotal}
+                endsAt={endsAt}
+              />
+            )}
 
-                <div className="mb-6 pt-6">
-                  <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Creator Pro
-                  </div>
-                  <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '39' : '29'}
-                    <span className="text-lg text-gray-400">/month</span>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    For serious YouTubers
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>200 AI thumbnails/month</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>All Starter features</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Flash + Standard + Pro models</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>A/B testing</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Vision / CTR analysis</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Brand kit & analytics</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleAuthAction}
-                  className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors"
-                >
-                  Get Started
-                </button>
-                <div className="text-center text-xs text-gray-500 mt-3">
-                  14-day free trial included
-                </div>
+            {!pricingLoading && !pricingError && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                {plans.map((plan) => (
+                  <PricingCard
+                    key={plan.id}
+                    plan={plan}
+                    billingCycle={billingCycle}
+                    onCta={handleAuthAction}
+                  />
+                ))}
               </div>
+            )}
 
-              {/* ULTRA PRO TIER */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-                <div className="mb-6">
-                  <div className="text-sm text-gray-400 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Ultra Pro
-                  </div>
-                  <div className="text-5xl font-light mb-2">
-                    ${billingCycle === 'monthly' ? '79' : '59'}
-                    <span className="text-lg text-gray-400">/month</span>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    For power creators
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>600 AI thumbnails/month</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>All Creator Pro features</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>All generations private</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Pro models default</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Early access to new features</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                    <span>Dedicated support</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleAuthAction}
-                  className="w-full mt-8 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors"
-                >
-                  Get Started
-                </button>
-                <div className="text-center text-xs text-gray-500 mt-3">
-                  {billingCycle === 'annual' ? 'Save 25% annually' : '14-day free trial'}
-                </div>
-              </div>
+            <div className="text-center mt-6 mb-2">
+              <button
+                onClick={() => navigate('/dashboard/pricing')}
+                className="text-blue-400 hover:text-blue-300 text-sm underline underline-offset-2 transition-colors"
+              >
+                View full pricing details
+              </button>
             </div>
 
             <div className="text-center text-sm text-gray-500">
@@ -936,45 +955,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  question: 'What is ThumPiks and how does it work?',
-                  answer:
-                    'ThumPiks is an AI-powered thumbnail generator optimized for YouTube, with support for TikTok, Instagram, Twitter/X, Facebook, Twitch, and any other platform or general thumbnail needs. Simply paste your video link or describe what you want, choose your style preferences, and our AI instantly generates professional thumbnails optimized for maximum engagement. No design experience needed.',
-                },
-                {
-                  question: 'What platforms and content types does ThumPiks support?',
-                  answer:
-                    'ThumPiks works great for all social media platforms including YouTube, TikTok, Instagram Reels, Twitter/X, Facebook, Twitch streams, and more. You can also generate thumbnails for blogs, podcasts, websites, course materials, or any project that needs eye-catching visuals. Our AI adapts to your specific platform needs and automatically optimizes for the best results.',
-                },
-                {
-                  question: 'How is ThumPiks different from using Canva or Photoshop?',
-                  answer:
-                    'While Canva and Photoshop require manual design work, ThumPiks uses AI to instantly generate thumbnails tailored to your content. What takes 30-60 minutes manually takes just seconds with ThumPiks. Plus, our AI analyzes trending thumbnails across all major platforms to ensure your designs follow proven engagement patterns.',
-                },
-                {
-                  question:
-                    'What happens when I run out of thumbnails in my plan?',
-                  answer:
-                    'Your account will switch to the Free tier (5 thumbnails/month with watermark) until your next billing cycle. You can upgrade your plan anytime or purchase additional thumbnail credits if needed. All your previous creations remain accessible regardless of plan.',
-                },
-                {
-                  question:
-                    'Do my monthly thumbnails roll over to the next month?',
-                  answer:
-                    'Unused thumbnails do not roll over to the next billing period. Each month, your thumbnail count resets to your plan limit. We recommend this approach to keep pricing simple and predictable. If you need more thumbnails, consider upgrading to a higher tier.',
-                },
-                {
-                  question: 'Can I cancel my subscription anytime?',
-                  answer:
-                    'Yes! You can cancel your ThumPiks subscription anytime from your account settings. There are no cancellation fees or penalties. You\'ll retain access to your plan features until the end of your current billing period, and all your created thumbnails remain accessible even after cancellation.',
-                },
-                {
-                  question: 'Do you offer refunds or free trials?',
-                  answer:
-                    'All paid plans include a 14-day free trial (no credit card required for Free tier). If you\'re not satisfied within 7 days of your first payment, contact our support team for a full refund. We want you to be 100% confident that ThumPiks is right for your content creation needs.',
-                },
-              ].map((faq, i) => (
+              {faqs.map((faq: PricingFaq, i: number) => (
                 <div
                   key={i}
                   className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden"
@@ -1228,7 +1209,22 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </p>
 
                 <div className="space-y-4 mb-6">
-                  <button className="w-full border border-gray-700 bg-gray-800/50 hover:bg-gray-800 rounded-lg py-3 px-4 flex items-center justify-center gap-3 transition-colors text-sm font-medium">
+                  <button
+                    onClick={() => {
+                      // Store pending auth data before redirecting
+                      const pendingVideoLink = localStorage.getItem('pendingVideoLink');
+                      const pendingIncludeFace = localStorage.getItem('pendingIncludeFace');
+                      if (pendingVideoLink) {
+                        sessionStorage.setItem('pendingVideoLink', pendingVideoLink);
+                      }
+                      if (pendingIncludeFace) {
+                        sessionStorage.setItem('pendingIncludeFace', pendingIncludeFace);
+                      }
+                      // Redirect to Google OAuth
+                      window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8550'}/api/auth/google`;
+                    }}
+                    className="w-full border border-gray-700 bg-gray-800/50 hover:bg-gray-800 rounded-lg py-3 px-4 flex items-center justify-center gap-3 transition-colors text-sm font-medium"
+                  >
                     <svg
                       className="w-5 h-5"
                       viewBox="0 0 24 24"

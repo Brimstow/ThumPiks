@@ -33,6 +33,9 @@ import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
 import { OnboardingOverlay } from '../../features/onboarding';
 import { FeedbackWidget } from '../../features/feedback';
 import { GlobalChatWidget } from '../../features/global-chat';
+import { prefetchPricingData } from '../../hooks/usePricingData';
+import { prefetchMyThumbnailsData } from './MyThumbnailsPage';
+import { prefetchUploadsData } from './UploadsPage';
 
 interface Subscription {
   creditsBalance: number;
@@ -46,6 +49,22 @@ const DashboardLayout: React.FC = () => {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const warmRouteData = (path: string) => {
+    if (path === '/dashboard/pricing') {
+      void prefetchPricingData();
+      return;
+    }
+
+    if (path === '/dashboard/thumbnails') {
+      void prefetchMyThumbnailsData();
+      return;
+    }
+
+    if (path === '/dashboard/uploads') {
+      void prefetchUploadsData();
+    }
+  };
 
   // Fetch subscription data
   useEffect(() => {
@@ -61,6 +80,36 @@ const DashboardLayout: React.FC = () => {
       }
     };
     fetchSubscription();
+  }, []);
+
+  useEffect(() => {
+    const runPrefetch = () => {
+      warmRouteData('/dashboard/pricing');
+      warmRouteData('/dashboard/thumbnails');
+      warmRouteData('/dashboard/uploads');
+    };
+
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(() => runPrefetch(), {
+        timeout: 1500,
+      });
+      return () => {
+        if (idleWindow.cancelIdleCallback) {
+          idleWindow.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(runPrefetch, 500);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   // Keyboard shortcut for search (Cmd/Ctrl + K)
@@ -86,6 +135,8 @@ const DashboardLayout: React.FC = () => {
   };
 
   const handleNavClick = (path: string) => {
+    warmRouteData(path);
+
     // If clicking on the current active page, toggle sidebar
     if (location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path))) {
       toggleSidebar();
@@ -203,6 +254,8 @@ const DashboardLayout: React.FC = () => {
               {/* History Button */}
               <button
                 onClick={() => navigate('/dashboard/thumbnails')}
+                onMouseEnter={() => warmRouteData('/dashboard/thumbnails')}
+                onFocus={() => warmRouteData('/dashboard/thumbnails')}
                 className="hidden sm:inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-colors"
                 aria-label="History"
                 title="View your thumbnails"
@@ -212,7 +265,12 @@ const DashboardLayout: React.FC = () => {
 
               {/* Upgrade Button */}
               <button
-                onClick={() => navigate('/dashboard/pricing')}
+                onClick={() => {
+                  warmRouteData('/dashboard/pricing');
+                  navigate('/dashboard/pricing');
+                }}
+                onMouseEnter={() => warmRouteData('/dashboard/pricing')}
+                onFocus={() => warmRouteData('/dashboard/pricing')}
                 className="inline-flex hover:bg-slate-800/80 hover:text-slate-50 text-slate-400 rounded-lg p-2 transition-colors"
                 aria-label="Upgrade"
                 title="Upgrade your plan"
@@ -253,7 +311,12 @@ const DashboardLayout: React.FC = () => {
               {categoryNavItems.map((item) => (
                 <li key={item.path}>
                   <button
-                    onClick={() => navigate(item.path)}
+                    onClick={() => {
+                      warmRouteData(item.path);
+                      navigate(item.path);
+                    }}
+                    onMouseEnter={() => warmRouteData(item.path)}
+                    onFocus={() => warmRouteData(item.path)}
                     className={`hover:text-slate-50 whitespace-nowrap ${
                       isNavActive(item.path) ? 'text-slate-50' : ''
                     }`}
@@ -455,6 +518,7 @@ const DashboardLayout: React.FC = () => {
                   <button
                     key={item.id}
                     onClick={() => {
+                      warmRouteData(item.path);
                       navigate(item.path);
                       setMobileMenuOpen(false);
                     }}

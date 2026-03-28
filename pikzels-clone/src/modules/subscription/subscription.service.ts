@@ -7,6 +7,7 @@
 
 import Stripe from 'stripe';
 import { getProviderProductId, getPlanById } from './subscription.config';
+import { getActiveDiscountId } from './pricing.service';
 import { getBillingProvider, getBillingProviderByName } from '../billing';
 import type { BillingProviderName } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
@@ -56,7 +57,12 @@ export async function createCheckoutSession(
     );
   }
 
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
+  const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:8556';
+
+  // Fetch active beta discount (if any) to auto-apply at checkout
+  const discountId = provider.providerName === 'polar'
+    ? (await getActiveDiscountId(billingCycle)) ?? undefined
+    : undefined;
 
   return provider.createCheckoutSession({
     userId,
@@ -66,6 +72,8 @@ export async function createCheckoutSession(
     productId,
     successUrl: `${clientUrl}/dashboard?subscription=success`,
     cancelUrl: `${clientUrl}/pricing?subscription=cancelled`,
+    discountId,
+    allowDiscountCodes: provider.providerName === 'polar',
   });
 }
 

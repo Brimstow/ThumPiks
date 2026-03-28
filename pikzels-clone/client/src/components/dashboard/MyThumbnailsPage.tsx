@@ -32,6 +32,63 @@ interface Thumbnail {
 }
 
 type PlatformFilter = 'all' | 'youtube' | 'instagram' | 'tiktok' | 'twitter';
+const DEFAULT_SORT_ORDER: 'asc' | 'desc' = 'desc';
+
+let thumbnailsCache: Thumbnail[] | null = null;
+let thumbnailsCachePromise: Promise<Thumbnail[]> | null = null;
+
+function buildThumbnailsApiUrl(
+  searchQuery: string,
+  sortOrder: 'asc' | 'desc'
+): string {
+  const queryParams = new URLSearchParams();
+  if (searchQuery) queryParams.append('search', searchQuery);
+  queryParams.append('sortOrder', sortOrder);
+
+  return IS_DEVELOPMENT
+    ? `/api/thumbnails?${queryParams.toString()}`
+    : `${API_BASE_URL}/api/thumbnails?${queryParams.toString()}`;
+}
+
+async function fetchDefaultThumbnailsWithCache(): Promise<Thumbnail[]> {
+  if (thumbnailsCache) {
+    return thumbnailsCache;
+  }
+
+  if (!thumbnailsCachePromise) {
+    thumbnailsCachePromise = authGet(
+      buildThumbnailsApiUrl('', DEFAULT_SORT_ORDER)
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Session expired. Please log in again.');
+          }
+          throw new Error(`Failed to fetch thumbnails (${response.status})`);
+        }
+
+        const data = await response.json();
+        const normalizedThumbnails: Thumbnail[] = data.thumbnails || [];
+        thumbnailsCache = normalizedThumbnails;
+        return normalizedThumbnails;
+      })
+      .catch((err) => {
+        thumbnailsCachePromise = null;
+        throw err;
+      });
+  }
+
+  return thumbnailsCachePromise;
+}
+
+export async function prefetchMyThumbnailsData(): Promise<Thumbnail[] | null> {
+  try {
+    return await fetchDefaultThumbnailsWithCache();
+  } catch (err) {
+    console.error('Error prefetching thumbnails:', err);
+    return null;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -149,12 +206,12 @@ const DroppablePlatformTab: React.FC<{
 const MyThumbnailsPage: React.FC = () => {
   const navigate = useNavigate();
   // State
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>(thumbnailsCache ?? []);
+  const [loading, setLoading] = useState(thumbnailsCache === null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(DEFAULT_SORT_ORDER);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -164,16 +221,22 @@ const MyThumbnailsPage: React.FC = () => {
   const fetchThumbnails = useCallback(async () => {
     try {
       setError(null);
+
+      const isDefaultQuery = !searchQuery && sortOrder === DEFAULT_SORT_ORDER;
+      if (isDefaultQuery && thumbnailsCache) {
+        setThumbnails(thumbnailsCache);
+        setLoading(false);
+        return;
+      }
+
+      if (isDefaultQuery) {
+        const cachedThumbnails = await fetchDefaultThumbnailsWithCache();
+        setThumbnails(cachedThumbnails);
+        return;
+      }
       
       // Build query params
-      const queryParams = new URLSearchParams();
-      if (searchQuery) queryParams.append('search', searchQuery);
-      if (sortOrder) queryParams.append('sortOrder', sortOrder);
-
-      // Use Vite proxy in development, full URL in production
-      const apiUrl = IS_DEVELOPMENT 
-        ? `/api/thumbnails?${queryParams.toString()}`
-        : `${API_BASE_URL}/api/thumbnails?${queryParams.toString()}`;
+      const apiUrl = buildThumbnailsApiUrl(searchQuery, sortOrder);
 
       const response = await authGet(apiUrl);
 

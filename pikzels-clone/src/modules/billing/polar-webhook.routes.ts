@@ -69,23 +69,82 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
   try {
     switch (event.type) {
+      // ── Checkout Events ─────────────────────────────────────────
+      case 'checkout.created':
+      case 'checkout.updated': {
+        const checkout = (event as any).data;
+
+        // Only act on successful checkouts
+        if (checkout.status !== 'succeeded') {
+          logger.info('Polar checkout event (non-succeeded)', {
+            status: checkout.status,
+            checkoutId: checkout.id,
+          });
+          break;
+        }
+
+        const metadata = checkout.metadata || {};
+        const userId = metadata.userId || '';
+        const planId = metadata.planId || '';
+        const billingCycle =
+          (metadata.billingCycle as 'monthly' | 'annual') || 'monthly';
+        const customerId =
+          checkout.customer_id || checkout.customerId || '';
+        // subscription_id may be null on checkout.updated; subscription.active fills it later
+        const subscriptionId =
+          checkout.subscription_id || checkout.subscriptionId || '';
+
+        if (!userId || !planId) {
+          logger.error('Polar checkout.succeeded missing metadata', undefined, {
+            checkoutId: checkout.id,
+            userId,
+            planId,
+          });
+          break;
+        }
+
+        await handlePolarSubscriptionActive({
+          subscriptionId,
+          customerId,
+          userId,
+          planId,
+          billingCycle,
+        });
+
+        logger.info('Polar checkout.succeeded handled — subscription activated', {
+          checkoutId: checkout.id,
+          userId,
+          planId,
+          billingCycle,
+          customerId,
+          subscriptionId: subscriptionId || '(pending)',
+        });
+        break;
+      }
+
       // ── Subscription Events ──────────────────────────────────────
       case 'subscription.active': {
         const sub = (event as any).data;
         const metadata = sub.metadata || {};
 
-        await handlePolarSubscriptionActive({
-          subscriptionId: sub.id,
-          customerId: sub.customerId || sub.customer_id || '',
-          userId: metadata.userId || '',
-          planId: metadata.planId || '',
-          billingCycle:
-            (metadata.billingCycle as 'monthly' | 'annual') || 'monthly',
-        });
+        // If metadata exists, do full activation (fallback if checkout event missed)
+        if (metadata.userId && metadata.planId) {
+          await handlePolarSubscriptionActive({
+            subscriptionId: sub.id,
+            customerId: sub.customerId || sub.customer_id || '',
+            userId: metadata.userId,
+            planId: metadata.planId,
+            billingCycle:
+              (metadata.billingCycle as 'monthly' | 'annual') || 'monthly',
+          });
+        } else {
+          // No metadata — just store the subscription ID on an existing record
+          await handlePolarSubscriptionRenewed(sub.id);
+        }
 
         logger.info('Polar subscription.active handled', {
           subscriptionId: sub.id,
-          userId: metadata.userId,
+          userId: metadata.userId || '(no metadata)',
         });
         break;
       }

@@ -3,38 +3,19 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { DashboardProvider } from '../../contexts/DashboardContext';
 import { getAdminUser, isAdminAuthenticated } from '../../services/admin/adminApiClient';
 import { adminAuthService } from '../../services/admin/adminAuthService';
+import { useAdminNavItems } from '../../features/admin';
+import type { AdminNavItem } from '../../features/admin';
 import { 
-  Users, 
-  Settings, 
-  BarChart3, 
-  Shield, 
-  Activity, 
-  FileText, 
   Bell, 
   LogOut, 
   Menu, 
   X,
   ChevronDown,
-  Home,
-  Image,
-  Layout,
-  Monitor,
-  Globe,
   Search,
   Maximize2,
   Minimize2,
   Zap,
-  MessageSquare
 } from 'lucide-react';
-
-interface AdminNavItem {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  path: string;
-  permission?: string;
-  children?: AdminNavItem[];
-}
 
 interface AdminUserData {
   id: string;
@@ -90,11 +71,6 @@ const AdminLayout: React.FC = () => {
     return () => { cancelled = true; };
   }, [navigate]);
 
-  const hasPermission = (permission: string) => {
-    if (!adminUser) return false;
-    return adminUser.permissions.includes('*') || adminUser.permissions.includes(permission);
-  };
-
   // Handle fullscreen toggle
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -113,173 +89,8 @@ const AdminLayout: React.FC = () => {
     console.log('Searching for:', query);
   };
 
-  // Admin navigation structure
-  const navItems: AdminNavItem[] = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      icon: <Home size={20} />,
-      path: '/admin',
-    },
-    {
-      id: 'users',
-      label: 'User Management',
-      icon: <Users size={20} />,
-      path: '/admin/users',
-      permission: 'users.view',
-      children: [
-        {
-          id: 'users-list',
-          label: 'All Users',
-          icon: <Users size={16} />,
-          path: '/admin/users',
-          permission: 'users.view'
-        },
-        {
-          id: 'users-roles',
-          label: 'Roles & Permissions',
-          icon: <Shield size={16} />,
-          path: '/admin/users/roles',
-          permission: 'admin.roles'
-        }
-      ]
-    },
-    {
-      id: 'content',
-      label: 'Content Management',
-      icon: <Image size={20} />,
-      path: '/admin/content',
-      permission: 'content.view',
-      children: [
-        {
-          id: 'thumbnails',
-          label: 'Thumbnails',
-          icon: <Image size={16} />,
-          path: '/admin/content/thumbnails',
-          permission: 'content.view'
-        },
-        {
-          id: 'templates',
-          label: 'Templates',
-          icon: <Layout size={16} />,
-          path: '/admin/content/templates',
-          permission: 'content.view'
-        },
-        {
-          id: 'projects',
-          label: 'Projects',
-          icon: <FileText size={16} />,
-          path: '/admin/content/projects',
-          permission: 'content.view'
-        }
-      ]
-    },
-    {
-      id: 'sitemap',
-      label: 'Sitemap Management',
-      icon: <Globe size={20} />,
-      path: '/admin/sitemap',
-      permission: 'content.view'
-    },
-    {
-      id: 'support',
-      label: 'Support',
-      icon: <MessageSquare size={20} />,
-      path: '/admin/support',
-      permission: 'support.view',
-      children: [
-        {
-          id: 'feedback-tickets',
-          label: 'Feedback & Tickets',
-          icon: <MessageSquare size={16} />,
-          path: '/admin/support',
-          permission: 'support.view'
-        },
-        {
-          id: 'notifications',
-          label: 'Notification Routing',
-          icon: <Bell size={16} />,
-          path: '/admin/support/notifications',
-          permission: 'support.view'
-        },
-      ]
-    },
-    {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: <BarChart3 size={20} />,
-      path: '/admin/analytics',
-      permission: 'analytics.view',
-      children: [
-        {
-          id: 'overview',
-          label: 'Overview',
-          icon: <BarChart3 size={16} />,
-          path: '/admin/analytics',
-          permission: 'analytics.view'
-        },
-        {
-          id: 'user-activity',
-          label: 'User Activity',
-          icon: <Activity size={16} />,
-          path: '/admin/analytics/users',
-          permission: 'analytics.view'
-        },
-        {
-          id: 'performance',
-          label: 'Performance',
-          icon: <Monitor size={16} />,
-          path: '/admin/analytics/performance',
-          permission: 'analytics.view'
-        }
-      ]
-    },
-    {
-      id: 'system',
-      label: 'System',
-      icon: <Settings size={20} />,
-      path: '/admin/system',
-      permission: 'system.config',
-      children: [
-        {
-          id: 'health',
-          label: 'Health Monitoring',
-          icon: <Monitor size={16} />,
-          path: '/admin/system/health',
-          permission: 'system.health'
-        },
-        {
-          id: 'logs',
-          label: 'Audit Logs',
-          icon: <FileText size={16} />,
-          path: '/admin/system/logs',
-          permission: 'system.logs'
-        },
-        {
-          id: 'settings',
-          label: 'Settings',
-          icon: <Settings size={16} />,
-          path: '/admin/system/settings',
-          permission: 'system.config'
-        }
-      ]
-    }
-  ];
-
-  // Filter navigation items based on permissions
-  const filterNavItems = (items: AdminNavItem[]): AdminNavItem[] => {
-    return items.filter(item => {
-      if (item.permission && !hasPermission(item.permission)) {
-        return false;
-      }
-      if (item.children) {
-        item.children = filterNavItems(item.children);
-      }
-      return true;
-    });
-  };
-
-  const visibleNavItems = filterNavItems(navItems);
+  // Navigation items from the admin module registry, filtered by permissions
+  const visibleNavItems = useAdminNavItems(adminUser?.permissions ?? []);
 
   const handleLogout = async () => {
     await adminAuthService.logout();

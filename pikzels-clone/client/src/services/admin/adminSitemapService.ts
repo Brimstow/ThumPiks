@@ -1,37 +1,48 @@
 /**
  * Admin Sitemap Management Service
  *
- * Environment-aware sitemap data:
+ * Environment-aware sitemap data via proxy factory:
  * - Development: mock data
  * - Production: /api/admin/sitemap/* endpoints
  */
 
-import { adminApi, shouldUseMockData } from './adminApiClient';
+import { adminApi } from './adminApiClient';
 import {
   mockGetSitemapStats,
   mockGetSitemapEntries,
   mockGenerateSitemap,
   mockExportSitemap,
 } from './adminMockData';
+import { createAdminService } from './createAdminService';
 
-export const adminSitemapService = {
+const realImpl = {
   async getStats() {
-    if (shouldUseMockData()) return mockGetSitemapStats();
     return adminApi.get('/sitemap/stats');
   },
-
   async getEntries(params?: Record<string, string | number | boolean | undefined>) {
-    if (shouldUseMockData()) return mockGetSitemapEntries();
     return adminApi.get('/sitemap/entries', params);
   },
-
   async generate() {
-    if (shouldUseMockData()) return mockGenerateSitemap();
     return adminApi.post('/sitemap/generate');
   },
-
   async exportSitemap() {
-    if (shouldUseMockData()) return mockExportSitemap();
     return adminApi.get('/sitemap/export');
   },
 };
+
+const mockImpl = {
+  async getStats() {
+    return mockGetSitemapStats();
+  },
+  async getEntries(_params?: Record<string, string | number | boolean | undefined>) {
+    return mockGetSitemapEntries();
+  },
+  async generate() {
+    return mockGenerateSitemap();
+  },
+  async exportSitemap() {
+    return mockExportSitemap();
+  },
+};
+
+export const adminSitemapService = createAdminService(realImpl, mockImpl);

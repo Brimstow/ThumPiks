@@ -9,9 +9,35 @@ import {
   handleSubscriptionCancelled,
   completeDemoCheckout,
 } from './subscription.service';
+import { getPublicPlans, CREDIT_PACKS, PRICING_FAQS } from './subscription.config';
+import { getCurrentPricing } from './pricing.service';
 import { addPurchasedCredits } from '../credit/credit.service';
 import { logger } from '../../utils/logger';
+import { BillingError } from '../billing/billing-provider.interface';
 import { ValidationError } from '../../utils/errors';
+
+/**
+ * Get public pricing plans, credit packs, and FAQs
+ * GET /api/subscription/plans
+ * Public — no authentication required
+ */
+export const getPlans = async (_req: Request, res: Response) => {
+  try {
+    const plans = getPublicPlans();
+
+    return res.status(200).json({
+      plans,
+      creditPacks: CREDIT_PACKS,
+      faqs: PRICING_FAQS,
+    });
+  } catch (error: any) {
+    logger.error('Failed to retrieve pricing plans', error);
+
+    return res.status(500).json({
+      error: 'Failed to retrieve pricing plans',
+    });
+  }
+};
 
 /**
  * Create Stripe Checkout Session for subscription upgrade
@@ -60,6 +86,13 @@ export const createCheckout = async (req: Request, res: Response) => {
     if (error instanceof ValidationError) {
       return res.status(400).json({
         error: error.message,
+      });
+    }
+
+    if (error instanceof BillingError) {
+      return res.status(422).json({
+        error: error.userMessage,
+        code: error.code,
       });
     }
 
@@ -264,6 +297,23 @@ export const deduct = async (req: Request, res: Response) => {
 
     return res.status(500).json({
       error: 'Failed to deduct credits',
+    });
+  }
+};
+
+/**
+ * Get phase-aware pricing (beta discounts, spots left, time remaining)
+ * GET /api/pricing/current
+ * Public — no authentication required
+ */
+export const getPricing = async (_req: Request, res: Response) => {
+  try {
+    const pricing = await getCurrentPricing();
+    return res.status(200).json(pricing);
+  } catch (error: any) {
+    logger.error('Failed to retrieve current pricing', error);
+    return res.status(500).json({
+      error: 'Failed to retrieve pricing data',
     });
   }
 };

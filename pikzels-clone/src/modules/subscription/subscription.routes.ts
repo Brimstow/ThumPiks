@@ -6,11 +6,27 @@ import {
   webhook,
   deduct,
   demoComplete,
+  getPlans,
+  getPricing,
 } from './subscription.controller';
 import { validateRequest } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
 
 const router = Router();
+
+/**
+ * GET /api/subscription/plans
+ * Retrieve all public pricing plans, credit packs, and FAQs
+ * Public — no authentication required
+ */
+router.get('/plans', getPlans);
+
+/**
+ * GET /api/subscription/pricing
+ * Phase-aware pricing: returns discounted prices, spots left, and time remaining.
+ * Public — no authentication required
+ */
+router.get('/pricing', getPricing);
 
 /**
  * POST /api/subscription/create-checkout

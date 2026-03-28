@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video } from 'lucide-react';
 import { API_BASE_URL, IS_DEVELOPMENT } from '../../config/environment';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProjectsAndUploadsWidget, RecentThumbnailsWidget, StatsWidget, StorageIndicator } from './widgets';
 import { authPost } from '../../utils/api';
 import { formatFileSize } from '../../lib/formatters';
@@ -52,10 +52,26 @@ const exampleThumbnails = [
 
 const DashboardHome: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faceFileInputRef = useRef<HTMLInputElement>(null);
   
+  // Subscription success banner
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('subscription') === 'success') {
+      setShowSubscriptionSuccess(true);
+      // Clean up the URL without triggering a re-render/navigation
+      searchParams.delete('subscription');
+      setSearchParams(searchParams, { replace: true });
+      // Auto-dismiss after 8 seconds
+      const timer = setTimeout(() => setShowSubscriptionSuccess(false), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // State management
   const [videoLink, setVideoLink] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -337,6 +353,30 @@ const DashboardHome: React.FC = () => {
 
   return (
     <>
+      {/* Subscription Success Banner */}
+      {showSubscriptionSuccess && (
+        <div className="mx-auto max-w-4xl mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-teal-500/10 p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20">
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-white">Payment Successful!</h3>
+                <p className="mt-1 text-sm text-slate-300">
+                  Your subscription has been activated. Your credits have been loaded and you're ready to create amazing thumbnails.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSubscriptionSuccess(false)}
+                className="flex-shrink-0 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}

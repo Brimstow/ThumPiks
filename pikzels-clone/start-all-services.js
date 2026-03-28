@@ -449,8 +449,8 @@ class UnifiedServiceStarter {
 
       this.log('info', `Waiting for ${service.name} to start...`);
 
-      // Poll for up to 45 seconds
-      for (let i = 0; i < 45; i++) {
+      // Poll for up to 90 seconds (ts-node-dev transpilation can take >45s)
+      for (let i = 0; i < 90; i++) {
         await this.sleep(1000);
 
         if (await service.healthCheck()) {
@@ -463,7 +463,7 @@ class UnifiedServiceStarter {
         }
       }
 
-      this.log('warn', `${service.name} startup timeout (45s)`);
+      this.log('warn', `${service.name} startup timeout (90s)`);
 
       // One final check
       if (await service.healthCheck()) {
