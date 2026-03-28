@@ -56,7 +56,10 @@ export function useOnboarding(): UseOnboardingReturn {
   }, [prefs]);
 
   // Calculate whether to show Quick Edit overlay
-  const shouldShowQuickEditOverlay = !prefs.quickEditOverlaySeen && !prefs.quickEditOverlayDismissed;
+  // Show if: enabled in settings AND not dismissed permanently AND (not seen this session OR not dismissed)
+  const shouldShowQuickEditOverlay = 
+    prefs.quickEditOverlayEnabled && 
+    !prefs.quickEditOverlayDismissed;
 
   // Dismiss overlay
   const dismissOverlay = useCallback((permanent = false) => {
@@ -126,6 +129,19 @@ export function useOnboarding(): UseOnboardingReturn {
     }));
   }, []);
 
+  // Enable/disable Quick Edit overlay on startup
+  const setQuickEditOverlayEnabled = useCallback((enabled: boolean) => {
+    setPrefs(prev => ({
+      ...prev,
+      quickEditOverlayEnabled: enabled,
+    }));
+  }, []);
+
+  // Reset all onboarding state
+  const resetOnboarding = useCallback(() => {
+    setPrefs({ ...DEFAULT_ONBOARDING_PREFS });
+  }, []);
+
   return {
     prefs,
     shouldShowQuickEditOverlay,
@@ -137,6 +153,8 @@ export function useOnboarding(): UseOnboardingReturn {
     getSpotlightSeenCount,
     incrementSpotlightSeen,
     dismissSpotlight,
+    setQuickEditOverlayEnabled,
+    resetOnboarding,
   };
 }
 

@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnboarding } from '../../features/onboarding';
 import { authFetch, authPost } from '../../utils/api';
 import * as accountService from '../../services/account.service';
 import type {
@@ -70,6 +71,7 @@ const AccountPage: React.FC = () => {
   const { section } = useParams<{ section?: string }>();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { prefs, setQuickEditOverlayEnabled, resetOnboarding } = useOnboarding();
   
   // Determine active tab from URL or default to profile
   const activeTab = (section as AccountTab) || 'profile';
@@ -1108,6 +1110,58 @@ const AccountPage: React.FC = () => {
                     <option>Central European Time (CET)</option>
                     <option>UTC</option>
                   </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Onboarding Preferences */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 mt-6">
+              <h2 className="text-lg font-semibold text-slate-100 mb-6">Onboarding Preferences</h2>
+              
+              <div className="space-y-6">
+                {/* Quick Edit Overlay Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-slate-200">Show Quick Edit Overlay</h3>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Display the Quick Edit options overlay when you log in
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setQuickEditOverlayEnabled(!prefs.quickEditOverlayEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      prefs.quickEditOverlayEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        prefs.quickEditOverlayEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Reset Onboarding Button */}
+                <div className="pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium text-slate-200">Reset Onboarding</h3>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Clear all onboarding progress and show tutorials again
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure? This will reset all onboarding progress including tours and tooltips.')) {
+                          resetOnboarding();
+                          alert('Onboarding reset successfully! Changes will take effect on your next visit.');
+                        }
+                      }}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
