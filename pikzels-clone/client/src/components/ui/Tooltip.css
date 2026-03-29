@@ -1,0 +1,91 @@
+/**
+ * Tooltip Styles — custom styled tooltip matching app design theme
+ * Built on @radix-ui/react-tooltip primitives
+ */
+
+.ui-tooltip-content {
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    0 1px 4px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: var(--z-tooltip, 1070);
+  white-space: nowrap;
+  max-width: 220px;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Entrance animation */
+.ui-tooltip-content[data-state='delayed-open'],
+.ui-tooltip-content[data-state='instant-open'] {
+  animation: ui-tooltip-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ui-tooltip-content[data-state='closed'] {
+  animation: ui-tooltip-out 0.1s ease-in;
+}
+
+/* Slide direction variants */
+.ui-tooltip-content[data-side='top'] {
+  transform-origin: bottom center;
+}
+.ui-tooltip-content[data-side='bottom'] {
+  transform-origin: top center;
+}
+.ui-tooltip-content[data-side='left'] {
+  transform-origin: right center;
+}
+.ui-tooltip-content[data-side='right'] {
+  transform-origin: left center;
+}
+
+@keyframes ui-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ui-tooltip-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+}
+
+/* Arrow */
+.ui-tooltip-arrow {
+  fill: #1e293b;
+}
+
+/* Light mode — keep dark tooltip for contrast (matches screenshot design) */
+html:not(.dark) .ui-tooltip-content {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+html:not(.dark) .ui-tooltip-arrow {
+  fill: #1e293b;
+}

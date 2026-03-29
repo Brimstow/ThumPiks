@@ -136,6 +136,7 @@ export const ThumbnailActionBar: React.FC<ThumbnailActionBarProps> = ({
       platform: context.platform,
       prompt: context.sourceSettings?.prompt,
       source: 'image-action-bar',
+      originalImageUrl: context.originalImageUrl,
     });
   }, [context, triggerSave]);
 
