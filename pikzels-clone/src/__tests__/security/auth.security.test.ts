@@ -8,6 +8,10 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  subscription: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
 };
 
 // Mock the prisma client
@@ -58,12 +62,12 @@ describe('Security - Authentication', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (PrismaClient as jest.Mock).mockImplementation(() => mockPrisma);
-    
+
     // Default mock: username validation passes
     (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
       valid: true,
     });
-    
+
     // Default mock: password validation passes
     (PasswordUtils.validate as jest.Mock).mockReturnValue({
       valid: true,
@@ -73,8 +77,11 @@ describe('Security - Authentication', () => {
 
   describe('JWT Security', () => {
     test('should create tokens with proper expiration times', () => {
-      const tokens = EnhancedJWTService.createTokens('user123', 'test@example.com');
-      
+      const tokens = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
+
       expect(tokens.accessToken).toBeTruthy();
       expect(tokens.refreshToken).toBeTruthy();
       expect(tokens.sessionId).toBeTruthy();
@@ -82,9 +89,12 @@ describe('Security - Authentication', () => {
     });
 
     test('should verify access tokens correctly', () => {
-      const tokens = EnhancedJWTService.createTokens('user123', 'test@example.com');
+      const tokens = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
       const decoded = EnhancedJWTService.verifyAccessToken(tokens.accessToken);
-      
+
       expect(decoded).toBeTruthy();
       expect(decoded?.userId).toBe('user123');
       expect(decoded?.email).toBe('test@example.com');
@@ -93,23 +103,31 @@ describe('Security - Authentication', () => {
     test('should reject invalid tokens', () => {
       const invalidToken = 'invalid.token.here';
       const decoded = EnhancedJWTService.verifyAccessToken(invalidToken);
-      
+
       expect(decoded).toBeNull();
     });
 
     test('should verify refresh tokens correctly', () => {
-      const tokens = EnhancedJWTService.createTokens('user123', 'test@example.com');
-      const decoded = EnhancedJWTService.verifyRefreshToken(tokens.refreshToken);
-      
+      const tokens = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
+      const decoded = EnhancedJWTService.verifyRefreshToken(
+        tokens.refreshToken
+      );
+
       expect(decoded).toBeTruthy();
       expect(decoded?.userId).toBe('user123');
       expect(decoded?.type).toBe('refresh');
     });
 
     test('should reject access token as refresh token', () => {
-      const tokens = EnhancedJWTService.createTokens('user123', 'test@example.com');
+      const tokens = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
       const decoded = EnhancedJWTService.verifyRefreshToken(tokens.accessToken);
-      
+
       expect(decoded).toBeNull();
     });
   });
@@ -119,7 +137,7 @@ describe('Security - Authentication', () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
-      
+
       // Mock password validation to fail for short password
       (PasswordUtils.validate as jest.Mock).mockReturnValue({
         valid: false,
@@ -127,7 +145,12 @@ describe('Security - Authentication', () => {
       });
 
       await expect(
-        authService.register('testuser', 'test@example.com', 'Test User', 'short')
+        authService.register(
+          'testuser',
+          'test@example.com',
+          'Test User',
+          'short'
+        )
       ).rejects.toThrow('Password must be at least 8 characters long');
     });
 
@@ -135,15 +158,22 @@ describe('Security - Authentication', () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
-      
+
       // Mock password validation to fail for common password
       (PasswordUtils.validate as jest.Mock).mockReturnValue({
         valid: false,
-        errors: ['This password is too common. Please choose a more unique password'],
+        errors: [
+          'This password is too common. Please choose a more unique password',
+        ],
       });
 
       await expect(
-        authService.register('testuser', 'test@example.com', 'Test User', 'password')
+        authService.register(
+          'testuser',
+          'test@example.com',
+          'Test User',
+          'password'
+        )
       ).rejects.toThrow(/too common/i);
     });
 
@@ -159,15 +189,20 @@ describe('Security - Authentication', () => {
         isVerified: true,
         displayPreference: 'name',
       });
-      
+
       // Mock password validation to pass for strong password
       (PasswordUtils.validate as jest.Mock).mockReturnValue({
         valid: true,
         errors: [],
       });
 
-      const result = await authService.register('testuser', 'test@example.com', 'Test User', 'S3cur3P@ssw0rd!');
-      
+      const result = await authService.register(
+        'testuser',
+        'test@example.com',
+        'Test User',
+        'S3cur3P@ssw0rd!'
+      );
+
       expect(result.user.email).toBe('test@example.com');
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
@@ -183,7 +218,12 @@ describe('Security - Authentication', () => {
       });
 
       await expect(
-        authService.register('testuser', 'test@example.com', 'Test User', 'SecurePass123!')
+        authService.register(
+          'testuser',
+          'test@example.com',
+          'Test User',
+          'SecurePass123!'
+        )
       ).rejects.toThrow('Email already exists');
     });
 
@@ -200,8 +240,10 @@ describe('Security - Authentication', () => {
       const authService = new AuthService();
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      const result = await authService.requestPasswordReset('nonexistent@example.com');
-      
+      const result = await authService.requestPasswordReset(
+        'nonexistent@example.com'
+      );
+
       expect(result.message).toBe(
         'If your email is registered, you will receive a password reset link.'
       );
@@ -210,17 +252,30 @@ describe('Security - Authentication', () => {
 
   describe('Session Security', () => {
     test('should generate unique session IDs', () => {
-      const tokens1 = EnhancedJWTService.createTokens('user123', 'test@example.com');
-      const tokens2 = EnhancedJWTService.createTokens('user123', 'test@example.com');
-      
+      const tokens1 = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
+      const tokens2 = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
+
       expect(tokens1.sessionId).not.toBe(tokens2.sessionId);
     });
 
     test('should include session ID in tokens', () => {
-      const tokens = EnhancedJWTService.createTokens('user123', 'test@example.com');
-      const accessDecoded = EnhancedJWTService.verifyAccessToken(tokens.accessToken);
-      const refreshDecoded = EnhancedJWTService.verifyRefreshToken(tokens.refreshToken);
-      
+      const tokens = EnhancedJWTService.createTokens(
+        'user123',
+        'test@example.com'
+      );
+      const accessDecoded = EnhancedJWTService.verifyAccessToken(
+        tokens.accessToken
+      );
+      const refreshDecoded = EnhancedJWTService.verifyRefreshToken(
+        tokens.refreshToken
+      );
+
       expect(accessDecoded?.sessionId).toBe(tokens.sessionId);
       expect(refreshDecoded?.sessionId).toBe(tokens.sessionId);
     });

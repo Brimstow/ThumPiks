@@ -6,7 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authGet, authPost, setTokenExpiration } from '../utils/api';
+import { authGet, authPost, publicPost, setTokenExpiration } from '../utils/api';
 
 interface User {
   id: string;
@@ -27,6 +27,9 @@ interface AuthContextType {
     name: string,
     username: string
   ) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (
+    email: string
+  ) => Promise<{ success: boolean; error?: string; message?: string }>;
   loading: boolean;
   isAuthenticated: boolean;
 }
@@ -102,6 +105,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const forgotPassword = async (email: string) => {
+    try {
+      const response = await publicPost('/api/auth/request-password-reset', { email });
+      const data = await response.json();
+
+      if (response.ok) {
+        return { 
+          success: true, 
+          message: data.message || 'If your email is registered, you will receive a password reset link.' 
+        };
+      } else {
+        return { success: false, error: data.error || 'Failed to send password reset email' };
+      }
+    } catch (err) {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  };
+
   const logout = async () => {
     try {
       // Call backend logout to clear HttpOnly cookies
@@ -120,6 +141,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     login,
     logout,
     register,
+    forgotPassword,
     loading,
     isAuthenticated: !!user,
   };

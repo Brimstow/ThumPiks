@@ -16,6 +16,10 @@ jest.mock('@prisma/client', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    subscription: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
   };
   return {
     PrismaClient: jest.fn(() => mockPrismaClient),
@@ -51,12 +55,19 @@ describe('AuthService', () => {
     };
 
     it('should register a new user successfully', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null); // Email doesn't exist
       mockPrisma.user.findFirst.mockResolvedValue(null); // Username doesn't exist
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed_password');
-      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(undefined);
+      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(
+        undefined
+      );
       (EnhancedJWTService.createTokens as jest.Mock).mockReturnValue({
         accessToken: 'access_token',
         refreshToken: 'refresh_token',
@@ -93,8 +104,12 @@ describe('AuthService', () => {
     });
 
     it('should reject registration with existing email', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
-      mockPrisma.user.findUnique.mockResolvedValue({ email: 'test@example.com' });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        email: 'test@example.com',
+      });
 
       await expect(
         authService.register(
@@ -112,7 +127,9 @@ describe('AuthService', () => {
     });
 
     it('should reject registration with existing username', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue({ username: 'testuser' });
 
@@ -138,12 +155,19 @@ describe('AuthService', () => {
       });
 
       await expect(
-        authService.register('ab', 'test@example.com', 'Test User', 'StrongPass123!')
+        authService.register(
+          'ab',
+          'test@example.com',
+          'Test User',
+          'StrongPass123!'
+        )
       ).rejects.toThrow('Username must be at least 3 characters');
     });
 
     it('should reject registration with weak password', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       (PasswordUtils.validate as jest.Mock).mockReturnValue({
@@ -152,13 +176,23 @@ describe('AuthService', () => {
       });
 
       await expect(
-        authService.register('testuser', 'test@example.com', 'Test User', 'weak')
+        authService.register(
+          'testuser',
+          'test@example.com',
+          'Test User',
+          'weak'
+        )
       ).rejects.toThrow('Password must be at least 8 characters');
     });
 
     it('should continue registration even if verification email fails', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed_password');
@@ -180,7 +214,12 @@ describe('AuthService', () => {
       };
       mockPrisma.user.create.mockResolvedValue(mockUser);
 
-      const result = await authService.register('testuser', 'test@example.com', 'Test User', 'Pass123!');
+      const result = await authService.register(
+        'testuser',
+        'test@example.com',
+        'Test User',
+        'Pass123!'
+      );
 
       expect(result.user.id).toBe('user-id');
       expect(logger.warn).toHaveBeenCalledWith(
@@ -190,19 +229,34 @@ describe('AuthService', () => {
     });
 
     it('should store username in lowercase', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(undefined);
+      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(
+        undefined
+      );
       (EnhancedJWTService.createTokens as jest.Mock).mockReturnValue({
         accessToken: 'token',
         refreshToken: 'refresh',
       });
-      mockPrisma.user.create.mockResolvedValue({ id: '123', username: 'testuser' });
+      mockPrisma.user.create.mockResolvedValue({
+        id: '123',
+        username: 'testuser',
+      });
 
-      await authService.register('TestUser', 'test@example.com', 'Test', 'Pass123!');
+      await authService.register(
+        'TestUser',
+        'test@example.com',
+        'Test',
+        'Pass123!'
+      );
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -214,19 +268,31 @@ describe('AuthService', () => {
     });
 
     it('should hash password with cost factor 12', async () => {
-      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({ valid: true });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (UsernameUtils.validateUsername as jest.Mock).mockResolvedValue({
+        valid: true,
+      });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
-      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(undefined);
+      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(
+        undefined
+      );
       (EnhancedJWTService.createTokens as jest.Mock).mockReturnValue({
         accessToken: 'token',
         refreshToken: 'refresh',
       });
       mockPrisma.user.create.mockResolvedValue({ id: '123' });
 
-      await authService.register('testuser', 'test@example.com', 'Test', 'Pass123!');
+      await authService.register(
+        'testuser',
+        'test@example.com',
+        'Test',
+        'Pass123!'
+      );
 
       expect(bcrypt.hash).toHaveBeenCalledWith('Pass123!', 12);
     });
@@ -284,9 +350,9 @@ describe('AuthService', () => {
     it('should reject login with non-existent user', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(authService.login('nonexistent@example.com', 'password')).rejects.toThrow(
-        'Invalid credentials'
-      );
+      await expect(
+        authService.login('nonexistent@example.com', 'password')
+      ).rejects.toThrow('Invalid credentials');
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Login attempt with non-existent identifier',
@@ -298,9 +364,9 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(authService.login('test@example.com', 'wrongpassword')).rejects.toThrow(
-        'Invalid credentials'
-      );
+      await expect(
+        authService.login('test@example.com', 'wrongpassword')
+      ).rejects.toThrow('Invalid credentials');
 
       expect(logger.warn).toHaveBeenCalledWith(
         'Login attempt with invalid password',
@@ -372,7 +438,10 @@ describe('AuthService', () => {
       };
 
       mockPrisma.user.findFirst.mockResolvedValue(mockUser);
-      mockPrisma.user.update.mockResolvedValue({ ...mockUser, isVerified: true });
+      mockPrisma.user.update.mockResolvedValue({
+        ...mockUser,
+        isVerified: true,
+      });
 
       const result = await authService.verifyEmail('valid-token');
 
@@ -413,7 +482,9 @@ describe('AuthService', () => {
 
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.user.update.mockResolvedValue(mockUser);
-      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(undefined);
+      (EmailService.sendVerificationEmail as jest.Mock).mockResolvedValue(
+        undefined
+      );
 
       const result = await authService.resendVerification('test@example.com');
 
@@ -424,7 +495,9 @@ describe('AuthService', () => {
     it('should return generic message for non-existent email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      const result = await authService.resendVerification('nonexistent@example.com');
+      const result = await authService.resendVerification(
+        'nonexistent@example.com'
+      );
 
       expect(result.message).toContain('If your email is registered');
       expect(EmailService.sendVerificationEmail).not.toHaveBeenCalled();
@@ -437,9 +510,9 @@ describe('AuthService', () => {
         isVerified: true,
       });
 
-      await expect(authService.resendVerification('test@example.com')).rejects.toThrow(
-        'Email is already verified'
-      );
+      await expect(
+        authService.resendVerification('test@example.com')
+      ).rejects.toThrow('Email is already verified');
     });
 
     it('should handle email sending failures', async () => {
@@ -454,9 +527,9 @@ describe('AuthService', () => {
         new Error('Email service down')
       );
 
-      await expect(authService.resendVerification('test@example.com')).rejects.toThrow(
-        'Failed to send verification email'
-      );
+      await expect(
+        authService.resendVerification('test@example.com')
+      ).rejects.toThrow('Failed to send verification email');
     });
   });
 
@@ -468,7 +541,9 @@ describe('AuthService', () => {
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      (EnhancedJWTService.createResetToken as jest.Mock).mockReturnValue('reset-token');
+      (EnhancedJWTService.createResetToken as jest.Mock).mockReturnValue(
+        'reset-token'
+      );
       (EmailService.sendPasswordResetEmail as jest.Mock).mockResolvedValue({
         resetToken: 'reset-token',
       });
@@ -476,13 +551,18 @@ describe('AuthService', () => {
       const result = await authService.requestPasswordReset('test@example.com');
 
       expect(result.message).toContain('If your email is registered');
-      expect(EmailService.sendPasswordResetEmail).toHaveBeenCalledWith('test@example.com', 'reset-token');
+      expect(EmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'test@example.com',
+        'reset-token'
+      );
     });
 
     it('should return generic message for non-existent email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      const result = await authService.requestPasswordReset('nonexistent@example.com');
+      const result = await authService.requestPasswordReset(
+        'nonexistent@example.com'
+      );
 
       expect(result.message).toContain('If your email is registered');
       expect(logger.info).toHaveBeenCalledWith(
@@ -492,9 +572,16 @@ describe('AuthService', () => {
     });
 
     it('should return generic message even if email sending fails', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123', email: 'test@example.com' });
-      (EnhancedJWTService.createResetToken as jest.Mock).mockReturnValue('token');
-      (EmailService.sendPasswordResetEmail as jest.Mock).mockRejectedValue(new Error('Email fail'));
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+      });
+      (EnhancedJWTService.createResetToken as jest.Mock).mockReturnValue(
+        'token'
+      );
+      (EmailService.sendPasswordResetEmail as jest.Mock).mockRejectedValue(
+        new Error('Email fail')
+      );
 
       const result = await authService.requestPasswordReset('test@example.com');
 
@@ -508,11 +595,17 @@ describe('AuthService', () => {
       (EnhancedJWTService.verifyResetToken as jest.Mock).mockReturnValue({
         userId: 'user-123',
       });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       (bcrypt.hash as jest.Mock).mockResolvedValue('new_hashed_password');
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await authService.resetPassword('valid-token', 'NewPass123!');
+      const result = await authService.resetPassword(
+        'valid-token',
+        'NewPass123!'
+      );
 
       expect(result.message).toBe('Password successfully reset');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
@@ -527,26 +620,34 @@ describe('AuthService', () => {
         errors: ['Password must be at least 8 characters'],
       });
 
-      await expect(authService.resetPassword('token', 'weakpass')).rejects.toThrow(
-        'Password must be at least 8 characters'
-      );
+      await expect(
+        authService.resetPassword('token', 'weakpass')
+      ).rejects.toThrow('Password must be at least 8 characters');
 
       // Password validation happens before token verification
       expect(EnhancedJWTService.verifyResetToken).not.toHaveBeenCalled();
     });
 
     it('should reject invalid reset token', async () => {
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       (EnhancedJWTService.verifyResetToken as jest.Mock).mockReturnValue(null);
 
-      await expect(authService.resetPassword('invalid-token', 'NewPass123!')).rejects.toThrow(
-        'Invalid or expired reset token'
-      );
+      await expect(
+        authService.resetPassword('invalid-token', 'NewPass123!')
+      ).rejects.toThrow('Invalid or expired reset token');
     });
 
     it('should hash password with cost factor 12', async () => {
-      (EnhancedJWTService.verifyResetToken as jest.Mock).mockReturnValue({ userId: 'user-123' });
-      (PasswordUtils.validate as jest.Mock).mockReturnValue({ valid: true, errors: [] });
+      (EnhancedJWTService.verifyResetToken as jest.Mock).mockReturnValue({
+        userId: 'user-123',
+      });
+      (PasswordUtils.validate as jest.Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+      });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
       mockPrisma.user.update.mockResolvedValue({});
 
@@ -585,7 +686,9 @@ describe('AuthService', () => {
     });
 
     it('should reject invalid refresh token', async () => {
-      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue(null);
+      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue(
+        null
+      );
 
       await expect(authService.refreshToken('invalid-token')).rejects.toThrow(
         'Invalid refresh token'
@@ -593,7 +696,9 @@ describe('AuthService', () => {
     });
 
     it('should reject refresh for non-existent user', async () => {
-      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue({ userId: 'user-123' });
+      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue({
+        userId: 'user-123',
+      });
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       await expect(authService.refreshToken('valid-token')).rejects.toThrow(
@@ -602,7 +707,9 @@ describe('AuthService', () => {
     });
 
     it('should reject refresh for deactivated account', async () => {
-      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue({ userId: 'user-123' });
+      (EnhancedJWTService.verifyRefreshToken as jest.Mock).mockReturnValue({
+        userId: 'user-123',
+      });
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-123',
         isActive: false,
@@ -630,9 +737,16 @@ describe('AuthService', () => {
         'john.doe',
       ]);
 
-      const result = await authService.generateUsernameSuggestions('John Doe', 'john@example.com');
+      const result = await authService.generateUsernameSuggestions(
+        'John Doe',
+        'john@example.com'
+      );
 
-      expect(result.suggestions).toEqual(['john_doe', 'johndoe123', 'john.doe']);
+      expect(result.suggestions).toEqual([
+        'john_doe',
+        'johndoe123',
+        'john.doe',
+      ]);
       expect(UsernameUtils.generateSuggestions).toHaveBeenCalledWith(
         'John Doe',
         'john@example.com'
@@ -668,7 +782,8 @@ describe('AuthService', () => {
         error: 'Username already taken',
       });
 
-      const result = await authService.checkUsernameAvailability('existinguser');
+      const result =
+        await authService.checkUsernameAvailability('existinguser');
 
       expect(result.available).toBe(false);
       expect(result.error).toBe('Username already taken');
@@ -679,9 +794,9 @@ describe('AuthService', () => {
         new Error('Validation failed')
       );
 
-      await expect(authService.checkUsernameAvailability('testuser')).rejects.toThrow(
-        'Failed to check username availability'
-      );
+      await expect(
+        authService.checkUsernameAvailability('testuser')
+      ).rejects.toThrow('Failed to check username availability');
     });
   });
 
@@ -689,7 +804,10 @@ describe('AuthService', () => {
     it('should update display preference to name', async () => {
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await authService.updateDisplayPreference('user-123', 'name');
+      const result = await authService.updateDisplayPreference(
+        'user-123',
+        'name'
+      );
 
       expect(result.message).toBe('Display preference updated successfully');
       expect(result.displayPreference).toBe('name');
@@ -702,7 +820,10 @@ describe('AuthService', () => {
     it('should update display preference to username', async () => {
       mockPrisma.user.update.mockResolvedValue({});
 
-      const result = await authService.updateDisplayPreference('user-123', 'username');
+      const result = await authService.updateDisplayPreference(
+        'user-123',
+        'username'
+      );
 
       expect(result.displayPreference).toBe('username');
     });

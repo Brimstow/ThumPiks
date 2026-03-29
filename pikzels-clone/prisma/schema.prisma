@@ -350,6 +350,8 @@ model User {
   ContactSubmission                             ContactSubmission[]  @relation("contactSubmissions")
   // Global Chat relations
   ChatSession                                   ChatSession[]
+  // Password Reset relations
+  PasswordResetToken                            PasswordResetToken[]
 }
 
 model VisionAnalysis {
@@ -502,6 +504,29 @@ model UserSession {
   @@index([lastActivity])
   @@index([sessionId])
   @@index([userId])
+}
+
+// ============================================
+// PASSWORD RESET MODELS
+// ============================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  isUsed    Boolean  @default(false)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isUsed])
+  @@index([createdAt])
 }
 
 // ============================================

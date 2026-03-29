@@ -182,3 +182,21 @@ export async function authPatch(endpoint: string, body: unknown): Promise<Respon
     body: JSON.stringify(body),
   });
 }
+
+/**
+ * Public fetch wrapper for unauthenticated endpoints (e.g., password reset)
+ * Similar to authPost but without token refresh logic
+ */
+export async function publicPost(endpoint: string, body: unknown): Promise<Response> {
+  const url = endpoint.startsWith('http')
+    ? endpoint
+    : `${config.apiBaseUrl}${endpoint}`;
+
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
