@@ -3,10 +3,12 @@
  * Comprehensive AI toolkit integrated with canvas editor
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 import { useBackendAI, type BackendAIOperation } from '../../../hooks/useBackendAI';
 import { useAIService } from '../../../hooks/useAIService';
 import { useAIToolsStore } from '../../../stores/aiToolsStore';
+import { useModelTiers } from '../../../features/ai-tools';
 import { authGet, authPost } from '../../../utils/api';
 import type { 
   AIAnalysisResult,
@@ -177,6 +179,8 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
   const { callBackendAI, isLoading, error } = useBackendAI();
   // Local AI service only for free analyze operation
   const localAI = useAIService(AI_SERVICE_CONFIG);
+  // Fetch tier config from backend (needed for capability checks)
+  const modelTiers = useModelTiers();
   
   // Persisted state from Zustand store
   const {
@@ -222,6 +226,21 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
     visionSearchResults,
     setVisionSearchResults,
   } = useAIToolsStore();
+
+  // Whether the selected tier supports 4x upscale (backend-driven capability)
+  const is4xAllowed = useMemo(() => {
+    const config = modelTiers.getConfig('upscale');
+    if (!config) return true; // fail-open while loading
+    const tier = config.tiers.find(t => t.id === selectedTier);
+    return tier?.capabilities?.maxScale === '4x';
+  }, [modelTiers, selectedTier]);
+
+  // Auto-downgrade from 4x to 2x when switching to a tier that doesn't support it
+  useEffect(() => {
+    if (!is4xAllowed && upscaleScale === 4) {
+      setUpscaleScale(2);
+    }
+  }, [is4xAllowed, upscaleScale, setUpscaleScale]);
   
   // Local transient state (doesn't need persistence)
   const [currentOperation, setCurrentOperation] = useState<BackendAIOperation | 'analyze' | null>(null);
@@ -484,7 +503,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
     try {
       const response = await authPost('/api/thumbnails/ai/decompose', {
         image: selectedImageLayer.src,
-        maxLayers: 8,
+        maxLayers: 14,
       });
       
       if (!response.ok) {
@@ -504,7 +523,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
       
       // Auto-add all layers to the canvas
       data.layers.forEach((layer: { name: string; imageBase64: string; bounds: { x: number; y: number; width: number; height: number }; score: number }, idx: number) => {
-        onAddImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`);
+        onAddImageLayer(layer.imageBase64, layer.name || `Decomposed ${idx + 1}`);
       });
     } catch (err) {
       setDecomposeError(err instanceof Error ? err.message : 'Decompose failed');
@@ -513,10 +532,12 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
     }
   }, [selectedImageLayer, onAddImageLayer]);
   
-  const handleCopyToClipboard = useCallback((text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
+  const handleCopyToClipboard = useCallback(async (text: string, field: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
   }, []);
   
   // ============================================
@@ -888,10 +909,12 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
                       2x Upscale
                     </button>
                     <button
-                      className={`ai-enhance-btn ${upscaleScale === 4 ? 'active' : ''}`}
-                      onClick={() => setUpscaleScale(4)}
+                      className={`ai-enhance-btn ${!is4xAllowed ? 'disabled' : ''} ${upscaleScale === 4 ? 'active' : ''}`}
+                      onClick={() => is4xAllowed && setUpscaleScale(4)}
+                      disabled={!is4xAllowed}
+                      title={!is4xAllowed ? '4x requires Pro tier' : undefined}
                     >
-                      4x Upscale
+                      {is4xAllowed ? '4x Upscale' : '4x (Pro tier)'}
                     </button>
                   </div>
                 </div>
@@ -1107,7 +1130,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
                     <><Icons.Layers /> Decompose into Layers</>
                   )}
                 </button>
-                <p className="ai-hint">3 credits • Detects up to 8 objects</p>
+                <p className="ai-hint">3 credits • Detects up to 14 elements</p>
                 
                 {decomposeError && (
                   <div className="ai-tools-error">
@@ -1125,7 +1148,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
                           key={idx}
                           className="ai-decompose-item"
                           onClick={() => onAddImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`)}
-                          title={`Score: ${(layer.score * 100).toFixed(0)}% • ${layer.bounds.width}×${layer.bounds.height}`}
+                          title={`Coverage: ${(layer.score * 100).toFixed(0)}% • ${layer.bounds.width}×${layer.bounds.height}`}
                         >
                           <img src={layer.imageBase64} alt={layer.name} />
                           <div className="ai-decompose-overlay">

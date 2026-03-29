@@ -153,6 +153,9 @@ interface EditorStoreActions {
   // Reset
   reset: (width?: number, height?: number) => void;
   
+  // Clear canvas (preserves dimensions/settings)
+  clearCanvas: () => void;
+  
   // Layer helpers
   addImageLayer: (src: string, name?: string, locked?: boolean) => string;
   addTextLayer: (content?: string, x?: number, y?: number) => string;
@@ -169,7 +172,7 @@ interface EditorStoreActions {
   syncFromReducer: (state: Partial<EditorStoreState>) => void;
 }
 
-type EditorStore = EditorStoreState & EditorStoreActions;
+export type EditorStore = EditorStoreState & EditorStoreActions;
 
 // ============================================
 // HELPERS
@@ -231,13 +234,14 @@ const createInitialState = (width = 1920, height = 1080): EditorStoreState => {
 };
 
 // ============================================
-// STORE
+// STORE FACTORY
 // ============================================
 
-export const useEditorStore = create<EditorStore>()(
-  persist(
-    (set, get) => ({
-      ...createInitialState(),
+export function createEditorStore(storageKey: string) {
+  return create<EditorStore>()(
+    persist(
+      (set, get) => ({
+        ...createInitialState(),
 
       // ============================================
       // LAYER OPERATIONS
@@ -576,6 +580,33 @@ export const useEditorStore = create<EditorStore>()(
       reset: (width = 1920, height = 1080) => set(createInitialState(width, height)),
 
       // ============================================
+      // CLEAR CANVAS (preserves dimensions/settings)
+      // ============================================
+
+      clearCanvas: () => {
+        const state = get();
+        const emptyLayers: Layer[] = [];
+        const emptyLayerOrder: string[] = [];
+        const emptySelection: Selection = { layerIds: [] };
+        const freshAdjustments: AdjustmentState = { ...DEFAULT_ADJUSTMENTS };
+        const initialSnapshot = createHistoryEntry('Clear canvas', emptyLayers, emptyLayerOrder, emptySelection, freshAdjustments);
+
+        set({
+          layers: emptyLayers,
+          layerOrder: emptyLayerOrder,
+          selection: emptySelection,
+          activeTool: 'select',
+          // canvas preserved (dimensions, zoom, pan, bg, grid)
+          // toolSettings preserved
+          adjustments: freshAdjustments,
+          smartSelection: { ...DEFAULT_SMART_SELECTION },
+          history: [initialSnapshot],
+          historyIndex: 0,
+          isModified: true,
+        });
+      },
+
+      // ============================================
       // EDITOR MODE
       // ============================================
 
@@ -787,10 +818,29 @@ export const useEditorStore = create<EditorStore>()(
       },
     }),
     {
-      name: 'thumpiks-editor-state',
-      storage: createJSONStorage(() => sessionStorage),
+      name: storageKey,
+      storage: createJSONStorage(() => {
+        // Wrap sessionStorage to silently swallow QuotaExceededError
+        // Large base64 layer images (decompose, generate) can exceed the 5MB quota.
+        // On overflow we skip persisting rather than crashing the editor.
+        return {
+          getItem: (name: string) => sessionStorage.getItem(name),
+          setItem: (name: string, value: string) => {
+            try {
+              sessionStorage.setItem(name, value);
+            } catch {
+              // QuotaExceededError: state too large (e.g. base64 decomposed layers).
+              // Editor remains fully functional — state lives in memory only.
+            }
+          },
+          removeItem: (name: string) => sessionStorage.removeItem(name),
+        };
+      }),
       partialize: (state) => ({
-        // Persist essential state, skip transient UI state
+        // Persist essential state only. Skip `history` — it duplicates full layer
+        // snapshots (including base64 blobs) and quickly exceeds the 5MB quota.
+        // If the payload still overflows, the try/catch on setItem silently skips
+        // persistence and the editor continues working from in-memory state.
         layers: state.layers,
         layerOrder: state.layerOrder,
         selection: state.selection,
@@ -800,7 +850,7 @@ export const useEditorStore = create<EditorStore>()(
         adjustments: state.adjustments,
         smartSelection: state.smartSelection,
         editorMode: state.editorMode,
-        history: state.history,
+        // history intentionally excluded — too large when layers contain base64
         historyIndex: state.historyIndex,
         isModified: state.isModified,
         projectId: state.projectId,
@@ -808,7 +858,18 @@ export const useEditorStore = create<EditorStore>()(
       }),
     }
   )
-);
+  );
+}
+
+// ============================================
+// STORE INSTANCES
+// ============================================
+
+/** Main editor store — used by ThumbnailStudio and MobileEditor */
+export const useEditorStore = createEditorStore('thumpiks-editor-state');
+
+/** Preset editor store — isolated state for PresetEditor */
+export const usePresetEditorStore = createEditorStore('thumpiks-preset-editor-state');
 
 // ============================================
 // SELECTORS

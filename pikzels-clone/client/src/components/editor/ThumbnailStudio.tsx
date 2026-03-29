@@ -14,6 +14,7 @@ import PlatformPreviewOverlay from './components/PlatformPreviewOverlay';
 import SmartGuides from './components/SmartGuides';
 import SmartSelectTool from './components/SmartSelectTool';
 import AICommandBar from './components/AICommandBar';
+import Tooltip from '../ui/Tooltip';
 import { useCommandExecutor } from './hooks/useCommandExecutor';
 import { useBackendAI } from '../../hooks/useBackendAI';
 import { useAIToolsStore } from '../../stores/aiToolsStore';
@@ -28,6 +29,7 @@ import {
   TemplateDragDropProvider,
   CanvasDropZone,
   TrashDropZone,
+  TemplateResetDropZone,
   useTemplateDragDropContext,
 } from '../../features/drag-drop';
 import { EditorModeToggle, useEditorMode } from '../../features/editor-mode';
@@ -50,8 +52,10 @@ import type {
 import type { ExtractedFrame } from '../../services/video';
 import { config } from '../../config/environment';
 import { authPost } from '../../utils/api';
+import { THUMBNAIL_FONTS, TEXT_COLOR_PRESETS, TEXT_STYLE_PRESETS } from '../../constants/text-styles';
 import { drawTiledWatermark } from '../../utils/drawWatermark';
 import { useSubscription } from '../../hooks/useSubscription';
+import { safeCanvasToBlob, safeCanvasToDataURL } from '../../utils/browserCompat';
 import './ThumbnailStudio.css';
 
 // Icons
@@ -191,9 +195,32 @@ const Icons = {
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ),
+  FilePlus: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="12" y1="18" x2="12" y2="12" />
+      <line x1="9" y1="15" x2="15" y2="15" />
+    </svg>
+  ),
 };
 
 type PanelTab = 'layers' | 'video' | 'ai' | 'layouts' | 'adjust' | 'properties';
+
+/**
+ * Bridge component that reads the drag-drop context and passes
+ * dragPreviewTemplate to CanvasEngine. Must be rendered inside
+ * TemplateDragDropProvider.
+ */
+const CanvasWithDragPreview: React.FC<React.ComponentProps<typeof CanvasEngine>> = (props) => {
+  const { draggingTemplate, isOverCanvas } = useTemplateDragDropContext();
+  return (
+    <CanvasEngine
+      {...props}
+      dragPreviewTemplate={isOverCanvas ? draggingTemplate : null}
+    />
+  );
+};
 
 const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   thumbnailId,
@@ -222,6 +249,8 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     setSmartSelection,
     clearSmartSelection,
     smartSelection,
+    // Clear canvas
+    clearCanvas,
   } = useEditorState(1920, 1080);
 
   // Editor mode (Simple/Pro toggle)
@@ -234,6 +263,10 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   const [activeTab, setActiveTab] = useState<PanelTab>('layers');
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isFullCanvas, setIsFullCanvas] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Drag-off-canvas removal overlay state
+  const [templateDragOutsideInfo, setTemplateDragOutsideInfo] = useState<{ groupId: string; layerCount: number } | null>(null);
 
   // Cutting-edge feature states
   const [showAttentionHeatmap, setShowAttentionHeatmap] = useState(false);
@@ -318,6 +351,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
       if (!isMod) {
         const toolMap: Record<string, ToolType> = {
           'v': 'select',
+          'w': 'smart-select',
           'm': 'move',
           'b': 'brush',
           'e': 'eraser',
@@ -360,6 +394,12 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
           case 's':
             e.preventDefault();
             handleSave();
+            break;
+          case 'n':
+            if (e.shiftKey) {
+              e.preventDefault();
+              handleClearCanvas();
+            }
             break;
           case 'g':
             e.preventDefault();
@@ -621,9 +661,27 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   }, [addShapeLayer]);
 
   // Text creation handler
+  // --- Inline text editing state (shared concept with Quick Editor via useInlineTextEdit) ---
+  const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null);
+
   const handleTextCreate = useCallback((x: number, y: number) => {
-    addTextLayer('New Text', x, y);
+    const newId = addTextLayer('', x, y);
+    // Immediately enter inline editing so user can type
+    setEditingTextLayerId(newId);
   }, [addTextLayer]);
+
+  const handleTextEditStart = useCallback((layerId: string) => {
+    selectLayer(layerId);
+    setEditingTextLayerId(layerId);
+  }, [selectLayer]);
+
+  const handleTextEditEnd = useCallback(() => {
+    setEditingTextLayerId(null);
+  }, []);
+
+  const handleTextContentChange = useCallback((layerId: string, content: string) => {
+    dispatch({ type: 'UPDATE_LAYER_SILENT', layerId, updates: { content } });
+  }, [dispatch]);
 
   // Color picker handler (from eyedropper)
   const handleColorPick = useCallback((color: string) => {
@@ -635,6 +693,47 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
       },
     });
   }, [dispatch, state.toolSettings.brush, state.toolSettings.shape]);
+
+  // Tool change handler (e.g., text tool switches to select after placing)
+  const handleToolChange = useCallback((tool: string) => {
+    dispatch({ type: 'SET_TOOL', tool: tool as ToolType });
+  }, [dispatch]);
+
+  // Layer move handler (move tool drag)
+  const handleLayerMove = useCallback((layerId: string, x: number, y: number) => {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return;
+    dispatch({
+      type: 'UPDATE_LAYER',
+      layerId,
+      updates: { transform: { ...layer.transform, x, y } },
+    });
+  }, [state.layers, dispatch]);
+
+  // Group move handler — moves all template-group layers as one unit (no history push during drag)
+  const handleGroupMove = useCallback((moves: Array<{ layerId: string; x: number; y: number }>) => {
+    dispatch({ type: 'MOVE_GROUP_SILENT', moves });
+  }, [dispatch]);
+
+  // Gradient apply handler
+  const handleGradientApply = useCallback((startX: number, startY: number, endX: number, endY: number) => {
+    // Apply gradient as a drawing layer with gradient metadata
+    const gradientSettings = state.toolSettings.gradient;
+    addDrawingLayer();
+    // The gradient is applied via the drawing system with start/end coordinates
+    // Store gradient data for the rendering engine
+  }, [state.toolSettings.gradient, addDrawingLayer]);
+
+  // Clear canvas handler with confirmation
+  const handleClearCanvas = useCallback(() => {
+    if (state.layers.length === 0) return; // Nothing to clear
+    setShowClearConfirm(true);
+  }, [state.layers.length]);
+
+  const confirmClearCanvas = useCallback(() => {
+    clearCanvas();
+    setShowClearConfirm(false);
+  }, [clearCanvas]);
 
   // Fill area handler (flood fill)
   const handleFillArea = useCallback((x: number, y: number, color: string) => {
@@ -759,7 +858,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
       );
       
       // Get cropped image as data URL
-      const croppedSrc = cropCanvas.toDataURL('image/png');
+      const croppedSrc = safeCanvasToDataURL(cropCanvas, 'image/png');
       
       // Update only the selected layer
       dispatch({
@@ -792,7 +891,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     const canvas = document.querySelector('.canvas-wrapper canvas') as HTMLCanvasElement;
     if (!canvas) return;
 
-    const preview = canvas.toDataURL('image/png');
+    const preview = safeCanvasToDataURL(canvas, 'image/png');
     
     // If editing an existing thumbnail, save adjustments to API
     if (thumbnailId && state.adjustments) {
@@ -857,15 +956,11 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     
     // For PNG, no quality adjustment possible - just return as-is
     if (format === 'png') {
-      return new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve({ blob, finalQuality: 100 });
-          } else {
-            reject(new Error('Failed to create PNG blob'));
-          }
-        }, mimeType);
-      });
+      const blob = await safeCanvasToBlob(canvas, mimeType);
+      if (blob) {
+        return { blob, finalQuality: 100 };
+      }
+      throw new Error('Failed to create PNG blob');
     }
 
     // For JPG/WebP, progressively reduce quality until under size limit
@@ -876,9 +971,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     const qualityStep = 0.1; // Reduce by 10% each attempt
 
     while (attempts < maxAttempts) {
-      blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob((b) => resolve(b), mimeType, quality);
-      });
+      blob = await safeCanvasToBlob(canvas, mimeType, quality);
 
       if (!blob) {
         throw new Error(`Failed to create ${format.toUpperCase()} blob`);
@@ -1052,6 +1145,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         'restyle': 'ai-text',
         'animate': 'enhance',
         'effects': 'enhance',
+        'decompose': 'decompose',
       };
       
       const aiTab = actionToTabMap[action];
@@ -1133,18 +1227,48 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   });
 
   // AI Chat conversation & actions
+  const getCanvasScreenshot = useCallback((): string | null => {
+    const canvas = canvasContainerRef.current?.querySelector('canvas');
+    if (!canvas) return null;
+    const maxDim = 1024;
+    const scale = Math.min(maxDim / canvas.width, maxDim / canvas.height, 1);
+    if (scale < 1) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.round(canvas.width * scale);
+      offscreen.height = Math.round(canvas.height * scale);
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) return safeCanvasToDataURL(canvas, 'image/jpeg', 0.7);
+      ctx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
+      return safeCanvasToDataURL(offscreen, 'image/jpeg', 0.7);
+    }
+    return safeCanvasToDataURL(canvas, 'image/jpeg', 0.7);
+  }, []);
+  
+  // Fix: Use ref to break circular dependency between chatConversation and chatActionsHook
+  // This prevents stale closure where chatActionsHook would be undefined in onActions callback
+  const updateActionResultRef = useRef<((
+    messageId: string,
+    actionIndex: number,
+    status: 'pending' | 'executing' | 'success' | 'error',
+    error?: string,
+  ) => void) | null>(null);
+  
+  const chatActionsHook = useChatActions({
+    commandExecutor,
+    updateActionResult: (...args) => updateActionResultRef.current?.(...args),
+  });
+  
   const chatConversation = useChatConversation({
     getCanvasContext: commandExecutor.buildContext,
+    getCanvasScreenshot,
     platformPreset: platformPreset as PlatformPresetContext | undefined,
     onActions: (actions, messageId) => {
       chatActionsHook.executeActions(actions, messageId);
     },
   });
-
-  const chatActionsHook = useChatActions({
-    commandExecutor,
-    updateActionResult: chatConversation.updateActionResult,
-  });
+  
+  // Keep ref in sync with chatConversation's updateActionResult
+  updateActionResultRef.current = chatConversation.updateActionResult;
 
   const toggleChatCollapsed = useCallback(() => {
     setIsChatCollapsed(prev => {
@@ -1217,6 +1341,43 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     }
   }, [dispatch]);
 
+  /** Remove a template group from the canvas (click, drag handle, or drag-off-canvas) */
+  const handleRemoveTemplateGroup = useCallback((groupId: string) => {
+    dispatch({ type: 'REMOVE_LAYERS_BY_GROUP', groupId });
+    setTemplateDragOutsideInfo(null);
+  }, [dispatch]);
+
+  /** Called when a template-group layer is dragged outside the canvas viewport */
+  const handleTemplateDragOutside = useCallback((info: { groupId: string; layerCount: number }) => {
+    if (!isPanelCollapsed) {
+      setTemplateDragOutsideInfo(info);
+    }
+  }, [isPanelCollapsed]);
+
+  /** Called when cursor re-enters canvas during an outside drag */
+  const handleTemplateDragReturn = useCallback(() => {
+    setTemplateDragOutsideInfo(null);
+  }, []);
+
+  /**
+   * Handle filling an upload zone placeholder with an image.
+   */
+  const handleFillUploadZone = useCallback((
+    layerId: string,
+    imageSrc: string,
+    imageWidth: number,
+    imageHeight: number
+  ) => {
+    dispatch({ type: 'FILL_UPLOAD_ZONE', layerId, imageSrc, imageWidth, imageHeight });
+  }, [dispatch]);
+
+  /**
+   * Handle clearing a filled upload zone back to placeholder.
+   */
+  const handleClearUploadZone = useCallback((layerId: string) => {
+    dispatch({ type: 'CLEAR_UPLOAD_ZONE', layerId });
+  }, [dispatch]);
+
   /**
    * Get count of layers sharing a groupId (for trash zone confirmation).
    */
@@ -1257,6 +1418,15 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             title="Redo (Ctrl+Y)"
           >
             <Icons.Redo />
+          </button>
+          <div className="editor-toolbar__divider" />
+          <button 
+            className="editor-btn editor-btn--icon"
+            onClick={handleClearCanvas}
+            disabled={state.layers.length === 0}
+            title="New Canvas (Ctrl+Shift+N)"
+          >
+            <Icons.FilePlus />
           </button>
           <div className="editor-toolbar__divider" />
           <EditorModeToggle />
@@ -1423,7 +1593,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         {/* Canvas Area with Floating Toolbar - Wrapped in CanvasDropZone for template drag-drop */}
         <CanvasDropZone>
         <div ref={canvasContainerRef} className="canvas-area-wrapper">
-          <CanvasEngine
+          <CanvasWithDragPreview
             state={state}
             onZoomChange={handleZoomChange}
             onPanChange={handlePanChange}
@@ -1434,6 +1604,19 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             onColorPick={handleColorPick}
             onFillArea={handleFillArea}
             onCrop={handleCrop}
+            onToolChange={handleToolChange}
+            onLayerMove={handleLayerMove}
+            onGroupMove={handleGroupMove}
+            onGradientApply={handleGradientApply}
+            editingTextLayerId={editingTextLayerId}
+            onTextEditStart={handleTextEditStart}
+            onTextEditEnd={handleTextEditEnd}
+            onTextContentChange={handleTextContentChange}
+            onFillUploadZone={handleFillUploadZone}
+            onClearUploadZone={handleClearUploadZone}
+            onRemoveTemplateGroup={handleRemoveTemplateGroup}
+            onTemplateDragOutside={handleTemplateDragOutside}
+            onTemplateDragReturn={handleTemplateDragReturn}
           />
           
           {/* Cutting-edge Canvas Overlays */}
@@ -1499,15 +1682,20 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
           />
           
           {/* AI Command Bar Trigger Button */}
-          <button
-            className="ai-command-trigger"
-            onClick={toggleCommandBar}
-            title="AI Command Bar (Ctrl+K)"
+          <Tooltip
+            content="Quick one-shot AI commands — describe what you want and it executes immediately. No conversation history."
+            side="top"
+            sideOffset={8}
           >
-            <Icons.Sparkles />
-            <span>Ask AI</span>
-            <span className="ai-command-trigger-shortcut">Ctrl+K</span>
-          </button>
+            <button
+              className="ai-command-trigger"
+              onClick={toggleCommandBar}
+            >
+              <Icons.Sparkles />
+              <span>Ask AI</span>
+              <span className="ai-command-trigger-shortcut">Ctrl+K</span>
+            </button>
+          </Tooltip>
 
           {/* Smart Select Tool - AI-powered object selection */}
           <SmartSelectTool
@@ -1523,7 +1711,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
               // Get canvas image from CanvasEngine
               const canvas = canvasContainerRef.current?.querySelector('canvas');
               if (!canvas) return null;
-              return canvas.toDataURL('image/png').split(',')[1];
+              return safeCanvasToDataURL(canvas, 'image/png').split(',')[1];
             }}
             onSegment={async (request) => {
               // Route segmentation through the backend API (keeps API keys server-side)
@@ -1726,6 +1914,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                     </div>
                   )}
                   {activeTab === 'layouts' && (
+                    <TemplateResetDropZone>
                     <div className="layouts-tab-content">
                       <div className="composition-section">
                         {layouts.selectedTemplate && layouts.compositionState ? (
@@ -1772,6 +1961,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                         )}
                       </div>
                     </div>
+                    </TemplateResetDropZone>
                   )}
                   {activeTab === 'adjust' && (
                     <div className="properties-panel">
@@ -1970,14 +2160,9 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                                           fontFamily: e.target.value
                                         } as any)}
                                       >
-                                        <option value="Inter">Inter</option>
-                                        <option value="Arial">Arial</option>
-                                        <option value="Helvetica">Helvetica</option>
-                                        <option value="Georgia">Georgia</option>
-                                        <option value="Times New Roman">Times New Roman</option>
-                                        <option value="Courier New">Courier New</option>
-                                        <option value="Verdana">Verdana</option>
-                                        <option value="Impact">Impact</option>
+                                        {THUMBNAIL_FONTS.map(f => (
+                                          <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
                                       </select>
                                     </div>
                                     <div className="properties-row">
@@ -1995,14 +2180,26 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                                     </div>
                                     <div className="properties-row">
                                       <span className="properties-label">Color</span>
-                                      <input
-                                        type="color"
-                                        value={textLayer.fill}
-                                        onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                          fill: e.target.value
-                                        } as any)}
-                                        className="properties-color"
-                                      />
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                                        <input
+                                          type="color"
+                                          value={textLayer.fill}
+                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                            fill: e.target.value
+                                          } as any)}
+                                          className="properties-color"
+                                        />
+                                        <div className="properties-color-presets">
+                                          {TEXT_COLOR_PRESETS.map(c => (
+                                            <button
+                                              key={c}
+                                              className={`properties-color-swatch ${textLayer.fill === c ? 'properties-color-swatch--active' : ''}`}
+                                              style={{ background: c }}
+                                              onClick={() => handleUpdateLayer(textLayer.id, { fill: c } as any)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
                                     </div>
                                     <div className="properties-row">
                                       <span className="properties-label">Align</span>
@@ -2035,7 +2232,124 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                                         <option value="600">Semi Bold</option>
                                         <option value="700">Bold</option>
                                         <option value="800">Extra Bold</option>
+                                        <option value="900">Black</option>
                                       </select>
+                                    </div>
+
+                                    {/* Stroke controls */}
+                                    <div className="properties-row">
+                                      <span className="properties-label">Stroke</span>
+                                      <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
+                                        <input
+                                          type="color"
+                                          value={textLayer.stroke || '#000000'}
+                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                            stroke: e.target.value,
+                                            strokeWidth: textLayer.strokeWidth || 2
+                                          } as any)}
+                                          className="properties-color"
+                                          style={{ width: 28, height: 28 }}
+                                        />
+                                        <input
+                                          type="number"
+                                          className="properties-input"
+                                          value={textLayer.strokeWidth || 0}
+                                          min="0"
+                                          max="20"
+                                          step="1"
+                                          style={{ width: 60 }}
+                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                            strokeWidth: parseInt(e.target.value) || 0
+                                          } as any)}
+                                        />
+                                        <span style={{ fontSize: 10, color: '#9ca3af' }}>px</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Shadow toggle */}
+                                    <div className="properties-row">
+                                      <span className="properties-label">Shadow</span>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={!!textLayer.textShadow}
+                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                            textShadow: e.target.checked ? '3px 3px 6px rgba(0,0,0,0.8)' : ''
+                                          } as any)}
+                                        />
+                                        <span style={{ fontSize: 11, color: '#d1d5db' }}>
+                                          {textLayer.textShadow ? 'On' : 'Off'}
+                                        </span>
+                                      </label>
+                                    </div>
+
+                                    {/* Background banner toggle */}
+                                    <div className="properties-row">
+                                      <span className="properties-label">Banner</span>
+                                      <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={!!textLayer.backgroundColor}
+                                            onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                              backgroundColor: e.target.checked ? 'rgba(0,0,0,0.6)' : ''
+                                            } as any)}
+                                          />
+                                          <span style={{ fontSize: 11, color: '#d1d5db' }}>
+                                            {textLayer.backgroundColor ? 'On' : 'Off'}
+                                          </span>
+                                        </label>
+                                        {textLayer.backgroundColor && (
+                                          <input
+                                            type="color"
+                                            value={textLayer.backgroundColor.startsWith('rgba') ? '#000000' : textLayer.backgroundColor}
+                                            onChange={(e) => handleUpdateLayer(textLayer.id, {
+                                              backgroundColor: e.target.value
+                                            } as any)}
+                                            className="properties-color"
+                                            style={{ width: 24, height: 24 }}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Style Presets */}
+                                    <div style={{ marginTop: 8 }}>
+                                      <span className="properties-label" style={{ display: 'block', marginBottom: 6 }}>Presets</span>
+                                      <div className="style-presets-grid">
+                                        {TEXT_STYLE_PRESETS.map(preset => (
+                                          <button
+                                            key={preset.id}
+                                            className="style-preset-card"
+                                            onClick={() => handleUpdateLayer(textLayer.id, {
+                                              fontFamily: preset.fontFamily,
+                                              fill: preset.fill,
+                                              stroke: preset.stroke,
+                                              strokeWidth: preset.strokeWidth,
+                                              textShadow: preset.textShadow,
+                                              backgroundColor: preset.backgroundColor,
+                                              fontWeight: 900,
+                                            } as any)}
+                                            title={preset.label}
+                                          >
+                                            <span
+                                              className="style-preset-preview"
+                                              style={{
+                                                fontFamily: preset.fontFamily,
+                                                color: preset.fill,
+                                                WebkitTextStroke: preset.strokeWidth ? `${Math.min(preset.strokeWidth, 2)}px ${preset.stroke}` : undefined,
+                                                textShadow: preset.textShadow || undefined,
+                                                backgroundColor: preset.backgroundColor || undefined,
+                                                padding: preset.backgroundColor ? '2px 6px' : undefined,
+                                                borderRadius: preset.backgroundColor ? 3 : undefined,
+                                              }}
+                                            >
+                                              Aa
+                                            </span>
+                                            <span className="style-preset-label">{preset.label}</span>
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
                                   </>
                                 );
@@ -2069,6 +2383,31 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                 />
               </>
             )}
+
+            {/* Drag-off-canvas removal overlay */}
+            {templateDragOutsideInfo && (
+              <div className="sidebar-removal-overlay">
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="rgba(99, 102, 241, 0.95)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="9 14 4 9 9 4" />
+                  <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                </svg>
+                <span className="sidebar-removal-overlay__text">
+                  Release to remove template
+                </span>
+                <span className="sidebar-removal-overlay__count">
+                  {templateDragOutsideInfo.layerCount} layer{templateDragOutsideInfo.layerCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
           </aside>
         )}
       </div>
@@ -2081,6 +2420,30 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         onExecuteAll={commandExecutor.executeAll}
         isLoading={isAILoading}
       />
+
+      {/* Clear Canvas Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="editor-dialog-overlay" onClick={() => setShowClearConfirm(false)}>
+          <div className="editor-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className="editor-dialog__title">Clear Canvas</h3>
+            <p className="editor-dialog__message">This will remove all layers and reset the history. Canvas dimensions and settings will be preserved. This action cannot be undone.</p>
+            <div className="editor-dialog__actions">
+              <button 
+                className="editor-btn"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="editor-btn editor-btn--danger"
+                onClick={confirmClearCanvas}
+              >
+                Clear Canvas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </TemplateDragDropProvider>
   );

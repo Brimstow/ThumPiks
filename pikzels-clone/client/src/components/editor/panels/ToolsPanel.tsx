@@ -362,6 +362,10 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
       onSettingsChange({
         brush: { ...toolSettings.brush, color }, // Fill uses brush color
       });
+    } else if (isGradientTool) {
+      onSettingsChange({
+        gradient: { ...toolSettings.gradient, colorStart: color },
+      });
     }
   };
 
@@ -369,6 +373,10 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
     if (activeTool === 'eraser') {
       onSettingsChange({
         eraser: { ...toolSettings.eraser, size },
+      });
+    } else if (activeTool === 'clone') {
+      onSettingsChange({
+        clone: { ...toolSettings.clone, size },
       });
     } else if (isDrawingTool) {
       onSettingsChange({
@@ -386,6 +394,10 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
       onSettingsChange({
         eraser: { ...toolSettings.eraser, opacity },
       });
+    } else if (activeTool === 'clone') {
+      onSettingsChange({
+        clone: { ...toolSettings.clone, opacity },
+      });
     } else if (isDrawingTool) {
       onSettingsChange({
         brush: { ...toolSettings.brush, opacity },
@@ -394,21 +406,27 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
   };
 
   // Get current color based on active tool
-  const currentColor = isShapeTool 
-    ? toolSettings.shape.fill 
-    : toolSettings.brush.color;
+  const currentColor = isGradientTool
+    ? toolSettings.gradient.colorStart
+    : isShapeTool 
+      ? toolSettings.shape.fill 
+      : toolSettings.brush.color;
   
   // Get current size based on active tool
   const currentSize = activeTool === 'eraser'
     ? toolSettings.eraser.size
-    : isDrawingTool
-      ? toolSettings.brush.size
-      : toolSettings.shape.strokeWidth;
+    : activeTool === 'clone'
+      ? toolSettings.clone.size
+      : isDrawingTool
+        ? toolSettings.brush.size
+        : toolSettings.shape.strokeWidth;
 
   // Get current opacity
   const currentOpacity = activeTool === 'eraser'
     ? toolSettings.eraser.opacity
-    : toolSettings.brush.opacity;
+    : activeTool === 'clone'
+      ? toolSettings.clone.opacity
+      : toolSettings.brush.opacity;
 
   const renderToolButton = (tool: ToolItem) => (
     <Tooltip key={tool.id} content={`${tool.label} (${tool.shortcut})`} side="right">
