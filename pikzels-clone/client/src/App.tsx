@@ -1,70 +1,96 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+  useLocation,
+} from 'react-router-dom';
+import { Provider as TooltipProvider } from '@radix-ui/react-tooltip';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import LandingPage2 from './components/LandingPage2';
+import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Eager: Landing + Auth (needed on first paint)
 import ThumPiksLanding from './components/ThumPiksLanding';
-import ThumPiksTest from './components/PikzelsTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
-import VerifyEmailSuccess from './components/auth/VerifyEmailSuccess';
-import ShadcnTest from './components/ShadcnTest';
 
-// User Components
-import Dashboard from './components/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute';
-import DashboardLayout from './components/dashboard/DashboardLayout';
-import DashboardHome from './components/dashboard/DashboardHome';
-import HelpPage from './components/dashboard/HelpPage';
-import BrandPage from './components/dashboard/BrandPage';
-import ProjectsPage from './components/dashboard/ProjectsPage';
-import ProjectDetail from './components/projects/ProjectDetail';
-import TemplatesPage from './components/dashboard/TemplatesPage';
-import AnalyticsPage from './components/dashboard/AnalyticsPage';
-import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
-import UploadsPage from './components/dashboard/UploadsPage';
-import TrendingPage from './components/dashboard/TrendingPage';
-import PricingPage from './components/dashboard/PricingPage';
-import CreditsPage from './components/dashboard/CreditsPage';
-import AIToolsPage from './components/dashboard/AIToolsPage';
-import VisionToolPage from './components/dashboard/VisionToolPage';
-import VisualSearchPage from './components/dashboard/VisualSearchPage';
-import ABTestingPage from './components/dashboard/ABTestingPage';
-import QuickEditView from './components/dashboard/QuickEditView';
-import ErrorBoundary from './components/ErrorBoundary';
-// ThumbnailEditorPage removed - legacy route now redirects to unified editor
-import BatchEditor from './components/BatchEditor';
-import CanvasEditorPage from './pages/CanvasEditorPage';
-import PresetEditorPage from './pages/PresetEditorPage';
-import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
-import UserAnalyticsDashboard from './components/AnalyticsDashboard';
-import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
-import SocialShareAnalytics from './components/SocialShareAnalytics';
-import UserSettings from './components/UserSettings';
-import CreateThumbnail from './components/CreateThumbnail';
-import AccountPage from './components/account/AccountPage';
-import SharedThumbnailPage from './components/SharedThumbnailPage';
-import AboutPage from './components/AboutPage';
-import ContactPage from './components/ContactPage';
-import PrivacyPage from './components/PrivacyPage';
-import TermsPage from './components/TermsPage';
-import FeaturesPage from './pages/FeaturesPage';
-import ReviewsPage from './pages/ReviewsPage';
-import ChangelogPage from './pages/ChangelogPage';
-import VideoEditorPage from './pages/VideoEditorPage';
-import CreatePlusPage from './pages/CreatePlusPage';
-import DemoCheckout from './components/dashboard/DemoCheckout';
+// Lazy: Auth supplementary
+const VerifyEmailSuccess = lazy(() => import('./components/auth/VerifyEmailSuccess'));
+
+// Lazy: Dashboard shell + pages
+const DashboardLayout = lazy(() => import('./components/dashboard/DashboardLayout'));
+const DashboardHome = lazy(() => import('./components/dashboard/DashboardHome'));
+const HelpPage = lazy(() => import('./components/dashboard/HelpPage'));
+const BrandPage = lazy(() => import('./components/dashboard/BrandPage'));
+const ProjectsPage = lazy(() => import('./components/dashboard/ProjectsPage'));
+const ProjectDetail = lazy(() => import('./components/projects/ProjectDetail'));
+const TemplatesPage = lazy(() => import('./components/dashboard/TemplatesPage'));
+const AnalyticsPage = lazy(() => import('./components/dashboard/AnalyticsPage'));
+const MyThumbnailsPage = lazy(() => import('./components/dashboard/MyThumbnailsPage'));
+const UploadsPage = lazy(() => import('./components/dashboard/UploadsPage'));
+const TrendingPage = lazy(() => import('./components/dashboard/TrendingPage'));
+const PricingPage = lazy(() => import('./components/dashboard/PricingPage'));
+const CreditsPage = lazy(() => import('./components/dashboard/CreditsPage'));
+const NotificationsPage = lazy(() => import('./components/notifications/NotificationsPage'));
+const AIToolsPage = lazy(() => import('./components/dashboard/AIToolsPage'));
+const VisionToolPage = lazy(() => import('./components/dashboard/VisionToolPage'));
+const VisualSearchPage = lazy(() => import('./components/dashboard/VisualSearchPage'));
+const ABTestingPage = lazy(() => import('./components/dashboard/ABTestingPage'));
+const QuickEditView = lazy(() => import('./components/dashboard/QuickEditView'));
+const AccountPage = lazy(() => import('./components/account/AccountPage'));
+const DemoCheckout = lazy(() => import('./components/dashboard/DemoCheckout'));
+
+// Lazy: Editors (heaviest components)
+const ThumbnailStudioPage = lazy(() => import('./pages/ThumbnailStudioPage'));
+const CanvasEditorPage = lazy(() => import('./pages/CanvasEditorPage'));
+const PresetEditorPage = lazy(() => import('./pages/PresetEditorPage'));
+const VideoEditorPage = lazy(() => import('./pages/VideoEditorPage'));
+const CreatePlusPage = lazy(() => import('./pages/CreatePlusPage'));
+const BatchEditor = lazy(() => import('./components/BatchEditor'));
+
+// Lazy: Analytics
+const UserAnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const AdvancedAnalyticsDashboard = lazy(() => import('./components/AdvancedAnalyticsDashboard'));
+const SocialShareAnalytics = lazy(() => import('./components/SocialShareAnalytics'));
+
+// Lazy: Static content pages
+const AboutPage = lazy(() => import('./components/AboutPage'));
+const ContactPage = lazy(() => import('./components/ContactPage'));
+const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
+const TermsPage = lazy(() => import('./components/TermsPage'));
+const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
+const ChangelogPage = lazy(() => import('./pages/ChangelogPage'));
+
+// Lazy: Misc
+const SharedThumbnailPage = lazy(() => import('./components/SharedThumbnailPage'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const ThumPiksTest = lazy(() => import('./components/PikzelsTest'));
+const ShadcnTest = lazy(() => import('./components/ShadcnTest'));
 
 // Import custom styles
 import './styles/animations.css';
 
-// Admin Components
-import AdminLogin from './components/admin/AdminLogin';
-import AdminLayout from './components/admin/AdminLayout';
-import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
-import { renderAdminRoutes } from './features/admin';
+// Suspense fallback for lazy-loaded routes
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--background, #0a0a0a)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <div style={{ width: '32px', height: '32px', border: '2px solid #2563ff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: '#888', fontSize: '14px' }}>Loading...</p>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  );
+}
+
+
 
 // Simple test component
 const TestPage = () => (
@@ -113,6 +139,97 @@ const RedirectToEditor = () => {
   return <Navigate to={`/dashboard/editor/${id}`} replace />;
 };
 
+// Scroll position storage key
+const SCROLL_POSITION_KEY = 'thumpiks-scroll-positions';
+const LANDING_PAGE_PATH = '/';
+
+// Save scroll position for a path
+function saveScrollPosition(path: string, position: number) {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    positions[path] = position;
+    sessionStorage.setItem(SCROLL_POSITION_KEY, JSON.stringify(positions));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Get scroll position for a path
+function getScrollPosition(path: string): number {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    return positions[path] || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Clear scroll position for a path
+function clearScrollPosition(path: string) {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    delete positions[path];
+    sessionStorage.setItem(SCROLL_POSITION_KEY, JSON.stringify(positions));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// ScrollManager - handles scroll behavior for navigation
+function ScrollManager() {
+  const { pathname } = useLocation();
+  const lastPathRef = useRef<string>(pathname);
+  const isFirstRenderRef = useRef(true);
+
+  // Track scroll position on landing page
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.location.pathname === LANDING_PAGE_PATH) {
+        saveScrollPosition(LANDING_PAGE_PATH, window.scrollY);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Handle scroll behavior on route changes
+  useLayoutEffect(() => {
+    // Always scroll to top on initial app load
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+      lastPathRef.current = pathname;
+      return;
+    }
+
+    const previousPath = lastPathRef.current;
+    lastPathRef.current = pathname;
+
+    // If navigating back to landing page, restore scroll position
+    if (pathname === LANDING_PAGE_PATH) {
+      const savedPosition = getScrollPosition(LANDING_PAGE_PATH);
+      // Use setTimeout for Firefox compatibility
+      setTimeout(() => {
+        window.scrollTo({ top: savedPosition, left: 0, behavior: 'instant' as ScrollBehavior });
+      }, 0);
+    } else {
+      // For all other navigation, scroll to top immediately
+      // Use setTimeout for Firefox compatibility
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+      }, 0);
+    }
+  }, [pathname]);
+
+  // Set scroll restoration to manual to prevent browser interference
+  useEffect(() => {
+    window.history.scrollRestoration = 'manual';
+  }, []);
+
+  return null;
+}
+
 function App() {
   useEffect(() => {
     console.log('🚀 App component mounted successfully!');
@@ -120,13 +237,15 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ScrollManager />
+      <TooltipProvider delayDuration={300}>
       <ThemeProvider>
         <AuthProvider>
           <div className="App">
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<ThumPiksLanding />} />
-              <Route path="/landing2" element={<LandingPage2 />} />
               <Route path="/thumpiks" element={<ThumPiksLanding />} />
               <Route path="/test-thumpiks" element={<ThumPiksTest />} />
               <Route path="/login" element={<Login />} />
@@ -136,10 +255,7 @@ function App() {
                 path="/reset-password/:token"
                 element={<ResetPassword />}
               />
-              <Route
-                path="/reset-password"
-                element={<ResetPassword />}
-              />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/verify-email/:token"
                 element={<VerifyEmailSuccess />}
@@ -153,13 +269,16 @@ function App() {
               <Route path="/features" element={<FeaturesPage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/changelog" element={<ChangelogPage />} />
-              
+
               {/* Demo Checkout (Development Only) */}
-              <Route path="/demo-checkout" element={
-                <ProtectedRoute>
-                  <DemoCheckout />
-                </ProtectedRoute>
-              } />
+              <Route
+                path="/demo-checkout"
+                element={
+                  <ProtectedRoute>
+                    <DemoCheckout />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Shared Content Routes (No Auth Required) */}
               <Route path="/shared/:token" element={<SharedThumbnailPage />} />
@@ -187,21 +306,60 @@ function App() {
                 <Route path="editor" element={<ThumbnailStudioPage />} />
                 <Route path="editor/:id" element={<ThumbnailStudioPage />} />
                 <Route path="brand" element={<BrandPage />} />
-                <Route path="ai-tools" element={<ErrorBoundary><AIToolsPage /></ErrorBoundary>} />
-                <Route path="vision" element={<ErrorBoundary><VisionToolPage /></ErrorBoundary>} />
-                <Route path="visual-search" element={<ErrorBoundary><VisualSearchPage /></ErrorBoundary>} />
-                <Route path="ab-testing" element={<ErrorBoundary><ABTestingPage /></ErrorBoundary>} />
+                <Route
+                  path="ai-tools"
+                  element={
+                    <ErrorBoundary>
+                      <AIToolsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="vision"
+                  element={
+                    <ErrorBoundary>
+                      <VisionToolPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="visual-search"
+                  element={
+                    <ErrorBoundary>
+                      <VisualSearchPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="ab-testing"
+                  element={
+                    <ErrorBoundary>
+                      <ABTestingPage />
+                    </ErrorBoundary>
+                  }
+                />
                 <Route path="trending" element={<TrendingPage />} />
-                <Route path="settings" element={<UserSettings />} />
+                <Route path="settings" element={<Navigate to="/dashboard/account/settings" replace />} />
                 <Route path="help" element={<HelpPage />} />
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="credits" element={<CreditsPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="account" element={<AccountPage />} />
                 <Route path="account/:section" element={<AccountPage />} />
                 <Route path="video-editor" element={<VideoEditorPage />} />
                 <Route path="create-plus" element={<CreatePlusPage />} />
-                <Route path="create-plus/:presetId" element={<PresetEditorPage />} />
-                <Route path="quick-edit" element={<ErrorBoundary><QuickEditView /></ErrorBoundary>} />
+                <Route
+                  path="create-plus/:presetId"
+                  element={<PresetEditorPage />}
+                />
+                <Route
+                  path="quick-edit"
+                  element={
+                    <ErrorBoundary>
+                      <QuickEditView />
+                    </ErrorBoundary>
+                  }
+                />
               </Route>
 
               {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}
@@ -317,33 +475,14 @@ function App() {
               {/* User Management Routes */}
               <Route
                 path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <UserSettings />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/dashboard/account/settings" replace />}
               />
               <Route
                 path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <UserSettings />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/dashboard/account/profile" replace />}
               />
 
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route
-                path="/admin"
-                element={
-                  <AdminProtectedRoute>
-                    <AdminLayout />
-                  </AdminProtectedRoute>
-                }
-              >
-                {renderAdminRoutes()}
-              </Route>
+              {/* Admin is a separate app at /admin/index.html */}
 
               {/* Test pages - Development Only */}
               <Route path="/test" element={<TestPage />} />
@@ -353,9 +492,11 @@ function App() {
               {/* Catch-all - Redirect to Landing Page */}
               <Route path="*" element={<ThumPiksLanding />} />
             </Routes>
+            </Suspense>
           </div>
         </AuthProvider>
       </ThemeProvider>
+      </TooltipProvider>
     </Router>
   );
 }
