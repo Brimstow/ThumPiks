@@ -2,6 +2,7 @@ import { getPrisma } from '../../utils/prisma-factory';
 import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import bcrypt from 'bcryptjs';
+import { EmailService } from './email.service';
 
 const prisma = getPrisma();
 
@@ -111,11 +112,28 @@ export class PasswordResetService {
         ipAddress,
       });
 
+      // Send password reset email
+      try {
+        await EmailService.sendPasswordResetEmail(email, token);
+      } catch (emailError: any) {
+        logger.error(
+          'Failed to send password reset email',
+          emailError instanceof Error
+            ? emailError
+            : new Error(String(emailError)),
+          {
+            userId: user.id,
+            email,
+          }
+        );
+        // Don't expose email sending failure to user for security
+        // But we should still return success to prevent email enumeration
+      }
+
       return {
         success: true,
         message:
           'If your email is registered, you will receive a password reset link.',
-        token, // Return token for email service to use
       };
     } catch (error: any) {
       logger.error('Password reset request failed', error, {
