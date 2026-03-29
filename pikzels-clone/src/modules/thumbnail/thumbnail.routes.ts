@@ -34,8 +34,10 @@ import {
   getDeletedThumbnails,
   restoreThumbnail,
   hardDeleteThumbnail,
+  cleanupExpiredOriginalsHandler,
 } from './thumbnail.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { authenticateAdmin } from '../admin/admin-auth.middleware';
 import {
   cacheMiddleware,
   invalidateCacheMiddleware,
@@ -43,6 +45,7 @@ import {
 import {
   userApiRateLimit,
   userAiRateLimit,
+  creditGenerationRateLimit,
 } from '../../middleware/security.middleware';
 import { CacheKeys } from '../../services/cache.service';
 import { getReplicateQueue } from './replicate-queue.service';
@@ -66,6 +69,8 @@ router.post(
 
 router.post(
   '/generate',
+  creditGenerationRateLimit, // Strict per-user limit: 10/min (credit-deducting endpoint)
+  userAiRateLimit,           // Broader AI limit: 30/15min per user
   invalidateCacheMiddleware([
     `api:*:/thumbnails:*`,
     CacheKeys.userThumbnails('*'),
@@ -317,5 +322,8 @@ router.get('/ai/job/:jobId', async (req, res) => {
     return res.status(500).json({ error: 'Failed to get job status' });
   }
 });
+
+// Admin: cleanup expired clean originals (45-day TTL)
+router.post('/cleanup-expired-originals', authenticateAdmin, cleanupExpiredOriginalsHandler);
 
 export default router;

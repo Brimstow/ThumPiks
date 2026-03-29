@@ -20,6 +20,9 @@ import * as crypto from 'crypto';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
 import { systemMonitoringService } from '../admin/system-monitoring.service';
 import { isZodError } from '../../utils/json-validation';
+import { watermarkImageUrls, shouldApplyWatermark, getWatermarkFreeStatus, consumeWatermarkFreeExport, cleanupExpiredOriginals, isCleanOriginalExpired } from './watermark.service';
+import { getCurrentSubscription } from '../subscription/subscription.service';
+import { getService } from '../../utils/service-factory';
 
 // Single source of truth for valid thumbnail styles
 const VALID_STYLES = [
@@ -164,7 +167,7 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, imageUrl, prompt, parameters, projectId } = req.body;
+    const { title, imageUrl, prompt, parameters, projectId, originalImageUrl, originalPublicId } = req.body;
 
     // Validate required fields — prompt is optional for non-AI flows
     if (!title || !projectId) {
@@ -180,6 +183,8 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       parameters: parameters || {},
       projectId,
       userId: req.user.id,
+      ...(originalImageUrl && { originalImageUrl }),
+      ...(originalPublicId && { originalPublicId }),
     });
 
     return res.status(201).json({ thumbnail });
@@ -422,6 +427,38 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     const { prompt, style, projectId, videoUrl, includeFace, tier, model } =
       req.body;
 
+    // Validate videoUrl if provided — prevent SSRF by enforcing known platform URLs
+    if (videoUrl) {
+      const allowedPatterns = [
+        /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/i,
+        /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i,
+        /^https?:\/\/(www\.)?instagram\.com\/(p|reel|reels)\//i,
+        /^https?:\/\/(www\.)?(twitter|x)\.com\//i,
+        /^https?:\/\/(www\.)?twitch\.tv\//i,
+        /^https?:\/\/(www\.)?vimeo\.com\//i,
+      ];
+      const isValidUrl = allowedPatterns.some(p => p.test(videoUrl));
+      if (!isValidUrl) {
+        return res.status(400).json({
+          error: 'Invalid video URL. Only YouTube, TikTok, Instagram, Twitter, Twitch and Vimeo links are supported.',
+        });
+      }
+    }
+
+    // Credit check & deduction - 1 credit for video URL generation
+    const creditCost = 1;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      'Thumbnail generation from video URL'
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
     // Handle YouTube video URL generation
     if (videoUrl) {
       try {
@@ -479,18 +516,30 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           videoId: videoInfo.videoId,
         });
 
+        // Notify user of successful video thumbnail generation (fire-and-forget)
+        const videoRouter = getService('notificationRouter');
+        videoRouter.routeToUser(req.user.id, {
+          type: 'thumbnail_ready',
+          title: 'Video Thumbnail Ready',
+          message: `Thumbnail generated from video: ${videoInfo.title.substring(0, 50)}`,
+          priority: 'normal',
+          actionUrl: `/dashboard/projects/${projectId || defaultProject.id}`,
+        }).catch(() => {});
+
         return res.status(201).json({
-          success: true,
-          thumbnailId: thumbnail.id,
           thumbnailUrl: thumbnail.imageUrl,
+          creditCost,
           message: 'Thumbnail generated successfully from video',
           thumbnail,
         });
       } catch (videoError) {
+        // Refund credits on failure
+        await refundCredits(req.user.id, creditCost, 'Video URL generation failed');
         console.error('Error processing video URL:', videoError);
         return res.status(400).json({
           success: false,
           error: 'Failed to process video URL',
+          creditRefunded: true,
           message:
             videoError instanceof Error
               ? videoError.message
@@ -617,6 +666,17 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails.push(thumbnail);
         }
 
+        // Notify user of successful generation (fire-and-forget)
+        const router = getService('notificationRouter');
+        router.routeToUser(req.user.id, {
+          type: 'thumbnail_ready',
+          title: 'Thumbnails Ready',
+          message: `${thumbnails.length} thumbnail${thumbnails.length === 1 ? '' : 's'} generated successfully.`,
+          priority: 'normal',
+          actionUrl: `/dashboard/projects/${validProjectId}`,
+          metadata: { count: thumbnails.length, projectId: validProjectId },
+        }).catch(() => {});
+
         return res.status(201).json({
           message: 'Thumbnails generated successfully with AI',
           thumbnails,
@@ -631,6 +691,9 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           aiError
         );
 
+        // Refund credits since AI generation failed
+        await refundCredits(req.user.id, creditCost, 'AI generation failed - placeholder fallback');
+
         // Log to admin monitoring system for tracking
         await systemMonitoringService.logError(
           'error',
@@ -642,6 +705,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             style: style || 'bold',
             endpoint: 'generateThumbnails',
             fallbackUsed: 'placeholder',
+            creditsRefunded: creditCost,
           }
         );
 
@@ -667,17 +731,31 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails.push(thumbnail);
         }
 
+        // Notify user of generation failure (fire-and-forget)
+        const failRouter = getService('notificationRouter');
+        failRouter.routeToUser(req.user.id, {
+          type: 'thumbnail_failed',
+          title: 'Thumbnail Generation Failed',
+          message: 'AI generation failed. Your credits have been refunded. Please try again.',
+          priority: 'high',
+          actionUrl: `/dashboard/projects/${validProjectId}`,
+        }).catch(() => {});
+
         return res.status(201).json({
           message:
             'We could not generate AI images at this time. Placeholder images have been created instead.',
           thumbnails,
           aiError: errorMessage,
           aiErrorCode: 'AI_GENERATION_FAILED',
+          creditRefunded: true,
           userAction:
             'Please try again later or contact support if the issue persists.',
         });
       }
     } else {
+      // Refund credits since AI service is not configured
+      await refundCredits(req.user.id, creditCost, 'AI service not configured');
+
       // Log to admin monitoring - AI service not configured is a critical setup issue
       await systemMonitoringService.logError(
         'critical',
@@ -689,6 +767,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           endpoint: 'generateThumbnails',
           fallbackUsed: 'placeholder',
           configIssue: 'OPENROUTER_API_KEY not set',
+          creditsRefunded: creditCost,
         }
       );
 
@@ -720,6 +799,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         thumbnails,
         aiNotConfigured: true,
         aiErrorCode: 'AI_SERVICE_UNAVAILABLE',
+        creditRefunded: true,
         userAction: 'Please try again later. Our team has been notified.',
       });
     }
@@ -757,10 +837,30 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
       downloadType: 'direct',
     });
 
+    // Determine if free-tier watermark should be applied
+    const subscription = await getCurrentSubscription(req.user.id);
+    const planType = subscription?.planType || 'free';
+    const needsWatermark = shouldApplyWatermark(planType);
+
+    // Check watermark-free export availability for free users
+    let watermarkFreeRemaining = 0;
+    let cleanOriginalUrl: string | null = null;
+    if (needsWatermark) {
+      const wmStatus = await getWatermarkFreeStatus(req.user.id);
+      watermarkFreeRemaining = wmStatus.remaining;
+      // Provide clean original if available and not expired
+      if (thumbnail.originalImageUrl && !isCleanOriginalExpired(thumbnail.createdAt)) {
+        cleanOriginalUrl = thumbnail.originalImageUrl;
+      }
+    }
+
     // Download logic here - normally would serve file
     return res.status(200).json({
       downloadUrl: `/api/thumbnails/${id}/file`,
       message: 'Download started',
+      watermarked: needsWatermark,
+      watermarkFreeRemaining,
+      cleanOriginalUrl,
     });
   } catch (error) {
     console.error('Error downloading thumbnail:', error);
@@ -776,7 +876,7 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     }
 
     const id = req.params.id as string;
-    const { edits } = req.body;
+    const { edits, watermarkFree } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
@@ -798,11 +898,35 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     try {
       // Only process if there are actual edits
       if (edits && Object.keys(edits).length > 0) {
+        // Check if free-tier watermark should be baked into the processed image
+        const subscription = await getCurrentSubscription(req.user.id);
+        const planType = subscription?.planType || 'free';
+        let needsWatermark = shouldApplyWatermark(planType);
+
+        // If user requests watermark-free and has quota, skip the watermark
+        if (needsWatermark && watermarkFree) {
+          const wmResult = await consumeWatermarkFreeExport(req.user.id);
+          if (wmResult.success) {
+            needsWatermark = false;
+          } else {
+            return res.status(403).json({
+              error: 'No watermark-free exports remaining this month',
+              remaining: wmResult.remaining,
+            });
+          }
+        }
+
+        // Use clean original as source if available and user is getting watermark-free
+        const sourceImageUrl = (!needsWatermark && thumbnail.originalImageUrl && !isCleanOriginalExpired(thumbnail.createdAt))
+          ? thumbnail.originalImageUrl
+          : thumbnail.imageUrl;
+
         const processedImagePath =
           await getImageProcessingService().applyEditsToImage(
-            thumbnail.imageUrl,
+            sourceImageUrl,
             edits,
-            id
+            id,
+            { applyFreemiumWatermark: needsWatermark }
           );
         processedImageUrl =
           getImageProcessingService().getProcessedImageUrl(processedImagePath);
@@ -1273,9 +1397,13 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
         promptLength: prompt.length,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
       });
     } catch (apiError) {
@@ -1392,9 +1520,13 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
         provider,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         provider,
       });
@@ -1481,9 +1613,13 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
         model,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
       });
     } catch (apiError) {
@@ -1589,9 +1725,13 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
         provider,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         scale,
         provider,
@@ -1686,9 +1826,13 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
         { model, backgroundColor, provider }
       );
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         provider,
       });
@@ -1770,9 +1914,13 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
         enhancementType,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         enhancementType,
       });
@@ -2087,9 +2235,12 @@ export const aiExpand = async (req: AuthRequest, res: Response) => {
         hasPrompt: !!prompt,
       });
 
+      const wmResult = await watermarkImageUrls(req.user.id, [resultUrl]);
+
       return res.status(200).json({
         success: true,
-        images: [resultUrl],
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         direction,
         expandPixels: pixels,
@@ -2484,6 +2635,20 @@ export const getAIToolModels = async (_req: Request, res: Response) => {
     return res.status(200).json(response);
   } catch (error) {
     console.error('Error fetching AI tool models:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Admin: cleanup expired clean originals (45-day TTL)
+export const cleanupExpiredOriginalsHandler = async (_req: Request, res: Response) => {
+  try {
+    const cleaned = await cleanupExpiredOriginals();
+    return res.status(200).json({
+      success: true,
+      cleaned,
+    });
+  } catch (error) {
+    console.error('Error cleaning up expired originals:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { getStorageService } from '../storage';
+import { applyFreemiumWatermark } from './watermark.service';
 
 // Local fallback directory (used when Cloudinary unavailable)
 const processedImagesDir = path.join(__dirname, '../../../processed-images');
@@ -73,7 +74,8 @@ export class ImageProcessingService {
   async applyEditsToImage(
     imageUrl: string,
     edits: any,
-    thumbnailId: string
+    thumbnailId: string,
+    options?: { applyFreemiumWatermark?: boolean }
   ): Promise<string> {
     try {
       // For placeholder images, we'll need to download them first
@@ -295,7 +297,12 @@ export class ImageProcessingService {
       }
 
       // Convert to buffer for upload
-      const processedBuffer = await processedImage.png().toBuffer();
+      let processedBuffer = await processedImage.png().toBuffer();
+
+      // Apply freemium watermark as the very last step (after all edits)
+      if (options?.applyFreemiumWatermark) {
+        processedBuffer = await applyFreemiumWatermark(processedBuffer);
+      }
 
       // Try Cloudinary upload first, fall back to local storage
       try {

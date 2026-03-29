@@ -7,7 +7,9 @@
 
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { authPost } from '../utils/api';
+import { optimisticDeductCredits, rollbackCredits } from './useCredits';
 import type {
   ImageAction,
   ActionResult,
@@ -24,6 +26,7 @@ import type { VisionAnalysisResult } from '../types/vision.types';
 
 export function useImageActions(): UseImageActionsReturn {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [isLoading, setIsLoading] = useState<Record<ImageAction, boolean>>({
     save: false,
@@ -63,6 +66,8 @@ export function useImageActions(): UseImageActionsReturn {
         platform: metadata?.platform || 'youtube',
         videoId: metadata?.videoId,
         sourceUrl: metadata?.sourceUrl,
+        originalImageUrl: metadata?.originalImageUrl,
+        originalPublicId: metadata?.originalPublicId,
         parameters: {
           platform: metadata?.platform || 'youtube',
           source: metadata?.source || 'image-action-bar',
@@ -166,6 +171,12 @@ export function useImageActions(): UseImageActionsReturn {
     setLoadingState('regenerate', true);
     setError(null);
 
+    // Determine credit cost based on tier
+    const creditCost = settings.tier === 'flash' ? 1 : settings.tier === 'quality' ? 2 : 1;
+    
+    // Optimistically deduct credits for instant UI feedback
+    const { previousData } = optimisticDeductCredits(queryClient, creditCost);
+
     try {
       const toolType = settings.toolType || 'generate';
       let endpoint = '/api/thumbnails/ai/generate';
@@ -249,6 +260,9 @@ export function useImageActions(): UseImageActionsReturn {
         },
       };
     } catch (err) {
+      // Rollback credits on failure
+      rollbackCredits(queryClient, previousData);
+      
       const message = err instanceof Error ? err.message : 'Failed to regenerate';
       setError(message);
       return {
