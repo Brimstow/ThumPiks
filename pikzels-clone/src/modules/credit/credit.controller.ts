@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as creditService from './credit.service';
 import { logger } from '../../utils/logger';
+import { BillingError } from '../billing/billing-provider.interface';
 
 /**
  * Get credit transaction history
@@ -74,7 +75,15 @@ export async function purchaseCreditPack(
 
     res.status(200).json({ url: checkoutUrl });
   } catch (error) {
+    // Log full error details for debugging
     logger.error('Failed to create credit pack checkout', error as Error);
+
+    // Return user-friendly message if it's a BillingError, otherwise generic
+    if (error instanceof BillingError) {
+      res.status(500).json({ error: error.userMessage || error.message });
+      return;
+    }
+
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 }

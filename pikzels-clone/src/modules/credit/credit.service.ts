@@ -7,37 +7,13 @@
 import { getBillingProvider } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { CREDIT_PACKS, type CreditPack } from '../subscription/subscription.config';
+import { getService } from '../../utils/service-factory';
 
 const prisma = getPrisma();
 
-// Credit pack definitions (matching frontend)
-export interface CreditPack {
-  id: string;
-  name: string;
-  credits: number;
-  price: number; // in dollars
-}
-
-export const CREDIT_PACKS: CreditPack[] = [
-  {
-    id: 'pack_500',
-    name: 'Boost Pack',
-    credits: 500,
-    price: 12,
-  },
-  {
-    id: 'pack_2000',
-    name: 'Power Pack',
-    credits: 2000,
-    price: 39,
-  },
-  {
-    id: 'pack_6000',
-    name: 'Ultra Pack',
-    credits: 6000,
-    price: 99,
-  },
-];
+// Re-export for backward compatibility
+export { CREDIT_PACKS, type CreditPack };
 
 /**
  * Get credit transactions for a user
@@ -181,6 +157,17 @@ export async function addPurchasedCredits(
       provider,
       paymentId,
     });
+
+    // Notify user of successful credit purchase (fire-and-forget)
+    const router = getService('notificationRouter');
+    router.routeToUser(userId, {
+      type: 'credits_purchased',
+      title: 'Credits Added',
+      message: `${pack.credits} credits from ${pack.name} have been added to your account.`,
+      priority: 'normal',
+      actionUrl: '/dashboard/credits',
+      metadata: { packId, credits: pack.credits },
+    }).catch(() => {});
   } catch (error) {
     logger.error('Failed to add purchased credits', error as Error, {
       userId,
@@ -192,6 +179,7 @@ export async function addPurchasedCredits(
 
 /**
  * Deduct credits with transaction logging
+ * Uses plan credits first, then add-on credits
  * Used when user generates a thumbnail
  */
 export async function deductCredits(
@@ -210,29 +198,78 @@ export async function deductCredits(
       throw new Error('No subscription found');
     }
 
-    if (subscription.creditsBalance < amount) {
+    // Calculate available credits
+    const planCreditsAvailable = subscription.creditsBalance;
+    const addonCreditsAvailable = subscription.addonCreditsBalance;
+    const totalAvailable = planCreditsAvailable + addonCreditsAvailable;
+
+    if (totalAvailable < amount) {
       return false; // Insufficient credits
     }
 
-    // Deduct credits and create transaction
+    // Determine how much to deduct from each pool
+    // Priority: Plan credits first (they expire), then add-on credits
+    let planCreditsToDeduct = Math.min(planCreditsAvailable, amount);
+    let addonCreditsToDeduct = amount - planCreditsToDeduct;
+
+    // Update subscription with deductions
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
-        creditsBalance: { decrement: amount },
-        creditsUsed: { increment: amount },
+        creditsBalance: { decrement: planCreditsToDeduct },
+        creditsUsed: { increment: planCreditsToDeduct },
+        addonCreditsBalance: { decrement: addonCreditsToDeduct },
+        addonCreditsUsed: { increment: addonCreditsToDeduct },
       },
     });
 
+    // Create transaction record
     await prisma.creditTransaction.create({
       data: {
         userId,
         type: 'usage',
         amount: -amount, // Negative for deductions
         description,
+        balanceBefore: totalAvailable,
+        balanceAfter: totalAvailable - amount,
       },
     });
 
-    logger.info('Credits deducted', { userId, amount, description });
+    logger.info('Credits deducted', {
+      userId,
+      amount,
+      planCreditsDeducted: planCreditsToDeduct,
+      addonCreditsDeducted: addonCreditsToDeduct,
+      description,
+    });
+
+    // Check for low/depleted credits and notify (fire-and-forget, deduplicated)
+    const remaining = totalAvailable - amount;
+    if (remaining === 0) {
+      const router = getService('notificationRouter');
+      router.routeToUser(userId, {
+        type: 'credits_depleted',
+        title: 'Credits Depleted',
+        message: 'You have no credits remaining. Purchase more to continue generating thumbnails.',
+        priority: 'high',
+        actionUrl: '/dashboard/credits',
+      }).catch(() => {});
+    } else if (remaining <= 5) {
+      const { getUserNotificationService } = await import('../user-notification/user-notification.service');
+      const hasDupe = await getUserNotificationService().hasDuplicate(userId, 'credits_low', 24 * 60 * 60 * 1000);
+      if (!hasDupe) {
+        const router = getService('notificationRouter');
+        router.routeToUser(userId, {
+          type: 'credits_low',
+          title: 'Credits Running Low',
+          message: `You have only ${remaining} credit${remaining === 1 ? '' : 's'} remaining.`,
+          priority: 'normal',
+          actionUrl: '/dashboard/credits',
+          metadata: { remaining },
+        }).catch(() => {});
+      }
+    }
+
     return true;
   } catch (error) {
     logger.error('Failed to deduct credits', error as Error, {
