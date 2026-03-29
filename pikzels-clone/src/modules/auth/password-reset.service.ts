@@ -2,7 +2,7 @@ import { getPrisma } from '../../utils/prisma-factory';
 import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import bcrypt from 'bcryptjs';
-import { EmailService } from './email.service';
+import { EmailService } from '../email/email.service';
 
 const prisma = getPrisma();
 
@@ -114,7 +114,7 @@ export class PasswordResetService {
 
       // Send password reset email
       try {
-        await EmailService.sendPasswordResetEmail(email, token);
+        await EmailService.sendPasswordResetEmail(email, token, user.id);
       } catch (emailError: any) {
         logger.error(
           'Failed to send password reset email',

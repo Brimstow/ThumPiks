@@ -21,6 +21,7 @@ import { authenticate } from '../../middleware/auth.middleware';
 import { OAuthService } from './oauth.service';
 import { isProductionLike } from '../../utils/env';
 import { logger } from '../../utils/logger';
+import { EmailService } from '../email/email.service';
 
 const router = Router();
 
@@ -347,5 +348,36 @@ router.get(
     }
   }
 );
+
+/**
+ * POST /api/auth/webhooks/resend
+ * Handle Resend webhook events (bounces, deliveries, complaints)
+ */
+router.post('/webhooks/resend', async (req, res) => {
+  try {
+    const { type, email, messageId, reason, bounceType } = req.body;
+
+    logger.info('Received Resend webhook', {
+      type,
+      email,
+      messageId,
+    });
+
+    await EmailService.handleWebhook({
+      type,
+      email,
+      messageId,
+      reason,
+      bounceType,
+    });
+
+    // Always return 200 to acknowledge receipt
+    res.status(200).json({ received: true });
+  } catch (error) {
+    logger.error('Error processing Resend webhook', error as Error);
+    // Still return 200 to prevent Resend from retrying
+    res.status(200).json({ received: true });
+  }
+});
 
 export default router;

@@ -1,4 +1,23 @@
-import { EmailService } from '../email.service';
+// Mock Prisma first (before importing EmailService)
+const mockEmailLogCreate = jest.fn();
+const mockEmailLogUpdate = jest.fn();
+const mockEmailLogUpdateMany = jest.fn();
+const mockEmailLogFindFirst = jest.fn();
+const mockEmailLogCount = jest.fn();
+
+jest.mock('../../../utils/prisma-factory', () => ({
+  getPrisma: jest.fn(() => ({
+    emailLog: {
+      create: mockEmailLogCreate,
+      update: mockEmailLogUpdate,
+      updateMany: mockEmailLogUpdateMany,
+      findFirst: mockEmailLogFindFirst,
+      count: mockEmailLogCount,
+    },
+  })),
+}));
+
+import { EmailService } from '../../email/email.service';
 
 // Mock Resend
 const mockSend = jest.fn();
@@ -24,6 +43,17 @@ describe('EmailService', () => {
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
     // Reset mock send function
     mockSend.mockReset();
+    // Reset Prisma mocks
+    mockEmailLogCreate.mockReset();
+    mockEmailLogUpdate.mockReset();
+    mockEmailLogUpdateMany.mockReset();
+    mockEmailLogFindFirst.mockReset();
+    mockEmailLogCount.mockReset();
+    
+    // Default mock implementations
+    mockEmailLogCreate.mockResolvedValue({ id: 'log-id-123' });
+    mockEmailLogUpdate.mockResolvedValue({});
+    mockEmailLogUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   afterEach(() => {
@@ -67,7 +97,7 @@ describe('EmailService', () => {
       expect(callArgs.html).toContain('Password Reset Request');
     });
 
-    it('should throw error when Resend returns an error', async () => {
+    it('should return error when Resend returns an error', async () => {
       const email = 'user@example.com';
       const resetToken = 'mock-token';
 
@@ -76,98 +106,134 @@ describe('EmailService', () => {
         error: { message: 'Invalid API key' },
       });
 
-      await expect(
-        EmailService.sendPasswordResetEmail(email, resetToken)
-      ).rejects.toThrow('Failed to send email');
+      const result = await EmailService.sendPasswordResetEmail(email, resetToken);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid API key');
     });
 
-    it('should throw error when RESEND_API_KEY is not configured', async () => {
+    it('should return error when RESEND_API_KEY is not configured', async () => {
       const originalKey = process.env.RESEND_API_KEY;
       delete process.env.RESEND_API_KEY;
 
       // Need to re-import to trigger the lazy initialization check
       jest.resetModules();
       const { EmailService: EmailServiceNoKey } = await import(
-        '../email.service'
+        '../../email/email.service'
       );
 
-      await expect(
-        EmailServiceNoKey.sendPasswordResetEmail('test@example.com', 'token')
-      ).rejects.toThrow('RESEND_API_KEY is not configured');
+      const result = await EmailServiceNoKey.sendPasswordResetEmail('test@example.com', 'token');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('RESEND_API_KEY is not configured');
 
       process.env.RESEND_API_KEY = originalKey;
     });
 
-    it('should log email content in development mode', async () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
-
+    it('should log email to database', async () => {
       const email = 'user@example.com';
       const resetToken = 'test-token';
+      const userId = 'user-123';
 
       mockSend.mockResolvedValue({
         data: { id: 'email-id' },
         error: null,
       });
 
-      await EmailService.sendPasswordResetEmail(email, resetToken);
+      await EmailService.sendPasswordResetEmail(email, resetToken, userId);
 
-      // Find the console.log call that contains the email content
-      const emailLogCall = consoleLogSpy.mock.calls.find(
-        call =>
-          typeof call[0] === 'string' &&
-          call[0].includes('PASSWORD RESET EMAIL')
-      );
-      expect(emailLogCall).toBeDefined();
-      expect(emailLogCall[0]).toContain(email);
-
-      process.env.NODE_ENV = originalEnv;
+      // Verify database logging
+      expect(mockEmailLogCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          emailType: 'password_reset',
+          recipientEmail: email,
+          status: 'pending',
+          userId: userId,
+        }),
+      });
+      
+      // Verify email was sent via Resend
+      expect(mockSend).toHaveBeenCalledWith({
+        from: expect.stringContaining('ThumPiks'),
+        to: [email],
+        subject: 'Reset Your Password',
+        html: expect.stringContaining(resetToken),
+      });
     });
   });
 
   describe('sendWelcomeEmail', () => {
-    it('should log welcome email content', async () => {
+    it('should send welcome email and log to database', async () => {
       const email = 'newuser@example.com';
       const name = 'John Doe';
+      const userId = 'user-456';
 
-      await EmailService.sendWelcomeEmail(email, name);
+      mockSend.mockResolvedValue({
+        data: { id: 'welcome-email-id' },
+        error: null,
+      });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const emailContent = consoleLogSpy.mock.calls[0][0];
+      const result = await EmailService.sendWelcomeEmail(email, name, userId);
 
-      expect(emailContent).toContain('WELCOME EMAIL');
-      expect(emailContent).toContain(`To: ${email}`);
-      expect(emailContent).toContain('Welcome to Pikzels!');
-      expect(emailContent).toContain(`Hello ${name}`);
+      expect(result.success).toBe(true);
+      expect(mockSend).toHaveBeenCalledWith({
+        from: expect.stringContaining('ThumPiks'),
+        to: [email],
+        subject: expect.stringContaining('Welcome'),
+        html: expect.stringContaining(name),
+      });
+      expect(mockEmailLogCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          emailType: 'welcome',
+          recipientEmail: email,
+          userId: userId,
+        }),
+      });
     });
 
     it('should handle missing name with default greeting', async () => {
       const email = 'user@example.com';
 
+      mockSend.mockResolvedValue({
+        data: { id: 'welcome-email-id' },
+        error: null,
+      });
+
       await EmailService.sendWelcomeEmail(email, '');
 
-      const emailContent = consoleLogSpy.mock.calls[0][0];
-
-      expect(emailContent).toContain('Hello there');
+      const sendCall = mockSend.mock.calls[0][0];
+      expect(sendCall.html).toContain('Hello');
     });
   });
 
   describe('sendVerificationEmail', () => {
-    it('should log verification email content', async () => {
+    it('should send verification email and log to database', async () => {
       const email = 'verify@example.com';
       const name = 'Jane Smith';
       const token = 'verification-token-abc123';
+      const userId = 'user-789';
 
-      await EmailService.sendVerificationEmail(email, name, token);
+      mockSend.mockResolvedValue({
+        data: { id: 'verify-email-id' },
+        error: null,
+      });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const emailContent = consoleLogSpy.mock.calls[0][0];
+      const result = await EmailService.sendVerificationEmail(email, name, token, userId);
 
-      expect(emailContent).toContain('EMAIL VERIFICATION');
-      expect(emailContent).toContain(`To: ${email}`);
-      expect(emailContent).toContain('Verify Your Email Address');
-      expect(emailContent).toContain(`Hello ${name}`);
-      expect(emailContent).toContain('Thank you for registering with ThumPiks');
+      expect(result.success).toBe(true);
+      expect(mockSend).toHaveBeenCalledWith({
+        from: expect.stringContaining('ThumPiks'),
+        to: [email],
+        subject: 'Verify Your Email Address',
+        html: expect.stringContaining(token),
+      });
+      expect(mockEmailLogCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          emailType: 'verification',
+          recipientEmail: email,
+          userId: userId,
+        }),
+      });
     });
 
     it('should use FRONTEND_URL from environment', async () => {
@@ -175,11 +241,15 @@ describe('EmailService', () => {
       const name = 'Test User';
       const token = 'test-token-123';
 
+      mockSend.mockResolvedValue({
+        data: { id: 'verify-email-id' },
+        error: null,
+      });
+
       await EmailService.sendVerificationEmail(email, name, token);
 
-      const emailContent = consoleLogSpy.mock.calls[0][0];
-
-      expect(emailContent).toContain(
+      const sendCall = mockSend.mock.calls[0][0];
+      expect(sendCall.html).toContain(
         `${process.env.FRONTEND_URL}/verify-email/${token}`
       );
     });

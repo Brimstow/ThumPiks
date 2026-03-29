@@ -1,7 +1,7 @@
 import { AuthService } from '../auth.service';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { EmailService } from '../email.service';
+import { EmailService } from '../../email/email.service';
 import { EnhancedJWTService } from '../../../services/jwt.enhanced.service';
 import { logger } from '../../../utils/logger';
 import { PasswordUtils } from '../../../utils/password.utils';
@@ -27,7 +27,7 @@ jest.mock('@prisma/client', () => {
 });
 
 jest.mock('bcryptjs');
-jest.mock('../email.service');
+jest.mock('../../email/email.service');
 jest.mock('../../../services/jwt.enhanced.service');
 jest.mock('../../../utils/logger');
 jest.mock('../../../utils/password.utils');
@@ -553,7 +553,8 @@ describe('AuthService', () => {
       expect(result.message).toContain('If your email is registered');
       expect(EmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
-        'reset-token'
+        'reset-token',
+        'user-123'
       );
     });
 

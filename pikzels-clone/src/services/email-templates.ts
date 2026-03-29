@@ -14,7 +14,7 @@
 // BASE LAYOUT
 // ============================================
 
-const APP_NAME = 'Thumbnail Maker';
+const APP_NAME = 'ThumPiks';
 const BRAND_COLOR = '#6366f1'; // Indigo-500
 
 function baseLayout(content: string, preheader?: string): string {
@@ -89,7 +89,7 @@ export function feedbackSubmittedEmail(data: FeedbackNotificationData): string {
 
   const content = `
     <h2 style="margin:0 0 16px;color:#111827;font-size:18px">New Feedback Submitted</h2>
-    
+
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
       <tr>
         <td style="padding:8px 0;border-bottom:1px solid #f3f4f6">
@@ -109,20 +109,28 @@ export function feedbackSubmittedEmail(data: FeedbackNotificationData): string {
           <span style="display:inline-block;padding:2px 8px;border-radius:12px;background-color:${priorityColor}20;color:${priorityColor};font-size:12px;font-weight:600;margin-left:8px">${data.priority}</span>
         </td>
       </tr>
-      ${data.sentiment ? `
+      ${
+        data.sentiment
+          ? `
       <tr>
         <td style="padding:8px 0;border-bottom:1px solid #f3f4f6">
           <strong style="color:#374151">Sentiment:</strong>
           <span style="color:#6b7280;margin-left:8px">${escapeHtml(data.sentiment)}</span>
         </td>
-      </tr>` : ''}
-      ${data.category ? `
+      </tr>`
+          : ''
+      }
+      ${
+        data.category
+          ? `
       <tr>
         <td style="padding:8px 0;border-bottom:1px solid #f3f4f6">
           <strong style="color:#374151">Category:</strong>
           <span style="color:#6b7280;margin-left:8px">${escapeHtml(data.category)}</span>
         </td>
-      </tr>` : ''}
+      </tr>`
+          : ''
+      }
     </table>
 
     <div style="margin-bottom:20px">
@@ -132,19 +140,27 @@ export function feedbackSubmittedEmail(data: FeedbackNotificationData): string {
       </div>
     </div>
 
-    ${data.aiSummary ? `
+    ${
+      data.aiSummary
+        ? `
     <div style="margin-bottom:20px;padding:12px 16px;background-color:#ede9fe;border-radius:6px">
       <strong style="color:#7c3aed;font-size:12px;text-transform:uppercase">AI Summary</strong>
       <p style="margin:8px 0 0;color:#374151;font-size:14px">${escapeHtml(data.aiSummary)}</p>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
-    ${data.screenshotUrl ? `
+    ${
+      data.screenshotUrl
+        ? `
     <div style="margin-bottom:20px">
       <strong style="color:#374151;font-size:12px">Attached Screenshot:</strong>
       <div style="margin-top:8px">
         <img src="${escapeHtml(data.screenshotUrl)}" alt="Screenshot" style="max-width:100%;border-radius:6px;border:1px solid #e5e7eb">
       </div>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <p style="margin:0;font-size:13px;color:#9ca3af">Feedback ID: ${data.feedbackId}</p>
   `;
@@ -177,7 +193,7 @@ export function ticketStatusEmail(data: TicketStatusData): string {
 
   const content = `
     <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Ticket Status Updated</h2>
-    
+
     <div style="margin-bottom:20px;padding:16px;background-color:#f9fafb;border-radius:6px">
       <p style="margin:0 0 8px">
         <strong style="color:#374151">Subject:</strong>
@@ -187,20 +203,28 @@ export function ticketStatusEmail(data: TicketStatusData): string {
         <strong style="color:#374151">Status:</strong>
         <span style="display:inline-block;padding:2px 10px;border-radius:12px;background-color:${statusColor}20;color:${statusColor};font-size:12px;font-weight:600;margin-left:8px">${data.status.replace(/_/g, ' ')}</span>
       </p>
-      ${data.assignee ? `
+      ${
+        data.assignee
+          ? `
       <p style="margin:0 0 8px">
         <strong style="color:#374151">Assigned to:</strong>
         <span style="color:#6b7280;margin-left:8px">${escapeHtml(data.assignee)}</span>
-      </p>` : ''}
+      </p>`
+          : ''
+      }
     </div>
 
-    ${data.resolution ? `
+    ${
+      data.resolution
+        ? `
     <div style="margin-bottom:20px">
       <h3 style="margin:0 0 8px;color:#374151;font-size:14px">Resolution</h3>
       <div style="padding:12px 16px;background-color:#f0fdf4;border-radius:6px;border-left:3px solid #22c55e;color:#374151;font-size:14px;line-height:1.6">
         ${escapeHtml(data.resolution).replace(/\n/g, '<br>')}
       </div>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <p style="margin:0;font-size:13px;color:#9ca3af">Ticket ID: ${data.ticketId}</p>
   `;
@@ -221,27 +245,37 @@ interface ContactAutoResponseData {
   ticketId?: string;
 }
 
-export function contactAutoResponseEmail(data: ContactAutoResponseData): string {
+export function contactAutoResponseEmail(
+  data: ContactAutoResponseData
+): string {
   const content = `
     <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Thank you for contacting us, ${escapeHtml(data.name)}</h2>
-    
+
     <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">
       We received your message regarding <strong>"${escapeHtml(data.subject)}"</strong> and wanted to let you know we're looking into it.
     </p>
 
-    ${data.aiResponse ? `
+    ${
+      data.aiResponse
+        ? `
     <div style="margin-bottom:20px;padding:16px;background-color:#eff6ff;border-radius:6px;border-left:3px solid #3b82f6">
       <strong style="color:#1d4ed8;font-size:12px;text-transform:uppercase">Quick Response</strong>
       <p style="margin:8px 0 0;color:#374151;font-size:14px;line-height:1.6">${escapeHtml(data.aiResponse).replace(/\n/g, '<br>')}</p>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
-    ${data.ticketCreated ? `
+    ${
+      data.ticketCreated
+        ? `
     <div style="margin-bottom:20px;padding:12px 16px;background-color:#f0fdf4;border-radius:6px">
       <p style="margin:0;color:#374151;font-size:14px">
         A support ticket has been created for your request${data.ticketId ? ` (Ref: <strong>${data.ticketId.slice(0, 8)}</strong>)` : ''}.
         Our team will follow up with you directly.
       </p>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <div style="margin-bottom:20px">
       <h3 style="margin:0 0 8px;color:#6b7280;font-size:12px;text-transform:uppercase">Your Message</h3>
@@ -275,12 +309,14 @@ interface ContactAdminNotificationData {
   screenshotUrl?: string;
 }
 
-export function contactAdminNotificationEmail(data: ContactAdminNotificationData): string {
+export function contactAdminNotificationEmail(
+  data: ContactAdminNotificationData
+): string {
   const triage = data.triageResult;
 
   const content = `
     <h2 style="margin:0 0 16px;color:#111827;font-size:18px">New Contact Form Submission</h2>
-    
+
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
       <tr>
         <td style="padding:8px 0;border-bottom:1px solid #f3f4f6">
@@ -302,7 +338,9 @@ export function contactAdminNotificationEmail(data: ContactAdminNotificationData
       </tr>
     </table>
 
-    ${triage ? `
+    ${
+      triage
+        ? `
     <div style="margin-bottom:20px;padding:12px 16px;background-color:#fefce8;border-radius:6px;border-left:3px solid #eab308">
       <strong style="color:#854d0e;font-size:12px;text-transform:uppercase">AI Triage Result</strong>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px">
@@ -312,7 +350,9 @@ export function contactAdminNotificationEmail(data: ContactAdminNotificationData
         ${triage.suggestedAction ? `<tr><td style="padding:2px 8px 2px 0;color:#374151;font-size:13px"><strong>Suggested:</strong></td><td style="color:#6b7280;font-size:13px">${escapeHtml(triage.suggestedAction)}</td></tr>` : ''}
         ${triage.isSpam ? `<tr><td colspan="2" style="padding:4px 0;color:#ef4444;font-size:13px;font-weight:600">Flagged as potential spam</td></tr>` : ''}
       </table>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <div style="margin-bottom:20px">
       <h3 style="margin:0 0 8px;color:#374151;font-size:14px">Message</h3>
@@ -321,13 +361,17 @@ export function contactAdminNotificationEmail(data: ContactAdminNotificationData
       </div>
     </div>
 
-    ${data.screenshotUrl ? `
+    ${
+      data.screenshotUrl
+        ? `
     <div style="margin-bottom:20px">
       <strong style="color:#374151;font-size:12px">Attached Screenshot:</strong>
       <div style="margin-top:8px">
         <img src="${escapeHtml(data.screenshotUrl)}" alt="Screenshot" style="max-width:100%;border-radius:6px;border:1px solid #e5e7eb">
       </div>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <p style="margin:0;font-size:13px;color:#9ca3af">Submission ID: ${data.submissionId}</p>
   `;

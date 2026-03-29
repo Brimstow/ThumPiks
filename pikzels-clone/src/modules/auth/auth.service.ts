@@ -1,7 +1,7 @@
 import { getPrisma } from '../../utils/prisma-factory';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { EmailService } from './email.service';
+import { EmailService } from '../email/email.service';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { logger } from '../../utils/logger';
 import { PasswordUtils } from '../../utils/password.utils';
@@ -122,7 +122,8 @@ export class AuthService {
         await EmailService.sendVerificationEmail(
           email,
           name,
-          verificationToken
+          verificationToken,
+          user.id
         );
       } catch (emailError) {
         logger.warn('Failed to send verification email', {
@@ -377,7 +378,8 @@ export class AuthService {
         await EmailService.sendVerificationEmail(
           email,
           user.name,
-          verificationToken
+          verificationToken,
+          user.id
         );
       } catch (emailError) {
         logger.error(
@@ -439,7 +441,7 @@ export class AuthService {
 
       // Send password reset email
       try {
-        await EmailService.sendPasswordResetEmail(user.email, resetToken);
+        await EmailService.sendPasswordResetEmail(user.email, resetToken, user.id);
       } catch (emailError) {
         logger.error(
           'Failed to send password reset email',
