@@ -14,9 +14,6 @@ module.exports = {
     tsconfigRootDir: __dirname,
   },
   ignorePatterns: [
-    '**/*.test.ts',
-    '**/*.spec.ts',
-    '**/__tests__/**/*',
     'dist/',
     'node_modules/',
     'src/generated/**/*',
@@ -96,6 +93,26 @@ module.exports = {
         '@typescript-eslint/prefer-optional-chain': 'off',
         '@typescript-eslint/naming-convention': 'off',
         '@typescript-eslint/consistent-type-definitions': 'off',
+      },
+    },
+    {
+      files: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**/*'],
+      env: {
+        jest: true,
+      },
+      rules: {
+        // Relax rules that are noisy in test files
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/consistent-type-definitions': 'off',
+        '@typescript-eslint/naming-convention': 'off',
+        'no-magic-numbers': 'off',
+        'max-lines-per-function': 'off',
+        complexity: 'off',
+        'max-depth': 'off',
+        // Keep these enforced in tests
+        // '@typescript-eslint/no-unused-vars': 'error',
+        // 'prefer-const': 'error',
+        // 'no-var': 'error',
       },
     },
   ],
