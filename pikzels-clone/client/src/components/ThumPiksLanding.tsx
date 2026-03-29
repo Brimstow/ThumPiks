@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,15 +10,20 @@ import {
   Mail,
   Eye,
   EyeOff,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OAUTH_URLS } from '../config/environment';
+import config from '../config/environment';
 import AnimatedBackground from './AnimatedBackground';
 import ForgotPasswordModal from './auth/ForgotPasswordModal';
 import UsernameInput from './auth/UsernameInput';
 import { usePricingData } from '../hooks/usePricingData';
 import type { PricingPlan, PricingFaq } from '../hooks/usePricingData';
 import BetaPhaseBanner from './shared/BetaPhaseBanner';
+import ThumbnailResultModal from './ui/ThumbnailResultModal';
+import { savePendingThumbnail, markGenerationInflight, clearGenerationInflight } from '../utils/pendingThumbnail';
+import { authPost } from '../utils/api';
 type ThumPiksLandingProps = Record<string, never>;
 // Row 1: Top carousel thumbnails with bold text overlays
 const thumbnailImagesRow1 = [
@@ -188,12 +193,12 @@ const PricingCard: React.FC<PricingCardProps> = memo(({ plan, billingCycle, onCt
   if (plan.features.abTesting !== undefined) {
     if (typeof plan.features.abTesting === 'boolean') {
       entries.push({
-        label: plan.features.abTesting ? 'A/B testing' : 'No A/B testing',
+        label: plan.features.abTesting ? 'A/B testing (coming soon)' : 'No A/B testing',
         positive: plan.features.abTesting,
       });
     } else if (typeof plan.features.abTesting === 'number') {
       entries.push({
-        label: `A/B testing (${plan.features.abTesting} variants)`,
+        label: `A/B testing · ${plan.features.abTesting} variants (coming soon)`,
         positive: true,
       });
     }
@@ -202,7 +207,7 @@ const PricingCard: React.FC<PricingCardProps> = memo(({ plan, billingCycle, onCt
   // Analytics
   if (plan.features.analytics !== undefined) {
     entries.push({
-      label: plan.features.analytics ? 'Analytics & brand kit' : 'No analytics',
+      label: plan.features.analytics ? 'Analytics · Brand kit coming soon' : 'No analytics',
       positive: plan.features.analytics,
     });
   }
@@ -337,6 +342,17 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
   const [showFaceModal, setShowFaceModal] = React.useState(false);
   const [faceImage, setFaceImage] = React.useState<string | null>(null);
 
+  // Thumbnail generation state
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [generatedThumbnail, setGeneratedThumbnail] = React.useState<{
+    thumbnailUrl: string;
+    thumbnailId?: string;
+    videoTitle?: string;
+  } | null>(null);
+  const [showResultModal, setShowResultModal] = React.useState(false);
+  const [generationError, setGenerationError] = React.useState<string | null>(null);
+  const [pendingGeneration, setPendingGeneration] = React.useState(false);
+
   const [currentPlatformIndex, setCurrentPlatformIndex] = React.useState(0);
   const currentPlatform = PLATFORMS[currentPlatformIndex];
   const handlePlatformChange = useCallback((index: number) => {
@@ -357,6 +373,34 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+
+  // Reviews from API
+  interface LandingReview {
+    id: string;
+    rating: number;
+    body: string;
+    channelName: string | null;
+    subscribers: string | null;
+    niche: string | null;
+    authorName: string;
+    authorAvatar: string | null;
+  }
+  const [landingReviews, setLandingReviews] = useState<LandingReview[]>([]);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(`${config.apiBaseUrl}/api/reviews/public?featured=true&limit=6`);
+        if (res.ok) {
+          const data = await res.json();
+          setLandingReviews(data.reviews || []);
+        }
+      } catch {
+        // Silently fail — show placeholders
+      }
+    };
+    fetchReviews();
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -395,7 +439,12 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
       if (result.success) {
         setShowSignup(false);
-        navigate('/dashboard');
+        // If there's a pending generation, do it now
+        if (pendingGeneration) {
+          await handlePostAuthGeneration();
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError(result.error || 'Registration failed');
       }
@@ -422,7 +471,12 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
       if (result.success) {
         setShowSignin(false);
-        navigate('/dashboard');
+        // If there's a pending generation, do it now
+        if (pendingGeneration) {
+          await handlePostAuthGeneration();
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError(result.error || 'Login failed');
       }
@@ -433,7 +487,70 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
     }
   };
 
-  const handleGenerateClick = () => {
+  // Generate thumbnail API call
+  const generateThumbnailFromVideo = useCallback(async (videoUrl: string) => {
+    // Duplicate-submission guard — prevent double-charging on rapid re-clicks
+    if (!markGenerationInflight()) {
+      console.warn('Generation already in progress, skipping duplicate request');
+      return false;
+    }
+
+    setIsGenerating(true);
+    setGenerationError(null);
+    
+    try {
+      const response = await authPost('/thumbnails/generate', {
+        videoUrl,
+        includeFace,
+      }) as unknown as {
+        success: boolean;
+        thumbnailUrl?: string;
+        thumbnailId?: string;
+        thumbnail?: { title?: string };
+        creditCost?: number;
+        error?: string;
+      };
+      
+      if (response.success && response.thumbnailUrl) {
+        const thumbnailData = {
+          thumbnailUrl: response.thumbnailUrl,
+          thumbnailId: response.thumbnailId,
+          videoTitle: response.thumbnail?.title,
+        };
+        
+        setGeneratedThumbnail(thumbnailData);
+        
+        // Save to localStorage for persistence
+        savePendingThumbnail({
+          thumbnailUrl: response.thumbnailUrl,
+          thumbnailId: response.thumbnailId,
+          videoTitle: response.thumbnail?.title,
+          videoUrl,
+          creditCost: response.creditCost || 1,
+        });
+        
+        setShowResultModal(true);
+        return true;
+      } else {
+        setGenerationError(response.error || 'Failed to generate thumbnail');
+        return false;
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Network error during generation';
+      setGenerationError(errorMsg);
+      return false;
+    } finally {
+      setIsGenerating(false);
+      clearGenerationInflight(); // Always release the in-flight lock
+    }
+  }, [includeFace]);
+
+  const handleGenerateClick = async () => {
+    if (!videoLink.trim()) {
+      setError('Please enter a video link');
+      return;
+    }
+    
     // Always store includeFace preference
     localStorage.setItem('pendingIncludeFace', includeFace.toString());
     
@@ -443,11 +560,22 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
     const token = localStorage.getItem('token');
     if (token) {
-      navigate('/dashboard');
+      // User is logged in - generate immediately
+      await generateThumbnailFromVideo(videoLink);
     } else {
+      // User is not logged in - show signup, then generate after
+      setPendingGeneration(true);
       setShowSignup(true);
     }
   };
+
+  // Handle post-auth generation (after signup/signin)
+  const handlePostAuthGeneration = useCallback(async () => {
+    if (pendingGeneration && videoLink) {
+      setPendingGeneration(false);
+      await generateThumbnailFromVideo(videoLink);
+    }
+  }, [pendingGeneration, videoLink, generateThumbnailFromVideo]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -507,6 +635,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             >
               <div className="w-6 h-6 bg-white rounded"></div>
               <span>ThumPiks</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase bg-blue-600/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">Beta</span>
             </button>
 
             <div className="flex items-center gap-6 text-sm">
@@ -550,6 +679,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
             <div className="flex items-center gap-2 font-bold text-base">
               <div className="w-5 h-5 bg-white rounded"></div>
               <span>ThumPiks</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase bg-blue-600/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">Beta</span>
             </div>
             <button
               className="p-2 rounded-lg bg-gray-900/80 backdrop-blur-xl border border-gray-800 hover:bg-gray-800 transition-colors"
@@ -575,9 +705,14 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
 
         <section className="pt-32 pb-20 px-6">
           <div className="max-w-5xl mx-auto text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-full px-4 py-2 mb-8">
-              <Sparkles className="w-4 h-4 text-blue-500" />
-              <span className="text-sm">ThumPiks v1.0 Preview</span>
+            <div className="inline-flex items-center gap-2 bg-gray-900/80 border border-blue-500/30 rounded-full px-4 py-2 mb-8 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              <span className="text-xs font-semibold tracking-wider uppercase text-blue-400">Beta</span>
+              <span className="w-px h-3 bg-gray-700"></span>
+              <span className="text-sm text-gray-300">Early Access — Limited Spots</span>
             </div>
             <h1 className="text-7xl font-light mb-6">
               Generate Stunning{' '}
@@ -715,118 +850,90 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-4xl font-light mb-4">
-                Loved by <span className="text-blue-500">Creators</span>
+                {landingReviews.length > 0
+                  ? <>Loved by <span className="text-blue-500">Creators</span></>
+                  : <>Be the First to <span className="text-blue-500">Review</span></>}
               </h2>
               <p className="text-gray-400">
-                See what YouTubers are saying about ThumPiks
+                {landingReviews.length > 0
+                  ? 'Honest reviews from real ThumPiks creators'
+                  : 'No reviews yet — your honest feedback could be the first one here'}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* Testimonial 1 */}
-              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src="/images/testimonials/person1.png"
-                    alt="Creator testimonial"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="font-medium">Alex Chen</h4>
-                    <p className="text-sm text-gray-400">Gaming Channel • 250K subs</p>
+              {landingReviews.length > 0 ? (
+                landingReviews.slice(0, 6).map((review) => (
+                  <div key={review.id} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      {review.authorAvatar ? (
+                        <img
+                          src={review.authorAvatar}
+                          alt={review.authorName}
+                          className="w-14 h-14 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
+                          <svg className="w-7 h-7 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-medium">{review.authorName}</h4>
+                        {review.channelName && (
+                          <p className="text-sm text-gray-400">
+                            {review.channelName}
+                            {review.subscribers && ` • ${review.subscribers} subs`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      "{review.body}"
+                    </p>
+                    <div className="flex gap-1 mt-4">
+                      {[1,2,3,4,5].map(i => (
+                        <span key={i} className={i <= review.rating ? 'text-yellow-400' : 'text-gray-600'}>★</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  "My CTR went from 4% to 12% after switching to ThumPiks. The AI understands what makes gaming thumbnails pop. Absolute game changer!"
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
-                </div>
-              </div>
+                ))
+              ) : (
+                // Placeholder silhouette cards
+                [...Array(3)].map((_, index) => (
+                  <div key={index} className="bg-gray-900/30 border border-gray-800/50 border-dashed rounded-2xl p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-14 h-14 rounded-full bg-gray-800/50 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
+                      </div>
+                      <div>
+                        <div className="h-3 bg-gray-800/50 rounded w-24 mb-2"></div>
+                        <div className="h-2 bg-gray-800/50 rounded w-32"></div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 mb-4">
+                      <div className="h-3 bg-gray-800/40 rounded w-full"></div>
+                      <div className="h-3 bg-gray-800/40 rounded w-5/6"></div>
+                      <div className="h-3 bg-gray-800/40 rounded w-4/6"></div>
+                    </div>
+                    <div className="flex gap-1 mt-4">
+                      {[1,2,3,4,5].map(i => <span key={i} className="text-gray-700">★</span>)}
+                    </div>
+                    {index === 0 && (
+                      <p className="text-gray-500 text-xs italic mt-3 text-center">Your review could be here</p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
 
-              {/* Testimonial 2 */}
-              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src="/images/testimonials/person2.png"
-                    alt="Creator testimonial"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="font-medium">Sarah Mitchell</h4>
-                    <p className="text-sm text-gray-400">Lifestyle Vlogger • 180K subs</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  "I used to spend 2 hours on each thumbnail. Now it takes 30 seconds. ThumPiks literally gave me my weekends back. 10/10 recommend!"
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
-                </div>
-              </div>
-
-              {/* Testimonial 3 */}
-              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src="/images/testimonials/person3.png"
-                    alt="Creator testimonial"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="font-medium">Marcus Johnson</h4>
-                    <p className="text-sm text-gray-400">Tech Reviews • 500K subs</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  "The face swap feature is insane. I can test different expressions without reshooting. This is the future of thumbnail creation."
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
-                </div>
-              </div>
-
-              {/* Testimonial 4 */}
-              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src="/images/testimonials/person4.png"
-                    alt="Creator testimonial"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="font-medium">Emily Rodriguez</h4>
-                    <p className="text-sm text-gray-400">Cooking Channel • 320K subs</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  "Finally, thumbnails that make my food look as good as it tastes! The AI knows exactly how to make dishes look mouthwatering."
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
-                </div>
-              </div>
-
-              {/* Testimonial 5 */}
-              <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6 md:col-span-2 lg:col-span-1">
-                <div className="flex items-center gap-4 mb-4">
-                  <img
-                    src="/images/testimonials/person5.png"
-                    alt="Creator testimonial"
-                    className="w-14 h-14 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="font-medium">David Park</h4>
-                    <p className="text-sm text-gray-400">Education • 1.2M subs</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  "As a solo creator, I can't afford a design team. ThumPiks is like having a professional designer on demand. Worth every penny."
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3,4,5].map(i => <span key={i} className="text-yellow-400">★</span>)}
-                </div>
-              </div>
+            {/* View All / Write Review CTA */}
+            <div className="text-center mt-12">
+              <button
+                onClick={() => navigate('/reviews')}
+                className="bg-gray-800 hover:bg-gray-700 px-8 py-3 rounded-lg font-medium transition-colors"
+              >
+                {landingReviews.length > 0 ? 'View All Reviews' : 'Write the First Review'}
+              </button>
             </div>
           </div>
         </section>
@@ -1758,6 +1865,52 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Thumbnail Result Modal */}
+        <ThumbnailResultModal
+          isOpen={showResultModal}
+          onClose={() => {
+            setShowResultModal(false);
+            setGeneratedThumbnail(null);
+          }}
+          thumbnailUrl={generatedThumbnail?.thumbnailUrl || ''}
+          thumbnailId={generatedThumbnail?.thumbnailId}
+          videoTitle={generatedThumbnail?.videoTitle}
+          creditCost={1}
+          onGenerateAnother={() => {
+            setShowResultModal(false);
+            setGeneratedThumbnail(null);
+            // Scroll to top where the input is
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+
+        {/* Generation Loading Overlay */}
+        {isGenerating && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-8 text-center">
+              <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Creating Your Thumbnail</h3>
+              <p className="text-sm text-slate-400">Analyzing video and generating...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Generation Error Toast */}
+        {generationError && (
+          <div className="fixed bottom-4 right-4 z-50 bg-red-500/90 text-white px-4 py-3 rounded-lg shadow-lg">
+            <div className="flex items-center gap-2">
+              <X className="w-5 h-5" />
+              <span className="text-sm">{generationError}</span>
+            </div>
+            <button 
+              onClick={() => setGenerationError(null)}
+              className="absolute top-1 right-1 text-white/70 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>

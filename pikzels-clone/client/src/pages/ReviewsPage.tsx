@@ -1,87 +1,191 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Quote, TrendingUp, Users, Zap, CheckCircle2 } from 'lucide-react';
+import { Star, TrendingUp, Users, Zap, User, MessageSquarePlus, Send, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { authGet, authPost, authPut, authDelete } from '../utils/api';
+import config from '../config/environment';
+
+interface PublicReview {
+  id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  channelName: string | null;
+  subscribers: string | null;
+  niche: string | null;
+  improvement: string | null;
+  isFeatured: boolean;
+  createdAt: string;
+  authorName: string;
+  authorAvatar: string | null;
+}
+
+interface ReviewStats {
+  totalReviews: number;
+  averageRating: number;
+  totalUsers: number;
+  totalThumbnails: number;
+}
+
+interface MyReview {
+  id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  channelName: string | null;
+  channelUrl: string | null;
+  subscribers: string | null;
+  niche: string | null;
+  improvement: string | null;
+  status: string;
+  createdAt: string;
+}
+
+const PLACEHOLDER_COUNT = 6;
 
 const ReviewsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
-  const testimonials = [
-    {
-      name: 'Marcus Rivera',
-      channel: '@TechExplained',
-      subscribers: '245K',
-      avatar: '/images/testimonials/review1.png',
-      rating: 5,
-      quote: "ThumPiks transformed my channel overnight. My click-through rate jumped from 4% to 11% in just two weeks. The AI understands what makes tech thumbnails pop!",
-      improvement: '+175% CTR',
-      color: 'from-blue-500 to-cyan-500',
-    },
-    {
-      name: 'Sarah Chen',
-      channel: '@SarahsGamingHub',
-      subscribers: '892K',
-      avatar: '/images/testimonials/review2.png',
-      rating: 5,
-      quote: "As a full-time creator, time is everything. ThumPiks saves me 5+ hours every week. The face training feature is a game-changer—my thumbnails finally look consistent.",
-      improvement: '5 hrs/week saved',
-      color: 'from-purple-500 to-pink-500',
-    },
-    {
-      name: 'David Kim',
-      channel: '@FitnessWithDave',
-      subscribers: '156K',
-      avatar: '/images/testimonials/review3.png',
-      rating: 5,
-      quote: "I tried Canva, Photoshop, even hired designers. Nothing comes close to ThumPiks' speed and quality. The A/B testing helped me figure out exactly what my audience clicks on.",
-      improvement: '+89% engagement',
-      color: 'from-green-500 to-teal-500',
-    },
-    {
-      name: 'Emily Rodriguez',
-      channel: '@CookingWithEmily',
-      subscribers: '423K',
-      avatar: '/images/testimonials/review4.png',
-      rating: 5,
-      quote: "The trending insights are incredible! ThumPiks showed me which styles perform best in the cooking niche. My videos are hitting the algorithm faster than ever before.",
-      improvement: '+320K views',
-      color: 'from-orange-500 to-red-500',
-    },
-    {
-      name: 'James Thompson',
-      channel: '@AutoReviewsHQ',
-      subscribers: '678K',
-      avatar: '/images/testimonials/review5.png',
-      rating: 5,
-      quote: "Professional quality without the designer price tag. I used to pay $30 per thumbnail. Now it's pennies. The ROI is insane—ThumPiks paid for itself in the first week.",
-      improvement: '$1,200/mo saved',
-      color: 'from-indigo-500 to-purple-500',
-    },
-    {
-      name: 'Olivia Martinez',
-      channel: '@OliviasVlogs',
-      subscribers: '1.2M',
-      avatar: '/images/testimonials/review6.png',
-      rating: 5,
-      quote: "The face swap feature is pure magic. I can keep my personal brand consistent across all thumbnails without spending hours in front of the camera. My team loves it too!",
-      improvement: 'Power creator-ready',
-      color: 'from-pink-500 to-rose-500',
-    },
-  ];
+  const [reviews, setReviews] = useState<PublicReview[]>([]);
+  const [stats, setStats] = useState<ReviewStats | null>(null);
+  const [myReview, setMyReview] = useState<MyReview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  const stats = [
-    { value: '500+', label: 'Active Creators', icon: <Users className="w-6 h-6" /> },
-    { value: '50,000+', label: 'Thumbnails Generated', icon: <Zap className="w-6 h-6" /> },
-    { value: '8.7%', label: 'Avg CTR Increase', icon: <TrendingUp className="w-6 h-6" /> },
-    { value: '4.9/5', label: 'Creator Rating', icon: <Star className="w-6 h-6" /> },
-  ];
+  // Form state
+  const [formRating, setFormRating] = useState(5);
+  const [formTitle, setFormTitle] = useState('');
+  const [formBody, setFormBody] = useState('');
+  const [formChannel, setFormChannel] = useState('');
+  const [formSubscribers, setFormSubscribers] = useState('');
+  const [formNiche, setFormNiche] = useState('');
+  const [formImprovement, setFormImprovement] = useState('');
 
-  const benefits = [
-    'Proven to increase click-through rates by 75-200%',
-    'Save 5+ hours per week on thumbnail creation',
-    'Professional results without design experience',
-    'ROI positive within the first month',
-    'Consistent branding across your channel',
-    'Optimized for YouTube\'s algorithm',
+  const fetchReviews = useCallback(async () => {
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/reviews/public`);
+      if (res.ok) {
+        const data = await res.json();
+        setReviews(data.reviews || []);
+      }
+    } catch {
+      // Silently fail — show placeholders
+    }
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/reviews/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch {
+      // Use defaults
+    }
+  }, []);
+
+  const fetchMyReview = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await authGet('/api/reviews/mine');
+      if (res.ok) {
+        const data = await res.json();
+        setMyReview(data.review || null);
+        if (data.review) {
+          setFormRating(data.review.rating);
+          setFormTitle(data.review.title || '');
+          setFormBody(data.review.body || '');
+          setFormChannel(data.review.channelName || '');
+          setFormSubscribers(data.review.subscribers || '');
+          setFormNiche(data.review.niche || '');
+          setFormImprovement(data.review.improvement || '');
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([fetchReviews(), fetchStats(), fetchMyReview()]);
+      setLoading(false);
+    };
+    loadAll();
+  }, [fetchReviews, fetchStats, fetchMyReview]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formBody.trim()) return;
+
+    setSubmitting(true);
+    setSubmitError('');
+    setSubmitSuccess(false);
+
+    try {
+      const payload = {
+        rating: formRating,
+        title: formTitle.trim() || undefined,
+        body: formBody.trim(),
+        channelName: formChannel.trim() || undefined,
+        subscribers: formSubscribers.trim() || undefined,
+        niche: formNiche.trim() || undefined,
+        improvement: formImprovement.trim() || undefined,
+      };
+
+      const res = myReview
+        ? await authPut('/api/reviews/mine', payload)
+        : await authPost('/api/reviews', payload);
+
+      if (res.ok) {
+        setSubmitSuccess(true);
+        setShowForm(false);
+        await fetchMyReview();
+      } else {
+        const data = await res.json();
+        setSubmitError(data.error || 'Failed to submit review');
+      }
+    } catch {
+      setSubmitError('Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteReview = async () => {
+    if (!confirm('Are you sure you want to delete your review?')) return;
+    try {
+      const res = await authDelete('/api/reviews/mine');
+      if (res.ok || res.status === 204) {
+        setMyReview(null);
+        setFormRating(5);
+        setFormTitle('');
+        setFormBody('');
+        setFormChannel('');
+        setFormSubscribers('');
+        setFormNiche('');
+        setFormImprovement('');
+        setSubmitSuccess(false);
+        await fetchReviews();
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const hasReviews = reviews.length > 0;
+
+  const displayStats = [
+    { value: stats ? `${stats.totalUsers}` : '—', label: 'Active Creators', icon: <Users className="w-6 h-6" /> },
+    { value: stats ? `${stats.totalThumbnails.toLocaleString()}` : '—', label: 'Thumbnails Generated', icon: <Zap className="w-6 h-6" /> },
+    { value: stats && stats.totalReviews > 0 ? `${stats.averageRating.toFixed(1)}/5` : '—', label: 'Avg Creator Rating', icon: <Star className="w-6 h-6" /> },
+    { value: stats ? `${stats.totalReviews}` : '0', label: 'Reviews', icon: <TrendingUp className="w-6 h-6" /> },
   ];
 
   return (
@@ -103,12 +207,21 @@ const ReviewsPage: React.FC = () => {
             >
               Back to Home
             </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
-            >
-              Start Free
-            </button>
+            {authLoading ? null : isAuthenticated ? (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              >
+                Dashboard
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/register')}
+                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              >
+                Start Free
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -118,18 +231,44 @@ const ReviewsPage: React.FC = () => {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-            <span className="text-sm">Loved by 500+ creators worldwide</span>
+            <span className="text-sm">
+              {hasReviews
+                ? `${reviews.length} unbiased creator review${reviews.length !== 1 ? 's' : ''}`
+                : 'Be the first to share your experience'}
+            </span>
           </div>
           <h1 className="text-6xl font-light mb-6">
-            Real Creators,
+            Creator
             <br />
-            <span className="text-blue-500">Real Results</span>
+            <span className="text-blue-500">Reviews</span>
           </h1>
           <p className="text-xl text-gray-400 mb-10">
-            See how ThumPiks is helping creators like you increase views,
-            <br />
-            save time, and grow their channels faster than ever.
+            {hasReviews
+              ? 'Honest reviews from real ThumPiks creators'
+              : 'No reviews yet — your honest feedback could be the first one here'}
           </p>
+          {authLoading ? null : isAuthenticated ? (
+            !myReview && (
+              <button
+                onClick={() => {
+                  setShowForm(true);
+                  setTimeout(() => document.getElementById('review-form')?.scrollIntoView({ behavior: 'smooth' }), 100);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg text-lg font-medium transition-colors inline-flex items-center gap-2"
+              >
+                <MessageSquarePlus className="w-5 h-5" />
+                Write a Review
+              </button>
+            )
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg text-lg font-medium transition-colors inline-flex items-center gap-2"
+            >
+              <MessageSquarePlus className="w-5 h-5" />
+              Sign In to Review
+            </button>
+          )}
         </div>
       </section>
 
@@ -137,7 +276,7 @@ const ReviewsPage: React.FC = () => {
       <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
+            {displayStats.map((stat, index) => (
               <div
                 key={index}
                 className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 text-center hover:border-blue-600/50 transition-colors"
@@ -153,197 +292,344 @@ const ReviewsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Testimonials Grid */}
+      {/* My Review Status (for logged-in users) */}
+      {isAuthenticated && myReview && (
+        <section className="px-6 pb-8">
+          <div className="max-w-3xl mx-auto">
+            <div className={`border rounded-2xl p-6 ${
+              myReview.status === 'APPROVED'
+                ? 'bg-green-900/20 border-green-600/30'
+                : myReview.status === 'REJECTED'
+                ? 'bg-red-900/20 border-red-600/30'
+                : 'bg-yellow-900/20 border-yellow-600/30'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {myReview.status === 'APPROVED' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  {myReview.status === 'PENDING' && <Loader2 className="w-5 h-5 text-yellow-500" />}
+                  {myReview.status === 'REJECTED' && <AlertCircle className="w-5 h-5 text-red-500" />}
+                  <span className="font-medium">
+                    {myReview.status === 'APPROVED' && 'Your review is live!'}
+                    {myReview.status === 'PENDING' && 'Your review is pending approval'}
+                    {myReview.status === 'REJECTED' && 'Your review was not approved'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {myReview.status !== 'APPROVED' && (
+                    <button
+                      onClick={() => setShowForm(true)}
+                      className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    onClick={handleDeleteReview}
+                    className="text-sm text-red-400 hover:text-red-300"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-1 mb-2">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`w-4 h-4 ${i < myReview.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600'}`}
+                  />
+                ))}
+              </div>
+              <p className="text-gray-300 text-sm">{myReview.body}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Review Form (for logged-in users without a review, or editing) */}
+      {isAuthenticated && (showForm || (!myReview && !submitSuccess)) && (
+        <section id="review-form" className="px-6 pb-12">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-gray-900/50 border border-blue-600/30 rounded-2xl p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <MessageSquarePlus className="w-6 h-6 text-blue-500" />
+                <h3 className="text-xl font-medium">
+                  {myReview ? 'Edit Your Review' : 'Write Your Review'}
+                </h3>
+              </div>
+
+              {submitError && (
+                <div className="bg-red-900/30 border border-red-600/30 rounded-lg p-3 mb-4 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-red-300 text-sm">{submitError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Star Rating */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Rating *</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setFormRating(star)}
+                        aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
+                        className="transition-transform hover:scale-110"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${star <= formRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600'}`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Title (optional)</label>
+                  <input
+                    type="text"
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder="Sum up your experience in a few words"
+                    maxLength={200}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Body */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Your Review *</label>
+                  <textarea
+                    value={formBody}
+                    onChange={(e) => setFormBody(e.target.value)}
+                    placeholder="Share your honest experience with ThumPiks..."
+                    maxLength={2000}
+                    rows={4}
+                    required
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                  />
+                  <div className="text-xs text-gray-500 text-right mt-1">{formBody.length}/2000</div>
+                </div>
+
+                {/* Channel Info (optional row) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Channel Name</label>
+                    <input
+                      type="text"
+                      value={formChannel}
+                      onChange={(e) => setFormChannel(e.target.value)}
+                      placeholder="@YourChannel"
+                      maxLength={100}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Subscribers</label>
+                    <input
+                      type="text"
+                      value={formSubscribers}
+                      onChange={(e) => setFormSubscribers(e.target.value)}
+                      placeholder="e.g. 50K"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Niche</label>
+                    <input
+                      type="text"
+                      value={formNiche}
+                      onChange={(e) => setFormNiche(e.target.value)}
+                      placeholder="e.g. Gaming, Tech"
+                      maxLength={50}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Improvement */}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Key Improvement (optional)</label>
+                  <input
+                    type="text"
+                    value={formImprovement}
+                    onChange={(e) => setFormImprovement(e.target.value)}
+                    placeholder="e.g. +120% CTR, 3 hrs/week saved"
+                    maxLength={100}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xs text-gray-500">Your review will be visible after admin approval</p>
+                  <button
+                    type="submit"
+                    disabled={submitting || !formBody.trim()}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    {submitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {submitting ? 'Submitting...' : myReview ? 'Update Review' : 'Submit Review'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Success Message */}
+      {submitSuccess && !showForm && (
+        <section className="px-6 pb-8">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-green-900/20 border border-green-600/30 rounded-2xl p-6 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <p className="text-green-300">
+                Thank you for your review! It will appear here once approved by our team.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Reviews Grid — Real reviews or placeholder silhouettes */}
       <section className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-5xl font-light mb-4">
-              Trusted by <span className="text-blue-500">Top Creators</span>
+              {hasReviews
+                ? <>What Creators <span className="text-blue-500">Are Saying</span></>
+                : <>Be the <span className="text-blue-500">First</span></>
+              }
             </h2>
             <p className="text-gray-400 text-lg">
-              From gaming to cooking, creators across every niche love ThumPiks
+              {hasReviews
+                ? 'Unbiased reviews from real ThumPiks users'
+                : 'No reviews yet — these spots are waiting for real creators like you'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={index}
-                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-all duration-300 hover:transform hover:scale-105 relative overflow-hidden"
-              >
-                {/* Gradient Overlay */}
-                <div
-                  className={`absolute top-0 right-0 w-48 h-48 bg-gradient-to-br ${testimonial.color} opacity-10 rounded-full blur-3xl`}
-                ></div>
-
-                {/* Content */}
-                <div className="relative z-10">
-                  {/* Quote Icon */}
-                  <Quote className="w-8 h-8 text-blue-500 mb-4 opacity-50" />
-
-                  {/* Rating */}
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className="w-4 h-4 text-yellow-500 fill-yellow-500"
-                      />
-                    ))}
-                  </div>
-
-                  {/* Quote */}
-                  <p className="text-gray-300 mb-6 leading-relaxed">
-                    "{testimonial.quote}"
-                  </p>
-
-                  {/* Author */}
+            {hasReviews ? (
+              // Real reviews
+              reviews.map((review) => (
+                <div key={review.id} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
                   <div className="flex items-center gap-4 mb-4">
-                    <img
-                      src={testimonial.avatar}
-                      alt={testimonial.name}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                    <div>
-                      <div className="font-semibold">{testimonial.name}</div>
-                      <div className="text-sm text-gray-400">
-                        {testimonial.channel} • {testimonial.subscribers} subs
+                    {review.authorAvatar ? (
+                      <img
+                        src={review.authorAvatar}
+                        alt={review.authorName}
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
+                        <User className="w-7 h-7 text-gray-500" />
                       </div>
+                    )}
+                    <div>
+                      <h4 className="font-medium">{review.authorName}</h4>
+                      {review.channelName && (
+                        <p className="text-sm text-gray-400">
+                          {review.channelName}
+                          {review.subscribers && ` • ${review.subscribers} subs`}
+                        </p>
+                      )}
                     </div>
                   </div>
-
-                  {/* Improvement Badge */}
-                  <div className="inline-flex items-center gap-2 bg-green-600/20 border border-green-600/30 rounded-full px-4 py-2">
-                    <TrendingUp className="w-4 h-4 text-green-500" />
-                    <span className="text-sm font-medium text-green-500">
-                      {testimonial.improvement}
-                    </span>
+                  {review.title && (
+                    <h3 className="font-semibold mb-2">{review.title}</h3>
+                  )}
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    "{review.body}"
+                  </p>
+                  <div className="flex gap-1 mt-4">
+                    {[1,2,3,4,5].map(i => (
+                      <span key={i} className={i <= review.rating ? 'text-yellow-400' : 'text-gray-600'}>★</span>
+                    ))}
                   </div>
+                  {review.improvement && (
+                    <p className="text-sm text-green-400 mt-3">{review.improvement}</p>
+                  )}
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              // Placeholder silhouette cards
+              [...Array(PLACEHOLDER_COUNT)].map((_, index) => (
+                <div key={index} className="bg-gray-900/30 border border-gray-800/50 border-dashed rounded-2xl p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 rounded-full bg-gray-800/50 flex items-center justify-center">
+                      <User className="w-7 h-7 text-gray-700" />
+                    </div>
+                    <div>
+                      <div className="h-3 bg-gray-800/50 rounded w-24 mb-2"></div>
+                      <div className="h-2 bg-gray-800/50 rounded w-32"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="h-3 bg-gray-800/40 rounded w-full"></div>
+                    <div className="h-3 bg-gray-800/40 rounded w-5/6"></div>
+                    <div className="h-3 bg-gray-800/40 rounded w-4/6"></div>
+                  </div>
+                  <div className="flex gap-1 mt-4">
+                    {[1,2,3,4,5].map(i => <span key={i} className="text-gray-700">★</span>)}
+                  </div>
+                  {index === 0 && (
+                    <p className="text-gray-500 text-xs italic mt-3 text-center">Your review could be here</p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-20 px-6 bg-gray-900/30">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
-              Why Creators Choose <span className="text-blue-500">ThumPiks</span>
+      {/* Write Review CTA (for non-logged-in users) */}
+      {!authLoading && !isAuthenticated && (
+        <section className="py-20 px-6 bg-gray-900/30">
+          <div className="max-w-3xl mx-auto text-center">
+            <MessageSquarePlus className="w-12 h-12 text-blue-500 mx-auto mb-6" />
+            <h2 className="text-4xl font-light mb-4">
+              Share Your <span className="text-blue-500">Experience</span>
             </h2>
-            <p className="text-gray-400 text-lg">
-              The benefits that matter most to content creators
+            <p className="text-gray-400 text-lg mb-8">
+              Sign in to write an honest, unbiased review of ThumPiks.
+              <br />
+              Every review helps fellow creators make informed decisions.
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {benefits.map((benefit, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-4 bg-gray-900/50 border border-gray-800 rounded-xl p-6 hover:border-blue-600/50 transition-colors"
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => navigate('/login')}
+                className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
               >
-                <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
-                <span className="text-gray-300 text-lg">{benefit}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Success Stories */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
-              Success <span className="text-blue-500">Stories</span>
-            </h2>
-            <p className="text-gray-400 text-lg">
-              Real growth metrics from our creator community
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-              <div className="flex items-center gap-4 mb-4">
-                <img
-                  src="/images/testimonials/review1.png"
-                  alt="Marcus Rivera"
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-                <div>
-                  <div className="font-semibold text-xl">Marcus Rivera</div>
-                  <div className="text-gray-400">Tech Channel • 245K Subscribers</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-6 mb-6">
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-green-500 mb-1">175%</div>
-                  <div className="text-sm text-gray-400">CTR Increase</div>
-                </div>
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-blue-500 mb-1">820K</div>
-                  <div className="text-sm text-gray-400">Extra Views</div>
-                </div>
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-purple-500 mb-1">$4.2K</div>
-                  <div className="text-sm text-gray-400">Revenue Boost</div>
-                </div>
-              </div>
-              <p className="text-gray-300 leading-relaxed">
-                "Within two weeks of switching to ThumPiks, my channel analytics completely transformed. 
-                The AI-generated thumbnails consistently outperform my old manual designs. My audience 
-                retention also improved because the thumbnails accurately represent the video content."
-              </p>
-            </div>
-
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-              <div className="flex items-center gap-4 mb-4">
-                <img
-                  src="/images/testimonials/review2.png"
-                  alt="Sarah Chen"
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-                <div>
-                  <div className="font-semibold text-xl">Sarah Chen</div>
-                  <div className="text-gray-400">Gaming Channel • 892K Subscribers</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-6 mb-6">
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-green-500 mb-1">5 hrs</div>
-                  <div className="text-sm text-gray-400">Saved Weekly</div>
-                </div>
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-blue-500 mb-1">2.1M</div>
-                  <div className="text-sm text-gray-400">Monthly Views</div>
-                </div>
-                <div className="text-center p-4 bg-gray-800/50 rounded-lg">
-                  <div className="text-3xl font-light text-purple-500 mb-1">89%</div>
-                  <div className="text-sm text-gray-400">Faster Growth</div>
-                </div>
-              </div>
-              <p className="text-gray-300 leading-relaxed">
-                "As a full-time creator managing daily uploads, ThumPiks is a lifesaver. The batch 
-                generation feature lets me create an entire week's worth of thumbnails in minutes. 
-                The consistent quality has helped establish my brand identity across 500+ videos."
-              </p>
+                Sign In to Review
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="bg-gray-800 hover:bg-gray-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
+              >
+                Create Account
+              </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-32 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
             <h2 className="text-5xl font-light mb-6">
-              Join 500+ Successful
+              Try ThumPiks
               <br />
-              <span className="text-blue-500">Content Creators</span>
+              <span className="text-blue-500">For Yourself</span>
             </h2>
             <p className="text-gray-300 text-lg mb-10">
-              Start creating thumbnails that drive real results
+              See why creators love it — start creating thumbnails today
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button

@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Sparkles, Zap, Users, Palette, TrendingUp, Shield, 
-  Wand2, Image, Clock, Download, BarChart, Layers 
+  Sparkles, Zap, Users, Palette, TrendingUp, 
+  Wand2, Image, Download, BarChart, Layers 
 } from 'lucide-react';
 
 const FeaturesPage: React.FC = () => {
@@ -17,33 +17,27 @@ const FeaturesPage: React.FC = () => {
     },
     {
       icon: <Image className="w-8 h-8" />,
-      title: 'Face Swap & Training',
-      description: 'Train the AI on your face or brand ambassadors. Swap faces seamlessly to create consistent, professional thumbnails.',
-      highlights: ['Custom face training', 'Expression morphing', 'Multiple faces supported'],
+      title: 'Face Swap & Expressions',
+      description: 'Swap faces seamlessly to create consistent, professional thumbnails. Expression analysis coming soon.',
+      highlights: ['Seamless face swap', 'Expression morphing ✦ Coming Soon', 'Multiple faces supported'],
     },
     {
       icon: <Palette className="w-8 h-8" />,
-      title: 'Extensive Style Library',
-      description: 'Choose from hundreds of pre-designed styles optimized for different content types. Gaming, tech, lifestyle, and more.',
-      highlights: ['500+ templates', 'Genre-specific styles', 'Trending designs'],
+      title: 'Style Presets & Layouts',
+      description: 'Choose from curated AI style presets and composition layouts optimized for different content types. Save your own templates to reuse anytime.',
+      highlights: ['Curated style presets', 'Genre-specific layouts', 'Save & reuse templates'],
     },
     {
       icon: <Layers className="w-8 h-8" />,
-      title: 'A/B Testing Variations',
-      description: 'Generate multiple thumbnail variations and test which performs best. Data-driven decisions for maximum clicks.',
-      highlights: ['3+ variations per design', 'Side-by-side comparison', 'Performance analytics'],
-    },
-    {
-      icon: <Clock className="w-8 h-8" />,
-      title: 'Batch Processing',
-      description: 'Generate thumbnails for multiple videos at once. Perfect for content creators with consistent upload schedules.',
-      highlights: ['Process up to 50 at once', 'Bulk download', 'Consistent branding'],
+      title: 'A/B Testing Variations ✦ Coming Soon',
+      description: 'Compare thumbnail variants side by side and find which design drives the most clicks.',
+      highlights: ['Up to 5 variants per test', 'Side-by-side comparison', 'CTR tracking'],
     },
     {
       icon: <TrendingUp className="w-8 h-8" />,
-      title: 'Trending Insights',
-      description: 'AI-powered analysis of top-performing thumbnails in your niche. Stay ahead of trends and maximize click-through rates.',
-      highlights: ['Real-time trend data', 'Niche-specific insights', 'Click prediction'],
+      title: 'Trending Insights ✦ Coming Soon',
+      description: 'Browse trending thumbnails from YouTube by category and region. See what top creators are doing in your niche.',
+      highlights: ['Real-time trend data', 'Niche-specific insights', 'Regional filtering'],
     },
     {
       icon: <Download className="w-8 h-8" />,
@@ -53,7 +47,7 @@ const FeaturesPage: React.FC = () => {
     },
     {
       icon: <Users className="w-8 h-8" />,
-      title: 'Brand Kit',
+      title: 'Brand Kit ✦ Coming Soon',
       description: 'Save your logos, colors, and fonts to maintain a consistent visual identity across all your thumbnails.',
       highlights: ['Logo & color presets', 'Font library', 'Consistent branding'],
     },
@@ -61,13 +55,7 @@ const FeaturesPage: React.FC = () => {
       icon: <BarChart className="w-8 h-8" />,
       title: 'Performance Analytics',
       description: 'Track which thumbnails perform best. Integrated analytics help you understand what drives clicks and views.',
-      highlights: ['Click-through tracking', 'A/B test results', 'Performance reports'],
-    },
-    {
-      icon: <Shield className="w-8 h-8" />,
-      title: 'Commercial License',
-      description: 'Full commercial rights to all generated thumbnails. Use them for client work, monetized videos, or any business purpose.',
-      highlights: ['Full commercial use', 'No attribution required', 'Unlimited usage rights'],
+      highlights: ['Click-through tracking', 'A/B test results ✦ Soon', 'Performance reports'],
     },
     {
       icon: <Zap className="w-8 h-8" />,
@@ -273,7 +261,7 @@ const FeaturesPage: React.FC = () => {
                   <td className="p-6 text-center text-gray-600">×</td>
                 </tr>
                 <tr>
-                  <td className="p-6">Face Training</td>
+                  <td className="p-6">Face Swap</td>
                   <td className="p-6 text-center text-green-500">✓</td>
                   <td className="p-6 text-center text-gray-600">×</td>
                   <td className="p-6 text-center text-gray-600">×</td>
