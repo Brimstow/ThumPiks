@@ -6,7 +6,6 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import { isProductionLike, isDevelopmentEnv } from './utils/env';
-// import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
 // Load environment variables FIRST
 dotenv.config();
@@ -68,6 +67,9 @@ import brandKitRoutes from './modules/brand-kit/brand-kit.routes';
 import feedbackRoutes from './modules/feedback/feedback.routes';
 import feedbackAdminRoutes from './modules/feedback/feedback.admin.routes';
 import globalChatRoutes from './modules/global-chat/global-chat.routes';
+import contactRoutes from './modules/contact/contact.routes';
+import reviewRoutes from './modules/review/review.routes';
+import reviewAdminRoutes from './modules/review/review.admin.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -76,6 +78,9 @@ import analyticsAdminRoutes from './modules/admin/analytics.routes';
 import systemMonitoringRoutes from './modules/admin/system-monitoring.routes';
 import sitemapRoutes from './modules/admin/sitemap.routes';
 import notificationConfigRoutes from './modules/notification-config/notification-config.routes';
+import adminNotificationRoutes from './modules/admin-notification/admin-notification.routes';
+import userNotificationRoutes from './modules/user-notification/user-notification.routes';
+import userSSERoutes, { adminSSERouter } from './modules/notification-sse/notification-sse.routes';
 import { startDigestScheduler } from './schedulers/digest.scheduler';
 
 const app = express();
@@ -96,7 +101,7 @@ if (process.env.ENABLE_HTTPS_REDIRECT === 'true') {
 
 if (process.env.ENABLE_SECURITY_HEADERS === 'true') {
   app.use(securityHeaders);
-  console.log('🛡️  Security headers enabled');
+  logger.info('Security headers enabled');
 }
 
 // Request ID tracking (must be before any logging middleware)
@@ -113,19 +118,19 @@ app.use(apiVersioning);
 
 // Input sanitization
 app.use(sanitizeInput);
-console.log('🧹 Input sanitization enabled');
+logger.info('Input sanitization enabled');
 
 // Performance monitoring middleware
 if (process.env.ENABLE_PERFORMANCE_MONITORING === 'true') {
   app.use(performanceMiddleware());
   app.use(responseTimeMiddleware());
-  console.log('📊 Performance monitoring enabled');
+  logger.info('Performance monitoring enabled');
 }
 
 // Performance middleware
 if (process.env.ENABLE_COMPRESSION === 'true') {
   app.use(compression());
-  console.log('🗜️  Compression enabled');
+  logger.info('Compression enabled');
 }
 
 // Rate limiting with security-focused configuration
@@ -136,7 +141,7 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
   // Strict rate limiting for auth endpoints
   app.use('/api/auth/', authRateLimit);
 
-  console.log('🛡️  Enhanced rate limiting enabled');
+  logger.info('Enhanced rate limiting enabled');
 }
 
 // Enhanced CORS configuration
@@ -169,16 +174,16 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
+logger.info('CORS enabled', { origins: corsOptions.origin });
 
 // Cookie parser for HttpOnly authentication cookies
 app.use(cookieParser());
-console.log('🍪 Cookie parser enabled');
+logger.info('Cookie parser enabled');
 
 // Initialize Passport for OAuth authentication
 app.use(passport.initialize());
 OAuthService.initializePassport();
-console.log('🔑 Passport OAuth initialized');
+logger.info('Passport OAuth initialized');
 
 // Enhanced JSON parsing with security limits
 app.use(
@@ -236,6 +241,10 @@ app.use('/api/url-history', urlHistoryRoutes);
 app.use('/api/youtube-trending', youtubeTrendingRoutes);
 app.use('/api/brand-kit', brandKitRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', userNotificationRoutes);
+app.use('/api/notifications', userSSERoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -245,6 +254,9 @@ app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
 app.use('/api/admin/support', feedbackAdminRoutes);
 app.use('/api/admin/notifications', notificationConfigRoutes);
+app.use('/api/admin/notifications', adminNotificationRoutes);
+app.use('/api/admin/notifications', adminSSERouter);
+app.use('/api/admin/reviews', reviewAdminRoutes);
 
 // Health check endpoint - MUST be before error handler for Railway healthchecks
 app.get('/health', async (_req, res) => {
@@ -374,23 +386,19 @@ async function initializeServer() {
   try {
     // Initialize event handlers
     await eventRegistry.initialize();
-    console.log('📡 Event system initialized');
+    logger.info('Event system initialized');
 
     // Initialize Replicate queue if Redis is available
     if (process.env.ENABLE_REPLICATE_QUEUE !== 'false') {
       try {
         const replicateQueue = getReplicateQueue();
         await replicateQueue.initialize();
-        console.log('🚀 Replicate job queue initialized');
+        logger.info('Replicate job queue initialized');
       } catch (queueError) {
-        // Queue initialization failure is non-fatal - service will work without queue
-        console.warn(
-          '⚠️  Replicate queue not initialized (Redis may be unavailable):',
-          queueError instanceof Error ? queueError.message : String(queueError)
-        );
-        console.warn(
-          '   Replicate requests will be processed directly without queuing'
-        );
+        logger.warn('Replicate queue not initialized (Redis may be unavailable)', {
+          error: queueError instanceof Error ? queueError.message : String(queueError),
+          fallback: 'Replicate requests will be processed directly without queuing',
+        });
       }
     }
 
@@ -400,19 +408,17 @@ async function initializeServer() {
         logger.error('Server failed to start', error);
         process.exit(1);
       }
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🎯 Health check: http://localhost:${PORT}/health`);
+      logger.info('Server started', { port: PORT, health: `http://localhost:${PORT}/health` });
 
-      // Log performance features
       if (process.env.ENABLE_CACHE === 'true') {
-        console.log('⚡ Redis caching enabled');
+        logger.info('Redis caching enabled');
       }
 
-      // Log event system stats
       const eventStats = eventRegistry.getStats();
-      console.log(
-        `📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`
-      );
+      logger.info('Event system ready', {
+        handlers: eventStats.totalHandlers,
+        eventTypes: eventStats.eventTypes,
+      });
 
       // Start digest scheduler
       startDigestScheduler();
@@ -438,10 +444,10 @@ if (require.main === module) {
 
   // Graceful shutdown
   process.on('SIGTERM', async () => {
-    console.log('📝 Received SIGTERM, shutting down gracefully');
+    logger.info('Received SIGTERM, shutting down gracefully');
     const server = await serverPromise;
     server.close(() => {
-      console.log('👋 Process terminated');
+      logger.info('Process terminated');
     });
 
     // Shutdown Replicate queue
@@ -450,15 +456,19 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
+    // Shutdown SSE connections
+    const { SSEService } = await import('./services/sse.service');
+    SSEService.getInstance().shutdown();
+
     await flushLogger();
     await cache.disconnect();
   });
 
   process.on('SIGINT', async () => {
-    console.log('📝 Received SIGINT, shutting down gracefully');
+    logger.info('Received SIGINT, shutting down gracefully');
     const server = await serverPromise;
     server.close(() => {
-      console.log('👋 Process terminated');
+      logger.info('Process terminated');
     });
 
     // Shutdown Replicate queue

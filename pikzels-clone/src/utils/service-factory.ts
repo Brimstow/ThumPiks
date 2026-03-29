@@ -14,14 +14,16 @@
 import { CacheService } from '../services/cache.service';
 import { EmailService } from '../services/email.service';
 import { NotificationRouter } from '../services/notification-router.service';
+import { SSEService } from '../services/sse.service';
 
 // Type-safe service registry
-type ServiceType = 'cache' | 'email' | 'notificationRouter';
+type ServiceType = 'cache' | 'email' | 'notificationRouter' | 'sse';
 
 interface ServiceRegistry {
   cache: CacheService;
   email: EmailService;
   notificationRouter: NotificationRouter;
+  sse: SSEService;
 }
 
 /**
@@ -39,6 +41,8 @@ export function getService<T extends ServiceType>(type: T): ServiceRegistry[T] {
       return EmailService.getInstance() as ServiceRegistry[T];
     case 'notificationRouter':
       return NotificationRouter.getInstance() as ServiceRegistry[T];
+    case 'sse':
+      return SSEService.getInstance() as ServiceRegistry[T];
     default:
       throw new Error(`Unknown service type: ${type}`);
   }
@@ -55,6 +59,9 @@ export async function cleanupAllServices(): Promise<void> {
 
   const email = EmailService.getInstance();
   await email.disconnect();
+
+  const sse = SSEService.getInstance();
+  sse.shutdown();
 }
 
 /**
@@ -78,6 +85,7 @@ export async function healthCheckServices(): Promise<
     cache: cacheHealth,
     email: emailHealth,
     notificationRouter: routerHealth,
+    sse: true, // SSE is always healthy if the process is running
   };
 }
 
