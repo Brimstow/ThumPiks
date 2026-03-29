@@ -18,7 +18,13 @@
   NODE_VERSION = "22"
   CI = ""
 
-# SPA fallback (overridden by build script when API_PROXY_TARGET is set)
+# Admin SPA fallback (must be before the main catch-all)
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+# Main SPA fallback (overridden by build script when API_PROXY_TARGET is set)
 [[redirects]]
   from = "/*"
   to = "/index.html"
