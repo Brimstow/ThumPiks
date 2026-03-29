@@ -95,8 +95,8 @@ describe('DigestService', () => {
       const stats = await service.gatherStats('daily');
 
       expect(stats.highlights.criticalItems).toHaveLength(2);
-      expect(stats.highlights.criticalItems[0].subject).toBe('Critical bug');
-      expect(stats.highlights.criticalItems[1].subject).toBe('High bug');
+      expect(stats.highlights.criticalItems[0]?.subject).toBe('Critical bug');
+      expect(stats.highlights.criticalItems[1]?.subject).toBe('High bug');
     });
 
     it('calculates average sentiment score', async () => {
@@ -124,8 +124,8 @@ describe('DigestService', () => {
       const stats = await service.gatherStats('daily');
 
       expect(stats.feedback.topCategories.length).toBeLessThanOrEqual(5);
-      expect(stats.feedback.topCategories[0].category).toBe('ui');
-      expect(stats.feedback.topCategories[0].count).toBe(2);
+      expect(stats.feedback.topCategories[0]?.category).toBe('ui');
+      expect(stats.feedback.topCategories[0]?.count).toBe(2);
     });
 
     it('uses correct date range for daily digest', async () => {

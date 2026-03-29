@@ -90,6 +90,68 @@ jest.mock('lucide-react', () => ({
   EyeOff: () => <span data-testid="icon-eyeoff">EyeOff</span>,
 }));
 
+// --- Mock usePricingData with current backend plan data ---
+jest.mock('../../hooks/usePricingData', () => ({
+  __esModule: true,
+  usePricingData: () => ({
+    phase: { id: 'production', name: 'Production', badge: '', discountPercentMonthly: 0, discountPercentAnnual: 0 },
+    spotsLeft: null,
+    spotsTotal: null,
+    endsAt: null,
+    plans: [
+      {
+        id: 'free', name: 'Free', description: 'Try before you subscribe',
+        monthlyPrice: 0, annualPrice: 0, originalMonthlyPrice: 0, originalAnnualPrice: 0,
+        hasDiscount: false, credits: 150, displayThumbnails: 5, popular: false, annualSavings: 0,
+        features: { aiThumbnails: 150, resolution: '720p', watermark: true, faceSwap: 3, abTesting: false, analytics: false, support: 'Community', frameExtractionsPerDay: 5, frameRegeneratesPerUrl: 1 },
+      },
+      {
+        id: 'starter', name: 'Starter', description: 'Perfect for new creators',
+        monthlyPrice: 19, annualPrice: 182, originalMonthlyPrice: 19, originalAnnualPrice: 182,
+        hasDiscount: false, credits: 750, displayThumbnails: 50, popular: false, annualSavings: 20,
+        features: { aiThumbnails: 750, resolution: '1080p HD', watermark: false, faceSwap: 20, abTesting: 2, analytics: true, support: 'Email', frameExtractionsPerDay: 20, frameRegeneratesPerUrl: 3 },
+      },
+      {
+        id: 'pro', name: 'Creator Pro', description: 'For serious YouTubers',
+        monthlyPrice: 39, annualPrice: 374, originalMonthlyPrice: 39, originalAnnualPrice: 374,
+        hasDiscount: false, credits: 3000, displayThumbnails: 200, popular: true, annualSavings: 20,
+        features: { aiThumbnails: 3000, resolution: '4K Ultra HD', watermark: false, faceSwap: 100, abTesting: true, analytics: true, support: 'Priority', customTemplates: true, earlyAccess: true, frameExtractionsPerDay: -1, frameRegeneratesPerUrl: -1 },
+      },
+      {
+        id: 'ultra_pro', name: 'Ultra Pro', description: 'For power creators',
+        monthlyPrice: 79, annualPrice: 758, originalMonthlyPrice: 79, originalAnnualPrice: 758,
+        hasDiscount: false, credits: 9000, displayThumbnails: 600, popular: false, annualSavings: 20,
+        features: { aiThumbnails: 9000, resolution: '4K Ultra HD', watermark: false, faceSwap: -1, abTesting: true, analytics: true, support: 'Dedicated', privateModeDefault: true, earlyAccess: true, customTemplates: true, frameExtractionsPerDay: -1, frameRegeneratesPerUrl: -1 },
+      },
+    ],
+    creditPacks: [],
+    faqs: [
+      { question: 'What happens when I run out of thumbnails?', answer: "You can purchase additional credit packs or upgrade your plan anytime. Your unused credits don't roll over to the next month." },
+      { question: 'Do monthly thumbnails roll over?', answer: "No, thumbnail credits reset each month on your billing date. Unused credits don't carry over." },
+      { question: 'Can I cancel anytime?', answer: "Yes! You can cancel your subscription at any time. You'll continue to have access until the end of your billing period." },
+      { question: 'Do you offer refunds?', answer: 'We offer a 7-day money-back guarantee for annual plans. Monthly plans can be cancelled anytime but are non-refundable.' },
+      { question: 'Can I change my plan?', answer: 'Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.' },
+      { question: 'What payment methods do you accept?', answer: 'We accept all major credit cards, debit cards, and PayPal through our secure payment processor.' },
+      { question: 'Is there a free trial?', answer: 'Our Free plan gives you 5 AI thumbnails per month at no cost — no credit card required.' },
+      { question: "What's the difference between monthly and annual billing?", answer: "Annual billing saves you up to 25% compared to monthly billing. You're billed once per year." },
+      { question: 'How do credit packs work?', answer: "Credit packs are one-time purchases that add extra credits to your account. They don't expire and can be used anytime." },
+      { question: 'What AI tools are included?', answer: 'All plans include access to our core AI thumbnail generation tools. Higher tiers unlock advanced features like face swap, A/B testing, and analytics.' },
+      { question: 'Do you offer team or enterprise plans?', answer: "We're working on team plans! Contact us at support@thumpiks.com for enterprise inquiries." },
+    ],
+    loading: false,
+    error: null,
+  }),
+  prefetchPricingData: jest.fn(),
+}));
+
+// --- Mock BetaPhaseBanner ---
+jest.mock('../shared/BetaPhaseBanner', () => ({
+  __esModule: true,
+  default: function MockBetaPhaseBanner() {
+    return <div data-testid="beta-phase-banner" />;
+  },
+}));
+
 import { ThumPiksLanding } from '../ThumPiksLanding';
 
 const renderLanding = () =>
@@ -122,9 +184,10 @@ describe('ThumPiksLanding - Functional Tests', () => {
       expect(screen.getByText(/Thumbnails with AI/)).toBeInTheDocument();
     });
 
-    it('renders the version badge', () => {
+    it('renders the beta badge', () => {
       renderLanding();
-      expect(screen.getByText('ThumPiks v1.0 Preview')).toBeInTheDocument();
+      expect(screen.getByText('Beta')).toBeInTheDocument();
+      expect(screen.getByText(/Early Access/)).toBeInTheDocument();
     });
 
     it('renders the subtitle describing the product', () => {
@@ -236,24 +299,24 @@ describe('ThumPiksLanding - Functional Tests', () => {
     it('renders Annual billing toggle with discount', () => {
       renderLanding();
       expect(screen.getByText('Annual')).toBeInTheDocument();
-      expect(screen.getByText('-25%')).toBeInTheDocument();
+      expect(screen.getByText('-20%')).toBeInTheDocument();
     });
 
-    it('shows monthly price by default ($9 for Starter)', () => {
+    it('shows monthly price by default ($19 for Starter)', () => {
       renderLanding();
-      expect(screen.getByText(/\$9/)).toBeInTheDocument();
+      expect(screen.getByText(/\$19/)).toBeInTheDocument();
     });
 
     it('shows annual price when annual toggle is clicked', () => {
       renderLanding();
       fireEvent.click(screen.getByText('Annual'));
-      expect(screen.getByText(/\$7\.50/)).toBeInTheDocument();
+      expect(screen.getByText(/\$182/)).toBeInTheDocument();
     });
 
     it('renders free tier features', () => {
       renderLanding();
-      expect(screen.getByText('5 AI thumbnails/month')).toBeInTheDocument();
-      expect(screen.getByText('720p resolution')).toBeInTheDocument();
+      expect(screen.getByText('150 AI thumbnail credits/month')).toBeInTheDocument();
+      expect(screen.getByText('720p')).toBeInTheDocument();
     });
 
     it('renders Start Free CTA button', () => {
@@ -276,44 +339,44 @@ describe('ThumPiksLanding - Functional Tests', () => {
       expect(screen.getByText('Asked Questions')).toBeInTheDocument();
     });
 
-    it('renders all 7 FAQ questions', () => {
+    it('renders FAQ questions from pricing API', () => {
       renderLanding();
-      expect(screen.getByText('What is ThumPiks and how does it work?')).toBeInTheDocument();
-      expect(screen.getByText('What platforms and content types does ThumPiks support?')).toBeInTheDocument();
-      expect(screen.getByText('How is ThumPiks different from using Canva or Photoshop?')).toBeInTheDocument();
-      expect(screen.getByText('What happens when I run out of thumbnails in my plan?')).toBeInTheDocument();
-      expect(screen.getByText('Do my monthly thumbnails roll over to the next month?')).toBeInTheDocument();
-      expect(screen.getByText('Can I cancel my subscription anytime?')).toBeInTheDocument();
-      expect(screen.getByText('Do you offer refunds or free trials?')).toBeInTheDocument();
+      expect(screen.getByText('What happens when I run out of thumbnails?')).toBeInTheDocument();
+      expect(screen.getByText('Do monthly thumbnails roll over?')).toBeInTheDocument();
+      expect(screen.getByText('Can I cancel anytime?')).toBeInTheDocument();
+      expect(screen.getByText('Do you offer refunds?')).toBeInTheDocument();
+      expect(screen.getByText('Can I change my plan?')).toBeInTheDocument();
+      expect(screen.getByText('What payment methods do you accept?')).toBeInTheDocument();
+      expect(screen.getByText('Is there a free trial?')).toBeInTheDocument();
     });
 
     it('expands FAQ answer when question is clicked', () => {
       renderLanding();
-      const firstQuestion = screen.getByText('What is ThumPiks and how does it work?');
+      const firstQuestion = screen.getByText('What happens when I run out of thumbnails?');
       fireEvent.click(firstQuestion);
-      expect(screen.getByText(/ThumPiks is an AI-powered thumbnail generator/)).toBeInTheDocument();
+      expect(screen.getByText(/You can purchase additional credit packs/)).toBeInTheDocument();
     });
 
     it('collapses FAQ answer when clicked again', () => {
       renderLanding();
-      const firstQuestion = screen.getByText('What is ThumPiks and how does it work?');
+      const firstQuestion = screen.getByText('What happens when I run out of thumbnails?');
       fireEvent.click(firstQuestion);
-      expect(screen.getByText(/ThumPiks is an AI-powered thumbnail generator/)).toBeInTheDocument();
+      expect(screen.getByText(/You can purchase additional credit packs/)).toBeInTheDocument();
       fireEvent.click(firstQuestion);
-      expect(screen.queryByText(/ThumPiks is an AI-powered thumbnail generator/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/You can purchase additional credit packs/)).not.toBeInTheDocument();
     });
 
     it('closes previous FAQ when a different question is clicked', () => {
       renderLanding();
-      const firstQuestion = screen.getByText('What is ThumPiks and how does it work?');
-      const secondQuestion = screen.getByText('What platforms and content types does ThumPiks support?');
+      const firstQuestion = screen.getByText('What happens when I run out of thumbnails?');
+      const secondQuestion = screen.getByText('Do monthly thumbnails roll over?');
 
       fireEvent.click(firstQuestion);
-      expect(screen.getByText(/ThumPiks is an AI-powered thumbnail generator/)).toBeInTheDocument();
+      expect(screen.getByText(/You can purchase additional credit packs/)).toBeInTheDocument();
 
       fireEvent.click(secondQuestion);
-      expect(screen.queryByText(/ThumPiks is an AI-powered thumbnail generator/)).not.toBeInTheDocument();
-      expect(screen.getByText(/ThumPiks works great for all social media/)).toBeInTheDocument();
+      expect(screen.queryByText(/You can purchase additional credit packs/)).not.toBeInTheDocument();
+      expect(screen.getByText(/thumbnail credits reset each month/)).toBeInTheDocument();
     });
   });
 

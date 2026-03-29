@@ -302,8 +302,8 @@ describe('SystemMonitoringService', () => {
       const logs = await service.getErrorLogs();
 
       expect(logs).toHaveLength(1);
-      expect(logs[0].stack).toBe('Error at line 1');
-      expect(logs[0].context).toEqual({ module: 'api' });
+      expect(logs[0]?.stack).toBe('Error at line 1');
+      expect(logs[0]?.context).toEqual({ module: 'api' });
     });
 
     it('filters by severity level', async () => {

@@ -33,7 +33,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 // Mock email service
-jest.mock('../../modules/auth/email.service', () => ({
+jest.mock('../../modules/email/email.service', () => ({
   EmailService: {
     sendWelcomeEmail: jest.fn(),
     sendPasswordResetEmail: jest.fn(),
