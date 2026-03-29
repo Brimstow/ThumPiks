@@ -1,13 +1,15 @@
 /**
  * NotificationsDropdown Component
  * Dropdown panel for viewing and managing notifications
+ *
+ * UPDATED: Now uses useNotifications hook with real API + SSE
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Tooltip from '../ui/Tooltip';
 import {
   Bell,
-  Check,
   CheckCheck,
   X,
   Zap,
@@ -16,73 +18,32 @@ import {
   Image,
   Settings,
   ChevronRight,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
-
-interface Notification {
-  id: string;
-  type: 'credit' | 'billing' | 'security' | 'thumbnail' | 'system';
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
-  actionUrl?: string;
-}
+import {
+  useNotifications,
+  formatRelativeTime,
+  getNotificationCategory,
+  type NotificationCategory,
+} from '@/hooks/useNotifications';
 
 const NotificationsDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Mock notifications - in production, fetch from API
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'credit',
-      title: 'Credits Running Low',
-      message: 'You have 10 credits remaining. Add more to continue creating.',
-      time: '2 min ago',
-      read: false,
-      actionUrl: '/dashboard/pricing',
-    },
-    {
-      id: '2',
-      type: 'thumbnail',
-      title: 'Thumbnail Generated',
-      message: 'Your AI thumbnail "Gaming Stream" is ready to view.',
-      time: '15 min ago',
-      read: false,
-      actionUrl: '/dashboard/thumbnails',
-    },
-    {
-      id: '3',
-      type: 'billing',
-      title: 'Payment Successful',
-      message: 'Your subscription has been renewed for another month.',
-      time: '1 hour ago',
-      read: true,
-      actionUrl: '/dashboard/account/billing',
-    },
-    {
-      id: '4',
-      type: 'security',
-      title: 'New Login Detected',
-      message: 'A new login was detected from Chrome on Windows.',
-      time: '2 hours ago',
-      read: true,
-      actionUrl: '/dashboard/account/security',
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: 'New Feature Available',
-      message: 'Check out our new AI background remover tool!',
-      time: '1 day ago',
-      read: true,
-      actionUrl: '/dashboard/ai-tools',
-    },
-  ]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Use the real notifications hook
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
+    markRead,
+    markAllRead,
+    deleteNotification,
+    isMarkingAllRead,
+  } = useNotifications();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -108,8 +69,8 @@ const NotificationsDropdown: React.FC = () => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const getNotificationIcon = (type: Notification['type']) => {
-    switch (type) {
+  const getNotificationIcon = (category: NotificationCategory) => {
+    switch (category) {
       case 'credit':
         return <Zap className="w-4 h-4 text-yellow-400" />;
       case 'billing':
@@ -119,17 +80,20 @@ const NotificationsDropdown: React.FC = () => {
       case 'thumbnail':
         return <Image className="w-4 h-4 text-purple-400" />;
       case 'system':
-        return <Settings className="w-4 h-4 text-slate-400" />;
       default:
-        return <Bell className="w-4 h-4 text-slate-400" />;
+        return <Settings className="w-4 h-4 text-slate-400" />;
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
-    // Mark as read
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-    );
+  const handleNotificationClick = (notification: {
+    id: string;
+    isRead: boolean;
+    actionUrl: string | null;
+  }) => {
+    // Mark as read if not already
+    if (!notification.isRead) {
+      markRead(notification.id);
+    }
 
     // Navigate if action URL exists
     if (notification.actionUrl) {
@@ -138,29 +102,31 @@ const NotificationsDropdown: React.FC = () => {
     }
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const handleMarkAllAsRead = () => {
+    markAllRead();
   };
 
-  const clearNotification = (id: string, e: React.MouseEvent) => {
+  const handleClearNotification = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    deleteNotification(id);
   };
 
   return (
     <div ref={dropdownRef} className="relative">
       {/* Trigger Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
-        aria-label="Notifications"
-        aria-expanded={isOpen}
-      >
-        <Bell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 inline-flex h-2 w-2 rounded-full bg-rose-500 ring-2 ring-slate-900" />
-        )}
-      </button>
+      <Tooltip content="Notifications" side="bottom">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-slate-50 transition-colors"
+          aria-label="Notifications"
+          aria-expanded={isOpen}
+        >
+          <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute right-1 top-1 inline-flex h-2 w-2 rounded-full bg-rose-500 ring-2 ring-slate-900" />
+          )}
+        </button>
+      </Tooltip>
 
       {/* Dropdown Panel */}
       {isOpen && (
@@ -177,10 +143,15 @@ const NotificationsDropdown: React.FC = () => {
             </div>
             {unreadCount > 0 && (
               <button
-                onClick={markAllAsRead}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+                onClick={handleMarkAllAsRead}
+                disabled={isMarkingAllRead}
+                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors disabled:opacity-50"
               >
-                <CheckCheck className="w-3.5 h-3.5" />
+                {isMarkingAllRead ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-3.5 h-3.5" />
+                )}
                 Mark all read
               </button>
             )}
@@ -188,54 +159,69 @@ const NotificationsDropdown: React.FC = () => {
 
           {/* Notifications List */}
           <div className="max-h-[400px] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {isLoading ? (
+              <div className="p-8 text-center">
+                <Loader2 className="w-8 h-8 text-slate-500 mx-auto mb-3 animate-spin" />
+                <p className="text-sm text-slate-400">Loading notifications...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <AlertCircle className="w-10 h-10 text-rose-500/60 mx-auto mb-3" />
+                <p className="text-sm text-slate-400">Failed to load notifications</p>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="p-8 text-center">
                 <Bell className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                 <p className="text-sm text-slate-400">No notifications yet</p>
               </div>
             ) : (
-              notifications.map((notification) => (
-                <button
-                  key={notification.id}
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`w-full flex items-start gap-3 p-4 hover:bg-slate-800/50 transition-colors text-left group ${
-                    !notification.read ? 'bg-slate-800/30' : ''
-                  }`}
-                >
-                  {/* Icon */}
-                  <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          notification.read ? 'text-slate-300' : 'text-slate-100'
-                        }`}
-                      >
-                        {notification.title}
-                      </p>
-                      <button
-                        onClick={(e) => clearNotification(notification.id, e)}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-700 rounded transition-all"
-                      >
-                        <X className="w-3 h-3 text-slate-500" />
-                      </button>
+              notifications.map((notification) => {
+                const category = getNotificationCategory(notification.type);
+                return (
+                  <button
+                    key={notification.id}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`w-full flex items-start gap-3 p-4 hover:bg-slate-800/50 transition-colors text-left group ${
+                      !notification.isRead ? 'bg-slate-800/30' : ''
+                    }`}
+                  >
+                    {/* Icon */}
+                    <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
+                      {getNotificationIcon(category)}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                      {notification.message}
-                    </p>
-                    <p className="text-xs text-slate-600 mt-1">{notification.time}</p>
-                  </div>
 
-                  {/* Unread indicator */}
-                  {!notification.read && (
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />
-                  )}
-                </button>
-              ))
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={`text-sm font-medium truncate ${
+                            notification.isRead ? 'text-slate-300' : 'text-slate-100'
+                          }`}
+                        >
+                          {notification.title}
+                        </p>
+                        <button
+                          onClick={(e) => handleClearNotification(notification.id, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-700 rounded transition-all"
+                        >
+                          <X className="w-3 h-3 text-slate-500" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {formatRelativeTime(notification.createdAt)}
+                      </p>
+                    </div>
+
+                    {/* Unread indicator */}
+                    {!notification.isRead && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-2" />
+                    )}
+                  </button>
+                );
+              })
             )}
           </div>
 
@@ -244,7 +230,7 @@ const NotificationsDropdown: React.FC = () => {
             <button
               onClick={() => {
                 setIsOpen(false);
-                navigate('/dashboard/account/notifications');
+                navigate('/dashboard/notifications');
               }}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
             >
