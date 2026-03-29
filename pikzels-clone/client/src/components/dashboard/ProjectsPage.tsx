@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useProjects } from '../../hooks/useProjects';
 import type { Project } from '../../services/projectService';
+import Tooltip from '../ui/Tooltip';
 import CreateProjectModal from '../projects/CreateProjectModal';
 import EditProjectModal from '../projects/EditProjectModal';
 import ProjectFilters, { type FilterState } from '../projects/ProjectFilters';
@@ -699,13 +700,14 @@ const ProjectsPage: React.FC = () => {
 
           <div className="flex items-center gap-4 mb-5 group cursor-pointer">
             {!bulkSelectMode && visibleProjects.length > 0 && (
-              <button
-                onClick={() => setBulkSelectMode(true)}
-                className="p-1.5 hover:bg-slate-800 rounded transition-colors"
-                title="Select multiple"
-              >
-                <Square className="w-4 h-4 text-slate-400 hover:text-white" />
-              </button>
+              <Tooltip content="Select multiple" side="top">
+                <button
+                  onClick={() => setBulkSelectMode(true)}
+                  className="p-1.5 hover:bg-slate-800 rounded transition-colors"
+                >
+                  <Square className="w-4 h-4 text-slate-400 hover:text-white" />
+                </button>
+              </Tooltip>
             )}
             <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
             <h2 className="text-xl font-bold text-slate-100 tracking-tight">
@@ -916,45 +918,42 @@ const ProjectsPage: React.FC = () => {
                       >
                         <div className="absolute inset-0">
                           {project.previewThumbnails && project.previewThumbnails.length > 0 ? (
-                            /* Thumbnail 2x2 grid */
+                            /* Seamless thumbnail grid over gradient background */
                             <div
                               style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gridTemplateRows: '1fr 1fr',
-                                gap: '4px',
-                                padding: '8px',
+                                position: 'relative',
                                 width: '100%',
                                 height: '100%',
-                                boxSizing: 'border-box',
-                                backgroundColor: '#0f172a',
+                                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #000000 100%)',
                               }}
                             >
-                              {project.previewThumbnails.slice(0, 4).map((thumb, idx) => (
-                                <div
-                                  key={thumb.id}
-                                  style={{
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    borderRadius: '4px',
-                                    backgroundColor: '#1e293b',
-                                  }}
-                                >
-                                  <img
-                                    src={thumb.imageUrl}
-                                    alt={thumb.title || `Thumbnail ${idx + 1}`}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                    loading="lazy"
-                                  />
-                                </div>
-                              ))}
-                              {Array.from({ length: Math.max(0, 4 - project.previewThumbnails.length) }).map((_, idx) => (
-                                <div
-                                  key={`empty-${idx}`}
-                                  className="bg-slate-800/50"
-                                  style={{ borderRadius: '4px' }}
-                                />
-                              ))}
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  display: 'grid',
+                                  gridTemplateColumns: '1fr 1fr',
+                                  gridTemplateRows: '1fr 1fr',
+                                  gap: 0,
+                                }}
+                              >
+                                {project.previewThumbnails.slice(0, 4).map((thumb, idx) => (
+                                  <div
+                                    key={thumb.id}
+                                    style={{ overflow: 'hidden', backgroundColor: 'transparent' }}
+                                  >
+                                    <img
+                                      src={thumb.imageUrl}
+                                      alt={thumb.title || `Thumbnail ${idx + 1}`}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                ))}
+                                {Array.from({ length: Math.max(0, 4 - project.previewThumbnails.length) }).map((_, idx) => (
+                                  <div key={`empty-${idx}`} style={{ backgroundColor: 'transparent' }} />
+                                ))}
+                              </div>
                             </div>
                           ) : project.featuredThumbnail?.imageUrl ? (
                             <img

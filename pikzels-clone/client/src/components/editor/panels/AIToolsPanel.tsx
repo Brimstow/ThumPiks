@@ -796,7 +796,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
               <Icons.User />
               <div>
                 <h4>Face Swap</h4>
-                <p>Replace faces in your thumbnail with your own or custom faces.</p>
+                <p>Replace faces in your thumbnail seamlessly using AI.</p>
               </div>
             </div>
             

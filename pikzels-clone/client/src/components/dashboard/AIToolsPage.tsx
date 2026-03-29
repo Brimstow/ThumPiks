@@ -37,6 +37,7 @@ import type { AIGenerateRequest } from '../../services/ai-providers';
 import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
 import type { ModelTierId } from '../../features/ai-tools';
 import ImageUploadZone from '../ui/ImageUploadZone';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // TYPES
@@ -134,6 +135,7 @@ const AIToolsPage: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
+  const [resultOriginalUrl, setResultOriginalUrl] = useState<string | null>(null);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [style, setStyle] = useState('cinematic');
@@ -258,7 +260,7 @@ const AIToolsPage: React.FC = () => {
         'One-click removal',
         'Edge detection',
         'Transparent output',
-        'Batch processing',
+        'PNG export',
       ],
       requiresImage: true,
       apiCost: 'Free (local)',
@@ -299,7 +301,7 @@ const AIToolsPage: React.FC = () => {
         '2x/4x upscale',
         'Detail preservation',
         'Smart interpolation',
-        'Batch support',
+        'Quality preservation',
       ],
       requiresImage: true,
       apiCost: '~$0.0015/image',
@@ -392,6 +394,7 @@ const AIToolsPage: React.FC = () => {
       // Backend returns { success, images: string[], model, provider }
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Generate failed:', error);
@@ -427,6 +430,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Remove background failed:', error);
@@ -462,6 +466,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Enhance failed:', error);
@@ -502,6 +507,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Upscale failed:', error);
@@ -543,6 +549,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Face swap failed:', error);
@@ -580,6 +587,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Expand failed:', error);
@@ -670,6 +678,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
         // Reset object removal state
         setObjectRemovalClicks([]);
         setObjectRemovalMask(null);
@@ -721,6 +730,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Inpaint failed:', error);
@@ -1060,13 +1070,14 @@ const AIToolsPage: React.FC = () => {
                               <Check className="w-4 h-4" />
                               Select as Source
                             </button>
+                            <Tooltip content="Back to thumbnails">
                             <button
                               onClick={() => setMyThumbnailsPreview(null)}
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
-                              title="Back to thumbnails"
                             >
                               <X className="w-4 h-4" />
                             </button>
+                            </Tooltip>
                           </div>
 
                           {/* Large Preview Image */}
@@ -1692,6 +1703,7 @@ const AIToolsPage: React.FC = () => {
                   <ThumbnailActionBar
                     context={{
                       imageUrl: resultImage,
+                      originalImageUrl: resultOriginalUrl || undefined,
                       sourceSettings: {
                         toolType: selectedTool || 'generate',
                         prompt: selectedTool === 'generate' ? generatePrompt : inpaintPrompt,

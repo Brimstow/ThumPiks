@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOnboarding } from '../../features/onboarding';
+import { useDarkMode } from '../../hooks/useDarkMode';
 import { authFetch, authPost } from '../../utils/api';
 import * as accountService from '../../services/account.service';
 import type {
@@ -49,18 +50,26 @@ import {
   Plus,
   X,
   ArrowRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 // ============================================
 // TYPES
 // ============================================
 
-type AccountTab = 'profile' | 'billing' | 'security' | 'notifications' | 'settings' | 'team' | 'export';
+type AccountTab = 'profile' | 'billing' | 'security' | 'notifications' | 'settings' | 'team';
 
-interface TabConfig {
+interface NavItem {
   id: AccountTab;
   label: string;
   icon: React.ReactNode;
+  description: string;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
 }
 
 // ============================================
@@ -71,6 +80,7 @@ const AccountPage: React.FC = () => {
   const { section } = useParams<{ section?: string }>();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { mode: colorMode, setMode: setColorMode } = useDarkMode();
   const { prefs, setQuickEditOverlayEnabled, resetOnboarding } = useOnboarding();
   
   // Determine active tab from URL or default to profile
@@ -125,13 +135,23 @@ const AccountPage: React.FC = () => {
   const [loadingEmailPrefs, setLoadingEmailPrefs] = useState(false);
   const [emailPrefsMessage, setEmailPrefsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const tabs: TabConfig[] = [
-    { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-    { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
-    { id: 'team', label: 'Team', icon: <Users className="w-4 h-4" /> },
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Account',
+      items: [
+        { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" />, description: 'Manage your profile' },
+        { id: 'billing', label: 'Billing & Subscription', icon: <CreditCard className="w-4 h-4" />, description: 'Plans & payments' },
+        { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" />, description: '2FA & sessions' },
+        { id: 'team', label: 'Team', icon: <Users className="w-4 h-4" />, description: 'Manage members' },
+      ],
+    },
+    {
+      label: 'Preferences',
+      items: [
+        { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" />, description: 'Alert settings' },
+        { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'App preferences' },
+      ],
+    },
   ];
 
   const handleTabChange = (tab: AccountTab) => {
@@ -468,26 +488,60 @@ const AccountPage: React.FC = () => {
         <p className="text-slate-400">Manage your account, billing, and preferences</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-slate-900/50 rounded-xl border border-slate-800 mb-8 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Two-column layout: left sidebar + content */}
+      <div className="flex gap-8 items-start">
+        {/* Left Sidebar Nav */}
+        <nav className="hidden lg:flex flex-col w-56 shrink-0 sticky top-24 gap-6">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 px-3 mb-2">
+                {group.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabChange(item.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
+                        isActive
+                          ? 'bg-[#2563ff] text-white'
+                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className={isActive ? 'text-white' : 'text-slate-500'}>
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
 
-      {/* Tab Content */}
-      <div className="space-y-6">
+        {/* Mobile horizontal tabs fallback */}
+        <div className="flex lg:hidden gap-1 p-1 bg-slate-900/50 rounded-xl border border-slate-800 mb-6 overflow-x-auto w-full">
+          {navGroups.flatMap((g) => g.items).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleTabChange(item.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                activeTab === item.id
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content area */}
+        <div className="flex-1 min-w-0 space-y-6">
         {/* PROFILE TAB */}
         {activeTab === 'profile' && (
           <>
@@ -1092,7 +1146,36 @@ const AccountPage: React.FC = () => {
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
               <h2 className="text-lg font-semibold text-slate-100 mb-6">App Preferences</h2>
               
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Appearance */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-3">Appearance</label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'light' as const, label: 'Light', icon: <Sun className="w-4 h-4" /> },
+                      { value: 'dark'  as const, label: 'Dark',  icon: <Moon className="w-4 h-4" /> },
+                      { value: 'system' as const, label: 'System', icon: <Monitor className="w-4 h-4" /> },
+                    ]).map(({ value, label, icon }) => {
+                      const active = colorMode === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => setColorMode(value)}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                            active
+                              ? 'border-blue-500 bg-blue-500/10 text-slate-100'
+                              : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                          }`}
+                        >
+                          {icon}
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800" />
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Language</label>
                   <select className="w-full max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
@@ -1114,8 +1197,62 @@ const AccountPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Thumbnail Defaults */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <h2 className="text-lg font-semibold text-slate-100 mb-6">Thumbnail Defaults</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Default Width (px)</label>
+                    <input
+                      type="number"
+                      defaultValue={1280}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Default Height (px)</label>
+                    <input
+                      type="number"
+                      defaultValue={720}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Default Style</label>
+                  <select className="w-full max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                    <option value="bold">Bold</option>
+                    <option value="minimalist">Minimalist</option>
+                    <option value="dramatic">Dramatic</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Privacy */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <h2 className="text-lg font-semibold text-slate-100 mb-6">Privacy</h2>
+              <div className="space-y-4">
+                {[
+                  { id: 'profileVisible', title: 'Profile Visibility', description: 'Make your profile visible to other users' },
+                  { id: 'thumbnailsPublic', title: 'Thumbnails Public by Default', description: 'Make new thumbnails public when created' },
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-3 border-b border-slate-800 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">{item.title}</p>
+                      <p className="text-xs text-slate-500">{item.description}</p>
+                    </div>
+                    <button className="w-12 h-6 rounded-full relative transition-colors bg-slate-700">
+                      <span className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Onboarding Preferences */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 mt-6">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
               <h2 className="text-lg font-semibold text-slate-100 mb-6">Onboarding Preferences</h2>
               
               <div className="space-y-6">
@@ -1270,7 +1407,8 @@ const AccountPage: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+        </div>{/* end content area */}
+      </div>{/* end two-column layout */}
     </div>
   );
 };

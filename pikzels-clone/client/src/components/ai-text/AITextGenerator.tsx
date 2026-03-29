@@ -11,6 +11,7 @@ import React, { useState, useCallback } from 'react';
 import { useAITextGenerator, type TextTone, type AITextSuggestion } from '../../hooks/useAITextGenerator';
 import { useAIToolsStore } from '../../stores/aiToolsStore';
 import './AITextGenerator.css';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // ICONS
@@ -322,15 +323,15 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
         <label className="ai-text-label">Tone</label>
         <div className="ai-text-tones">
           {TONE_PRESETS.map((tone) => (
+            <Tooltip key={tone.id} content={tone.description}>
             <button
-              key={tone.id}
               className={`ai-text-tone ${textTone === tone.id ? 'ai-text-tone--active' : ''}`}
               onClick={() => setTextTone(tone.id)}
-              title={tone.description}
             >
               <span className="ai-text-tone__emoji">{tone.emoji}</span>
               <span className="ai-text-tone__label">{tone.label}</span>
             </button>
+            </Tooltip>
           ))}
         </div>
       </div>
@@ -368,12 +369,16 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
           <div className="ai-text-results__header">
             <h5 className="ai-text-results__title">Suggestions</h5>
             <div className="ai-text-results__actions">
-              <button className="ai-text-btn-sm" onClick={handleGenerate} disabled={isGenerating} title="Regenerate">
+              <Tooltip content="Regenerate">
+              <button className="ai-text-btn-sm" onClick={handleGenerate} disabled={isGenerating}>
                 <Icons.Refresh />
               </button>
-              <button className="ai-text-btn-sm" onClick={clearSuggestions} title="Clear">
+              </Tooltip>
+              <Tooltip content="Clear suggestions">
+              <button className="ai-text-btn-sm" onClick={clearSuggestions}>
                 <Icons.Trash />
               </button>
+              </Tooltip>
             </div>
           </div>
 

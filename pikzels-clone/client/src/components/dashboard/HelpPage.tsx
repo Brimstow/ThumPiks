@@ -11,6 +11,7 @@ import {
   Mail,
   MessageSquare,
 } from 'lucide-react';
+import Tooltip from '../ui/Tooltip';
 
 const HelpPage: React.FC = () => {
   const categories = [
@@ -59,7 +60,7 @@ const HelpPage: React.FC = () => {
   ];
 
   const popularArticles = [
-    'How do I generate consistent faces across thumbnails?',
+    'How do I swap faces in my thumbnails?',
     'Understanding credit usage and renewal cycles',
     'Can I use my own fonts and branding assets?',
     'Exporting high-resolution thumbnails for YouTube',
@@ -109,11 +110,13 @@ const HelpPage: React.FC = () => {
             href="#"
             className="group p-6 rounded-2xl bg-[#020818] border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 transition-all duration-300 relative overflow-hidden"
           >
-            <div
-              className={`w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center ${category.color} mb-4 group-hover:scale-110 transition-transform`}
-            >
-              <category.icon className="w-6 h-6" />
-            </div>
+            <Tooltip content={category.title} side="top">
+              <div
+                className={`w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center ${category.color} mb-4 group-hover:scale-110 transition-transform`}
+              >
+                <category.icon className="w-6 h-6" />
+              </div>
+            </Tooltip>
             <h3 className="text-lg font-semibold text-slate-100 mb-2">{category.title}</h3>
             <p className="text-sm text-slate-400">{category.description}</p>
           </a>
@@ -153,14 +156,18 @@ const HelpPage: React.FC = () => {
             issues.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-200 transition-colors w-full sm:w-auto">
-              <Mail className="w-4 h-4 mr-2" />
-              Contact Support
-            </button>
-            <button className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-transparent px-6 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800 transition-colors w-full sm:w-auto">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Live Chat
-            </button>
+            <Tooltip content="Send us an email" side="top">
+              <button className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-200 transition-colors w-full sm:w-auto">
+                <Mail className="w-4 h-4 mr-2" />
+                Contact Support
+              </button>
+            </Tooltip>
+            <Tooltip content="Start a live chat" side="top">
+              <button className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-transparent px-6 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800 transition-colors w-full sm:w-auto">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Live Chat
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

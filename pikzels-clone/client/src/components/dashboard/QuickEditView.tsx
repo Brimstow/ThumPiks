@@ -58,6 +58,7 @@ import { useAITextGenerator } from '../../hooks/useAITextGenerator';
 // Layouts available via Canvas Editor — removed from Quick Edit sidebar
 import RecreateBetterModal from '../ui/RecreateBetterModal';
 import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // TYPES
@@ -324,6 +325,7 @@ const SmartTextItem: React.FC<SmartTextItemProps> = ({
     >
       {overlay.text}
     </span>
+    <Tooltip content="Remove text">
     <button
       onClick={e => {
         e.stopPropagation();
@@ -331,10 +333,10 @@ const SmartTextItem: React.FC<SmartTextItemProps> = ({
       }}
       className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-0.5"
       aria-label={`Remove text: ${overlay.text}`}
-      title="Remove this text"
     >
       <X className="w-3 h-3" />
     </button>
+    </Tooltip>
   </div>
 );
 
@@ -429,6 +431,7 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
             Edit Text
           </span>
         </div>
+        <Tooltip content="Close panel">
         <button
           onMouseDown={e => e.stopPropagation()}
           onClick={onClose}
@@ -437,6 +440,7 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
         >
           <X className="w-3.5 h-3.5" />
         </button>
+        </Tooltip>
       </div>
 
       <div className="p-3 space-y-2.5">
@@ -2083,6 +2087,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
               </div>
             )}
             <div className="flex items-center gap-1 ml-auto">
+              <Tooltip content="Toggle select mode">
               <button
                 onClick={() => {
                   setSelectMode(!selectMode);
@@ -2093,10 +2098,11 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                     ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
                     : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/60'
                 }`}
-                title="Toggle select mode"
               >
                 {selectMode ? 'Cancel' : 'Select'}
               </button>
+              </Tooltip>
+              <Tooltip content={confirmClearAll ? 'Click again to confirm' : 'Clear recent URLs (keeps saved)'}>
               <button
                 onClick={handleClearAllHistory}
                 className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
@@ -2104,14 +2110,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                     ? 'bg-red-600/20 text-red-400 border border-red-500/30'
                     : 'text-gray-500 hover:text-red-400 hover:bg-gray-800/60'
                 }`}
-                title={
-                  confirmClearAll
-                    ? 'Click again to confirm'
-                    : 'Clear recent URLs (keeps saved)'
-                }
               >
                 {confirmClearAll ? 'Confirm?' : 'Clear recent'}
               </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -2131,15 +2133,16 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                 {allSelected ? 'Deselect all' : 'Select all'}
               </button>
               {selectedIds.size > 0 && (
+                <Tooltip content={`Delete ${selectedIds.size} selected`}>
                 <button
                   onClick={handleBulkDelete}
                   className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300
                              bg-red-500/10 px-2.5 py-1 rounded-md transition-colors ml-auto"
-                  title={`Delete ${selectedIds.size} selected`}
                 >
                   <Trash2 className="w-3 h-3" />
                   Delete {selectedIds.size} selected
                 </button>
+                </Tooltip>
               )}
               {selectedIds.size === 0 && (
                 <span className="text-xs text-gray-600 ml-auto">
@@ -2378,6 +2381,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
           autoFocus
         />
         {aiPrompt && (
+          <Tooltip content="Clear prompt">
           <button
             type="button"
             onClick={() => {
@@ -2386,10 +2390,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             }}
             className="absolute top-2.5 right-2.5 text-gray-500 hover:text-white transition-colors"
             aria-label="Clear prompt"
-            title="Clear prompt"
           >
             <X className="w-4 h-4" />
           </button>
+          </Tooltip>
         )}
       </div>
 
@@ -3032,14 +3036,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
               Add Your Face
             </span>
             {facePhoto && (
+              <Tooltip content="Remove saved face">
               <button
                 onClick={clearFacePhoto}
                 className="text-gray-500 hover:text-red-400 transition-colors"
                 aria-label="Remove face photo"
-                title="Remove saved face"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+              </Tooltip>
             )}
           </div>
 

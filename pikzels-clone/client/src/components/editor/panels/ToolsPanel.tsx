@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import type { ToolType, ToolSettings } from '../types/editor.types';
 import { getDisclosurePref, setDisclosurePref } from '../../ui/CollapsibleSection';
 import { useEditorStore, selectEditorMode } from '../../../stores/editorStore';
+import Tooltip from '../../ui/Tooltip';
 
 interface ToolsPanelProps {
   activeTool: ToolType;
@@ -410,11 +411,10 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
     : toolSettings.brush.opacity;
 
   const renderToolButton = (tool: ToolItem) => (
+    <Tooltip key={tool.id} content={`${tool.label} (${tool.shortcut})`} side="right">
     <button
-      key={tool.id}
       className={`tool-button ${activeTool === tool.id ? 'tool-button--active' : ''}`}
       onClick={() => onToolSelect(tool.id)}
-      title={`${tool.label} (${tool.shortcut})`}
     >
       {tool.icon}
       <span className="tool-button__tooltip">
@@ -422,6 +422,7 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({
         <span className="tool-button__shortcut">{tool.shortcut}</span>
       </span>
     </button>
+    </Tooltip>
   );
 
   return (

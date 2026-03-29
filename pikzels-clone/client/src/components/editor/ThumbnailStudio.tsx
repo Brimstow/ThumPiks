@@ -50,6 +50,8 @@ import type {
 import type { ExtractedFrame } from '../../services/video';
 import { config } from '../../config/environment';
 import { authPost } from '../../utils/api';
+import { drawTiledWatermark } from '../../utils/drawWatermark';
+import { useSubscription } from '../../hooks/useSubscription';
 import './ThumbnailStudio.css';
 
 // Icons
@@ -224,6 +226,9 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
 
   // Editor mode (Simple/Pro toggle)
   const { isSimpleMode } = useEditorMode();
+
+  // Subscription state for watermark enforcement
+  const { shouldWatermark, watermarkFreeRemaining, refreshSubscription } = useSubscription();
 
   // UI State
   const [activeTab, setActiveTab] = useState<PanelTab>('layers');
@@ -925,8 +930,40 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
           break;
       }
 
+      // For free-tier users, clone the canvas and draw watermark on the clone
+      // so the live editor canvas is never modified.
+      // If user has a watermark-free export available, consume it and skip watermark.
+      let exportCanvas = canvas;
+      let usedWatermarkFree = false;
+      if (shouldWatermark) {
+        if (watermarkFreeRemaining > 0) {
+          // Consume one watermark-free export
+          try {
+            const wmResponse = await authPost('/api/subscription/use-watermark-free-export', {});
+            if (wmResponse.ok) {
+              usedWatermarkFree = true;
+              // Skip watermark — export clean canvas
+            }
+          } catch {
+            // If quota consumption fails, fall through to watermarked export
+          }
+        }
+
+        if (!usedWatermarkFree) {
+          const clone = document.createElement('canvas');
+          clone.width = canvas.width;
+          clone.height = canvas.height;
+          const ctx = clone.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(canvas, 0, 0);
+            drawTiledWatermark(ctx, clone.width, clone.height);
+            exportCanvas = clone;
+          }
+        }
+      }
+
       const { blob, finalQuality } = await canvasToOptimizedBlob(
-        canvas,
+        exportCanvas,
         exportFormat,
         exportQuality,
         maxSize
@@ -956,13 +993,18 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
       if (finalQuality !== exportQuality) {
         setExportQuality(finalQuality);
       }
+
+      // Refresh subscription status if a watermark-free export was used
+      if (usedWatermarkFree) {
+        refreshSubscription();
+      }
     } catch (error) {
       console.error('[Export] Error:', error);
       setExportError(error instanceof Error ? error.message : 'Export failed');
     } finally {
       setIsExporting(false);
     }
-  }, [exportFormat, exportQuality, isYouTubeMode, canvasToOptimizedBlob]);
+  }, [exportFormat, exportQuality, isYouTubeMode, canvasToOptimizedBlob, shouldWatermark, watermarkFreeRemaining, refreshSubscription]);
 
   // Video frame handler
   const handleVideoFrameSelect = useCallback((frame: ExtractedFrame) => {
