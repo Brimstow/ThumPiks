@@ -114,7 +114,10 @@ uploads/
 generated/
 thumbnails/
 
-# Test files
+# Scratch directories for ad-hoc debug/test scripts
+**/scratch/
+
+# Legacy test file patterns (prefer scratch/ for new scripts)
 test-*.js
 debug-*.js
 detailed-test.js
