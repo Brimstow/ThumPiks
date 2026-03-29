@@ -36,6 +36,8 @@ export interface SubscriptionPlan {
     /** Frame extraction limits — -1 means unlimited */
     frameExtractionsPerDay: number;
     frameRegeneratesPerUrl: number;
+    /** Watermark-free exports per month — 1 for free, -1 for paid (unlimited/no watermark) */
+    watermarkFreeExports: number;
   };
   /** Provider-specific product/price IDs — never exposed in public API responses */
   stripe: {
@@ -72,6 +74,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       support: 'Community',
       frameExtractionsPerDay: 5,
       frameRegeneratesPerUrl: 1,
+      watermarkFreeExports: 1,
     },
     stripe: { monthlyPriceId: '', annualPriceId: '' },
     polar: { monthlyProductId: '', annualProductId: '' },
@@ -95,6 +98,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       support: 'Email',
       frameExtractionsPerDay: 20,
       frameRegeneratesPerUrl: 3,
+      watermarkFreeExports: -1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_STARTER_MONTHLY || '',
@@ -126,6 +130,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       earlyAccess: true,
       frameExtractionsPerDay: -1,
       frameRegeneratesPerUrl: -1,
+      watermarkFreeExports: -1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_PRO_MONTHLY || '',
@@ -158,6 +163,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       customTemplates: true,
       frameExtractionsPerDay: -1,
       frameRegeneratesPerUrl: -1,
+      watermarkFreeExports: -1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_ULTRA_PRO_MONTHLY || '',
@@ -181,6 +187,11 @@ export interface CreditPack {
   price: number;
   /** Optional savings label, e.g. "Save $3" */
   savings?: string;
+  /**
+   * Polar product ID (UUID) - set this after creating the product in Polar dashboard.
+   * This is the ID Polar uses internally, not the custom ID.
+   */
+  polarProductId?: string | undefined;
 }
 
 export const CREDIT_PACKS: CreditPack[] = [
@@ -189,6 +200,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     name: 'Starter Pack',
     credits: 50,
     price: 9,
+    polarProductId: process.env.POLAR_PRODUCT_STARTER_PACK,
   },
   {
     id: 'value_pack',
@@ -196,6 +208,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     credits: 100,
     price: 15,
     savings: 'Save $3',
+    polarProductId: process.env.POLAR_PRODUCT_VALUE_PACK,
   },
   {
     id: 'pro_pack',
@@ -203,6 +216,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     credits: 250,
     price: 35,
     savings: 'Save $10',
+    polarProductId: process.env.POLAR_PRODUCT_PRO_PACK,
   },
   {
     id: 'ultra_pack',
@@ -210,6 +224,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     credits: 500,
     price: 60,
     savings: 'Save $30',
+    polarProductId: process.env.POLAR_PRODUCT_ULTRA_PACK,
   },
 ];
 

@@ -8,6 +8,7 @@ import {
   demoComplete,
   getPlans,
   getPricing,
+  useWatermarkFreeExport,
 } from './subscription.controller';
 import { validateRequest } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
@@ -94,6 +95,13 @@ router.post(
   }),
   deduct
 );
+
+/**
+ * POST /api/subscription/use-watermark-free-export
+ * Consume one watermark-free export for the current month
+ * Requires authentication
+ */
+router.post('/use-watermark-free-export', authenticate, useWatermarkFreeExport);
 
 /**
  * POST /api/subscription/webhook
