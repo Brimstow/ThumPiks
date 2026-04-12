@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
 
@@ -7,6 +8,38 @@ dotenv.config();
 const IMAGE_GENERATION_TIMEOUT = 120000; // 2 minutes for image generation
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 3000; // 3 seconds
+
+// Detection categories for comprehensive scene decomposition
+const VALID_CATEGORIES = ['foreground', 'background', 'text', 'logo', 'decoration'] as const;
+export type DetectionCategory = (typeof VALID_CATEGORIES)[number];
+
+// Native tool definition for object detection via function calling
+const DETECT_OBJECTS_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'report_detected_objects',
+    description: 'Report all detected visual elements in the image with their bounding boxes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        objects: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', description: 'Descriptive name (1-4 words). For text elements, prefix with "text:" (e.g. "text: SUBSCRIBE")' },
+              category: { type: 'string', enum: ['foreground', 'background', 'text', 'logo', 'decoration'] },
+              confidence: { type: 'number', description: 'Detection confidence 0.0-1.0' },
+              box_2d: { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4, description: 'Bounding box [y_min, x_min, y_max, x_max] normalized to 0-1000' },
+            },
+            required: ['label', 'category', 'confidence', 'box_2d'],
+          },
+        },
+      },
+      required: ['objects'],
+    },
+  },
+};
 
 /**
  * OpenRouterAIService - AI Service using OpenRouter API
@@ -77,6 +110,20 @@ export class OpenRouterAIService {
       primary: 'google/gemini-2.5-flash-image',
       fallback: 'google/gemini-3-pro-image-preview',
       envVar: 'OPENROUTER_MODEL_UPSCALE',
+    },
+    // Object detection (Gemini) - returns JSON with labeled bounding boxes
+    // Used by trybrid decompose pipeline alongside Reka Edge
+    detect: {
+      primary: 'google/gemini-3-flash-preview',
+      fallback: 'google/gemini-2.5-flash',
+      envVar: 'OPENROUTER_MODEL_DETECT',
+    },
+    // Object detection (Reka Edge) - uses native Detect: format
+    // Best-in-class spatial detection (RefCOCO-A: 93.13), runs parallel with Gemini
+    detectReka: {
+      primary: 'rekaai/reka-edge',   // Correct OpenRouter slug (reka/reka-edge was removed)
+      fallback: 'rekaai/reka-flash-3',
+      envVar: 'OPENROUTER_MODEL_DETECT_REKA',
     },
   } as const;
 
@@ -747,6 +794,509 @@ export class OpenRouterAIService {
     const fullPrompt = `${enhancementDesc} Maintain the original composition and style.`;
 
     return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+  }
+
+  // ===========================================================================
+  // DETECTION HELPERS
+  // ===========================================================================
+
+  /** Compute Intersection-over-Union for two bounding boxes. */
+  private static computeIoU(
+    a: { yMin: number; xMin: number; yMax: number; xMax: number },
+    b: { yMin: number; xMin: number; yMax: number; xMax: number }
+  ): number {
+    const interYMin = Math.max(a.yMin, b.yMin);
+    const interXMin = Math.max(a.xMin, b.xMin);
+    const interYMax = Math.min(a.yMax, b.yMax);
+    const interXMax = Math.min(a.xMax, b.xMax);
+    const interArea = Math.max(0, interYMax - interYMin) * Math.max(0, interXMax - interXMin);
+    const aArea = (a.yMax - a.yMin) * (a.xMax - a.xMin);
+    const bArea = (b.yMax - b.yMin) * (b.xMax - b.xMin);
+    const unionArea = aArea + bArea - interArea;
+    return unionArea > 0 ? interArea / unionArea : 0;
+  }
+
+  /** Remove detections with >70% bbox overlap, keeping earlier (higher-priority) entries. */
+  private static deduplicateDetections(
+    detections: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>,
+    iouThreshold: number = 0.7
+  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+    return detections.filter((a, i) => {
+      for (let j = 0; j < i; j++) {
+        if (OpenRouterAIService.computeIoU(a.bbox, detections[j]!.bbox) > iouThreshold) return false;
+      }
+      return true;
+    });
+  }
+
+  // ===========================================================================
+  // OBJECT DETECTION - Detect objects with labeled bounding boxes
+  // ===========================================================================
+
+  /**
+   * Detect objects in an image using native function calling (Gemini).
+   * Returns semantic labels and bounding boxes for each detected object.
+   * Used by the hybrid decompose pipeline.
+   *
+   * @param imageBase64 Base64-encoded image to analyze
+   * @param maxObjects Maximum number of objects to detect
+   * @returns Array of detected objects with labels and bounding boxes, or empty array on failure
+   */
+  async detectObjects(
+    imageBase64: string,
+    maxObjects: number = 14
+  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
+    if (!this.apiKey) {
+      logger.warn('[detectObjects] OpenRouter API key not configured');
+      return [];
+    }
+
+    const model = this.getModelForTool('detect');
+    const imageUrl = imageBase64.startsWith('data:image')
+      ? imageBase64
+      : `data:image/png;base64,${imageBase64}`;
+
+    const systemPrompt = `You are a comprehensive visual element detection model. Analyze the image and identify ALL visible elements across these categories:
+
+FOREGROUND — Main subjects: people, animals, vehicles, products, furniture
+BACKGROUND — Scene regions: sky, mountains, ground, floor, water, walls, horizon
+TEXT — Any rendered text: titles, captions, subtitles, watermarks, labels, timestamps
+LOGO — Brand marks: YouTube play button, channel logos, product logos, social icons
+DECORATION — Visual embellishments: arrows, borders, frames, shapes, lines, circles, stars, emoji
+
+Rules:
+- Detect up to ${maxObjects} elements across ALL categories
+- Include at least one background region if visible
+- For text elements, include the readable content in the label prefixed with "text:" (e.g. "text: SUBSCRIBE")
+- Each distinct text block is a separate detection
+- Merge overlapping detections of the same element
+- Order by visual importance: foreground first, then text, logos, backgrounds last
+- Call report_detected_objects with your results`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const requestBody: any = {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: imageUrl } },
+              { type: 'text', text: `Detect all visual elements in this image — foreground subjects, background regions, text overlays, logos, and decorations (up to ${maxObjects}). Call report_detected_objects with the results.` },
+            ],
+          },
+        ],
+        tools: [DETECT_OBJECTS_TOOL],
+        tool_choice: { type: 'function', function: { name: 'report_detected_objects' } },
+        stream: false,
+      };
+
+      const response = await fetch(`${this.apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'X-Title': 'ThumPiks Canvas Editor',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal as any,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.warn('[detectObjects] API error', { status: response.status, model, errorPreview: errorText.slice(0, 500) });
+        return [];
+      }
+
+      const data: any = await response.json();
+      const toolCalls = data.choices?.[0]?.message?.tool_calls;
+
+      if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+        // Fallback: try to parse text content as JSON (in case model ignores tool_choice)
+        const rawContent = data.choices?.[0]?.message?.content || '';
+        logger.warn('[detectObjects] No tool_calls in response, attempting text fallback', { contentPreview: rawContent.slice(0, 300) });
+        return this.parseDetectionFallback(rawContent);
+      }
+
+      const toolCall = toolCalls[0];
+      let args: any;
+      try {
+        args = typeof toolCall.function.arguments === 'string'
+          ? JSON.parse(toolCall.function.arguments)
+          : toolCall.function.arguments;
+      } catch {
+        logger.warn('[detectObjects] Failed to parse tool_call arguments', { raw: String(toolCall.function?.arguments).slice(0, 500) });
+        return [];
+      }
+
+      const objects = Array.isArray(args.objects) ? args.objects : [];
+      const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+
+      for (const item of objects) {
+        const label = typeof item.label === 'string' ? item.label : '';
+        if (!label) continue;
+
+        const box = item.box_2d;
+        if (!Array.isArray(box) || box.length !== 4 || !box.every((v: any) => typeof v === 'number')) continue;
+
+        const [yMin, xMin, yMax, xMax] = box as [number, number, number, number];
+
+        const category: DetectionCategory =
+          typeof item.category === 'string' && (VALID_CATEGORIES as readonly string[]).includes(item.category)
+            ? (item.category as DetectionCategory)
+            : 'foreground';
+
+        const confidence: number =
+          typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1
+            ? item.confidence
+            : 0.5;
+
+        results.push({ label, category, confidence, bbox: { yMin, xMin, yMax, xMax } });
+      }
+
+      const deduped = OpenRouterAIService.deduplicateDetections(results);
+      logger.info('[detectObjects] Parsed detection results (native tool calling)', { raw: results.length, deduped: deduped.length, elements: deduped.map(r => `${r.label} [${r.category}]`) });
+      return deduped;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      logger.warn('[detectObjects] Detection failed', { error: error instanceof Error ? error.message : String(error) });
+      return [];
+    }
+  }
+
+  /**
+   * Lightweight fallback parser for when the model ignores tool_choice
+   * and returns detection results as plain text/JSON instead.
+   */
+  private parseDetectionFallback(
+    rawContent: string
+  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+    let content = rawContent.trim();
+    if (!content) return [];
+
+    // Strip markdown code fences if present
+    if (content.startsWith('```')) {
+      content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+    if (!content.startsWith('[')) {
+      const arrayMatch = content.match(/\[[\s\S]*\]/);
+      if (arrayMatch) content = arrayMatch[0];
+    }
+
+    try {
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) return [];
+
+      const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+      for (const item of parsed) {
+        const label = item.label || item.name || item.object;
+        if (typeof label !== 'string') continue;
+
+        const box = item.box_2d || item.bounding_box || item.bbox;
+        if (!Array.isArray(box) || box.length !== 4 || !box.every((v: any) => typeof v === 'number')) continue;
+
+        const [yMin, xMin, yMax, xMax] = box as [number, number, number, number];
+        const category: DetectionCategory =
+          typeof item.category === 'string' && (VALID_CATEGORIES as readonly string[]).includes(item.category)
+            ? (item.category as DetectionCategory)
+            : 'foreground';
+        const confidence = typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1 ? item.confidence : 0.5;
+        results.push({ label, category, confidence, bbox: { yMin, xMin, yMax, xMax } });
+      }
+
+      return OpenRouterAIService.deduplicateDetections(results);
+    } catch {
+      logger.warn('[detectObjects] Fallback text parsing failed', { preview: content.slice(0, 300) });
+      return [];
+    }
+  }
+
+  // ===========================================================================
+  // REKA EDGE DETECTION - Native Detect: format for precision object detection
+  // ===========================================================================
+
+  /**
+   * Category-specific expressions for Reka Edge's native Detect: format.
+   * Each entry maps a DetectionCategory to a comma-separated expression string.
+   * Reka was trained on "Detect: {expression}" and returns <obj> tagged output.
+   */
+  private static readonly REKA_DETECT_EXPRESSIONS: Record<DetectionCategory, string> = {
+    foreground: 'people, person, animal, vehicle, car, product, furniture, main subject, figure',
+    text: 'text overlay, title text, caption, subtitle, watermark, label, timestamp, rendered text',
+    logo: 'logo, brand mark, YouTube play button, channel logo, product logo, social media icon',
+    decoration: 'arrow, border, frame, shape, line, circle, star, emoji, graphic element, banner',
+    background: 'sky, mountain, ground, floor, water, wall, horizon, scenery, background region',
+  };
+
+  /**
+   * Detect objects using Reka Edge's native Detect: format.
+   * Makes category-specific calls in parallel for precision.
+   * Returns the same interface as detectObjects() for seamless pipeline integration.
+   */
+  async detectObjectsReka(
+    imageBase64: string,
+    maxObjects: number = 14
+  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
+    if (!this.apiKey) {
+      logger.warn('[detectObjectsReka] OpenRouter API key not configured');
+      return [];
+    }
+
+    const model = this.getModelForTool('detectReka');
+    const imageUrl = imageBase64.startsWith('data:image')
+      ? imageBase64
+      : `data:image/png;base64,${imageBase64}`;
+
+    const categories = Object.keys(OpenRouterAIService.REKA_DETECT_EXPRESSIONS) as DetectionCategory[];
+
+    // Run all category-specific Detect: calls in parallel
+    logger.info('[detectObjectsReka] Starting parallel Detect: calls', { model, categories: categories.length });
+    const categoryResults = await Promise.allSettled(
+      categories.map(category =>
+        this.rekaDetectCall(imageUrl, OpenRouterAIService.REKA_DETECT_EXPRESSIONS[category], model)
+          .then(rawContent => ({ category, rawContent }))
+      )
+    );
+
+    const allResults: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+
+    for (const result of categoryResults) {
+      if (result.status !== 'fulfilled') {
+        logger.warn('[detectObjectsReka] Category call failed', { error: (result.reason as Error)?.message });
+        continue;
+      }
+
+      const { category, rawContent } = result.value;
+      const parsed = this.parseRekaDetectResponse(rawContent, category);
+      allResults.push(...parsed);
+    }
+
+    // Cap at maxObjects, sorted by confidence descending
+    allResults.sort((a, b) => b.confidence - a.confidence);
+    const capped = allResults.slice(0, maxObjects);
+
+    logger.info('[detectObjectsReka] Reka detection complete', {
+      total: capped.length,
+      elements: capped.map(r => `${r.label} [${r.category}]`),
+    });
+
+    return capped;
+  }
+
+  /**
+   * Make a single Reka Edge Detect: API call.
+   * Returns raw response content string.
+   */
+  private async rekaDetectCall(
+    imageUrl: string,
+    expression: string,
+    model: string
+  ): Promise<string> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s per call
+
+    try {
+      const requestBody: any = {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: imageUrl } },
+              { type: 'text', text: `Detect: ${expression}` },
+            ],
+          },
+        ],
+        stream: false,
+      };
+
+      const response = await fetch(`${this.apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'X-Title': 'ThumPiks Canvas Editor',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal as any,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.warn('[rekaDetectCall] API error', { status: response.status, model, errorPreview: errorText.slice(0, 300) });
+        return '';
+      }
+
+      const data: any = await response.json();
+      const rawContent = data.choices?.[0]?.message?.content || '';
+      logger.info('[rekaDetectCall] Reka response', { expression: expression.slice(0, 50), contentLength: rawContent.length, contentPreview: rawContent.slice(0, 300) });
+      return rawContent;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      logger.warn('[rekaDetectCall] Failed', { expression: expression.slice(0, 50), error: error instanceof Error ? error.message : String(error) });
+      return '';
+    }
+  }
+
+  /**
+   * Parse Reka Edge's native <obj> tag detection output.
+   * Format: <obj> label x1,y1,x2,y2 </obj> or <obj> label x1,y1,x2,y2;x3,y3,x4,y4 </obj>
+   * Coordinates may be pixel-based or normalized; we normalize to 0-1000.
+   */
+  private parseRekaDetectResponse(
+    rawContent: string,
+    category: DetectionCategory
+  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+    if (!rawContent.trim()) return [];
+
+    const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+
+    // Match <obj> ... </obj> tags
+    const objRegex = /<obj>\s*([\s\S]*?)\s*<\/obj>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = objRegex.exec(rawContent)) !== null) {
+      const inner = match[1]!.trim();
+      // Expected: "label x1,y1,x2,y2" or "label x1,y1,x2,y2;x3,y3,x4,y4"
+      // The coordinates are at the end, separated from the label
+      const coordPattern = /(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/g;
+      const allCoords: Array<[number, number, number, number]> = [];
+      let coordMatch: RegExpExecArray | null;
+
+      while ((coordMatch = coordPattern.exec(inner)) !== null) {
+        allCoords.push([
+          parseFloat(coordMatch[1]!),
+          parseFloat(coordMatch[2]!),
+          parseFloat(coordMatch[3]!),
+          parseFloat(coordMatch[4]!),
+        ]);
+      }
+
+      if (allCoords.length === 0) continue;
+
+      // Extract label: everything before the first coordinate match
+      const firstCoordIdx = inner.search(/\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,/);
+      let label = firstCoordIdx > 0 ? inner.substring(0, firstCoordIdx).trim() : inner;
+      // Clean up trailing/leading whitespace and punctuation
+      label = label.replace(/[\s,;]+$/, '').trim();
+      if (!label) label = `${category} element`;
+
+      // Process each bounding box (multiple = multiple instances of same object)
+      for (const [x1, y1, x2, y2] of allCoords) {
+        // Reka may return pixel coords or normalized coords
+        // If any coord > 1000, assume pixel coords and we can't normalize without image dims
+        // For safety, clamp to 0-1000 range (Reka via OpenRouter likely uses 0-1000 like Gemini)
+        const clamp = (v: number) => Math.max(0, Math.min(1000, Math.round(v)));
+
+        results.push({
+          label,
+          category,
+          confidence: 0.85, // Reka doesn't return confidence; use high default (strong detector)
+          bbox: {
+            yMin: clamp(y1),
+            xMin: clamp(x1),
+            yMax: clamp(y2),
+            xMax: clamp(x2),
+          },
+        });
+      }
+    }
+
+    // Fallback: if no <obj> tags found, try to parse as plain text with coordinates
+    if (results.length === 0 && rawContent.includes(',')) {
+      logger.info('[parseRekaDetectResponse] No <obj> tags found, trying coordinate fallback', { category, preview: rawContent.slice(0, 200) });
+      // Some Reka responses may just return "label: x1,y1,x2,y2" without tags
+      const lineRegex = /^(.+?)\s+(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/gm;
+      let lineMatch: RegExpExecArray | null;
+      while ((lineMatch = lineRegex.exec(rawContent)) !== null) {
+        const label = lineMatch[1]!.replace(/[\s:;]+$/, '').trim();
+        if (!label) continue;
+        const clamp = (v: number) => Math.max(0, Math.min(1000, Math.round(parseFloat(v as any))));
+        results.push({
+          label,
+          category,
+          confidence: 0.80,
+          bbox: {
+            yMin: clamp(lineMatch[3] as any),
+            xMin: clamp(lineMatch[2] as any),
+            yMax: clamp(lineMatch[5] as any),
+            xMax: clamp(lineMatch[4] as any),
+          },
+        });
+      }
+    }
+
+    logger.info('[parseRekaDetectResponse] Parsed Reka results', { category, count: results.length });
+    return results;
+  }
+
+  // ===========================================================================
+  // TRYBRID DETECTION - Reka Edge + Gemini in parallel, merged + deduped
+  // ===========================================================================
+
+  /**
+   * Trybrid detection: Run Reka Edge and Gemini 3 Flash in parallel,
+   * merge results, and deduplicate overlapping detections.
+   *
+   * Reka Edge excels at precise spatial detection (RefCOCO-A: 93.13).
+   * Gemini excels at reasoning about abstract elements (text, logos, decorations).
+   * Combined, they provide comprehensive scene decomposition.
+   *
+   * @param imageBase64 Base64-encoded image to analyze
+   * @param maxObjects Maximum number of objects to detect
+   * @returns Merged, deduplicated array of detected objects
+   */
+  async detectObjectsParallel(
+    imageBase64: string,
+    maxObjects: number = 14
+  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
+    logger.info('[detectObjectsParallel] Starting trybrid detection (Reka + Gemini)');
+
+    // Run both detectors in parallel
+    const [rekaResult, geminiResult] = await Promise.allSettled([
+      this.detectObjectsReka(imageBase64, maxObjects),
+      this.detectObjects(imageBase64, maxObjects),
+    ]);
+
+    const rekaObjects = rekaResult.status === 'fulfilled' ? rekaResult.value : [];
+    const geminiObjects = geminiResult.status === 'fulfilled' ? geminiResult.value : [];
+
+    if (rekaResult.status === 'rejected') {
+      logger.warn('[detectObjectsParallel] Reka detection failed, using Gemini only', { error: (rekaResult.reason as Error)?.message });
+    }
+    if (geminiResult.status === 'rejected') {
+      logger.warn('[detectObjectsParallel] Gemini detection failed, using Reka only', { error: (geminiResult.reason as Error)?.message });
+    }
+
+    logger.info('[detectObjectsParallel] Raw results', { reka: rekaObjects.length, gemini: geminiObjects.length });
+
+    // Merge: Reka results first (higher spatial precision), then Gemini
+    const merged = [...rekaObjects, ...geminiObjects];
+
+    // Deduplicate: remove detections with >70% bbox overlap, keeping earlier (Reka-priority)
+    const deduped = OpenRouterAIService.deduplicateDetections(merged);
+
+    // Cap at maxObjects
+    const capped = deduped.slice(0, maxObjects);
+
+    logger.info('[detectObjectsParallel] Trybrid detection complete', {
+      reka: rekaObjects.length,
+      gemini: geminiObjects.length,
+      merged: merged.length,
+      deduped: capped.length,
+      elements: capped.map(r => `${r.label} [${r.category}]`),
+    });
+
+    return capped;
   }
 
   /**

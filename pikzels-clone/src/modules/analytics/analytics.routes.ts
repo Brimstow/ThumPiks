@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AnalyticsController } from './analytics.controller';
-import { authenticateToken } from '../../middleware/auth.middleware';
+import { authenticateToken, requireFeature } from '../../middleware/auth.middleware';
 import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 
@@ -11,14 +11,17 @@ const analyticsController = new AnalyticsController();
 router.use(authenticateToken);
 router.use(userApiRateLimit);
 
+// User stats summary (for StatsWidget) — available to ALL plans (basic counts)
+router.get('/stats', (req, res) => {
+  analyticsController.getUserStats(req as AuthRequest, res);
+});
+
+// All routes below require the analytics feature (Starter+ plans only)
+router.use(requireFeature('analytics'));
+
 // Analytics dashboard data
 router.get('/dashboard', (req, res) => {
   analyticsController.getDashboardData(req as AuthRequest, res);
-});
-
-// User stats summary (for StatsWidget)
-router.get('/stats', (req, res) => {
-  analyticsController.getUserStats(req as AuthRequest, res);
 });
 
 // Advanced analytics

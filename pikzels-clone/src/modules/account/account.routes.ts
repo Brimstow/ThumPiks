@@ -19,6 +19,7 @@ import * as notificationService from '../notification/notification.service';
 import * as settingsService from '../settings/settings.service';
 import * as teamService from '../team/team.service';
 import { getSubscriptionTier } from '../user/profile.service';
+import { MFAService } from '../auth/mfa.service';
 
 const router = express.Router();
 
@@ -141,6 +142,112 @@ router.get('/security/history', async (req, res) => {
     res.json(history);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch login history' });
+  }
+});
+
+// ============================================
+// 2FA/MFA ROUTES
+// ============================================
+
+/**
+ * POST /api/account/security/2fa/setup
+ * Setup 2FA - Generate secret, QR code, and backup codes
+ */
+router.post('/security/2fa/setup', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const setupData = await MFAService.setupMFA(userId);
+    res.json(setupData);
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message || 'Failed to setup 2FA' });
+  }
+});
+
+/**
+ * POST /api/account/security/2fa/enable
+ * Verify code and enable 2FA
+ */
+router.post('/security/2fa/enable', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const verified = await MFAService.verifyAndEnableMFA(userId, token);
+    return res.json({ success: verified });
+  } catch (error) {
+    const err = error as Error;
+    return res.status(400).json({ error: err.message || 'Failed to enable 2FA' });
+  }
+});
+
+/**
+ * POST /api/account/security/2fa/disable
+ * Disable 2FA
+ */
+router.post('/security/2fa/disable', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const { password } = req.body;
+
+    const disabled = await MFAService.disableMFA(userId, password);
+    res.json({ success: disabled });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message || 'Failed to disable 2FA' });
+  }
+});
+
+/**
+ * POST /api/account/security/2fa/verify
+ * Verify 2FA token (for login)
+ */
+router.post('/security/2fa/verify', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const verified = await MFAService.verifyMFAToken(userId, token);
+    return res.json({ success: verified });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to verify 2FA token' });
+  }
+});
+
+/**
+ * POST /api/account/security/2fa/regenerate-codes
+ * Regenerate backup codes
+ */
+router.post('/security/2fa/regenerate-codes', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const newCodes = await MFAService.regenerateBackupCodes(userId);
+    res.json({ backupCodes: newCodes });
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message || 'Failed to regenerate backup codes' });
+  }
+});
+
+/**
+ * GET /api/account/security/2fa/status
+ * Get 2FA status (updated to use MFA service)
+ */
+router.get('/security/2fa/status', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).user!.id;
+    const status = await MFAService.getMFAStatus(userId);
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch 2FA status' });
   }
 });
 

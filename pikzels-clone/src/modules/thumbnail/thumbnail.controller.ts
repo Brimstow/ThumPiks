@@ -9,10 +9,12 @@ import { ZenmuxAIService } from './zenmux-ai.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
 import {
   resolveModelFromTier,
+  resolveVisionModelFromTier,
   buildTierAPIResponse,
   getCreditCostForTier,
   getProviderForTier,
   getDefaultTier,
+  getTierCapability,
 } from './model-tiers.config';
 import { deductCredits, refundCredits } from '../credit/credit.service';
 import { PrismaClient } from '@prisma/client';
@@ -1660,6 +1662,16 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Validate scale-tier compatibility (4K requires Pro tier)
+    const effectiveTier = tier || 'standard';
+    const maxScale = getTierCapability(effectiveTier, 'upscale', 'maxScale');
+    if (maxScale && scale === '4x' && maxScale !== '4x') {
+      return res.status(400).json({
+        error: '4x upscale requires the Pro tier. Please select ThumPiks Pro for 4K output.',
+        code: 'SCALE_TIER_MISMATCH',
+      });
+    }
+
     // Prefer Replicate for upscale (purpose-built Real-ESRGAN model)
     const useReplicate =
       replicateService.isConfigured() && !modelOverride && !tier;
@@ -2084,7 +2096,7 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
  * Each detected object becomes a separate RGBA layer that can be independently
  * edited, moved, or styled in the Advanced Editor.
  *
- * Body: { image: base64, maxLayers?: number (default 8) }
+ * Body: { image: base64, maxLayers?: number (default 14) }
  * Returns: { success, layers: Array<{ name, imageBase64, bounds, score }>, predictionId }
  */
 export const aiDecompose = async (req: AuthRequest, res: Response) => {
@@ -2093,7 +2105,7 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { image, maxLayers = 8 } = req.body;
+    const { image, maxLayers = 14 } = req.body;
 
     if (!image) {
       return res.status(400).json({
@@ -2123,18 +2135,20 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-      const result = await replicateService.decompose(image, maxLayers);
+      const result = await replicateService.decompose(image, maxLayers, openRouterService);
 
       // Emit analytics event
       emitAnalyticsEvent(req.user.id, 'ai-tool', 'decompose', 'ai-decompose', {
         layerCount: result.layers.length,
         maxLayers,
+        pipeline: result.pipeline,
       });
 
       return res.status(200).json({
         success: true,
         layers: result.layers,
         predictionId: result.predictionId,
+        pipeline: result.pipeline,
       });
     } catch (apiError) {
       // Refund credits on API failure
@@ -2380,13 +2394,22 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     }
 
     const {
-      prompt,
+      prompt: rawPrompt,
       context,
       tone = 'clickbait',
       count = 5,
       maxLength = 60,
       tier,
+      imageUrl,
+      imageBase64,
     } = req.body;
+
+    const isVisionMode = !!(imageUrl || imageBase64);
+
+    // In vision mode, a prompt is optional — default to a sensible instruction
+    const prompt = rawPrompt || (isVisionMode
+      ? 'Generate click-worthy text for this YouTube thumbnail'
+      : '');
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -2405,7 +2428,7 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     const deducted = await deductCredits(
       req.user.id,
       creditCost,
-      `AI text generation - ${tier || 'flash'} tier`
+      `AI text generation - ${tier || 'flash'} tier${isVisionMode ? ' (vision)' : ''}`
     );
     if (!deducted) {
       return res.status(402).json({
@@ -2415,6 +2438,53 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     }
 
     try {
+      // ---- Vision mode: resolve image and select vision model ----
+      let actualModel = textModel;
+      let resolvedImageUrl: string | null = null;
+      let fallbackUsed = false;
+
+      if (isVisionMode) {
+        // Select vision-capable model for this tier
+        const visionModel = resolveVisionModelFromTier(tier, 'generate-text');
+        if (visionModel) {
+          actualModel = visionModel;
+        }
+
+        // Resolve image input to a format the API can consume
+        const imageInput = imageBase64 || imageUrl;
+        if (imageInput) {
+          // Validate size for base64 inputs (~10MB limit)
+          if (imageInput.startsWith('data:') && imageInput.length > 10 * 1024 * 1024 * 1.37) {
+            await refundCredits(req.user.id, creditCost, 'Image too large');
+            return res.status(413).json({
+              error: 'Image too large for vision analysis. Please use an image under 10MB.',
+            });
+          }
+
+          // Localhost URLs must be converted to base64 since external AI APIs can't access them
+          if (!imageInput.startsWith('data:') &&
+              (imageInput.includes('localhost') || imageInput.includes('127.0.0.1'))) {
+            try {
+              const imgResp = await fetch(imageInput);
+              if (imgResp.ok) {
+                const buffer = Buffer.from(await imgResp.arrayBuffer());
+                const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+                resolvedImageUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+              } else {
+                resolvedImageUrl = imageInput;
+              }
+            } catch {
+              resolvedImageUrl = imageInput;
+            }
+          } else if (imageInput.startsWith('data:') || imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
+            resolvedImageUrl = imageInput;
+          } else {
+            // Assume raw base64 string without data URI prefix
+            resolvedImageUrl = `data:image/png;base64,${imageInput}`;
+          }
+        }
+      }
+
       // Build the system prompt for title generation
       const toneInstructions: Record<string, string> = {
         clickbait:
@@ -2440,10 +2510,20 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
       // Random session seed injected into system prompt to ensure unique results each call
       const sessionSeed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-      const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
+      // Vision-specific instructions appended when an image is provided
+      const visionBlock = (isVisionMode && resolvedImageUrl) ? `
+VISUAL ANALYSIS INSTRUCTIONS:
+- You can SEE the thumbnail image provided. Analyze its composition, colors, subjects, facial expressions, and mood.
+- Generate text that directly complements and enhances what you see in the image.
+- Consider the dominant colors — suggest text that would contrast well and be readable over the image.
+- If faces are present, leverage the emotional tone (excited, surprised, serious) in your suggestions.
+- If existing text overlay is visible, generate improved alternatives or complementary text.
+` : '';
+
+      let systemPrompt = `You are an expert YouTube thumbnail text generator${isVisionMode ? ' with vision capability' : ''}. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
 
 Session: ${sessionSeed}
-
+${visionBlock}
 Rules:
 - Each suggestion must be ${maxLength} characters or fewer
 - Text must be readable at thumbnail size (short, impactful)
@@ -2456,59 +2536,117 @@ ${context ? `- Context: ${context}` : ''}
 For each suggestion, assign one of these styles: ${styleTypes.join(', ')}
 Also assign a click-worthiness score from 0.0 to 1.0.`;
 
-      const apiUrl =
-        process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
-      const response = await fetch(`${apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
-          'X-Title': 'ThumPiks AI Text Generator',
-        },
-        body: JSON.stringify({
-          model: textModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'thumbnail_suggestions',
-              strict: true,
-              schema: {
-                type: 'object',
-                properties: {
-                  suggestions: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        text: { type: 'string' },
-                        style: {
-                          type: 'string',
-                          enum: ['bold', 'question', 'listicle', 'emotional', 'curiosity'],
-                        },
-                        score: { type: 'number' },
-                      },
-                      required: ['text', 'style', 'score'],
-                      additionalProperties: false,
+      // ---- Build response_format based on model compatibility ----
+      // Models that support strict json_schema: OpenAI and Google
+      // Others (Qwen, Grok, etc.): use json_object mode + prompt instructions
+      const supportsJsonSchema = actualModel.startsWith('openai/') || actualModel.startsWith('google/');
+
+      const jsonSchemaFormat = {
+        type: 'json_schema' as const,
+        json_schema: {
+          name: 'thumbnail_suggestions',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              suggestions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    text: { type: 'string' },
+                    style: {
+                      type: 'string',
+                      enum: ['bold', 'question', 'listicle', 'emotional', 'curiosity'],
                     },
+                    score: { type: 'number' },
                   },
+                  required: ['text', 'style', 'score'],
+                  additionalProperties: false,
                 },
-                required: ['suggestions'],
-                additionalProperties: false,
               },
             },
+            required: ['suggestions'],
+            additionalProperties: false,
           },
-        }),
-      });
+        },
+      };
+
+      let responseFormat: Record<string, unknown>;
+      if (supportsJsonSchema) {
+        responseFormat = jsonSchemaFormat;
+      } else {
+        responseFormat = { type: 'json_object' };
+        // Add explicit JSON formatting instructions for models without strict schema
+        systemPrompt += `\n\nYou MUST respond with a valid JSON object in this exact format:
+{ "suggestions": [{ "text": "YOUR TEXT", "style": "bold", "score": 0.85 }] }
+Do not include any text outside the JSON object.`;
+      }
+
+      // ---- Build messages array (multimodal when vision, text-only otherwise) ----
+      type ChatMessage = { role: 'system' | 'user'; content: string | Array<{ type: string; [key: string]: unknown }> };
+
+      const userMessage: ChatMessage =
+        (isVisionMode && resolvedImageUrl)
+          ? {
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: resolvedImageUrl } },
+                { type: 'text', text: prompt },
+              ],
+            }
+          : { role: 'user', content: prompt };
+
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        userMessage,
+      ];
+
+      // ---- API call with vision fallback ----
+      const apiUrl =
+        process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
+
+      const makeApiCall = async (model: string, msgs: ChatMessage[], resFormat: Record<string, unknown>) => {
+        return fetch(`${apiUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
+            'X-Title': 'ThumPiks AI Text Generator',
+          },
+          body: JSON.stringify({
+            model,
+            messages: msgs,
+            temperature: 0.7,
+            max_tokens: 1024,
+            response_format: resFormat,
+          }),
+        });
+      };
+
+      let response = await makeApiCall(actualModel, messages, responseFormat);
+
+      // Vision fallback: if vision model fails, retry with text-only model
+      if (!response.ok && isVisionMode && actualModel !== textModel) {
+        console.warn(
+          `[aiGenerateText] Vision model ${actualModel} failed (${response.status}), falling back to text model ${textModel}`
+        );
+        fallbackUsed = true;
+        actualModel = textModel;
+
+        // Use json_schema for text model fallback (OpenAI models support it)
+        const fallbackFormat = (textModel.startsWith('openai/') || textModel.startsWith('google/'))
+          ? jsonSchemaFormat
+          : responseFormat;
+
+        // Strip image from messages for text-only fallback
+        const fallbackMessages: ChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ];
+        response = await makeApiCall(textModel, fallbackMessages, fallbackFormat);
+      }
 
       if (!response.ok) {
         const errData: any = await response.json().catch(() => ({}));
@@ -2600,14 +2738,20 @@ Also assign a click-worthiness score from 0.0 to 1.0.`;
         tone,
         tier: tier || 'flash',
         suggestionsCount: suggestions.length,
+        visionMode: isVisionMode,
+        visionModel: isVisionMode ? actualModel : undefined,
+        imageSource: imageBase64 ? 'base64' : imageUrl ? 'url' : null,
+        fallbackUsed,
       });
 
       return res.status(200).json({
         success: true,
         suggestions,
-        model: textModel,
+        model: actualModel,
         tier: tier || 'flash',
         creditCost,
+        visionMode: isVisionMode,
+        ...(fallbackUsed && { fallbackUsed: true }),
       });
     } catch (apiError) {
       await refundCredits(req.user.id, creditCost, 'AI text generation failed');

@@ -54,6 +54,13 @@ export interface TierDefinition {
   isDefault?: boolean;
   /** Optional badge text (e.g. "Most Popular") */
   badge?: string;
+  /** Optional capability metadata (e.g. { maxScale: '4x' } for upscale) */
+  capabilities?: Record<string, unknown>;
+  /** Vision-capable model ID for multimodal requests (image + text). When set,
+   *  the controller auto-selects this model if the request includes an image. */
+  visionModelId?: string;
+  /** Human-readable label for the vision model (e.g. "Qwen 3.5 Flash VL") */
+  visionModelLabel?: string;
 }
 
 /**
@@ -146,6 +153,30 @@ const TIER_PROVIDER_MAP: Record<ModelTierId, AIProvider> = {
   flash: 'comet', // Fast, cost-effective - uses Comet FLUX Schnell
   standard: 'openrouter', // Balanced - uses OpenRouter Gemini 2.5
   pro: 'openrouter', // Best quality - uses OpenRouter Gemini 3 Pro
+};
+
+// ============================================
+// VISION TEXT MODELS (for generate-text with image input)
+// ============================================
+
+/**
+ * Vision-capable models for text generation when an image is provided.
+ * These models can analyze images and generate text suggestions in a single call.
+ *
+ * Flash    → Qwen 3.5 Flash: cheapest VL model, native vision-language (Chinese)
+ * Standard → Gemini 2.5 Flash: proven, already used in vision service
+ * Pro      → Grok 4.1 Fast: excellent quality, 2M context, very capable
+ */
+const VISION_TEXT_MODELS: Record<ModelTierId, string> = {
+  flash: 'qwen/qwen3.5-flash',
+  standard: 'google/gemini-2.5-flash',
+  pro: 'x-ai/grok-4.1-fast',
+};
+
+const VISION_TEXT_MODEL_LABELS: Record<ModelTierId, string> = {
+  flash: 'Qwen 3.5 Flash VL',
+  standard: 'Gemini 2.5 Flash',
+  pro: 'Grok 4.1 Fast',
 };
 
 /**
@@ -353,6 +384,7 @@ const upscaleTiers: ToolTierConfig = {
       credits: 1,
       estimatedTime: '~5s',
       isDefault: true,
+      capabilities: { maxScale: '2x' },
     },
     {
       ...TIER_BASE.pro,
@@ -362,20 +394,27 @@ const upscaleTiers: ToolTierConfig = {
       credits: 4,
       estimatedTime: '~12s',
       badge: 'Sharpest',
+      capabilities: { maxScale: '4x' },
     },
   ],
 };
 
 /**
- * AI text generation tiers (chat completions, text-only — no image output).
+ * AI text generation tiers (chat completions).
  *
- * Flash    → GPT-4.1 Nano: fastest, cheapest, excellent JSON compliance (default)
- * Standard → GPT-4.1 Mini: best quality-per-dollar, mature structured output
- * Pro      → GPT-4.1: premium quality, highest accuracy, native structured output
+ * Text-only models (default):
+ *   Flash    → GPT-4.1 Nano: fastest, cheapest, excellent JSON compliance
+ *   Standard → GPT-4.1 Mini: best quality-per-dollar, mature structured output
+ *   Pro      → GPT-4.1: premium quality, highest accuracy, native structured output
  *
- * NOTE: These are text-only models, not image models. All go through OpenRouter
- * chat/completions. Model IDs are defined directly (not via TIER_PROVIDER_MAP)
+ * Vision models (auto-selected when image is provided):
+ *   Flash    → Qwen 3.5 Flash VL: cheapest multimodal, native vision-language
+ *   Standard → Gemini 2.5 Flash: proven quality, excellent image understanding
+ *   Pro      → Grok 4.1 Fast: 2M context, exceptional quality
+ *
+ * NOTE: Text-only model IDs are defined directly (not via TIER_PROVIDER_MAP)
  * since the image provider map doesn't apply to text generation.
+ * Vision model IDs come from the VISION_TEXT_MODELS catalog above.
  */
 const generateTextTiers: ToolTierConfig = {
   toolId: 'generate-text',
@@ -389,6 +428,9 @@ const generateTextTiers: ToolTierConfig = {
       credits: 1,
       estimatedTime: '~2s',
       isDefault: true,
+      visionModelId: VISION_TEXT_MODELS.flash,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.flash,
+      capabilities: { supportsVision: true },
     },
     {
       ...TIER_BASE.standard,
@@ -398,6 +440,9 @@ const generateTextTiers: ToolTierConfig = {
       credits: 2,
       estimatedTime: '~5s',
       badge: 'More Creative',
+      visionModelId: VISION_TEXT_MODELS.standard,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.standard,
+      capabilities: { supportsVision: true },
     },
     {
       ...TIER_BASE.pro,
@@ -407,6 +452,9 @@ const generateTextTiers: ToolTierConfig = {
       credits: 3,
       estimatedTime: '~4s',
       badge: 'Best Quality',
+      visionModelId: VISION_TEXT_MODELS.pro,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.pro,
+      capabilities: { supportsVision: true },
     },
   ],
 };
@@ -463,6 +511,26 @@ export function resolveModelFromTier(
 }
 
 /**
+ * Resolve a quality tier to a vision-capable model ID for a given tool.
+ * Returns undefined if tier is missing/invalid or the tier has no vision model.
+ */
+export function resolveVisionModelFromTier(
+  tier: string | undefined,
+  tool: TieredToolId
+): string | undefined {
+  if (!tier) {
+    const defaultTier = getDefaultTier(tool);
+    return defaultTier?.visionModelId ?? undefined;
+  }
+
+  const config = TOOL_TIER_CONFIG[tool];
+  if (!config) return undefined;
+
+  const tierDef = config.tiers.find(t => t.id === tier);
+  return tierDef?.visionModelId ?? undefined;
+}
+
+/**
  * Get the default tier definition for a tool.
  */
 export function getDefaultTier(tool: TieredToolId): TierDefinition | undefined {
@@ -489,6 +557,25 @@ export function getCreditCostForTier(
   if (!config) return 1;
   const tierDef = config.tiers.find(t => t.id === tier);
   return tierDef?.credits ?? 1;
+}
+
+/**
+ * Read a capability value from a tier definition.
+ * Used for backend validation (e.g. maxScale for upscale).
+ */
+export function getTierCapability(
+  tier: string | undefined,
+  tool: TieredToolId,
+  key: string
+): unknown {
+  if (!tier) {
+    const defaultTier = getDefaultTier(tool);
+    return defaultTier?.capabilities?.[key];
+  }
+  const config = TOOL_TIER_CONFIG[tool];
+  if (!config) return undefined;
+  const tierDef = config.tiers.find(t => t.id === tier);
+  return tierDef?.capabilities?.[key];
 }
 
 /**

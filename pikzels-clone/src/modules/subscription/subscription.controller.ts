@@ -9,11 +9,18 @@ import {
   handleSubscriptionCancelled,
   completeDemoCheckout,
 } from './subscription.service';
-import { getPublicPlans, CREDIT_PACKS, PRICING_FAQS } from './subscription.config';
+import {
+  getPublicPlans,
+  CREDIT_PACKS,
+  PRICING_FAQS,
+} from './subscription.config';
 import { getCurrentPricing } from './pricing.service';
 import { addPurchasedCredits } from '../credit/credit.service';
 import { logger } from '../../utils/logger';
-import { getWatermarkFreeStatus, consumeWatermarkFreeExport } from '../thumbnail/watermark.service';
+import {
+  getWatermarkFreeStatus,
+  consumeWatermarkFreeExport,
+} from '../thumbnail/watermark.service';
 import { BillingError } from '../billing/billing-provider.interface';
 import { ValidationError } from '../../utils/errors';
 
@@ -327,7 +334,11 @@ export const deduct = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await deductCredits(userId, amount);
+    const result = await deductCredits(
+      userId,
+      amount,
+      'Manual credit deduction via subscription API'
+    );
 
     return res.status(200).json(result);
   } catch (error: any) {

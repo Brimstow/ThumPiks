@@ -271,12 +271,12 @@ export const PRICING_FAQS: PricingFaq[] = [
   {
     question: 'Is there a free trial?',
     answer:
-      'Our Free plan gives you 5 AI thumbnails per month at no cost — no credit card required.',
+      'Our Free plan gives you 150 AI thumbnail credits per month plus 1 watermark-free export — no credit card required. All paid plans include a 7-day free trial.',
   },
   {
     question: 'What\'s the difference between monthly and annual billing?',
     answer:
-      "Annual billing saves you up to 25% compared to monthly billing. You're billed once per year.",
+      "Annual billing saves you up to 20% compared to monthly billing. You're billed once per year.",
   },
   {
     question: 'How do credit packs work?',

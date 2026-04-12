@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken } from '../../middleware/auth.middleware';
+import { authenticateToken, requireFeature } from '../../middleware/auth.middleware';
 import { userApiRateLimit } from '../../middleware/security.middleware';
 import { AuthRequest } from '../../types/auth';
 import {
@@ -15,9 +15,10 @@ import {
 
 const router = Router();
 
-// All AB testing routes require authentication
+// All AB testing routes require authentication + abTesting feature (Starter+ plans)
 router.use(authenticateToken);
 router.use(userApiRateLimit);
+router.use(requireFeature('abTesting'));
 
 // CRUD
 router.post('/', (req, res) => createTest(req as unknown as AuthRequest, res));

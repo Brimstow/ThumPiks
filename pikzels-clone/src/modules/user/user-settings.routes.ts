@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as userSettingsController from './user-settings.controller';
+import { requestDataExport } from './data-export.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 
 const router = Router();
@@ -50,5 +51,26 @@ router.put(
   authenticate,
   userSettingsController.updateAutoImport
 );
+
+/**
+ * @route   PUT /api/user/password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.put('/password', authenticate, userSettingsController.changePassword);
+
+/**
+ * @route   DELETE /api/user/account
+ * @desc    Delete user account
+ * @access  Private
+ */
+router.delete('/account', authenticate, userSettingsController.deleteAccount);
+
+/**
+ * @route   POST /api/user/export
+ * @desc    GDPR-compliant data export (download all user data as JSON)
+ * @access  Private
+ */
+router.post('/export', authenticate, requestDataExport);
 
 export default router;

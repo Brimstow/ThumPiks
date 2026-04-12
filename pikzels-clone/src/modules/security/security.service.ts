@@ -2,12 +2,12 @@
  * Security Service
  *
  * Provides security-related data (2FA status, sessions, login history)
- * with environment-aware mock/real data
- * Uses static test fixtures for deterministic testing (no faker.js in production)
+ * Uses real data from database with MFA service integration
  */
 
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { MFAService } from '../auth/mfa.service';
 
 const prisma = getPrisma();
 
@@ -48,20 +48,24 @@ export interface LoginHistoryEntry {
 
 /**
  * Get 2FA status for user
- * Returns real data if available, otherwise mock
+ * Returns real data from MFA service
  */
 export async function get2FAStatus(userId: string): Promise<TwoFactorStatus> {
-  // NODE_ENV=test → Always use mock
-  if (process.env.NODE_ENV === 'test') {
-    return getMock2FAStatus(userId);
+  try {
+    const mfaStatus = await MFAService.getMFAStatus(userId);
+    return {
+      enabled: mfaStatus.enabled,
+      method: mfaStatus.enabled ? '2fa' : null,
+      lastUpdated: null, // MFA service doesn't track lastUpdated yet
+    };
+  } catch (error) {
+    logger.error('Failed to get 2FA status', error as Error, { userId });
+    return {
+      enabled: false,
+      method: null,
+      lastUpdated: null,
+    };
   }
-
-  // Currently 2FA is not implemented in database
-  // Return mock until implementation
-  logger.info('MOCK DATA: 2FA not yet implemented, returning mock status', {
-    userId,
-  });
-  return getMock2FAStatus(userId);
 }
 
 /**
@@ -206,39 +210,6 @@ export async function terminateSession(sessionId: string): Promise<void> {
 // ============================================
 // MOCK DATA GENERATORS
 // ============================================
-
-/**
- * Generate mock 2FA status using static test fixtures
- */
-function getMock2FAStatus(userId: string): TwoFactorStatus {
-  // Static 2FA status for test users
-  const statusMap: Record<string, TwoFactorStatus> = {
-    'user-001': {
-      enabled: true,
-      method: '2fa',
-      lastUpdated: new Date('2025-01-15'),
-    },
-    'user-002': {
-      enabled: false,
-      method: null,
-      lastUpdated: null,
-    },
-    guest: {
-      enabled: false,
-      method: null,
-      lastUpdated: null,
-    },
-  };
-
-  // Return predefined status or default disabled
-  return (
-    statusMap[userId] || {
-      enabled: false,
-      method: null,
-      lastUpdated: null,
-    }
-  );
-}
 
 /**
  * Generate mock active sessions using static test fixtures
