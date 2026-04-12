@@ -146,6 +146,7 @@ export class AuthService {
           displayPreference: user.displayPreference,
         },
         ...tokens,
+        sessionId: tokens.accessToken, // Include session ID for client-side session tracking
         message:
           'Registration successful. Please verify your email to unlock all features.',
       };
@@ -158,7 +159,12 @@ export class AuthService {
   /**
    * Login with username OR email
    */
-  async login(identifier: string, password: string) {
+  async login(
+    identifier: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     try {
       // DEMO MODE: Test credential bypass for demos and staging environments
       // Set DEMO_MODE=true in your environment to enable test accounts
@@ -269,6 +275,28 @@ export class AuthService {
       // Generate token pair
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
 
+      // Create session entry for tracking
+      try {
+        await prisma.userSession.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            sessionId: tokens.accessToken,
+            ipAddress: ipAddress ?? 'Unknown',
+            userAgent: userAgent ?? 'Unknown',
+            loginAt: new Date(),
+            lastActivity: new Date(),
+            isActive: true,
+          },
+        });
+        logger.info('Session created', { userId: user.id });
+      } catch (sessionError) {
+        // Log error but don't fail login if session creation fails
+        logger.error('Failed to create session entry', sessionError as Error, {
+          userId: user.id,
+        });
+      }
+
       return {
         user: {
           id: user.id,
@@ -279,11 +307,40 @@ export class AuthService {
           displayPreference: user.displayPreference,
         },
         ...tokens,
+        sessionId: tokens.accessToken, // Include session ID for client-side session tracking
         requiresVerification: !user.isVerified,
       };
     } catch (error: any) {
       logger.error('Login failed', error, { identifier });
       throw error;
+    }
+  }
+
+  /**
+   * Logout user and terminate session
+   */
+  async logout(userId: string, sessionId: string) {
+    try {
+      // Terminate the specific session
+      await prisma.userSession.updateMany({
+        where: {
+          userId,
+          sessionId,
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+          logoutAt: new Date(),
+        },
+      });
+
+      logger.info('Session terminated', { userId, sessionId });
+    } catch (error) {
+      logger.error('Failed to terminate session', error as Error, {
+        userId,
+        sessionId,
+      });
+      // Don't throw error - logout should succeed even if session tracking fails
     }
   }
 

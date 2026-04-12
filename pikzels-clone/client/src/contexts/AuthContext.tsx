@@ -75,14 +75,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Store session ID for session tracking (non-critical, may fail in Safari Private Browsing)
+        try { if (data.sessionId) localStorage.setItem('sessionId', data.sessionId); } catch { /* Safari Private Browsing */ }
         // Initialize token expiration for proactive refresh (15 minutes)
         setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Login failed' };
       }
-    } catch (err) {
-      return { success: false, error: 'Network error. Please try again.' };
+    } catch {
+      return { success: false, error: 'Network error' };
     }
   };
 
@@ -94,13 +96,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Store session ID for session tracking (non-critical, may fail in Safari Private Browsing)
+        try { if (data.sessionId) localStorage.setItem('sessionId', data.sessionId); } catch { /* Safari Private Browsing */ }
         // Initialize token expiration for proactive refresh (15 minutes)
         setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Registration failed' };
       }
-    } catch (err) {
+    } catch {
       return { success: false, error: 'Network error. Please try again.' };
     }
   };
@@ -132,6 +136,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
     // Clear token expiration tracking
     setTokenExpiration(0);
+    // Clear session ID
+    try { localStorage.removeItem('sessionId'); } catch { /* Safari Private Browsing */ }
     setUser(null);
     navigate('/', { replace: true });
   };

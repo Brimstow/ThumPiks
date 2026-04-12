@@ -119,7 +119,7 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
       group: 'Support',
       items: [
         { icon: HelpCircle, label: 'Help Center', path: '/dashboard/help', description: 'Get support' },
-        { icon: Download, label: 'Export Data', path: '/dashboard/account/export', description: 'Download your data' },
+        { icon: Download, label: 'Export Data', path: '/dashboard/account/settings', description: 'Download your data' },
       ],
     },
   ];

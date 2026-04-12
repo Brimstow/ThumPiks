@@ -15,6 +15,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authGet, authPatch, authPost, authDelete } from '@/utils/api';
 import config from '@/config/environment';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ═══════════════════════════════════════════════════════════════════
 // Types
@@ -111,11 +112,20 @@ async function bulkDeleteNotificationsApi(ids: string[]): Promise<void> {
 // SSE Connection Hook
 // ═══════════════════════════════════════════════════════════════════
 
-function useNotificationSSE(onInvalidate: () => void) {
+function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      return;
+    }
     let mounted = true;
 
     const connect = () => {
@@ -155,7 +165,7 @@ function useNotificationSSE(onInvalidate: () => void) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [onInvalidate]);
+  }, [onInvalidate, isAuthenticated]);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -164,6 +174,7 @@ function useNotificationSSE(onInvalidate: () => void) {
 
 export function useNotifications(page = 1, limit = 20, filters?: NotificationFilters) {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   // Fetch notifications list (query key includes filter for per-tab caching)
   const {
@@ -176,6 +187,7 @@ export function useNotifications(page = 1, limit = 20, filters?: NotificationFil
     queryFn: () => fetchNotifications(page, limit, filters),
     staleTime: 30_000, // 30 seconds — SSE will invalidate when needed
     refetchOnWindowFocus: true,
+    enabled: isAuthenticated,
   });
 
   // Fetch unread count (separate for badge updates)
@@ -187,6 +199,7 @@ export function useNotifications(page = 1, limit = 20, filters?: NotificationFil
     queryFn: fetchUnreadCount,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    enabled: isAuthenticated,
   });
 
   // Invalidation callback for SSE
@@ -196,7 +209,7 @@ export function useNotifications(page = 1, limit = 20, filters?: NotificationFil
   }, [queryClient]);
 
   // Connect to SSE for real-time updates
-  useNotificationSSE(handleInvalidate);
+  useNotificationSSE(handleInvalidate, isAuthenticated);
 
   // Mark single notification as read
   const markReadMutation = useMutation({

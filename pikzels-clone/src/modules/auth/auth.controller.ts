@@ -103,7 +103,12 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await authService.login(loginIdentifier, password);
+    // Get client IP and user agent for session tracking
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'Unknown';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+
+    const result = await authService.login(loginIdentifier, password, ipAddress, userAgent);
 
     // Cookie settings: sameSite=lax is safe because Netlify proxies API
     // requests to Railway (same-origin from browser's perspective).
@@ -170,8 +175,16 @@ export const login = async (req: Request, res: Response) => {
  * Logout user by clearing authentication cookies
  * POST /api/auth/logout
  */
-export const logout = async (_req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).user?.id;
+    const sessionId = (req as any).cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
+
+    // Call service to terminate session if user is authenticated
+    if (userId && sessionId) {
+      await authService.logout(userId, sessionId);
+    }
+
     // Must match the same options used when setting cookies
     const isProduction = isProductionLike();
     const cookieOptions = {
