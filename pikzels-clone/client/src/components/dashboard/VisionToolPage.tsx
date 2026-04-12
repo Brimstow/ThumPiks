@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 import {
   Eye,
   Upload,
@@ -226,10 +227,12 @@ const VisionToolPage: React.FC = () => {
   }, [searchQuery]);
 
   // Copy to clipboard
-  const handleCopy = useCallback((text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
+  const handleCopy = useCallback(async (text: string, field: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
   }, []);
 
   // Analyze a search result

@@ -1,19 +1,20 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Rocket,
   CreditCard,
   Wand2,
   UserCircle,
-  Code2,
   MessageCircleQuestion,
   ChevronRight,
   Mail,
-  MessageSquare,
 } from 'lucide-react';
 import Tooltip from '../ui/Tooltip';
 
 const HelpPage: React.FC = () => {
+  const navigate = useNavigate();
+
   const categories = [
     {
       id: 1,
@@ -21,6 +22,7 @@ const HelpPage: React.FC = () => {
       title: 'Getting Started',
       description: 'Everything you need to know to create your first thumbnail and set up your account.',
       color: 'text-blue-400',
+      path: '/dashboard',
     },
     {
       id: 2,
@@ -28,6 +30,7 @@ const HelpPage: React.FC = () => {
       title: 'Billing & Plans',
       description: 'Manage your subscription, credit usage, payment methods and invoices.',
       color: 'text-emerald-400',
+      path: '/dashboard/account/billing',
     },
     {
       id: 3,
@@ -35,6 +38,7 @@ const HelpPage: React.FC = () => {
       title: 'Editor Tools',
       description: 'Deep dive into face swapping, text generation, background removal and styles.',
       color: 'text-purple-400',
+      path: '/dashboard/ai-tools',
     },
     {
       id: 4,
@@ -42,20 +46,15 @@ const HelpPage: React.FC = () => {
       title: 'Account Settings',
       description: 'Update your profile, change password, manage team members and notifications.',
       color: 'text-orange-400',
+      path: '/dashboard/account/profile',
     },
     {
       id: 5,
-      icon: Code2,
-      title: 'API & Integration',
-      description: 'Documentation for developers integrating thumbnail generation into their apps.',
-      color: 'text-pink-400',
-    },
-    {
-      id: 6,
       icon: MessageCircleQuestion,
       title: 'Troubleshooting',
       description: 'Solutions to common errors, generation failures, and export issues.',
       color: 'text-slate-400',
+      path: '/contact',
     },
   ];
 
@@ -78,7 +77,7 @@ const HelpPage: React.FC = () => {
         </h1>
         <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto">
           Search our knowledge base or browse categories below to find answers about generating
-          thumbnails, billing, and API access.
+          thumbnails, billing, and your account.
         </p>
 
         {/* Search Bar */}
@@ -105,10 +104,10 @@ const HelpPage: React.FC = () => {
       {/* Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
         {categories.map((category) => (
-          <a
+          <button
             key={category.id}
-            href="#"
-            className="group p-6 rounded-2xl bg-[#020818] border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 transition-all duration-300 relative overflow-hidden"
+            onClick={() => navigate(category.path)}
+            className="group p-6 rounded-2xl bg-[#020818] border border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 transition-all duration-300 relative overflow-hidden text-left"
           >
             <Tooltip content={category.title} side="top">
               <div
@@ -119,7 +118,7 @@ const HelpPage: React.FC = () => {
             </Tooltip>
             <h3 className="text-lg font-semibold text-slate-100 mb-2">{category.title}</h3>
             <p className="text-sm text-slate-400">{category.description}</p>
-          </a>
+          </button>
         ))}
       </div>
 
@@ -157,15 +156,12 @@ const HelpPage: React.FC = () => {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Tooltip content="Send us an email" side="top">
-              <button className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-200 transition-colors w-full sm:w-auto">
+              <button
+                onClick={() => navigate('/contact')}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-200 transition-colors w-full sm:w-auto"
+              >
                 <Mail className="w-4 h-4 mr-2" />
                 Contact Support
-              </button>
-            </Tooltip>
-            <Tooltip content="Start a live chat" side="top">
-              <button className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-transparent px-6 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800 transition-colors w-full sm:w-auto">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Live Chat
               </button>
             </Tooltip>
           </div>

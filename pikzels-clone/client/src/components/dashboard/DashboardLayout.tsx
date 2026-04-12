@@ -667,8 +667,8 @@ const DashboardLayout: React.FC = () => {
       {/* Feedback Widget */}
       <FeedbackWidget externalOpen={feedbackOpen} onExternalOpenHandled={() => setFeedbackOpen(false)} />
 
-      {/* Global Chat Widget */}
-      <GlobalChatWidget />
+      {/* Global Chat Widget - hidden on editor page where it overlaps the in-editor AI Chat */}
+      {location.pathname !== '/dashboard/editor' && <GlobalChatWidget />}
 
       {/* Search Modal */}
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />

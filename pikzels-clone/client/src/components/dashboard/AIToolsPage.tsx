@@ -3,7 +3,7 @@
  * Standalone AI tools for image manipulation without the full editor
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -162,6 +162,21 @@ const AIToolsPage: React.FC = () => {
   // Model tier selection ("Intel Inside" pattern)
   // Default to 'standard' — will be validated against fetched config
   const [selectedTier, setSelectedTier] = useState<ModelTierId>('standard');
+
+  // Whether the selected tier supports 4x upscale (backend-driven capability)
+  const is4xAllowed = useMemo(() => {
+    const config = modelTiers.getConfig('upscale');
+    if (!config) return true; // fail-open while loading
+    const tier = config.tiers.find(t => t.id === selectedTier);
+    return tier?.capabilities?.maxScale === '4x';
+  }, [modelTiers, selectedTier]);
+
+  // Auto-downgrade from 4x to 2x when switching to a tier that doesn't support it
+  useEffect(() => {
+    if (!is4xAllowed && upscaleScale === 4) {
+      setUpscaleScale(2);
+    }
+  }, [is4xAllowed, upscaleScale]);
 
   // Recreate Better modal state
   const [recreateBetterOpen, setRecreateBetterOpen] = useState(false);
@@ -1270,16 +1285,19 @@ const AIToolsPage: React.FC = () => {
                       </span>
                     </button>
                     <button
-                      onClick={() => setUpscaleScale(4)}
+                      onClick={() => is4xAllowed && setUpscaleScale(4)}
+                      disabled={!is4xAllowed}
                       className={`p-4 rounded-xl border text-center transition-all ${
-                        upscaleScale === 4
-                          ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                        !is4xAllowed
+                          ? 'bg-slate-800/50 border-slate-700/50 text-slate-600 cursor-not-allowed'
+                          : upscaleScale === 4
+                            ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400'
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
                       }`}
                     >
                       <span className="text-2xl font-bold">4x</span>
                       <span className="block text-xs mt-1">
-                        Quadruple resolution
+                        {is4xAllowed ? 'Quadruple resolution' : 'Requires Pro tier'}
                       </span>
                     </button>
                   </div>

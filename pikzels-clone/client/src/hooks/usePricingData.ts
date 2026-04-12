@@ -8,6 +8,7 @@ export interface PlanFeatures {
   aiThumbnails: number;
   resolution: string;
   watermark: boolean;
+  watermarkFreeExports?: number;
   faceSwap: boolean | number;
   abTesting: boolean | number;
   analytics: boolean;

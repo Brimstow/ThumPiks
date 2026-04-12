@@ -58,7 +58,16 @@ import { useAITextGenerator } from '../../hooks/useAITextGenerator';
 // Layouts available via Canvas Editor — removed from Quick Edit sidebar
 import RecreateBetterModal from '../ui/RecreateBetterModal';
 import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
+import {
+  THUMBNAIL_FONTS,
+  TEXT_COLOR_PRESETS,
+  MOOD_FONTS,
+  DEFAULT_TEXT_STYLE,
+  isColorDark,
+} from '../../constants/text-styles';
+import { useInlineTextEdit, INLINE_EDIT_STYLES } from '../../hooks/useInlineTextEdit';
 import Tooltip from '../ui/Tooltip';
+import { safeCanvasToDataURL } from '../../utils/browserCompat';
 
 // ============================================
 // TYPES
@@ -192,18 +201,6 @@ const STYLE_PRESETS = [
 const EXAMPLE_VIDEO_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 const EXAMPLE_VIDEO_LABEL = 'Rick Astley – Never Gonna Give You Up';
 
-const THUMBNAIL_FONTS = [
-  { label: 'Impact', value: 'Impact, Arial Black, sans-serif' },
-  { label: 'Oswald', value: "'Oswald', sans-serif" },
-  { label: 'Bangers', value: "'Bangers', cursive" },
-  { label: 'Bebas Neue', value: "'Bebas Neue', sans-serif" },
-  { label: 'Anton', value: "'Anton', sans-serif" },
-  { label: 'Permanent Marker', value: "'Permanent Marker', cursive" },
-  { label: 'Montserrat', value: "'Montserrat', sans-serif" },
-  { label: 'Poppins', value: "'Poppins', sans-serif" },
-  { label: 'Playfair Display', value: "'Playfair Display', serif" },
-];
-
 // ============================================
 // COMPONENT
 // ============================================
@@ -251,43 +248,6 @@ function savePersistedState(state: PersistedState): void {
 // ============================================
 // CONSTANTS FOR SMART TEXT STYLING
 // ============================================
-
-const MOOD_FONTS: Record<string, string> = {
-  dramatic: 'Oswald, Impact, sans-serif',
-  intense: 'Oswald, Impact, sans-serif',
-  dark: 'Oswald, Impact, sans-serif',
-  energetic: 'Bangers, Impact, cursive',
-  fun: 'Bangers, Poppins, cursive',
-  playful: 'Bangers, Poppins, cursive',
-  happy: 'Poppins, Nunito, sans-serif',
-  bright: 'Poppins, Nunito, sans-serif',
-  calm: 'Quicksand, Nunito, sans-serif',
-  mysterious: 'Playfair Display, Georgia, serif',
-  elegant: 'Playfair Display, Georgia, serif',
-  professional: 'Montserrat, Arial, sans-serif',
-  serious: 'Montserrat, Oswald, sans-serif',
-  bold: 'Impact, Arial Black, sans-serif',
-};
-
-function isColorDark(hex: string): boolean {
-  const c = hex.replace('#', '');
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
-}
-
-const DEFAULT_SMART_STYLE: Partial<TextOverlay> = {
-  fontFamily: 'Impact, Arial Black, sans-serif',
-  color: '#FFFFFF',
-  fontWeight: '900',
-  fontSize: 80,
-  textStroke: '2px rgba(0,0,0,0.8)',
-  textShadow: '3px 3px 6px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.4)',
-  letterSpacing: '2px',
-  backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  maxWidth: 90,
-};
 
 // ============================================
 // SMART TEXT ITEM — plain row, no popover
@@ -349,6 +309,7 @@ interface FloatingEditPanelProps {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   onUpdate: (updates: Partial<TextOverlay>) => void;
+  savedPosRef: React.MutableRefObject<{ x: number; y: number } | null>;
 }
 
 const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
@@ -356,30 +317,36 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
   anchorRef,
   onClose,
   onUpdate,
+  savedPosRef,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDocked, setIsDocked] = useState(!savedPosRef.current);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(savedPosRef.current);
   const draggingPanel = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
-  // Position panel near the Smart Text button on first render
+  // Sync docked state when overlay changes
   useEffect(() => {
-    if (anchorRef.current) {
-      const r = anchorRef.current.getBoundingClientRect();
-      const panelW = 284;
-      // Place to the left of the right-side panel, above anchor
-      let x = r.left - panelW - 8;
-      let y = r.top;
-      // If not enough space to the left, place above
-      if (x < 8) {
-        x = Math.max(8, r.right - panelW);
-        y = r.top - 10;
-      }
-      setPos({ x, y });
+    if (savedPosRef.current) {
+      setPos(savedPosRef.current);
+      setIsDocked(false);
+    } else {
+      setIsDocked(true);
     }
-  }, [anchorRef]);
+  }, [overlay.id, savedPosRef]);
 
   const onMouseDownHeader = (e: React.MouseEvent) => {
+    // When docked, compute initial fixed position from the panel element
+    if (isDocked && panelRef.current) {
+      const rect = panelRef.current.getBoundingClientRect();
+      const startPos = { x: rect.left, y: rect.top };
+      setPos(startPos);
+      setIsDocked(false);
+      draggingPanel.current = true;
+      dragStart.current = { mx: e.clientX, my: e.clientY, px: startPos.x, py: startPos.y };
+      e.preventDefault();
+      return;
+    }
     if (!pos) return;
     draggingPanel.current = true;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
@@ -391,9 +358,13 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
       if (!draggingPanel.current) return;
       const dx = e.clientX - dragStart.current.mx;
       const dy = e.clientY - dragStart.current.my;
-      setPos({ x: dragStart.current.px + dx, y: dragStart.current.py + dy });
+      const newPos = { x: dragStart.current.px + dx, y: dragStart.current.py + dy };
+      setPos(newPos);
     };
     const onUp = () => {
+      if (draggingPanel.current && pos) {
+        savedPosRef.current = pos;
+      }
       draggingPanel.current = false;
     };
     window.addEventListener('mousemove', onMove);
@@ -402,17 +373,27 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, []);
+  }, [pos, savedPosRef]);
 
-  if (!pos) return null;
+  const handleDock = () => {
+    savedPosRef.current = null;
+    setIsDocked(true);
+    setPos(null);
+  };
 
   return (
     <div
       ref={panelRef}
-      style={{
+      style={isDocked ? {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        zIndex: 20,
+      } : {
         position: 'fixed',
-        left: pos.x,
-        top: pos.y,
+        left: pos?.x ?? 0,
+        top: pos?.y ?? 0,
         zIndex: 9999,
         width: 284,
       }}
@@ -431,16 +412,30 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
             Edit Text
           </span>
         </div>
-        <Tooltip content="Close panel">
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-700"
-          aria-label="Close edit panel"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-        </Tooltip>
+        <div className="flex items-center gap-1">
+          {!isDocked && (
+            <Tooltip content="Dock to sidebar">
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={handleDock}
+              className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-700"
+              aria-label="Dock panel to sidebar"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Close panel">
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-700"
+            aria-label="Close edit panel"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+          </Tooltip>
+        </div>
       </div>
 
       <div className="p-3 space-y-2.5">
@@ -483,16 +478,7 @@ const FloatingEditPanel: React.FC<FloatingEditPanelProps> = ({
             Color
           </span>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              '#FFFFFF',
-              '#000000',
-              '#FF0000',
-              '#FFD600',
-              '#00E676',
-              '#2979FF',
-              '#FF6D00',
-              '#E040FB',
-            ].map(c => (
+            {TEXT_COLOR_PRESETS.map(c => (
               <button
                 key={c}
                 onClick={() => onUpdate({ color: c })}
@@ -648,6 +634,15 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
   // Drag state
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragIntent, setDragIntent] = useState<{
+    id: string; startX: number; startY: number; overlayX: number; overlayY: number;
+  } | null>(null);
+
+  // Inline editing — shared hook (DRY with full canvas editor)
+  const inlineEdit = useInlineTextEdit({
+    onUpdate: (id, text) => updateOverlayProp(id, { text }),
+  });
+  const inlineEditingId = inlineEdit.editingId;
 
   // Resize state
   type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
@@ -670,6 +665,13 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
 
   // Ref for the Smart Text button — used to position the floating edit panel
   const smartTextBtnRef = useRef<HTMLButtonElement>(null);
+  // Persists user-dragged position of the Edit Text panel across overlay switches
+  const editPanelSavedPos = useRef<{ x: number; y: number } | null>(null);
+  // Stores the measured width of an overlay div before entering inline edit mode
+  // so the textarea can be locked to the exact same width as the display text.
+  const overlayEditWidth = useRef<number | null>(null);
+  // Refs for overlay divs — keyed by overlay.id
+  const overlayDivRefs = useRef<Record<string, HTMLDivElement | null>>({});
   useEffect(() => {
     if (!canvasRef.current) return;
     const ro = new ResizeObserver(entries => {
@@ -1328,16 +1330,29 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
     const overlayX = (overlay.x / 100) * rect.width;
     const overlayY = (overlay.y / 100) * rect.height;
 
-    setDragging(id);
-    setDragOffset({
-      x: e.clientX - rect.left - overlayX,
-      y: e.clientY - rect.top - overlayY,
-    });
+    // Track intent — don't start drag yet, wait for movement threshold
+    setDragIntent({ id, startX: e.clientX, startY: e.clientY, overlayX, overlayY });
     setActiveOverlayId(id);
+    setShowTextInput(false);
   };
 
   const handleDragMove = useCallback(
     (e: MouseEvent) => {
+      // Promote dragIntent to actual drag after 3px movement threshold
+      if (dragIntent && !dragging && canvasRef.current) {
+        const dx = e.clientX - dragIntent.startX;
+        const dy = e.clientY - dragIntent.startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          const rect = canvasRef.current.getBoundingClientRect();
+          setDragging(dragIntent.id);
+          setDragOffset({
+            x: dragIntent.startX - rect.left - dragIntent.overlayX,
+            y: dragIntent.startY - rect.top - dragIntent.overlayY,
+          });
+        }
+        return;
+      }
+
       if (!dragging || !canvasRef.current) return;
 
       const rect = canvasRef.current.getBoundingClientRect();
@@ -1356,15 +1371,16 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         )
       );
     },
-    [dragging, dragOffset]
+    [dragging, dragOffset, dragIntent]
   );
 
   const handleDragEnd = useCallback(() => {
+    setDragIntent(null);
     setDragging(null);
   }, []);
 
   useEffect(() => {
-    if (dragging) {
+    if (dragging || dragIntent) {
       window.addEventListener('mousemove', handleDragMove);
       window.addEventListener('mouseup', handleDragEnd);
       return () => {
@@ -1372,7 +1388,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         window.removeEventListener('mouseup', handleDragEnd);
       };
     }
-  }, [dragging, handleDragMove, handleDragEnd]);
+  }, [dragging, dragIntent, handleDragMove, handleDragEnd]);
 
   // ============================================
   // RESIZE HANDLERS
@@ -1642,9 +1658,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
   const getSmartStyle = useCallback((): Partial<TextOverlay> => {
     const analysis = aiText.visionAnalysis;
     if (analysis) {
-      return { ...DEFAULT_SMART_STYLE, ...computeStyleFromAnalysis(analysis) };
+      return { ...DEFAULT_TEXT_STYLE, ...computeStyleFromAnalysis(analysis) };
     }
-    return DEFAULT_SMART_STYLE;
+    return DEFAULT_TEXT_STYLE;
   }, [aiText.visionAnalysis, computeStyleFromAnalysis]);
 
   const handleSmartText = async (customText?: string) => {
@@ -1708,6 +1724,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
     };
     setTextOverlays(prev => [...prev, overlay]);
     setActiveOverlayId(overlay.id);
+    setShowTextInput(false);
     aiText.clearSuggestions();
     setShowOverlayHint(overlay.id);
     setTimeout(() => setShowOverlayHint(null), 3000);
@@ -1813,7 +1830,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
       }
     }
 
-    return canvas.toDataURL('image/jpeg', 0.92);
+    return safeCanvasToDataURL(canvas, 'image/jpeg', 0.92);
   }, [resultImageUrl, textOverlays]);
 
   const handleSave = async () => {
@@ -2741,7 +2758,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
           ref={canvasRef}
           className="relative rounded-xl overflow-hidden bg-gray-900 border border-gray-700
                      aspect-video w-full select-none"
-          onMouseDown={() => setActiveOverlayId(null)}
+          onMouseDown={() => { setActiveOverlayId(null); inlineEdit.stop(); }}
         >
           {resultImageUrl && (
             <img
@@ -2787,11 +2804,16 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             return (
               <div
                 key={overlay.id}
+                ref={el => { overlayDivRefs.current[overlay.id] = el; }}
                 style={{
                   position: 'absolute',
                   left: `${overlay.x}%`,
                   top: `${overlay.y}%`,
                   maxWidth: `${overlay.maxWidth || 90}%`,
+                  // Lock width to measured value during editing; otherwise shrink-wrap
+                  width: (inlineEditingId === overlay.id && overlayEditWidth.current)
+                    ? overlayEditWidth.current
+                    : 'fit-content',
                   fontSize: `${scaledFontSize}px`,
                   color: overlay.color,
                   fontWeight: overlay.fontWeight,
@@ -2803,27 +2825,54 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                   backgroundColor: hasBg ? overlay.backgroundColor : undefined,
                   padding: hasBg ? '4px 12px' : undefined,
                   borderRadius: hasBg ? '6px' : undefined,
-                  cursor: dragging === overlay.id ? 'grabbing' : 'grab',
-                  userSelect: 'none',
+                  cursor: inlineEditingId === overlay.id ? 'text' : dragging === overlay.id ? 'grabbing' : 'grab',
+                  userSelect: inlineEditingId === overlay.id ? 'text' : 'none',
                   wordWrap: 'break-word',
                   overflowWrap: 'break-word',
                   textTransform: 'uppercase' as const,
                   lineHeight: 1.15,
-                  // Dashed selection border when active
-                  outline: isActive
+                  // Dashed selection border when active (suppress during inline edit to prevent box growth)
+                  outline: (isActive && inlineEditingId !== overlay.id)
                     ? '1.5px dashed rgba(168,85,247,0.85)'
                     : undefined,
-                  outlineOffset: '4px',
+                  outlineOffset: (isActive && inlineEditingId !== overlay.id) ? '4px' : undefined,
                 }}
                 onMouseDown={e => {
+                  if (inlineEditingId === overlay.id) return; // don't drag while editing
                   e.preventDefault();
                   handleDragStart(overlay.id, e);
                 }}
+                onDoubleClick={e => {
+                  e.stopPropagation();
+                  // Capture the overlay div's current width before switching to textarea
+                  const el = overlayDivRefs.current[overlay.id];
+                  overlayEditWidth.current = el ? el.offsetWidth : null;
+                  inlineEdit.start(overlay.id);
+                  setActiveOverlayId(overlay.id);
+                  setShowTextInput(false);
+                }}
               >
-                {overlay.text}
-                {showOverlayHint === overlay.id && (
+                {inlineEditingId === overlay.id ? (
+                  <textarea
+                    autoFocus
+                    rows={1}
+                    value={overlay.text}
+                    onChange={inlineEdit.handleChange}
+                    onBlur={() => inlineEdit.stop()}
+                    onKeyDown={inlineEdit.handleKeyDown}
+                    style={{
+                      ...INLINE_EDIT_STYLES,
+                      height: 'auto',
+                      caretColor: '#a855f7',
+                    }}
+                    className="inline-edit-textarea"
+                  />
+                ) : (
+                  overlay.text
+                )}
+                {showOverlayHint === overlay.id && !inlineEditingId && (
                   <span className="block text-center text-[10px] text-white/70 mt-1 font-normal tracking-normal normal-case pointer-events-none">
-                    Drag to move · Click to edit
+                    Drag to move · Double-click to edit
                   </span>
                 )}
                 {isActive && (
@@ -2969,45 +3018,33 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         )}
       </div>
 
-      {/* Floating Edit Panel — spawns at Smart Text button, draggable */}
-      {activeOverlayId &&
-        (() => {
-          const activeOverlay = textOverlays.find(
-            o => o.id === activeOverlayId
-          );
-          return activeOverlay ? (
-            <FloatingEditPanel
-              key={activeOverlayId}
-              overlay={activeOverlay}
-              anchorRef={smartTextBtnRef}
-              onClose={() => setActiveOverlayId(null)}
-              onUpdate={updates => updateOverlayProp(activeOverlayId, updates)}
-            />
-          ) : null;
-        })()}
-
       {/* Tools Panel */}
-      <div className="lg:w-72 flex flex-col gap-3">
+      <div className="lg:w-72 flex flex-col gap-3 relative">
         <h3 className="text-sm font-medium text-gray-400 uppercase mb-1">
           Quick Tools
         </h3>
 
         {/* Ask AI */}
-        <button
-          onClick={toggleCommandBar}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl
-                     bg-gradient-to-r from-purple-600/20 to-pink-600/20
-                     border border-purple-500/30 hover:border-purple-500/50
-                     hover:from-purple-600/30 hover:to-pink-600/30
-                     text-white transition-all text-sm group"
-          title="AI Command Bar (Ctrl+K)"
+        <Tooltip
+          content="Quick one-shot AI commands — describe what you want and it executes immediately. No conversation history."
+          side="right"
+          sideOffset={8}
         >
-          <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
-          <span className="flex-1 text-left">Ask AI Anything...</span>
-          <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 flex-shrink-0">
-            Ctrl+K
-          </kbd>
-        </button>
+          <button
+            onClick={toggleCommandBar}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl
+                       bg-gradient-to-r from-purple-600/20 to-pink-600/20
+                       border border-purple-500/30 hover:border-purple-500/50
+                       hover:from-purple-600/30 hover:to-pink-600/30
+                       text-white transition-all text-sm group"
+          >
+            <Command className="w-5 h-5 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
+            <span className="flex-1 text-left">Ask AI Anything...</span>
+            <kbd className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 flex-shrink-0">
+              Ctrl+K
+            </kbd>
+          </button>
+        </Tooltip>
 
         {/* Remove Background — free, runs locally */}
         <button
@@ -3027,6 +3064,26 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             Free
           </span>
         </button>
+
+        {/* Edit Text Panel — overlays sidebar when docked, drag header to undock */}
+        {activeOverlayId &&
+          (() => {
+            const activeOverlay = textOverlays.find(
+              o => o.id === activeOverlayId
+            );
+            return activeOverlay ? (
+              <div style={{ position: 'relative', height: 0, zIndex: 20 }}>
+                <FloatingEditPanel
+                  key={activeOverlayId}
+                  overlay={activeOverlay}
+                  anchorRef={smartTextBtnRef}
+                  onClose={() => setActiveOverlayId(null)}
+                  onUpdate={updates => updateOverlayProp(activeOverlayId, updates)}
+                  savedPosRef={editPanelSavedPos}
+                />
+              </div>
+            ) : null;
+          })()}
 
         {/* Add Your Face */}
         <div className="rounded-xl bg-gray-800/50 border border-gray-700/50 p-3 space-y-2.5">
@@ -3241,7 +3298,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
                   key={overlay.id}
                   overlay={overlay}
                   isActive={overlay.id === activeOverlayId}
-                  onSelect={() => setActiveOverlayId(overlay.id)}
+                  onSelect={() => { setActiveOverlayId(overlay.id); setShowTextInput(false); }}
                   onRemove={() => removeOverlay(overlay.id)}
                 />
               ))}
