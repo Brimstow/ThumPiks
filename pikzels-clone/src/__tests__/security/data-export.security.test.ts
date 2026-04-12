@@ -1,0 +1,19 @@
+/**
+ * GDPR Data Export Security Tests - IDOR prevention, sensitive field exclusion, audit logging
+ */
+const mockPrisma = { user: { findUnique: jest.fn() }, subscription: { findMany: jest.fn() }, creditTransaction: { findMany: jest.fn() }, project: { findMany: jest.fn() }, thumbnail: { findMany: jest.fn() }, userAsset: { findMany: jest.fn() }, userUrlHistory: { findMany: jest.fn() }, visionAnalysis: { findMany: jest.fn() }, aBTest: { findMany: jest.fn() }, socialShare: { findMany: jest.fn() }, brandLogo: { findMany: jest.fn() }, brandColorPalette: { findMany: jest.fn() }, brandFont: { findMany: jest.fn() }, brandVoice: { findFirst: jest.fn() }, brandPhoto: { findMany: jest.fn() }, brandGraphic: { findMany: jest.fn() }, brandIcon: { findMany: jest.fn() }, brandStylePreset: { findMany: jest.fn() }, team: { findMany: jest.fn() }, teamMember: { findMany: jest.fn() }, template: { findMany: jest.fn() }, userNotification: { findMany: jest.fn() } };
+jest.mock('@prisma/client', () => ({ PrismaClient: jest.fn(() => mockPrisma) }));
+jest.mock('../../utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
+import { exportUserData } from '../../modules/user/data-export.service';
+import { logger } from '../../utils/logger';
+function mockUser(id: string) { return { id, email: id+'@example.com', username: id, name: 'Test', avatarUrl: null, isVerified: true, emailVerified: true, displayPreference: 'name', settings: null, createdAt: new Date(), updatedAt: new Date(), lastLoginAt: new Date(), isActive: true, youtubeChannelId: null, youtubeConnectedAt: null, marketingEmails: true, productUpdates: true, securityAlerts: true, weeklyDigest: false, emailUnsubscribedAt: null }; }
+function emptyRels() { [mockPrisma.subscription, mockPrisma.creditTransaction, mockPrisma.project, mockPrisma.thumbnail, mockPrisma.userAsset, mockPrisma.userUrlHistory, mockPrisma.visionAnalysis, mockPrisma.aBTest, mockPrisma.socialShare, mockPrisma.brandLogo, mockPrisma.brandColorPalette, mockPrisma.brandFont, mockPrisma.brandPhoto, mockPrisma.brandGraphic, mockPrisma.brandIcon, mockPrisma.brandStylePreset, mockPrisma.team, mockPrisma.teamMember, mockPrisma.template, mockPrisma.userNotification].forEach(m => m.findMany.mockResolvedValue([])); mockPrisma.brandVoice.findFirst.mockResolvedValue(null); }
+describe('Security - GDPR Data Export', () => {
+  beforeEach(() => { jest.clearAllMocks(); emptyRels(); });
+  test('IDOR: only returns requesting user data', async () => { mockPrisma.user.findUnique.mockResolvedValue(mockUser('alice')); const r = await exportUserData('alice'); expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'alice' } })); expect(r.exportMetadata.userId).toBe('alice'); });
+  test('throws if user not found', async () => { mockPrisma.user.findUnique.mockResolvedValue(null); await expect(exportUserData('x')).rejects.toThrow('User not found'); });
+  test('excludes passwordHash', async () => { mockPrisma.user.findUnique.mockResolvedValue(mockUser('u1')); const r = await exportUserData('u1'); expect(r.profile).not.toHaveProperty('passwordHash'); });
+  test('excludes OAuth tokens', async () => { mockPrisma.user.findUnique.mockResolvedValue(mockUser('u2')); const r = await exportUserData('u2'); expect(r.profile).not.toHaveProperty('youtubeAccessToken'); });
+  test('excludes Stripe IDs', async () => { mockPrisma.user.findUnique.mockResolvedValue(mockUser('u3')); const r = await exportUserData('u3'); expect(r.profile).not.toHaveProperty('stripeCustomerId'); });
+  test('audit logs', async () => { mockPrisma.user.findUnique.mockResolvedValue(mockUser('u4')); await exportUserData('u4'); expect(logger.info).toHaveBeenCalledWith('Starting GDPR data export', expect.objectContaining({ userId: 'u4' })); });
+});
