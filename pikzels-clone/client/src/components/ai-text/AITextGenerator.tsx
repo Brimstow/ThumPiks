@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 import { useAITextGenerator, type TextTone, type AITextSuggestion } from '../../hooks/useAITextGenerator';
 import { useAIToolsStore } from '../../stores/aiToolsStore';
 import './AITextGenerator.css';
@@ -184,11 +185,12 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
     }
   }, [selectedTextLayerId, onUpdateTextLayer, onAddTextLayer, markApplied]);
 
-  const handleCopy = useCallback((text: string, id: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const handleCopy = useCallback(async (text: string, id: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
-    });
+    }
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -259,6 +261,20 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
             <Icons.Refresh />
             Rewrite
           </button>
+        </div>
+      )}
+
+      {/* Editable text content field for selected text layer */}
+      {selectedTextLayerId && onUpdateTextLayer && (
+        <div className="ai-text-content-editor">
+          <label className="ai-text-content-editor__label">Text Content</label>
+          <textarea
+            className="ai-text-content-editor__input"
+            value={selectedTextContent || ''}
+            onChange={(e) => onUpdateTextLayer(selectedTextLayerId, { content: e.target.value })}
+            placeholder="Type text for this layer..."
+            rows={2}
+          />
         </div>
       )}
 

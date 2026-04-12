@@ -16,6 +16,7 @@ import type {
   AIAnalysisResult,
   TensorFlowConfig,
 } from './types';
+import { isIOS, isSafari, isCanvasSizeSafe, safeCanvasToDataURL } from '@/utils/browserCompat';
 
 // Dynamic imports for TensorFlow models
 let bodySegmentation: any = null;
@@ -43,7 +44,13 @@ export class TensorFlowProvider extends BaseAIProvider {
   protected async _initialize(): Promise<void> {
     // Don't load models on initialization - load them lazily when needed
     // This significantly reduces initial page load time
-    console.log('TensorFlow provider initialized (models will load on-demand)');
+    if (isIOS) {
+      console.log('TensorFlow provider initialized (iOS detected — will use CPU-safe paths)');
+    } else if (isSafari) {
+      console.log('TensorFlow provider initialized (Safari detected — WebGL with fallback)');
+    } else {
+      console.log('TensorFlow provider initialized (models will load on-demand)');
+    }
   }
   
   /**
@@ -61,21 +68,38 @@ export class TensorFlowProvider extends BaseAIProvider {
         bodySegmentation = bodySegModule;
       }
       
-      // Load model with timeout
+      // Load model with timeout (longer on iOS/Safari due to CPU fallback)
+      const timeout = isIOS || isSafari ? 30000 : 15000;
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Model load timeout')), 15000)
+        setTimeout(() => reject(new Error('Model load timeout')), timeout)
       );
       
-      const loadPromise = bodySegmentation.createSegmenter(
-        bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-        {
-          runtime: 'mediapipe',
-          solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation',
-          modelType: 'general',
-        }
-      );
+      // iOS Safari: MediaPipe WASM runtime can throw EvalError due to CSP.
+      // Try MediaPipe first, fall back to TF.js runtime if it fails.
+      let loadPromise;
+      try {
+        loadPromise = bodySegmentation.createSegmenter(
+          bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
+          {
+            runtime: 'mediapipe',
+            solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation',
+            modelType: 'general',
+          }
+        );
+        this.segmentationModel = await Promise.race([loadPromise, timeoutPromise]);
+      } catch (mediapipeError) {
+        console.warn('MediaPipe runtime failed, falling back to TF.js runtime:', mediapipeError);
+        // TF.js runtime is slower but doesn't require WASM CSP exceptions
+        loadPromise = bodySegmentation.createSegmenter(
+          bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
+          {
+            runtime: 'tfjs',
+            modelType: 'general',
+          }
+        );
+        this.segmentationModel = await Promise.race([loadPromise, timeoutPromise]);
+      }
       
-      this.segmentationModel = await Promise.race([loadPromise, timeoutPromise]);
       console.log('Segmentation model loaded successfully');
     } catch (error) {
       console.error('Failed to load segmentation model:', error);
@@ -104,6 +128,11 @@ export class TensorFlowProvider extends BaseAIProvider {
     try {
       // Load image
       const img = await this.loadImage(request.image);
+      
+      // Guard: check canvas size limits (iOS Safari crashes on large canvases)
+      if (!isCanvasSizeSafe(img.width, img.height)) {
+        return this.createErrorResult(taskId, `Image too large for this device (${img.width}×${img.height}). Please resize to a smaller dimension.`);
+      }
       
       // Run segmentation
       const segmentation = await this.segmentationModel.segmentPeople(img, {
@@ -135,7 +164,7 @@ export class TensorFlowProvider extends BaseAIProvider {
         maskCtx.clearRect(0, 0, canvas.width, canvas.height);
         maskCtx.drawImage(maskCanvas as CanvasImageSource, 0, 0);
         
-        const maskBase64 = canvas.toDataURL('image/png').split(',')[1];
+        const maskBase64 = safeCanvasToDataURL(canvas, 'image/png').split(',')[1];
         return {
           success: true,
           taskId,
@@ -165,7 +194,7 @@ export class TensorFlowProvider extends BaseAIProvider {
       
       ctx.putImageData(imageData, 0, 0);
       
-      const resultBase64 = canvas.toDataURL('image/png').split(',')[1];
+      const resultBase64 = safeCanvasToDataURL(canvas, 'image/png').split(',')[1];
       
       return {
         success: true,
@@ -221,7 +250,7 @@ export class TensorFlowProvider extends BaseAIProvider {
           const ctx = maskCanvas.getContext('2d')!;
           ctx.putImageData(maskData, 0, 0);
           
-          const maskBase64 = maskCanvas.toDataURL('image/png').split(',')[1];
+          const maskBase64 = safeCanvasToDataURL(maskCanvas, 'image/png').split(',')[1];
           
           return {
             id: `mask-${index}`,
@@ -296,7 +325,7 @@ export class TensorFlowProvider extends BaseAIProvider {
       
       ctx.putImageData(imageData, 0, 0);
       
-      const resultBase64 = canvas.toDataURL('image/png').split(',')[1];
+      const resultBase64 = safeCanvasToDataURL(canvas, 'image/png').split(',')[1];
       
       return {
         success: true,

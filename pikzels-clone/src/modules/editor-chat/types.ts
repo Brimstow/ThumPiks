@@ -24,6 +24,7 @@ export interface ChatMessagePayload {
 export interface ChatStreamRequest {
   messages: ChatMessagePayload[];
   canvasContext: CanvasContext;
+  canvasScreenshot?: string;
   platformPreset?: PlatformPresetContext;
 }
 

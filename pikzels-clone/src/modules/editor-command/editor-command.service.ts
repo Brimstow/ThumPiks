@@ -1,11 +1,10 @@
 import fetch from 'node-fetch';
 import { deductCredits } from '../credit/credit.service';
 import {
-  ACTION_CATALOG,
   TARGETING_RULES,
-  EDITOR_COMMAND_SCHEMA,
   buildContextMessage,
 } from './action-catalog';
+import { EDITOR_TOOLS, buildToolsSystemPrompt } from './tool-definitions';
 import type {
   EditorActionType,
   EditorAction,
@@ -26,16 +25,8 @@ export type {
 // ============================================================================
 // AI Editor Command Service
 // Parses natural language prompts into structured editor actions using LLM
-// with OpenRouter structured JSON output (response_format: json_schema)
+// with OpenRouter native function calling (tools parameter)
 // ============================================================================
-
-const EDITOR_COMMAND_SYSTEM_PROMPT = `You are an AI assistant for a thumbnail editor. The user will give you a natural language command and you must convert it into structured editor actions.
-
-${ACTION_CATALOG}
-
-${TARGETING_RULES}
-
-Return ONLY valid JSON matching the required schema.`;
 
 export class EditorCommandService {
   private openrouterApiKey: string;
@@ -49,11 +40,12 @@ export class EditorCommandService {
 
   /**
    * Parse a natural language command into structured editor actions.
-   * Uses OpenRouter structured JSON output for guaranteed valid responses.
+   * Uses OpenRouter native function calling for guaranteed valid tool responses.
    */
   async parseCommand(
     prompt: string,
     canvasContext: CanvasContext,
+    canvasScreenshot: string | undefined,
     userId: string
   ): Promise<EditorCommandResult> {
     if (!this.openrouterApiKey) {
@@ -72,31 +64,40 @@ export class EditorCommandService {
 
     // Build context message describing current editor state
     const contextMessage = buildContextMessage(canvasContext);
+    const toolsPrompt = buildToolsSystemPrompt();
 
-    // Use a fast, cheap model for intent parsing
+    const systemPrompt = `${toolsPrompt}\n\n${TARGETING_RULES}`;
+
+    // Build user message — optionally multimodal with canvas screenshot
+    let userContent: unknown;
+    const textContent = `${contextMessage}\n\nUser command: "${prompt}"`;
+
+    if (canvasScreenshot) {
+      userContent = [
+        { type: 'image_url', image_url: { url: canvasScreenshot } },
+        { type: 'text', text: textContent },
+      ];
+    } else {
+      userContent = textContent;
+    }
+
+    // Use the shared editor model with native function calling
     const model =
-      process.env.OPENROUTER_MODEL_COMMAND || 'google/gemini-2.5-flash';
+      process.env.OPENROUTER_MODEL_EDITOR || 'google/gemini-3-flash-preview';
 
     const requestBody = {
       model,
       messages: [
         {
           role: 'system' as const,
-          content: EDITOR_COMMAND_SYSTEM_PROMPT,
+          content: systemPrompt,
         },
         {
           role: 'user' as const,
-          content: `${contextMessage}\n\nUser command: "${prompt}"`,
+          content: userContent,
         },
       ],
-      response_format: {
-        type: 'json_schema' as const,
-        json_schema: {
-          name: 'editor_command',
-          strict: true,
-          schema: EDITOR_COMMAND_SCHEMA,
-        },
-      },
+      tools: EDITOR_TOOLS,
       stream: false,
       temperature: 0.1, // Low temperature for consistent, deterministic parsing
     };
@@ -120,23 +121,40 @@ export class EditorCommandService {
     }
 
     const data: any = await response.json();
-    const rawContent = data.choices?.[0]?.message?.content || '';
+    const message = data.choices?.[0]?.message;
 
-    try {
-      const parsed: EditorCommandResult = JSON.parse(rawContent);
-
-      // Validate the response has at least one action
-      if (!parsed.actions || parsed.actions.length === 0) {
-        throw new Error('No actions returned');
+    // Extract actions from native tool_calls
+    const toolCalls = message?.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) {
+      // Model chose to respond with text only (no action needed)
+      // Return the text content as a summary with no actions
+      const textContent = message?.content || '';
+      if (textContent) {
+        throw new Error(textContent);
       }
-
-      return parsed;
-    } catch (parseError) {
-      console.error('Failed to parse editor command response:', rawContent);
-      throw new Error(
-        'Failed to understand the command. Please try rephrasing.'
-      );
+      throw new Error('No actions returned. Please try a more specific command.');
     }
+
+    const actions: EditorAction[] = toolCalls.map((tc: any) => {
+      const params = tc.function?.arguments
+        ? JSON.parse(tc.function.arguments)
+        : {};
+      const target = (params.target as string) || 'selected';
+      delete params.target;
+
+      return {
+        action: tc.function.name as EditorActionType,
+        target,
+        description: `${tc.function.name}: ${Object.values(params).filter(v => typeof v === 'string').slice(0, 2).join(', ') || 'execute'}`,
+        params,
+      };
+    });
+
+    return {
+      actions,
+      summary: actions.map(a => a.description).join('; '),
+      needsAutoTarget: false,
+    };
   }
 }
 

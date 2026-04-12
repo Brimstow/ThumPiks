@@ -241,7 +241,7 @@ export interface AIServiceConfig {
 export interface AIPersona {
   id: string;
   name: string;
-  images: string[];  // Source images for face training
+  images: string[];  // Source images for face swap reference
   embedding?: string; // Stored face embedding
   createdAt: number;
   updatedAt: number;

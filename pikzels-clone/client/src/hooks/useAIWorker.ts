@@ -33,11 +33,18 @@ export function useAIWorker(): UseAIWorkerReturn {
     }
     
     try {
-      // Create worker
-      workerRef.current = new Worker(
-        new URL('../workers/ai-worker.ts', import.meta.url),
-        { type: 'module' }
-      );
+      // Create worker — try module worker first, fall back to classic worker
+      try {
+        workerRef.current = new Worker(
+          new URL('../workers/ai-worker.ts', import.meta.url),
+          { type: 'module' }
+        );
+      } catch (moduleErr) {
+        console.warn('[useAIWorker] Module worker failed, trying classic worker:', moduleErr);
+        workerRef.current = new Worker(
+          new URL('../workers/ai-worker.ts', import.meta.url)
+        );
+      }
       
       console.log('[useAIWorker] Worker created');
       

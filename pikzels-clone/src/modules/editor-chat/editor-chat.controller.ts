@@ -20,7 +20,7 @@ export const streamEditorChat = async (
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { messages, canvasContext, platformPreset } =
+    const { messages, canvasContext, canvasScreenshot, platformPreset } =
       req.body as ChatStreamRequest;
 
     // Validate messages
@@ -85,6 +85,7 @@ export const streamEditorChat = async (
     await service.streamChat(
       messages,
       ctx,
+      canvasScreenshot,
       platformPreset,
       send,
       () => aborted
