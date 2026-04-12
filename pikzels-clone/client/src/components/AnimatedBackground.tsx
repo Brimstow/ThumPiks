@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 
 interface AnimatedBackgroundProps {
   opacity?: number; // 0-1, default 1
@@ -68,7 +69,15 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
   };
 
   const deviceConfig = getDeviceQuality();
-  const [shouldRender, setShouldRender] = useState(deviceConfig.shouldRender);
+
+  // Respect prefers-reduced-motion for accessibility & Safari perf
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const [shouldRender, setShouldRender] = useState(
+    deviceConfig.shouldRender && !prefersReducedMotion
+  );
   const [quality] = useState(deviceConfig.quality);
   const [fps, setFps] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -435,18 +444,26 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     );
   };
 
-  const copySelectedColors = () => {
+  const copySelectedColors = async () => {
     const colorsText = selectedColors.join(', ');
-    navigator.clipboard.writeText(colorsText);
-    console.log('Copied to clipboard:', colorsText);
-    alert(`Copied ${selectedColors.length} colors to clipboard!`);
+    const ok = await copyToClipboard(colorsText);
+    if (ok) {
+      console.log('Copied to clipboard:', colorsText);
+      alert(`Copied ${selectedColors.length} colors to clipboard!`);
+    } else {
+      alert('Failed to copy — try again');
+    }
   };
 
-  const copyAllColors = () => {
+  const copyAllColors = async () => {
     const colorsText = colorSamples.join(', ');
-    navigator.clipboard.writeText(colorsText);
-    console.log('Copied all colors to clipboard:', colorsText);
-    alert(`Copied all ${colorSamples.length} colors to clipboard!`);
+    const ok = await copyToClipboard(colorsText);
+    if (ok) {
+      console.log('Copied all colors to clipboard:', colorsText);
+      alert(`Copied all ${colorSamples.length} colors to clipboard!`);
+    } else {
+      alert('Failed to copy — try again');
+    }
   };
 
   return (
@@ -457,6 +474,8 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
         style={{
           opacity,
           zIndex: 0,
+          willChange: 'transform',
+          transform: 'translateZ(0)', // Force GPU compositing on Safari
         }}
       />
 
