@@ -1,0 +1,54 @@
+# Root-level Netlify config for the colocated repo.
+# Netlify reads this file from the repo root, so it must be self-contained.
+[build]
+  base = "pikzels-clone/client"
+  publish = "dist"
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
+
+[build.environment]
+  NODE_ENV = "production"
+  NODE_VERSION = "22"
+  CI = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
+
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production]
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
+
+[context.production.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "production"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-production.up.railway.app"
+
+[context.deploy-preview]
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
+
+[context.deploy-preview.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "preview"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-staging.up.railway.app"
+
+[context.branch-deploy]
+  command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
+
+[context.branch-deploy.environment]
+  NODE_ENV = "production"
+  VITE_ENV = "staging"
+  VITE_API_URL = ""
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-staging.up.railway.app"
