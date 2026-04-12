@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, MessageSquare, MapPin, Send } from 'lucide-react';
+import { Mail, MapPin, Send } from 'lucide-react';
 import Tooltip from './ui/Tooltip';
 
 // API base URL - adjust based on environment
@@ -173,7 +173,7 @@ const ContactPage: React.FC = () => {
       <section className="pt-20 pb-16 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
-            <MessageSquare className="w-4 h-4 text-blue-500" />
+            <Mail className="w-4 h-4 text-blue-500" />
             <span className="text-sm">We're here to help</span>
           </div>
           <h1 className="text-6xl font-light mb-6">
@@ -209,22 +209,6 @@ const ContactPage: React.FC = () => {
                 >
                   contact@thumpiks.com
                 </a>
-              </div>
-
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors">
-                <Tooltip content="Live support" side="top">
-                  <div className="w-14 h-14 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-6">
-                    <MessageSquare className="w-7 h-7" />
-                  </div>
-                </Tooltip>
-                <h3 className="text-xl font-semibold mb-2">Live Support</h3>
-                <p className="text-gray-400 mb-3">
-                  Available 24/7 for assistance
-                </p>
-                <span className="inline-flex items-center gap-2 bg-green-600/20 border border-green-600/30 rounded-full px-3 py-1 text-sm text-green-500">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  Online now
-                </span>
               </div>
 
               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors">
@@ -388,7 +372,8 @@ const ContactPage: React.FC = () => {
               <span className="text-blue-500">Amazing Thumbnails?</span>
             </h2>
             <p className="text-gray-300 text-lg mb-10">
-              Join thousands of creators using ThumPiks to grow their channels
+              Be among the first creators to try ThumPiks — early access is open
+              now
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button

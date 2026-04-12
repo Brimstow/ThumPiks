@@ -316,18 +316,6 @@ const ChangelogPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Wrench className="w-6 h-6 text-green-500" />
-                <h3 className="text-xl font-semibold">API Access</h3>
-              </div>
-              <p className="text-gray-400">
-                Integrate ThumPiks into your existing workflow with our RESTful API. Perfect for agencies and automation.
-              </p>
-              <div className="mt-4 text-sm text-gray-500">
-                Expected: Q2 2026
-              </div>
-            </div>
           </div>
         </div>
       </section>
