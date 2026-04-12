@@ -87,7 +87,7 @@ jspm_packages/
 
 # Gatsby files
 .cache/
-public
+/public
 
 # Storybook build outputs
 .out
@@ -112,7 +112,8 @@ events-store/
 # Uploads and generated files
 uploads/
 generated/
-thumbnails/
+/thumbnails/
+pikzels-clone/thumbnails/
 
 # Scratch directories for ad-hoc debug/test scripts
 **/scratch/
