@@ -152,6 +152,15 @@ export const IS_DEVELOPMENT = config.isDevelopment;
 export const IS_PRODUCTION = config.isProduction;
 
 /**
+ * OAuth redirect URLs
+ * Centralized to follow DRY principle
+ */
+export const OAUTH_URLS = {
+  google: `${config.apiBaseUrl}/api/auth/google`,
+  github: `${config.apiBaseUrl}/api/auth/github`,
+} as const;
+
+/**
  * Check if there's an environment configuration error
  * Use this in your App.tsx to show error UI
  */

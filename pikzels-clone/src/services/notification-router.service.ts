@@ -16,6 +16,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../utils/prisma-factory';
 import { EmailService, EmailOptions } from './email.service';
 import { logger } from '../utils/logger';
+import { getUserNotificationService } from '../modules/user-notification/user-notification.service';
+import { getService } from '../utils/service-factory';
 
 type NotificationChannel = 'admin_panel' | 'email';
 
@@ -83,6 +85,42 @@ export class NotificationRouter {
     });
   }
 
+  /**
+   * Route a notification directly to a specific user.
+   * Persists via UserNotificationService and signals via SSE.
+   * Fire-and-forget with error logging — callers should not await or catch.
+   */
+  async routeToUser(userId: string, payload: {
+    type: string;
+    title: string;
+    message: string;
+    priority?: string;
+    actionUrl?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    try {
+      const userNotificationService = getUserNotificationService();
+      await userNotificationService.create({
+        userId,
+        type: payload.type,
+        title: payload.title,
+        message: payload.message,
+        priority: payload.priority,
+        actionUrl: payload.actionUrl,
+        metadata: payload.metadata,
+      });
+
+      // Signal the user's SSE connections to refetch
+      const sse = getService('sse');
+      sse.invalidateUser(userId);
+    } catch (error) {
+      logger.error('Failed to route notification to user', error as Error, {
+        userId,
+        type: payload.type,
+      });
+    }
+  }
+
   // ---- Channel Dispatchers ----
 
   private async dispatchToChannel(
@@ -113,6 +151,14 @@ export class NotificationRouter {
         metadata: payload.metadata as any,
       },
     });
+
+    // Signal all admin SSE connections to refetch
+    try {
+      const sse = getService('sse');
+      sse.invalidateAdmins();
+    } catch (error) {
+      logger.error('Failed to send SSE invalidation to admins', error as Error);
+    }
 
     logger.info('Admin panel notification created', {
       eventKey: payload.eventKey,

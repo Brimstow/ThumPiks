@@ -26,6 +26,7 @@ import {
   type NotificationChannel,
   type UpsertConfigPayload,
 } from '../../services/admin/adminNotificationConfigService';
+import Tooltip from '../ui/Tooltip';
 
 // ── Known event keys with human-readable labels ──
 
@@ -272,42 +273,46 @@ const NotificationConfigAdmin: React.FC = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={fetchConfigs}
-            disabled={loading}
-            style={{
-              padding: '8px 12px',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              background: 'transparent',
-              color: '#d1d5db',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
-          </button>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            style={{
-              padding: '8px 14px',
-              border: 'none',
-              borderRadius: 8,
-              background: '#6366f1',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            <Plus size={14} /> Add Event
-          </button>
+          <Tooltip content="Refresh configs" side="top">
+            <button
+              onClick={fetchConfigs}
+              disabled={loading}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #374151',
+                borderRadius: 8,
+                background: 'transparent',
+                color: '#d1d5db',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 13,
+              }}
+            >
+              <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
+            </button>
+          </Tooltip>
+          <Tooltip content="Add new event config" side="top">
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              style={{
+                padding: '8px 14px',
+                border: 'none',
+                borderRadius: 8,
+                background: '#6366f1',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              <Plus size={14} /> Add Event
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -327,12 +332,14 @@ const NotificationConfigAdmin: React.FC = () => {
         }}>
           <AlertCircle size={16} />
           {error}
-          <button
-            onClick={() => setError(null)}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
-          >
-            <X size={14} />
-          </button>
+          <Tooltip content="Dismiss" side="top">
+            <button
+              onClick={() => setError(null)}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
+            >
+              <X size={14} />
+            </button>
+          </Tooltip>
         </div>
       )}
       {success && (
@@ -506,32 +513,34 @@ const NotificationConfigAdmin: React.FC = () => {
                 ))}
               </div>
               {/* Toggle switch */}
-              <button
-                onClick={e => { e.stopPropagation(); handleToggle(config.key, !config.enabled); }}
-                disabled={isSaving}
-                style={{
-                  width: 40,
-                  height: 22,
-                  borderRadius: 11,
-                  border: 'none',
-                  background: config.enabled ? '#6366f1' : '#374151',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  flexShrink: 0,
-                }}
-              >
-                <span style={{
-                  position: 'absolute',
-                  top: 2,
-                  left: config.enabled ? 20 : 2,
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: 'white',
-                  transition: 'left 0.2s',
-                }} />
-              </button>
+              <Tooltip content={config.enabled ? 'Disable' : 'Enable'} side="top">
+                <button
+                  onClick={e => { e.stopPropagation(); handleToggle(config.key, !config.enabled); }}
+                  disabled={isSaving}
+                  style={{
+                    width: 40,
+                    height: 22,
+                    borderRadius: 11,
+                    border: 'none',
+                    background: config.enabled ? '#6366f1' : '#374151',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: config.enabled ? 20 : 2,
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    background: 'white',
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </Tooltip>
             </div>
 
             {/* Expanded detail */}
@@ -600,19 +609,21 @@ const NotificationConfigAdmin: React.FC = () => {
                         >
                           <Mail size={12} />
                           {email}
-                          <button
-                            onClick={() => removeEmail(config.key, email)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#9ca3af',
-                              cursor: 'pointer',
-                              padding: 0,
-                              display: 'flex',
-                            }}
-                          >
-                            <X size={12} />
-                          </button>
+                          <Tooltip content="Remove email" side="top">
+                            <button
+                              onClick={() => removeEmail(config.key, email)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#9ca3af',
+                                cursor: 'pointer',
+                                padding: 0,
+                                display: 'flex',
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </Tooltip>
                         </span>
                       ))}
                     </div>
@@ -622,44 +633,48 @@ const NotificationConfigAdmin: React.FC = () => {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => handleDelete(config.key)}
-                    disabled={isSaving}
-                    style={{
-                      padding: '8px 14px',
-                      border: '1px solid rgba(239,68,68,0.3)',
-                      borderRadius: 8,
-                      background: 'transparent',
-                      color: '#f87171',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 13,
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                  <button
-                    onClick={() => handleSave(config.key)}
-                    disabled={isSaving}
-                    style={{
-                      padding: '8px 16px',
-                      border: 'none',
-                      borderRadius: 8,
-                      background: '#6366f1',
-                      color: 'white',
-                      cursor: isSaving ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      opacity: isSaving ? 0.6 : 1,
-                    }}
-                  >
-                    <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
-                  </button>
+                  <Tooltip content="Delete this config" side="top">
+                    <button
+                      onClick={() => handleDelete(config.key)}
+                      disabled={isSaving}
+                      style={{
+                        padding: '8px 14px',
+                        border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: 8,
+                        background: 'transparent',
+                        color: '#f87171',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                      }}
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Save changes" side="top">
+                    <button
+                      onClick={() => handleSave(config.key)}
+                      disabled={isSaving}
+                      style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: 8,
+                        background: '#6366f1',
+                        color: 'white',
+                        cursor: isSaving ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        opacity: isSaving ? 0.6 : 1,
+                      }}
+                    >
+                      <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}

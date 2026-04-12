@@ -22,6 +22,7 @@ import {
   Download,
   Users,
 } from 'lucide-react';
+import Tooltip from '../ui/Tooltip';
 
 interface AccountDropdownProps {
   className?: string;
@@ -118,7 +119,7 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
       group: 'Support',
       items: [
         { icon: HelpCircle, label: 'Help Center', path: '/dashboard/help', description: 'Get support' },
-        { icon: Download, label: 'Export Data', path: '/dashboard/account/export', description: 'Download your data' },
+        { icon: Download, label: 'Export Data', path: '/dashboard/account/settings', description: 'Download your data' },
       ],
     },
   ];
@@ -152,14 +153,16 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
   return (
     <div ref={dropdownRef} className={`relative ${className}`}>
       {/* Trigger Button - matches original header icon style */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
-        aria-label="Account menu"
-        aria-expanded={isOpen}
-      >
-        <User className="w-5 h-5" />
-      </button>
+      <Tooltip content="Account" side="bottom">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
+          aria-label="Account menu"
+          aria-expanded={isOpen}
+        >
+          <User className="w-5 h-5" />
+        </button>
+      </Tooltip>
 
       {/* Dropdown Menu */}
       {isOpen && (
@@ -260,13 +263,15 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
                 </button>
               </div>
             ) : (
-              <button
-                onClick={handleLogoutClick}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors group"
-              >
-                <LogOut className="w-4.5 h-4.5" />
-                <span className="text-sm font-medium">Log out</span>
-              </button>
+              <Tooltip content="Sign out of your account" side="top">
+                <button
+                  onClick={handleLogoutClick}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors group"
+                >
+                  <LogOut className="w-4.5 h-4.5" />
+                  <span className="text-sm font-medium">Log out</span>
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, TrendingUp, Calendar, Download, AlertCircle, CreditCard, ArrowRight, Check, Clock, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Zap, TrendingUp, Calendar, Download, AlertCircle, CreditCard, ArrowRight, Check, Clock, ChevronDown, ChevronUp, X, Package, Sparkles } from 'lucide-react';
 import { authGet, authPost } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 import { usePricingData } from '../../hooks/usePricingData';
+import { useCredits, calculateCreditBreakdown, calculateDailyUsage, calculateDaysRemaining } from '../../hooks/useCredits';
 
 interface CreditTransaction {
   id: string;
@@ -10,8 +11,8 @@ interface CreditTransaction {
   type: 'usage' | 'purchase' | 'refund' | 'renewal';
   description: string;
   createdAt: string;
-  balanceBefore: number;
-  balanceAfter: number;
+  balanceBefore?: number;
+  balanceAfter?: number;
   thumbnailId?: string;
 }
 
@@ -20,6 +21,8 @@ interface Subscription {
   planType: string;
   creditsBalance: number;
   creditsUsed: number;
+  addonCreditsBalance: number;
+  addonCreditsUsed: number;
   periodStart: string;
   periodEnd: string;
   status: string;
@@ -28,19 +31,24 @@ interface Subscription {
 
 const CreditsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [purchasingPack, setPurchasingPack] = useState<string | null>(null);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { creditPacks, loading: pricingLoading } = usePricingData();
+  
+  // Use TanStack Query for real-time credit data
+  const { data: creditsData, isLoading: creditsLoading, error } = useCredits();
+  const subscription = creditsData?.subscription || null;
+  const transactions = creditsData?.transactions || [];
+
+  // Calculate credit breakdown
+  const creditBreakdown = calculateCreditBreakdown(subscription);
+  const dailyUsage = calculateDailyUsage(transactions);
+  const daysRemaining = subscription ? calculateDaysRemaining(subscription.periodEnd) : 0;
 
   useEffect(() => {
-    fetchData();
-    
     // Check for success/cancel from Stripe redirect
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === 'true') {
@@ -48,9 +56,7 @@ const CreditsPage: React.FC = () => {
         type: 'success',
         message: '✅ Credits purchased successfully! Your balance has been updated.',
       });
-      // Clear URL params
       window.history.replaceState({}, '', '/dashboard/credits');
-      // Auto-dismiss after 5 seconds
       setTimeout(() => setNotification(null), 5000);
     }
     if (params.get('cancel') === 'true') {
@@ -58,36 +64,10 @@ const CreditsPage: React.FC = () => {
         type: 'error',
         message: '⚠️ Purchase cancelled. No charges were made.',
       });
-      // Clear URL params
       window.history.replaceState({}, '', '/dashboard/credits');
-      // Auto-dismiss after 5 seconds
       setTimeout(() => setNotification(null), 5000);
     }
   }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [subResponse, txResponse] = await Promise.all([
-        authGet('/api/subscription/status'),
-        authGet('/api/credits/transactions'),
-      ]);
-
-      if (subResponse.ok) {
-        const subData = await subResponse.json();
-        setSubscription(subData.subscription);
-      }
-
-      if (txResponse.ok) {
-        const txData = await txResponse.json();
-        setTransactions(txData.transactions || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch credit data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePurchasePack = async (packId: string) => {
     setPurchasingPack(packId);
@@ -96,10 +76,10 @@ const CreditsPage: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        // Redirect to Stripe checkout
         window.location.href = data.url;
       } else {
-        alert('Failed to create checkout session. Please try again.');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session. Please try again.' }));
+        alert(errorData.error || 'Failed to create checkout session. Please try again.');
       }
     } catch (error) {
       console.error('Failed to purchase credits:', error);
@@ -109,16 +89,21 @@ const CreditsPage: React.FC = () => {
     }
   };
 
-  const getUsagePercentage = () => {
-    if (!subscription) return 0;
-    const total = subscription.creditsBalance + subscription.creditsUsed;
-    return total > 0 ? (subscription.creditsUsed / total) * 100 : 0;
+  const getPlanUsagePercentage = () => {
+    if (!subscription || creditBreakdown.planCreditsTotal === 0) return 0;
+    return (creditBreakdown.planCreditsUsed / creditBreakdown.planCreditsTotal) * 100;
+  };
+
+  const getAddonUsagePercentage = () => {
+    if (!subscription || creditBreakdown.addonCreditsTotal === 0) return 0;
+    return (creditBreakdown.addonCreditsUsed / creditBreakdown.addonCreditsTotal) * 100;
   };
 
   const isLowCredits = () => {
     if (!subscription) return false;
-    const percentage = getUsagePercentage();
-    return percentage >= 80;
+    const totalRemaining = creditBreakdown.totalRemaining;
+    const totalCredits = creditBreakdown.totalCredits;
+    return totalCredits > 0 && (totalRemaining / totalCredits) <= 0.2;
   };
 
   const formatDate = (date: string) => {
@@ -137,12 +122,31 @@ const CreditsPage: React.FC = () => {
     ? filteredTransactions 
     : filteredTransactions.slice(0, 10);
 
-  if (loading || pricingLoading) {
+  const loading = creditsLoading || pricingLoading;
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-slate-400">Loading credit information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-slate-400">Failed to load credit information</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -191,7 +195,7 @@ const CreditsPage: React.FC = () => {
 
         {/* Credit Balance Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Main Balance Card */}
+          {/* Main Balance Card with Plan/Add-on Breakdown */}
           <div className="lg:col-span-2 bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-8">
             <div className="flex items-start justify-between mb-6">
               <div>
@@ -200,10 +204,10 @@ const CreditsPage: React.FC = () => {
                   <span className="text-sm font-medium text-slate-300 uppercase tracking-wider">Current Balance</span>
                 </div>
                 <div className="text-5xl font-bold text-white mb-2">
-                  {subscription?.creditsBalance ?? 0}
+                  {creditBreakdown.totalRemaining}
                 </div>
                 <p className="text-slate-400">
-                  {subscription?.creditsUsed ?? 0} used this period
+                  {creditBreakdown.totalUsed} used total
                 </p>
               </div>
               <button
@@ -215,12 +219,66 @@ const CreditsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Usage Progress Bar */}
+            {/* Plan Credits Section */}
+            <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-slate-200">Plan Credits</span>
+                  <span className="text-xs text-slate-500">({subscription?.planType || 'Free'} Plan)</span>
+                </div>
+                <span className="text-sm font-medium text-slate-300">
+                  {creditBreakdown.planCreditsRemaining} / {creditBreakdown.planCreditsTotal} remaining
+                </span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden mb-2">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    getPlanUsagePercentage() >= 80 
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                      : 'bg-gradient-to-r from-blue-500 to-cyan-500'
+                  }`}
+                  style={{ width: `${Math.min(100, getPlanUsagePercentage())}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                Renews on {subscription ? formatDate(subscription.periodEnd) : 'N/A'}
+              </p>
+            </div>
+
+            {/* Add-on Credits Section */}
+            {creditBreakdown.addonCreditsTotal > 0 && (
+              <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-green-400" />
+                    <span className="text-sm font-medium text-slate-200">Add-on Credits</span>
+                    <span className="text-xs text-slate-500">(Purchased Packs)</span>
+                  </div>
+                  <span className="text-sm font-medium text-slate-300">
+                    {creditBreakdown.addonCreditsRemaining} / {creditBreakdown.addonCreditsTotal} remaining
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden mb-2">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-green-500 to-emerald-500"
+                    style={{ width: `${Math.min(100, getAddonUsagePercentage())}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-500">
+                  Never expires • Used after plan credits are depleted
+                </p>
+              </div>
+            )}
+
+            {/* Total Usage Progress Bar */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">Usage this period</span>
+                <span className="text-sm text-slate-400">Total Usage</span>
                 <span className="text-sm text-slate-300 font-medium">
-                  {Math.round(getUsagePercentage())}%
+                  {creditBreakdown.totalCredits > 0 
+                    ? Math.round((creditBreakdown.totalUsed / creditBreakdown.totalCredits) * 100) 
+                    : 0}%
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
@@ -230,7 +288,7 @@ const CreditsPage: React.FC = () => {
                       ? 'bg-gradient-to-r from-red-600 to-orange-600' 
                       : 'bg-gradient-to-r from-blue-600 to-purple-600'
                   }`}
-                  style={{ width: `${Math.min(100, getUsagePercentage())}%` }}
+                  style={{ width: `${creditBreakdown.totalCredits > 0 ? Math.min(100, (creditBreakdown.totalUsed / creditBreakdown.totalCredits) * 100) : 0}%` }}
                 />
               </div>
             </div>
@@ -242,7 +300,9 @@ const CreditsPage: React.FC = () => {
                 <div>
                   <h4 className="text-orange-500 font-medium mb-1">Running Low on Credits</h4>
                   <p className="text-slate-300 text-sm">
-                    You've used {Math.round(getUsagePercentage())}% of your credits. Consider purchasing additional credits or upgrading your plan.
+                    You've used {creditBreakdown.totalCredits > 0 
+                      ? Math.round((creditBreakdown.totalUsed / creditBreakdown.totalCredits) * 100) 
+                      : 0}% of your credits. Consider purchasing additional credits or upgrading your plan.
                   </p>
                 </div>
               </div>
@@ -252,7 +312,7 @@ const CreditsPage: React.FC = () => {
             {subscription && (
               <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
                 <Calendar className="w-4 h-4" />
-                <span>Credits renew on {formatDate(subscription.periodEnd)}</span>
+                <span>Plan credits renew on {formatDate(subscription.periodEnd)}</span>
               </div>
             )}
           </div>
@@ -267,7 +327,7 @@ const CreditsPage: React.FC = () => {
                 <div>
                   <p className="text-sm text-slate-400">Avg. Daily Usage</p>
                   <p className="text-2xl font-bold text-slate-50">
-                    {subscription ? Math.round(subscription.creditsUsed / 30) : 0}
+                    {dailyUsage}
                   </p>
                 </div>
               </div>
@@ -281,10 +341,7 @@ const CreditsPage: React.FC = () => {
                 <div>
                   <p className="text-sm text-slate-400">Days Remaining</p>
                   <p className="text-2xl font-bold text-slate-50">
-                    {subscription 
-                      ? Math.max(0, Math.ceil((new Date(subscription.periodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                      : 0
-                    }
+                    {daysRemaining}
                   </p>
                 </div>
               </div>

@@ -25,6 +25,26 @@ model AdminNotification {
   @@index([type])
 }
 
+model UserNotification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  priority  String    @default("normal")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  User      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type])
+  @@index([createdAt])
+}
+
 model AdminRole {
   id          String    @id
   userId      String
@@ -128,6 +148,10 @@ model Subscription {
   planType             String
   creditsBalance       Int
   creditsUsed          Int      @default(0)
+  addonCreditsBalance  Int      @default(0)  // Purchased credit packs (never expires)
+  addonCreditsUsed     Int      @default(0)  // Used from purchased packs
+  watermarkFreeUsed      Int      @default(0)
+  watermarkFreeResetDate DateTime @default(now())
   periodStart          DateTime
   periodEnd            DateTime
   userId               String
@@ -155,6 +179,8 @@ model CreditTransaction {
   type            String
   amount          Int
   description     String
+  balanceBefore   Int?     // Balance before this transaction
+  balanceAfter    Int?     // Balance after this transaction
   stripePaymentId String?
   polarOrderId    String?
   metadata        Json?
@@ -265,6 +291,7 @@ model Thumbnail {
   title                                          String
   imageUrl                                       String
   originalImageUrl                               String?
+  originalPublicId                               String?
   prompt                                         String          @default("")
   parameters                                     Json
   projectId                                      String
@@ -350,6 +377,14 @@ model User {
   ContactSubmission                             ContactSubmission[]  @relation("contactSubmissions")
   // Global Chat relations
   ChatSession                                   ChatSession[]
+  // Password Reset relations
+  PasswordResetToken                            PasswordResetToken[]
+  // Email relations
+  EmailLog                                      EmailLog[]
+  // Review relations
+  Review                                        Review?
+  // Notification relations
+  UserNotification                              UserNotification[]
 }
 
 model VisionAnalysis {
@@ -502,6 +537,29 @@ model UserSession {
   @@index([lastActivity])
   @@index([sessionId])
   @@index([userId])
+}
+
+// ============================================
+// PASSWORD RESET MODELS
+// ============================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  isUsed    Boolean  @default(false)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isUsed])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -802,5 +860,65 @@ model ChatMessage {
   ChatSession   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id                String    @id @default(uuid())
+  userId            String?
+  emailType         String    // "password_reset", "welcome", "verification"
+  recipientEmail    String
+  fromEmail         String
+  subject           String
+  status            String    // "pending", "sent", "delivered", "bounced", "failed"
+  providerMessageId String?   // Resend's message ID
+  errorMessage      String?
+  errorCode         String?
+  bounceReason      String?
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  User              User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([recipientEmail])
+  @@index([status])
+  @@index([emailType])
+  @@index([createdAt])
+  @@index([providerMessageId])
+}
+
+// ============================================
+// REVIEW / TESTIMONIAL MODELS
+// ============================================
+
+model Review {
+  id          String    @id @default(uuid())
+  userId      String
+  rating      Int       // 1-5 stars
+  title       String?   // Optional short headline
+  body        String    @db.Text // Review text
+  channelName String?   // e.g. "@TechExplained"
+  channelUrl  String?   // YouTube channel URL
+  subscribers String?   // e.g. "245K"
+  niche       String?   // e.g. "Gaming", "Cooking", "Tech"
+  improvement String?   // e.g. "+175% CTR", "5 hrs/week saved"
+  status      String    @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
+  isFeatured  Boolean   @default(false) // Featured on landing page
+  adminNote   String?   // Internal note from admin
+  reviewedAt  DateTime? // When admin reviewed
+  reviewedBy  String?   // Admin user ID
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  User        User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId]) // One review per user
+  @@index([status])
+  @@index([isFeatured])
+  @@index([rating])
   @@index([createdAt])
 }

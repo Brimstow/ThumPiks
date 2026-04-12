@@ -19,6 +19,7 @@ import type {
   TextLayer,
   ShapeLayer,
   BlendMode,
+  SlotMetadata,
 } from '../../components/editor/types/editor.types';
 
 // ============================================
@@ -53,11 +54,13 @@ interface PlaceholderEntry {
   height: number;
   zIndex: number;
   required: boolean;
+  slotMetadata: SlotMetadata;
 }
 
 /**
  * Create a placeholder entry for an unfilled image slot.
  * This gets converted to a ShapeLayer with visual placeholder styling.
+ * Includes full slotMetadata for interactive upload zone support.
  */
 function createPlaceholderLayer(
   slot: CompositionSlot,
@@ -77,6 +80,20 @@ function createPlaceholderLayer(
     height: Math.round(slot.bounds.height * h),
     zIndex: slot.zIndex,
     required: slot.required,
+    slotMetadata: {
+      slotId: slot.id,
+      templateId: template.id,
+      label: slot.label,
+      role: slot.role,
+      fit: slot.fit,
+      blendMode: mapBlendMode(slot.blendMode) as BlendMode,
+      opacity: slot.opacity,
+      mask: slot.mask,
+      maskPath: slot.maskPath,
+      filter: slot.filter,
+      autoRemoveBg: slot.autoRemoveBg ?? false,
+      required: slot.required,
+    },
   };
 }
 
@@ -217,6 +234,8 @@ export function compositionToLayers(
         stroke: '#6366f1', // Accent purple
         strokeWidth: 2,
         cornerRadius: 4,
+        // Slot metadata for interactive upload zone support
+        slotMetadata: d.slotMetadata,
         // Add groupId for bidirectional drag support (Phase 3)
         ...(groupId ? { groupId } : {}),
       };

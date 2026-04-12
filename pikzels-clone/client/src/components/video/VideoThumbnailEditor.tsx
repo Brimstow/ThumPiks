@@ -41,6 +41,7 @@ import {
   type VideoUrlInfo,
 } from '../../services/videoUrlService';
 import { useVideoExtractorStore } from '../../stores/videoExtractorStore';
+import { safeCanvasToDataURL } from '../../utils/browserCompat';
 
 // ============================================================================
 // Type Definitions (Algebraic Data Types)
@@ -399,7 +400,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Convert to data URL
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = safeCanvasToDataURL(canvas, 'image/png');
 
     // Analyze frame quality
     const analysis = analyzeFrame(canvas);

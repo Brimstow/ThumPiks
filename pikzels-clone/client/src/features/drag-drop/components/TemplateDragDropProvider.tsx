@@ -44,6 +44,10 @@ export interface TemplateDragDropContextValue {
   isOverTrash: boolean;
   /** Notify when layer drag enters/leaves trash zone */
   setIsOverTrash: (isOver: boolean) => void;
+  /** Whether a layer drag is over the reset zone (layouts panel) */
+  isOverReset: boolean;
+  /** Notify when layer drag enters/leaves reset zone */
+  setIsOverReset: (isOver: boolean) => void;
   /** Click-to-place: add a template to canvas at default position */
   addTemplateToCanvas: (template: LayoutPreset, compositionState: CompositionState) => void;
   /** Current screen reader announcement (for external access) */
@@ -60,6 +64,8 @@ const TemplateDragDropContext = createContext<TemplateDragDropContextValue>({
   draggingLayer: null,
   isOverTrash: false,
   setIsOverTrash: () => {},
+  isOverReset: false,
+  setIsOverReset: () => {},
   addTemplateToCanvas: () => {},
   announcement: '',
 });
@@ -230,12 +236,14 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
   const [draggingLayer, setDraggingLayer] = useState<CanvasLayerDragItem | null>(null);
   const [layerAnnouncement, setLayerAnnouncement] = useState('');
   const [isOverTrash, setIsOverTrashState] = useState(false);
+  const [isOverReset, setIsOverResetState] = useState(false);
   
   // Polite announcements for position updates (less urgent)
   const [politeAnnouncement, setPoliteAnnouncement] = useState('');
   
-  // Track trash state in ref to access in onDragEnd without stale closure
+  // Track trash/reset state in ref to access in onDragEnd without stale closure
   const isOverTrashRef = useRef(false);
+  const isOverResetRef = useRef(false);
   const draggingLayerRef = useRef<CanvasLayerDragItem | null>(null);
 
   const {
@@ -271,6 +279,17 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
     }
   }, []);
 
+  // Set isOverReset and sync to ref
+  const setIsOverReset = useCallback((isOver: boolean) => {
+    setIsOverResetState(isOver);
+    isOverResetRef.current = isOver;
+    if (isOver && draggingLayerRef.current) {
+      setPoliteAnnouncement(
+        'Over layouts panel. Release to remove template layers from canvas.'
+      );
+    }
+  }, []);
+
   // Handle drag start - detect template vs layer drags
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragStart = useCallback((event: any) => {
@@ -297,7 +316,7 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
     handleTemplateDragEnd(event, canvasRect, lastDropPosition.current);
     lastDropPosition.current = null;
 
-    // Handle layer drag end - check if dropped on trash zone
+    // Handle layer drag end - check if dropped on trash zone or reset zone
     if (draggingLayerRef.current) {
       const layer = draggingLayerRef.current;
       
@@ -307,6 +326,12 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
         onDropLayerToTrash(layer.layerId, layer.groupId);
         setLayerAnnouncement(
           buildLayerRemovalAnnouncement(layer.layerName, false)
+        );
+      } else if (isOverResetRef.current && onDropLayerToTrash && layer.groupId) {
+        // Layer was dropped on reset zone (layouts panel) - remove the template group
+        onDropLayerToTrash(layer.layerId, layer.groupId);
+        setLayerAnnouncement(
+          'Template layers removed from canvas.'
         );
       } else {
         setLayerAnnouncement(
@@ -320,6 +345,8 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
       draggingLayerRef.current = null;
       setIsOverTrashState(false);
       isOverTrashRef.current = false;
+      setIsOverResetState(false);
+      isOverResetRef.current = false;
       setPoliteAnnouncement('');
     }
   }, [handleTemplateDragEnd, onDropLayerToTrash]);
@@ -387,6 +414,8 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
     draggingLayer,
     isOverTrash,
     setIsOverTrash,
+    isOverReset,
+    setIsOverReset,
     addTemplateToCanvas,
     announcement: combinedAnnouncement,
   };

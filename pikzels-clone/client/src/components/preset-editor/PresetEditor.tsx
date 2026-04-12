@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useEditorState } from '../editor/hooks/useEditorState';
+import { usePresetEditorStore } from '../../stores/editorStore';
 import CanvasEngine from '../editor/canvas/CanvasEngine';
 import AIToolsPanel from '../editor/panels/AIToolsPanel';
 import LayersPanel from '../editor/panels/LayersPanel';
 import AdjustmentsPanel from '../editor/panels/AdjustmentsPanel';
 import AICommandBar from '../editor/components/AICommandBar';
+import Tooltip from '../ui/Tooltip';
 import { useCommandExecutor } from '../editor/hooks/useCommandExecutor';
 import { useBackendAI } from '../../hooks/useBackendAI';
 import { useAIToolsStore } from '../../stores/aiToolsStore';
@@ -14,6 +16,13 @@ import {
   SlotEditor,
   compositionToLayers,
 } from '../../features/composition-templates';
+import type { LayoutPreset, CompositionState } from '../../features/composition-templates';
+import {
+  TemplateDragDropProvider,
+  CanvasDropZone,
+  TrashDropZone,
+  TemplateResetDropZone,
+} from '../../features/drag-drop';
 import { ChatPanel, useChatConversation, useChatActions } from '../../features/ai-chat';
 import type { PlatformPresetContext } from '../../features/ai-chat';
 import type {
@@ -26,6 +35,7 @@ import type {
 } from '../editor/types/editor.types';
 import type { ExtractedFrame } from '../../services/video';
 import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
+import { safeCanvasToDataURL } from '../../utils/browserCompat';
 import './PresetEditor.css';
 
 // ============================================================================
@@ -65,12 +75,17 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
     canRedo,
     updateAdjustments,
     markSaved,
-  } = useEditorState(preset.width, preset.height);
+    clearCanvas,
+  } = useEditorState(preset.width, preset.height, { store: usePresetEditorStore });
 
   // ---- UI state ---
   const [sideTab, setSideTab] = useState<SideTab>('ai');
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Drag-off-canvas removal overlay state
+  const [templateDragOutsideInfo, setTemplateDragOutsideInfo] = useState<{ groupId: string; layerCount: number } | null>(null);
   const { triggerSave, SaveModal } = useSaveThumbnail();
 
   // Chat state
@@ -178,8 +193,25 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
   }, [addShapeLayer]);
 
   const handleTextCreate = useCallback((x: number, y: number) => {
-    addTextLayer('Double click to edit', x, y);
+    const newId = addTextLayer('', x, y);
+    setEditingTextLayerId(newId);
   }, [addTextLayer]);
+
+  // --- Inline text editing state (same pattern as ThumbnailStudio) ---
+  const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null);
+
+  const handleTextEditStart = useCallback((layerId: string) => {
+    selectLayer(layerId);
+    setEditingTextLayerId(layerId);
+  }, [selectLayer]);
+
+  const handleTextEditEnd = useCallback(() => {
+    setEditingTextLayerId(null);
+  }, []);
+
+  const handleTextContentChange = useCallback((layerId: string, content: string) => {
+    dispatch({ type: 'UPDATE_LAYER_SILENT', layerId, updates: { content } });
+  }, [dispatch]);
 
   const handleColorPick = useCallback((color: string) => {
     dispatch({
@@ -223,8 +255,27 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
     name: preset.name,
   }), [preset]);
 
+  const getCanvasScreenshot = useCallback((): string | null => {
+    const canvas = canvasContainerRef.current?.querySelector('canvas');
+    if (!canvas) return null;
+    // Resize to max 1024px on longest side for token efficiency
+    const maxDim = 1024;
+    const scale = Math.min(maxDim / canvas.width, maxDim / canvas.height, 1);
+    if (scale < 1) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.round(canvas.width * scale);
+      offscreen.height = Math.round(canvas.height * scale);
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) return safeCanvasToDataURL(canvas, 'image/jpeg', 0.7);
+      ctx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
+      return safeCanvasToDataURL(offscreen, 'image/jpeg', 0.7);
+    }
+    return safeCanvasToDataURL(canvas, 'image/jpeg', 0.7);
+  }, []);
+
   const chatConversation = useChatConversation({
     getCanvasContext: commandExecutor.buildContext,
+    getCanvasScreenshot,
     platformPreset: platformPresetCtx,
     onActions: (actions, messageId) => {
       chatActionsHook.executeActions(actions, messageId);
@@ -257,26 +308,81 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
     const missing = layouts.getMissingSlots();
     if (missing.length > 0) return;
 
+    const groupId = crypto.randomUUID();
     const { layers: newLayers } = compositionToLayers(
       layouts.selectedTemplate,
       layouts.compositionState,
+      { groupId },
     );
 
-    newLayers.forEach((layer: any) => {
-      if (layer.type === 'image' && layer.src) {
-        addImageLayer(layer.src, layer.name || 'Layout Image');
-      } else if (layer.type === 'text' && layer.content) {
-        addTextLayer(layer.content, layer.transform?.x, layer.transform?.y);
-      }
-    });
+    for (const layer of newLayers) {
+      dispatch({ type: 'ADD_LAYER', layer });
+    }
 
     layouts.clearTemplate();
-  }, [layouts, addImageLayer, addTextLayer]);
+  }, [layouts, dispatch]);
+
+  // ---- Drag-drop handlers ----
+
+  const handleTemplateDropOnCanvas = useCallback((
+    template: LayoutPreset,
+    compositionState: CompositionState,
+  ) => {
+    const groupId = crypto.randomUUID();
+    const { layers: newLayers } = compositionToLayers(template, compositionState, { groupId });
+    for (const layer of newLayers) {
+      dispatch({ type: 'ADD_LAYER', layer });
+    }
+  }, [dispatch]);
+
+  const handleLayerDropToTrash = useCallback((layerId: string, groupId?: string) => {
+    if (groupId) {
+      dispatch({ type: 'REMOVE_LAYERS_BY_GROUP', groupId });
+    } else {
+      dispatch({ type: 'REMOVE_LAYER', layerId });
+    }
+  }, [dispatch]);
+
+  /** Remove a template group from the canvas (click, drag handle, or drag-off-canvas) */
+  const handleRemoveTemplateGroup = useCallback((groupId: string) => {
+    dispatch({ type: 'REMOVE_LAYERS_BY_GROUP', groupId });
+    setTemplateDragOutsideInfo(null);
+  }, [dispatch]);
+
+  /** Called when a template-group layer is dragged outside the canvas viewport */
+  const handleTemplateDragOutside = useCallback((info: { groupId: string; layerCount: number }) => {
+    setTemplateDragOutsideInfo(info);
+  }, []);
+
+  /** Called when cursor re-enters canvas during an outside drag */
+  const handleTemplateDragReturn = useCallback(() => {
+    setTemplateDragOutsideInfo(null);
+  }, []);
+
+  // Group move handler — moves all template-group layers as one unit (no history push during drag)
+  const handleGroupMove = useCallback((moves: Array<{ layerId: string; x: number; y: number }>) => {
+    dispatch({ type: 'MOVE_GROUP_SILENT', moves });
+  }, [dispatch]);
+
+  const getGroupLayerCount = useCallback((groupId: string): number => {
+    return state.layers.filter(l => l.groupId === groupId).length;
+  }, [state.layers]);
 
   // ---- Toggle command bar ---
   const toggleCommandBar = useCallback(() => {
     setIsCommandBarOpen(prev => !prev);
   }, []);
+
+  // ---- Clear canvas ---
+  const handleClearCanvas = useCallback(() => {
+    if (state.layers.length === 0) return;
+    setShowClearConfirm(true);
+  }, [state.layers.length]);
+
+  const confirmClearCanvas = useCallback(() => {
+    clearCanvas();
+    setShowClearConfirm(false);
+  }, [clearCanvas]);
 
   // ---- Keyboard shortcuts ---
   useEffect(() => {
@@ -299,6 +405,12 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
             e.preventDefault();
             toggleCommandBar();
             break;
+          case 'n':
+            if (e.shiftKey) {
+              e.preventDefault();
+              handleClearCanvas();
+            }
+            break;
         }
       }
 
@@ -310,13 +422,13 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, dispatch, state.selection.layerIds, toggleCommandBar]);
+  }, [canUndo, canRedo, dispatch, state.selection.layerIds, toggleCommandBar, handleClearCanvas]);
 
   // ---- Export canvas for saving ---
   const getCanvasPreview = useCallback((): string | null => {
     const canvas = canvasContainerRef.current?.querySelector('canvas');
     if (!canvas) return null;
-    return canvas.toDataURL('image/png');
+    return safeCanvasToDataURL(canvas, 'image/png');
   }, []);
 
   // ---- Save to thumbnails collection ---
@@ -367,20 +479,34 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
               <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
             </svg>
           </button>
+          <div className="pe-divider" />
+          <button className="pe-btn pe-btn--icon" onClick={handleClearCanvas} disabled={state.layers.length === 0} title="Clear Canvas (Ctrl+Shift+N)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </button>
         </div>
 
         <div className="preset-editor__topbar-center">
-          <button
-            className="pe-btn pe-btn--command"
-            onClick={toggleCommandBar}
-            title="AI Command Bar (Ctrl+K)"
+          <Tooltip
+            content="Quick one-shot AI commands — describe what you want and it executes immediately. No conversation history."
+            side="bottom"
+            sideOffset={8}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
-            Ask AI anything...
-            <kbd>Ctrl+K</kbd>
-          </button>
+            <button
+              className="pe-btn pe-btn--command"
+              onClick={toggleCommandBar}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              </svg>
+              Quick AI Command...
+              <kbd>Ctrl+K</kbd>
+            </button>
+          </Tooltip>
         </div>
 
         <div className="preset-editor__topbar-right">
@@ -422,8 +548,15 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
       </header>
 
       {/* ---- Main Content ---- */}
+      <TemplateDragDropProvider
+        onDropTemplate={handleTemplateDropOnCanvas}
+        onDropLayerToTrash={handleLayerDropToTrash}
+        canvasWidth={state.canvas.width}
+        canvasHeight={state.canvas.height}
+      >
       <div className="preset-editor__main">
         {/* Canvas area */}
+        <CanvasDropZone>
         <div className="preset-editor__canvas" ref={canvasContainerRef}>
           <CanvasEngine
             state={state}
@@ -436,8 +569,18 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
             onColorPick={handleColorPick}
             onFillArea={handleFillArea}
             onCrop={handleCrop}
+            editingTextLayerId={editingTextLayerId}
+            onTextEditStart={handleTextEditStart}
+            onTextEditEnd={handleTextEditEnd}
+            onTextContentChange={handleTextContentChange}
+            onRemoveTemplateGroup={handleRemoveTemplateGroup}
+            onTemplateDragOutside={handleTemplateDragOutside}
+            onTemplateDragReturn={handleTemplateDragReturn}
+            onGroupMove={handleGroupMove}
           />
+          <TrashDropZone getGroupLayerCount={getGroupLayerCount} />
         </div>
+        </CanvasDropZone>
 
         {/* Right panel: AI-first layout */}
         <aside className="preset-editor__panel">
@@ -515,6 +658,7 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
               />
             )}
             {sideTab === 'layouts' && (
+              <TemplateResetDropZone>
               <div className="preset-editor__layouts-content">
                 {layouts.selectedTemplate && layouts.compositionState ? (
                   <div className="preset-editor__slot-editor">
@@ -552,6 +696,7 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
                   />
                 )}
               </div>
+              </TemplateResetDropZone>
             )}
             {sideTab === 'adjust' && (
               <AdjustmentsPanel
@@ -578,8 +723,34 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
             onToggleCollapse={toggleChatCollapsed}
             onUpload={handleChatUpload}
           />
+
+          {/* Drag-off-canvas removal overlay */}
+          {templateDragOutsideInfo && (
+            <div className="sidebar-removal-overlay">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="rgba(99, 102, 241, 0.95)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 14 4 9 9 4" />
+                <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+              </svg>
+              <span className="sidebar-removal-overlay__text">
+                Release to remove template
+              </span>
+              <span className="sidebar-removal-overlay__count">
+                {templateDragOutsideInfo.layerCount} layer{templateDragOutsideInfo.layerCount !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
         </aside>
       </div>
+      </TemplateDragDropProvider>
 
       {/* AI Command Bar Modal */}
       <AICommandBar
@@ -595,6 +766,30 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
         <div className="preset-editor__overlay" onClick={() => setSaveMenuOpen(false)} />
       )}
       {SaveModal}
+
+      {/* Clear Canvas Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="preset-editor__dialog-overlay" onClick={() => setShowClearConfirm(false)}>
+          <div className="preset-editor__dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className="preset-editor__dialog-title">Clear Canvas</h3>
+            <p className="preset-editor__dialog-message">This will remove all layers and reset the history. Canvas dimensions and settings will be preserved. This action cannot be undone.</p>
+            <div className="preset-editor__dialog-actions">
+              <button
+                className="pe-btn"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="pe-btn pe-btn--danger"
+                onClick={confirmClearCanvas}
+              >
+                Clear Canvas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

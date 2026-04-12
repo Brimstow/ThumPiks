@@ -74,7 +74,7 @@ describe('NotificationRouter', () => {
       });
 
       // Admin panel notification created
-      const prisma = createMockPrisma();
+      createMockPrisma();
       // Email service called (via default config)
       const emailInstance = (EmailService.getInstance as jest.Mock)();
       expect(emailInstance.send).toBeDefined();

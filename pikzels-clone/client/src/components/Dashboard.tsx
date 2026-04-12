@@ -9,6 +9,7 @@ import SocialShareModal from './SocialShareModal';
 import { Navigation, StatCard, Button, Card, CardBody } from './ui';
 import { useTheme } from '../contexts/ThemeContext';
 import { authFetch, authGet, authPost } from '../utils/api';
+import { copyToClipboard } from '@/utils/browserCompat';
 import './Dashboard.css';
 
 interface User {
@@ -237,7 +238,7 @@ const Dashboard: React.FC = () => {
         }));
         
         // Copy the share link to clipboard
-        navigator.clipboard.writeText(data.shareUrl);
+        await copyToClipboard(data.shareUrl);
         alert('Share link copied to clipboard!');
       } else {
         console.error('Failed to generate share link');
@@ -670,7 +671,7 @@ const Dashboard: React.FC = () => {
                                 // Check if we already have a share link for this thumbnail
                                 if (shareLinks[thumbnail.id]) {
                                   // Copy existing link to clipboard
-                                  navigator.clipboard.writeText(shareLinks[thumbnail.id].url);
+                                  copyToClipboard(shareLinks[thumbnail.id].url);
                                   alert('Share link copied to clipboard!');
                                 } else {
                                   // Generate new share link

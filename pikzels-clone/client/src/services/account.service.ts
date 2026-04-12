@@ -28,8 +28,14 @@ export interface SubscriptionTier {
 
 export interface TwoFactorStatus {
   enabled: boolean;
-  secret?: string;
-  qrCode?: string;
+  method: '2fa' | 'sms' | 'email' | null;
+  lastUpdated: Date | null;
+}
+
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qrCodeUrl: string;
+  backupCodes: string[];
 }
 
 export interface ActiveSession {
@@ -119,15 +125,79 @@ export const getSubscription = async (): Promise<SubscriptionTier> => {
 // ============================================
 
 export const get2FAStatus = async (): Promise<TwoFactorStatus> => {
-  const response = await authFetch('/api/account/security/2fa');
+  const response = await authFetch('/api/account/security/2fa/status');
   if (!response.ok) {
     throw new Error('Failed to fetch 2FA status');
   }
   return response.json();
 };
 
+export const setup2FA = async (): Promise<TwoFactorSetupResponse> => {
+  const response = await authFetch('/api/account/security/2fa/setup', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to setup 2FA');
+  }
+  return response.json();
+};
+
+export const enable2FA = async (token: string): Promise<{ success: boolean }> => {
+  const response = await authFetch('/api/account/security/2fa/enable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to enable 2FA');
+  }
+  return response.json();
+};
+
+export const disable2FA = async (password: string): Promise<{ success: boolean }> => {
+  const response = await authFetch('/api/account/security/2fa/disable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to disable 2FA');
+  }
+  return response.json();
+};
+
+export const verify2FAToken = async (token: string): Promise<{ success: boolean }> => {
+  const response = await authFetch('/api/account/security/2fa/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to verify 2FA token');
+  }
+  return response.json();
+};
+
+export const regenerateBackupCodes = async (): Promise<{ backupCodes: string[] }> => {
+  const response = await authFetch('/api/account/security/2fa/regenerate-codes', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to regenerate backup codes');
+  }
+  return response.json();
+};
+
 export const getActiveSessions = async (): Promise<ActiveSession[]> => {
-  const response = await authFetch('/api/account/security/sessions');
+  const sessionId = localStorage.getItem('sessionId');
+  const headers: Record<string, string> = {};
+  if (sessionId) {
+    headers['x-session-id'] = sessionId;
+  }
+  
+  const response = await authFetch('/api/account/security/sessions', {
+    headers,
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch sessions');
   }

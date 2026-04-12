@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Mail, MapPin, Send } from 'lucide-react';
+import Tooltip from './ui/Tooltip';
+
+// API base URL - adjust based on environment
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8550';
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
@@ -7,215 +12,398 @@ const ContactPage: React.FC = () => {
     name: '',
     email: '',
     subject: '',
-    message: ''
+    message: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formLoadTime] = useState<number>(Date.now());
+  const [honeypot, setHoneypot] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    // Simulate form submission
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setSubmitted(true);
-    setIsSubmitting(false);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          subject: formData.subject,
+          message: formData.message,
+          honeypot: honeypot,
+          formLoadTime: formLoadTime,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSubmitted(true);
+      } else {
+        setError(data.message || 'Failed to send message. Please try again.');
+      }
+    } catch (err) {
+      console.error('Contact form error:', err);
+      setError('Failed to send message. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">✅</div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Message Sent!</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-8">
-            Thank you for contacting us. We'll get back to you within 24 hours.
-          </p>
-          <button 
-            onClick={() => navigate('/')}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700"
-          >
-            Back to Home
-          </button>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
+        {/* Header */}
+        <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
+            >
+              <div className="w-6 h-6 bg-white rounded"></div>
+              <span>ThumPiks</span>
+            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/')}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Back to Home
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              >
+                Start Free
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Success Content */}
+        <section className="pt-20 pb-16 px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-20 h-20 bg-green-600/20 border border-green-600/30 rounded-full flex items-center justify-center mx-auto mb-8">
+              <Send className="w-10 h-10 text-green-500" />
+            </div>
+            <h1 className="text-5xl font-light mb-6">
+              Message <span className="text-blue-500">Sent!</span>
+            </h1>
+            <p className="text-xl text-gray-400 mb-10">
+              Thank you for contacting us. We'll get back to you within 24
+              hours.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => navigate('/')}
+                className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
+              >
+                Back to Home
+              </button>
+              <button
+                onClick={() => setSubmitted(false)}
+                className="bg-gray-800 hover:bg-gray-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
+              >
+                Send Another Message
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="border-t border-gray-800 py-12 px-6">
+          <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
+            <p>
+              &copy; {new Date().getFullYear()} ThumPiks LLC. All rights
+              reserved.
+            </p>
+          </div>
+        </footer>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <button onClick={() => navigate('/')} className="text-2xl font-bold text-indigo-600">
-                ThumbnailMaker
-              </button>
-            </div>
-            <div className="flex space-x-4">
-              <button 
-                onClick={() => navigate('/login')}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                Sign In
-              </button>
-              <button 
-                onClick={() => navigate('/register')}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-              >
-                Get Started
-              </button>
-            </div>
+      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
+          >
+            <div className="w-6 h-6 bg-white rounded"></div>
+            <span>ThumPiks</span>
+          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              Back to Home
+            </button>
+            <button
+              onClick={() => navigate('/register')}
+              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+            >
+              Start Free
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Contact Us
+      {/* Hero Section */}
+      <section className="pt-20 pb-16 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
+            <Mail className="w-4 h-4 text-blue-500" />
+            <span className="text-sm">We're here to help</span>
+          </div>
+          <h1 className="text-6xl font-light mb-6">
+            Get in Touch
+            <br />
+            <span className="text-blue-500">With Us</span>
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400">
-            Have questions? We'd love to hear from you.
+          <p className="text-xl text-gray-400 mb-10">
+            Have questions, feedback, or need support?
+            <br />
+            We'd love to hear from you.
           </p>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Contact Information */}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Get in Touch</h2>
-            
+      {/* Contact Section */}
+      <section className="py-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Contact Info Cards */}
             <div className="space-y-6">
-              <div className="flex items-start">
-                <div className="text-indigo-600 mr-4 mt-1">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a1 1 0 001.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Email</h3>
-                  <p className="text-gray-600 dark:text-gray-400">contact@thumbnailmaker.com</p>
-                </div>
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors">
+                <Tooltip content="Email us" side="top">
+                  <div className="w-14 h-14 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-6">
+                    <Mail className="w-7 h-7" />
+                  </div>
+                </Tooltip>
+                <h3 className="text-xl font-semibold mb-2">Email Us</h3>
+                <p className="text-gray-400 mb-3">Send us an email anytime</p>
+                <a
+                  href="mailto:contact@thumpiks.com"
+                  className="text-blue-500 hover:text-blue-400 transition-colors"
+                >
+                  contact@thumpiks.com
+                </a>
               </div>
 
-              <div className="flex items-start">
-                <div className="text-indigo-600 mr-4 mt-1">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Support</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Available 24/7 for assistance</p>
-                </div>
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors">
+                <Tooltip content="Our office location" side="top">
+                  <div className="w-14 h-14 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-6">
+                    <MapPin className="w-7 h-7" />
+                  </div>
+                </Tooltip>
+                <h3 className="text-xl font-semibold mb-2">Office</h3>
+                <p className="text-gray-400 mb-3">Visit us anytime</p>
+                <span className="text-gray-300">Honolulu, HI</span>
               </div>
+            </div>
 
-              <div className="flex items-start">
-                <div className="text-indigo-600 mr-4 mt-1">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Office</h3>
-                  <p className="text-gray-600 dark:text-gray-400">San Francisco, CA</p>
-                </div>
+            {/* Contact Form */}
+            <div className="lg:col-span-2">
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 lg:p-12">
+                <h2 className="text-2xl font-semibold mb-8">Send a Message</h2>
+
+                {error && (
+                  <div className="mb-6 p-4 bg-red-600/10 border border-red-600/30 rounded-xl">
+                    <p className="text-red-400">{error}</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Honeypot field - hidden from users, visible to bots */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '-9999px',
+                      opacity: 0,
+                    }}
+                  >
+                    <label htmlFor="website_url">Website URL</label>
+                    <input
+                      type="text"
+                      id="website_url"
+                      name="website_url"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={e => setHoneypot(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label
+                        htmlFor="name"
+                        className="block text-sm font-medium text-gray-400 mb-2"
+                      >
+                        Name
+                      </label>
+                      <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        required
+                        value={formData.name}
+                        onChange={handleChange}
+                        placeholder="Your name"
+                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-600 transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="email"
+                        className="block text-sm font-medium text-gray-400 mb-2"
+                      >
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        required
+                        value={formData.email}
+                        onChange={handleChange}
+                        placeholder="your@email.com"
+                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-600 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="subject"
+                      className="block text-sm font-medium text-gray-400 mb-2"
+                    >
+                      Subject
+                    </label>
+                    <select
+                      id="subject"
+                      name="subject"
+                      required
+                      value={formData.subject}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-blue-600 transition-colors"
+                    >
+                      <option value="">Select a subject</option>
+                      <option value="general">General Inquiry</option>
+                      <option value="support">Technical Support</option>
+                      <option value="billing">Billing Question</option>
+                      <option value="feature">Feature Request</option>
+                      <option value="bug">Bug Report</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="message"
+                      className="block text-sm font-medium text-gray-400 mb-2"
+                    >
+                      Message
+                    </label>
+                    <textarea
+                      id="message"
+                      name="message"
+                      required
+                      rows={6}
+                      value={formData.message}
+                      onChange={handleChange}
+                      placeholder="Tell us how we can help you..."
+                      className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-600 transition-colors resize-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed px-8 py-4 rounded-xl text-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Send Message
+                      </>
+                    )}
+                  </button>
+                </form>
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Contact Form */}
-          <div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Subject
-                </label>
-                <select
-                  id="subject"
-                  name="subject"
-                  required
-                  value={formData.subject}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-white"
-                >
-                  <option value="">Select a subject</option>
-                  <option value="general">General Inquiry</option>
-                  <option value="support">Technical Support</option>
-                  <option value="billing">Billing Question</option>
-                  <option value="feature">Feature Request</option>
-                  <option value="bug">Bug Report</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  required
-                  rows={6}
-                  value={formData.message}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:text-white"
-                  placeholder="Tell us how we can help you..."
-                />
-              </div>
-
+      {/* CTA Section */}
+      <section className="py-32 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
+            <h2 className="text-5xl font-light mb-6">
+              Ready to Create
+              <br />
+              <span className="text-blue-500">Amazing Thumbnails?</span>
+            </h2>
+            <p className="text-gray-300 text-lg mb-10">
+              Be among the first creators to try ThumPiks — early access is open
+              now
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => navigate('/register')}
+                className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
               >
-                {isSubmitting ? 'Sending...' : 'Send Message'}
+                Start Free Trial
               </button>
-            </form>
+              <button
+                onClick={() => navigate('/')}
+                className="bg-gray-800 hover:bg-gray-700 px-8 py-4 rounded-lg text-lg font-medium transition-colors"
+              >
+                View Pricing
+              </button>
+            </div>
+            <p className="text-gray-500 text-sm mt-6">
+              No credit card required • 14-day free trial
+            </p>
           </div>
         </div>
-      </main>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-800 py-12 px-6">
+        <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
+          <p>
+            &copy; {new Date().getFullYear()} ThumPiks LLC. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -117,3 +117,9 @@ setup-all-test-users.ts
 # Duplicate secretlint configs (root versions are canonical)
 .secretlintrc.json
 .secretlintignore
+
+# Scratch directory for ad-hoc debug/test scripts
+scratch/
+
+# Move script (one-time use)
+_move-scripts.mjs

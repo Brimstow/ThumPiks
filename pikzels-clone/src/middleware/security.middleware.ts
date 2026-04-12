@@ -245,6 +245,21 @@ export const userUploadRateLimit = createLimiter({
   logLabel: 'Per-user upload',
 });
 
+/**
+ * Credit generation limiter — stricter than general AI to prevent credit abuse.
+ * Covers all credit-deducting generation endpoints (generate, ai/generate, etc.)
+ * Limit: 10 generations per minute per user.
+ * Rationale: each call deducts at least 1 credit and invokes an expensive AI API.
+ */
+export const creditGenerationRateLimit = createLimiter({
+  points: 10,
+  duration: 60, // 1 minute window
+  keyPrefix: 'rl:user:credit:gen:',
+  message: 'You are generating thumbnails too quickly. Please wait a moment before trying again.',
+  keyGenerator: userKey,
+  logLabel: 'Per-user credit generation',
+});
+
 // Input sanitization middleware
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const sanitizeInput = (req: any, _res: any, next: any) => {

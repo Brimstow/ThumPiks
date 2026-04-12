@@ -130,6 +130,23 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  subscription: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
+  passwordResetToken: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    count: jest.fn(),
+  },
+  userSession: {
+    updateMany: jest.fn(),
+  },
+  auditLog: {
+    create: jest.fn(),
+  },
   thumbnail: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -153,7 +170,10 @@ const mockPrisma = {
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+  PrismaClient: jest.fn().mockImplementation(() => ({
+    ...mockPrisma,
+    $transaction: jest.fn(callback => callback(mockPrisma)),
+  })),
 }));
 
 // Now import the modules
@@ -347,7 +367,7 @@ describe('User App API Routes Tests', () => {
       });
     });
 
-    describe('POST /api/auth/forgot-password', () => {
+    describe('POST /api/auth/request-password-reset', () => {
       it('should handle password reset request', async () => {
         const user = {
           id: 'user123',
@@ -356,7 +376,13 @@ describe('User App API Routes Tests', () => {
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(user);
-        mockPrisma.user.update.mockResolvedValue(user);
+        mockPrisma.passwordResetToken.create.mockResolvedValue({
+          id: 'token-id',
+          userId: 'user123',
+          token: 'valid-reset-token',
+          expiresAt: new Date(Date.now() + 3600000),
+        });
+        mockPrisma.passwordResetToken.count.mockResolvedValue(0);
 
         const response = await request(createServer(app))
           .post('/api/auth/request-password-reset')
@@ -371,18 +397,13 @@ describe('User App API Routes Tests', () => {
 
     describe('POST /api/auth/reset-password', () => {
       it('should reset password with valid token', async () => {
-        const user = {
-          id: 'user123',
-          email: 'user@test.com',
-          passwordResetToken: 'valid-reset-token',
-          passwordResetExpires: new Date(Date.now() + 3600000), // 1 hour from now
-        };
-
-        // Mock JWT verification for reset token
-        (jwt.verify as jest.Mock).mockReturnValue({
+        const tokenRecord = {
+          id: 'token-id',
           userId: 'user123',
-          action: 'reset-password',
-        });
+          token: 'valid-reset-token',
+          isUsed: false,
+          expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
+        };
 
         // Mock password validation to pass
         const PasswordUtils = require('../utils/password.utils').PasswordUtils;
@@ -390,8 +411,16 @@ describe('User App API Routes Tests', () => {
           .spyOn(PasswordUtils, 'validate')
           .mockReturnValue({ valid: true, errors: [] });
 
-        mockPrisma.user.findFirst.mockResolvedValue(user);
-        mockPrisma.user.update.mockResolvedValue(user);
+        mockPrisma.passwordResetToken.findUnique.mockResolvedValue(tokenRecord);
+        mockPrisma.passwordResetToken.update.mockResolvedValue({
+          ...tokenRecord,
+          isUsed: true,
+        });
+        mockPrisma.user.update.mockResolvedValue({
+          id: 'user123',
+          email: 'user@test.com',
+        });
+        mockPrisma.userSession.updateMany.mockResolvedValue({ count: 1 });
         (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
 
         const response = await request(createServer(app))

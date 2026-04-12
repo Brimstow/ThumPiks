@@ -53,6 +53,10 @@ export type {
   Variant,
 } from './types';
 
+// Tooltip Components
+export { default as Tooltip } from './Tooltip';
+export type { TooltipProps } from './Tooltip';
+
 // Design system utilities (to be created)
 // export { useTheme } from './hooks/useTheme';
 // export { cn } from './utils/classNames';

@@ -9,10 +9,18 @@ import {
   handleSubscriptionCancelled,
   completeDemoCheckout,
 } from './subscription.service';
-import { getPublicPlans, CREDIT_PACKS, PRICING_FAQS } from './subscription.config';
+import {
+  getPublicPlans,
+  CREDIT_PACKS,
+  PRICING_FAQS,
+} from './subscription.config';
 import { getCurrentPricing } from './pricing.service';
 import { addPurchasedCredits } from '../credit/credit.service';
 import { logger } from '../../utils/logger';
+import {
+  getWatermarkFreeStatus,
+  consumeWatermarkFreeExport,
+} from '../thumbnail/watermark.service';
 import { BillingError } from '../billing/billing-provider.interface';
 import { ValidationError } from '../../utils/errors';
 
@@ -125,7 +133,14 @@ export const getCurrent = async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(200).json(subscription);
+    // Enrich with watermark-free export status
+    const wmStatus = await getWatermarkFreeStatus(userId);
+
+    return res.status(200).json({
+      ...subscription,
+      watermarkFreeRemaining: wmStatus.remaining,
+      watermarkFreeTotal: wmStatus.total,
+    });
   } catch (error: any) {
     logger.error('Failed to get current subscription', error, {
       userId: (req as any).user?.id,
@@ -133,6 +148,45 @@ export const getCurrent = async (req: Request, res: Response) => {
 
     return res.status(500).json({
       error: 'Failed to retrieve subscription',
+    });
+  }
+};
+
+/**
+ * Use one watermark-free export
+ * POST /api/subscription/use-watermark-free-export
+ * Requires authentication
+ */
+export const useWatermarkFreeExport = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+      });
+    }
+
+    const result = await consumeWatermarkFreeExport(userId);
+
+    if (!result.success) {
+      return res.status(403).json({
+        error: 'No watermark-free exports remaining this month',
+        remaining: result.remaining,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      remaining: result.remaining,
+    });
+  } catch (error: any) {
+    logger.error('Failed to use watermark-free export', error, {
+      userId: (req as any).user?.id,
+    });
+
+    return res.status(500).json({
+      error: 'Failed to process watermark-free export',
     });
   }
 };
@@ -280,7 +334,11 @@ export const deduct = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await deductCredits(userId, amount);
+    const result = await deductCredits(
+      userId,
+      amount,
+      'Manual credit deduction via subscription API'
+    );
 
     return res.status(200).json(result);
   } catch (error: any) {

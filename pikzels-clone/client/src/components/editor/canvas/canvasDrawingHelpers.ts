@@ -11,6 +11,8 @@
  * - These helpers decide *how* to draw
  */
 
+import { safeCanvasToDataURL } from '../../../utils/browserCompat';
+
 export interface Point {
   x: number;
   y: number;
@@ -119,5 +121,5 @@ export function exportCanvasAsDataURL(
   format: 'image/png' | 'image/jpeg' = 'image/png',
   quality?: number
 ): string {
-  return canvas.toDataURL(format, quality);
+  return safeCanvasToDataURL(canvas, format, quality);
 }

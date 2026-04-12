@@ -3,7 +3,7 @@
  * Standalone AI tools for image manipulation without the full editor
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -37,6 +37,7 @@ import type { AIGenerateRequest } from '../../services/ai-providers';
 import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
 import type { ModelTierId } from '../../features/ai-tools';
 import ImageUploadZone from '../ui/ImageUploadZone';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // TYPES
@@ -134,6 +135,7 @@ const AIToolsPage: React.FC = () => {
   const [selectedTool, setSelectedTool] = useState<AIToolId | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
+  const [resultOriginalUrl, setResultOriginalUrl] = useState<string | null>(null);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [style, setStyle] = useState('cinematic');
@@ -160,6 +162,21 @@ const AIToolsPage: React.FC = () => {
   // Model tier selection ("Intel Inside" pattern)
   // Default to 'standard' — will be validated against fetched config
   const [selectedTier, setSelectedTier] = useState<ModelTierId>('standard');
+
+  // Whether the selected tier supports 4x upscale (backend-driven capability)
+  const is4xAllowed = useMemo(() => {
+    const config = modelTiers.getConfig('upscale');
+    if (!config) return true; // fail-open while loading
+    const tier = config.tiers.find(t => t.id === selectedTier);
+    return tier?.capabilities?.maxScale === '4x';
+  }, [modelTiers, selectedTier]);
+
+  // Auto-downgrade from 4x to 2x when switching to a tier that doesn't support it
+  useEffect(() => {
+    if (!is4xAllowed && upscaleScale === 4) {
+      setUpscaleScale(2);
+    }
+  }, [is4xAllowed, upscaleScale]);
 
   // Recreate Better modal state
   const [recreateBetterOpen, setRecreateBetterOpen] = useState(false);
@@ -258,7 +275,7 @@ const AIToolsPage: React.FC = () => {
         'One-click removal',
         'Edge detection',
         'Transparent output',
-        'Batch processing',
+        'PNG export',
       ],
       requiresImage: true,
       apiCost: 'Free (local)',
@@ -299,7 +316,7 @@ const AIToolsPage: React.FC = () => {
         '2x/4x upscale',
         'Detail preservation',
         'Smart interpolation',
-        'Batch support',
+        'Quality preservation',
       ],
       requiresImage: true,
       apiCost: '~$0.0015/image',
@@ -392,6 +409,7 @@ const AIToolsPage: React.FC = () => {
       // Backend returns { success, images: string[], model, provider }
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Generate failed:', error);
@@ -427,6 +445,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Remove background failed:', error);
@@ -462,6 +481,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Enhance failed:', error);
@@ -502,6 +522,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Upscale failed:', error);
@@ -543,6 +564,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Face swap failed:', error);
@@ -580,6 +602,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Expand failed:', error);
@@ -670,6 +693,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
         // Reset object removal state
         setObjectRemovalClicks([]);
         setObjectRemovalMask(null);
@@ -721,6 +745,7 @@ const AIToolsPage: React.FC = () => {
       const data = await response.json();
       if (data.success && data.images && data.images.length > 0) {
         setResultImage(data.images[0]);
+        setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
       console.error('Inpaint failed:', error);
@@ -1060,13 +1085,14 @@ const AIToolsPage: React.FC = () => {
                               <Check className="w-4 h-4" />
                               Select as Source
                             </button>
+                            <Tooltip content="Back to thumbnails">
                             <button
                               onClick={() => setMyThumbnailsPreview(null)}
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
-                              title="Back to thumbnails"
                             >
                               <X className="w-4 h-4" />
                             </button>
+                            </Tooltip>
                           </div>
 
                           {/* Large Preview Image */}
@@ -1259,16 +1285,19 @@ const AIToolsPage: React.FC = () => {
                       </span>
                     </button>
                     <button
-                      onClick={() => setUpscaleScale(4)}
+                      onClick={() => is4xAllowed && setUpscaleScale(4)}
+                      disabled={!is4xAllowed}
                       className={`p-4 rounded-xl border text-center transition-all ${
-                        upscaleScale === 4
-                          ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                        !is4xAllowed
+                          ? 'bg-slate-800/50 border-slate-700/50 text-slate-600 cursor-not-allowed'
+                          : upscaleScale === 4
+                            ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400'
+                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
                       }`}
                     >
                       <span className="text-2xl font-bold">4x</span>
                       <span className="block text-xs mt-1">
-                        Quadruple resolution
+                        {is4xAllowed ? 'Quadruple resolution' : 'Requires Pro tier'}
                       </span>
                     </button>
                   </div>
@@ -1692,6 +1721,7 @@ const AIToolsPage: React.FC = () => {
                   <ThumbnailActionBar
                     context={{
                       imageUrl: resultImage,
+                      originalImageUrl: resultOriginalUrl || undefined,
                       sourceSettings: {
                         toolType: selectedTool || 'generate',
                         prompt: selectedTool === 'generate' ? generatePrompt : inpaintPrompt,

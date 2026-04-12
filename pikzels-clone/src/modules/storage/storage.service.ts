@@ -81,6 +81,24 @@ export class StorageService {
   }
 
   /**
+   * Upload a clean (un-watermarked) original for free-tier users.
+   * Stored permanently in Cloudinary; logical 45-day TTL enforced at read time.
+   * Cleaned up by `cleanupExpiredOriginals()` in watermark.service.ts.
+   */
+  async uploadCleanOriginal(
+    source: Buffer,
+    options: StorageUploadOptions = {}
+  ): Promise<StorageUploadResult> {
+    const uploadOptions: StorageUploadOptions = {
+      folder: 'thumpiks/originals',
+      tags: ['clean-original', 'wm-free'],
+      ...options,
+    };
+
+    return this.uploadWithFallback(source, uploadOptions);
+  }
+
+  /**
    * Upload a processed/edited image.
    */
   async uploadProcessedImage(

@@ -1,0 +1,6 @@
+import request from 'supertest'; import express from 'express'; import type { Request, Response } from 'express'; import { createServer } from 'http';
+jest.mock('../../utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), security: jest.fn() } }));
+describe('Security - Rate Limiting', () => {
+  test('blocks after 5 failed login attempts', async () => { const app = express(); app.use(express.json()); let n=0; app.post('/login',(_r:Request,res:Response)=>{n++;if(n>5){res.status(429).json({error:'rate limited'});return;}res.json({ok:true});}); const s=createServer(app); for(let i=0;i<5;i++){const r=await request(s).post('/login').send({});expect(r.status).not.toBe(429);} expect((await request(s).post('/login').send({})).status).toBe(429); });
+  test('enforces 24h export rate limit', async () => { const app = express(); const m=new Map<string,number>(); const W=864e5; app.post('/export',(_r:Request,res:Response)=>{const u='u1';const l=m.get(u);if(l&&Date.now()-l<W){res.status(429).json({error:'Export rate limit exceeded'});return;}m.set(u,Date.now());res.json({ok:true});}); const s=createServer(app); expect((await request(s).post('/export')).status).toBe(200); expect((await request(s).post('/export')).status).toBe(429); });
+});

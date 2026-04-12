@@ -38,12 +38,14 @@ interface CanvasContextGetter {
 
 interface UseChatConversationOptions {
   getCanvasContext: CanvasContextGetter;
+  getCanvasScreenshot?: () => string | null;
   platformPreset?: PlatformPresetContext;
   onActions?: (actions: EditorAction[], messageId: string) => void;
 }
 
 export function useChatConversation({
   getCanvasContext,
+  getCanvasScreenshot,
   platformPreset,
   onActions,
 }: UseChatConversationOptions) {
@@ -101,10 +103,12 @@ export function useChatConversation({
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
       const canvasContext = getCanvasContext();
+      const canvasScreenshot = getCanvasScreenshot?.() ?? undefined;
 
       await streamChat(
         conversationPayload,
         canvasContext,
+        canvasScreenshot,
         platformPreset,
         {
           onToken: (content) => {
@@ -168,7 +172,7 @@ export function useChatConversation({
         },
       );
     },
-    [messages, isStreaming, getCanvasContext, platformPreset, streamChat, onActions],
+    [messages, isStreaming, getCanvasContext, getCanvasScreenshot, platformPreset, streamChat, onActions],
   );
 
   /** Update the status of an action result within a message */

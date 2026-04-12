@@ -8,9 +8,11 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 import { useAITextGenerator, type TextTone, type AITextSuggestion } from '../../hooks/useAITextGenerator';
 import { useAIToolsStore } from '../../stores/aiToolsStore';
 import './AITextGenerator.css';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // ICONS
@@ -183,11 +185,12 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
     }
   }, [selectedTextLayerId, onUpdateTextLayer, onAddTextLayer, markApplied]);
 
-  const handleCopy = useCallback((text: string, id: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const handleCopy = useCallback(async (text: string, id: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
-    });
+    }
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -261,6 +264,20 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
         </div>
       )}
 
+      {/* Editable text content field for selected text layer */}
+      {selectedTextLayerId && onUpdateTextLayer && (
+        <div className="ai-text-content-editor">
+          <label className="ai-text-content-editor__label">Text Content</label>
+          <textarea
+            className="ai-text-content-editor__input"
+            value={selectedTextContent || ''}
+            onChange={(e) => onUpdateTextLayer(selectedTextLayerId, { content: e.target.value })}
+            placeholder="Type text for this layer..."
+            rows={2}
+          />
+        </div>
+      )}
+
       {/* Auto-Generate from Image */}
       {imageSource && (
         <button
@@ -322,15 +339,15 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
         <label className="ai-text-label">Tone</label>
         <div className="ai-text-tones">
           {TONE_PRESETS.map((tone) => (
+            <Tooltip key={tone.id} content={tone.description}>
             <button
-              key={tone.id}
               className={`ai-text-tone ${textTone === tone.id ? 'ai-text-tone--active' : ''}`}
               onClick={() => setTextTone(tone.id)}
-              title={tone.description}
             >
               <span className="ai-text-tone__emoji">{tone.emoji}</span>
               <span className="ai-text-tone__label">{tone.label}</span>
             </button>
+            </Tooltip>
           ))}
         </div>
       </div>
@@ -368,12 +385,16 @@ const AITextGenerator: React.FC<AITextGeneratorProps> = ({
           <div className="ai-text-results__header">
             <h5 className="ai-text-results__title">Suggestions</h5>
             <div className="ai-text-results__actions">
-              <button className="ai-text-btn-sm" onClick={handleGenerate} disabled={isGenerating} title="Regenerate">
+              <Tooltip content="Regenerate">
+              <button className="ai-text-btn-sm" onClick={handleGenerate} disabled={isGenerating}>
                 <Icons.Refresh />
               </button>
-              <button className="ai-text-btn-sm" onClick={clearSuggestions} title="Clear">
+              </Tooltip>
+              <Tooltip content="Clear suggestions">
+              <button className="ai-text-btn-sm" onClick={clearSuggestions}>
                 <Icons.Trash />
               </button>
+              </Tooltip>
             </div>
           </div>
 

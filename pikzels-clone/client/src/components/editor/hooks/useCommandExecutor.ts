@@ -32,6 +32,16 @@ export interface LayerContext {
   visible: boolean;
   locked: boolean;
   selected: boolean;
+  // Spatial data
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  blendMode?: string;
+  zIndex: number;
+  // Type-specific data
   text?: string;
   font?: string;
   fontSize?: number;
@@ -78,7 +88,7 @@ export function useCommandExecutor(
     const selectedIds = callbacks.getSelectedLayerIds();
     const { width, height } = callbacks.getCanvasSize();
 
-    const layerContexts: LayerContext[] = layers.map((layer) => {
+    const layerContexts: LayerContext[] = layers.map((layer, index) => {
       const ctx: LayerContext = {
         id: layer.id,
         type: layer.type,
@@ -86,6 +96,15 @@ export function useCommandExecutor(
         visible: layer.visible,
         locked: layer.locked,
         selected: selectedIds.includes(layer.id),
+        // Spatial data from transform
+        x: layer.transform.x,
+        y: layer.transform.y,
+        width: layer.transform.width,
+        height: layer.transform.height,
+        rotation: layer.transform.rotation || 0,
+        opacity: typeof layer.opacity === 'number' ? layer.opacity / 100 : 1,
+        blendMode: layer.blendMode || 'normal',
+        zIndex: index,
       };
 
       if (layer.type === 'text') {
@@ -450,6 +469,56 @@ export function useCommandExecutor(
           // This would trigger the vision analysis panel
           // For now, we'll log it — can wire to the vision tab later
           console.log('[AI Command] Analyze image requested');
+          break;
+        }
+
+        // ---- EXPANDED CAPABILITIES ----
+        case 'expand': {
+          if (!targetLayer || targetLayer.type !== 'image') break;
+          const images = await callbacks.callBackendAI('generate', {
+            image: (targetLayer as ImageLayer).src,
+            direction: action.params.direction as string,
+            prompt: (action.params.prompt as string) || undefined,
+            operation: 'expand',
+          });
+          if (images.length > 0) {
+            callbacks.updateLayer(targetLayer.id, { src: images[0] } as Partial<ImageLayer>);
+          }
+          break;
+        }
+
+        case 'aiText': {
+          const p = action.params;
+          const resp = await authPost('/api/thumbnails/ai/generate-text', {
+            prompt: p.prompt as string,
+            style: (p.style as string) || undefined,
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.text) {
+              const x = width / 2;
+              const y = height / 2;
+              callbacks.addTextLayer(data.text, x, y);
+            }
+          }
+          break;
+        }
+
+        case 'vision': {
+          // Read-only analysis — logged for now, can wire to UI
+          console.log('[AI Command] Vision analysis requested');
+          break;
+        }
+
+        case 'visionSearch': {
+          const query = action.params.query as string;
+          const resp = await authPost('/api/vision/search', { query });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.imageUrl) {
+              callbacks.addImageLayer(data.imageUrl, `Search: ${query}`);
+            }
+          }
           break;
         }
 

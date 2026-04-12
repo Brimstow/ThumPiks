@@ -10,6 +10,7 @@ import { recategorizeThumbnail } from '../../services/quickEditService';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
 import ImagePreviewModal from '../ui/ImagePreviewModal';
 import AssetContextMenu, { ThumbnailPlatform } from '../ui/AssetContextMenu';
+import Tooltip from '../ui/Tooltip';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -359,14 +360,15 @@ const MyThumbnailsPage: React.FC = () => {
           </form>
           
           {/* Refresh Button */}
+          <Tooltip content="Refresh thumbnails">
           <button 
             onClick={handleRefresh}
             disabled={loading}
             className="p-2.5 rounded-lg border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
-            title="Refresh thumbnails"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          </Tooltip>
           
           {/* Create New Button */}
           <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">
@@ -558,6 +560,7 @@ const MyThumbnailsPage: React.FC = () => {
                       {thumbnail.title || 'Untitled Thumbnail'}
                     </span>
                     <div className="flex gap-1.5">
+                      <Tooltip content="Recreate Better with AI" side="top">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -572,17 +575,19 @@ const MyThumbnailsPage: React.FC = () => {
                           }));
                         }}
                         className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:shadow-lg hover:shadow-purple-500/30 transition-all"
-                        title="Recreate Better with AI"
                       >
                         <Sparkles className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
+                      <Tooltip content="Edit thumbnail" side="top">
                       <button 
                         onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/editor/${thumbnail.id}`); }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
-                        title="Edit thumbnail"
                       >
                         <Edit className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
+                      <Tooltip content="Download thumbnail" side="top">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -593,10 +598,10 @@ const MyThumbnailsPage: React.FC = () => {
                           link.click();
                         }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
-                        title="Download thumbnail"
                       >
                         <Download className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { passwordResetService } from './password-reset.service';
 import { logger } from '../../utils/logger';
 import { isProductionLike, isDevelopmentEnv } from '../../utils/env';
 import {
@@ -102,7 +103,12 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await authService.login(loginIdentifier, password);
+    // Get client IP and user agent for session tracking
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'Unknown';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+
+    const result = await authService.login(loginIdentifier, password, ipAddress, userAgent);
 
     // Cookie settings: sameSite=lax is safe because Netlify proxies API
     // requests to Railway (same-origin from browser's perspective).
@@ -169,8 +175,16 @@ export const login = async (req: Request, res: Response) => {
  * Logout user by clearing authentication cookies
  * POST /api/auth/logout
  */
-export const logout = async (_req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).user?.id;
+    const sessionId = (req as any).cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
+
+    // Call service to terminate session if user is authenticated
+    if (userId && sessionId) {
+      await authService.logout(userId, sessionId);
+    }
+
     // Must match the same options used when setting cookies
     const isProduction = isProductionLike();
     const cookieOptions = {
@@ -283,7 +297,21 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await authService.requestPasswordReset(email);
+    // Get client IP and user agent for rate limiting and audit logging
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    const result = await passwordResetService.requestPasswordReset(
+      email,
+      ipAddress,
+      userAgent
+    );
+
+    // Return appropriate status code for rate limiting
+    if (result.rateLimited) {
+      return res.status(429).json(result);
+    }
 
     return res.status(200).json(result);
   } catch (error: any) {
@@ -314,7 +342,22 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'New password is required' });
     }
 
-    const result = await authService.resetPassword(token, newPassword);
+    // Get client IP and user agent for audit logging
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    const result = await passwordResetService.resetPassword(
+      token,
+      newPassword,
+      ipAddress,
+      userAgent
+    );
+
+    if (!result.success) {
+      // Return specific error messages from the service
+      return res.status(400).json({ error: result.message });
+    }
 
     return res.status(200).json(result);
   } catch (error: any) {
@@ -323,15 +366,6 @@ export const resetPassword = async (req: Request, res: Response) => {
     if (error.message.includes('Password')) {
       return res.status(400).json({
         error: error.message,
-      });
-    }
-
-    if (
-      error.message.includes('Invalid') ||
-      error.message.includes('expired')
-    ) {
-      return res.status(400).json({
-        error: 'Invalid or expired reset token',
       });
     }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video } from 'lucide-react';
+import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video, Star } from 'lucide-react';
 import { API_BASE_URL, IS_DEVELOPMENT } from '../../config/environment';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProjectsAndUploadsWidget, RecentThumbnailsWidget, StatsWidget, StorageIndicator } from './widgets';
@@ -8,6 +8,9 @@ import { formatFileSize } from '../../lib/formatters';
 import { uploadAsset } from '../../services/quickEditService';
 import ThumbnailActionBar from '../ui/ThumbnailActionBar';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
+import ThumbnailResultModal from '../ui/ThumbnailResultModal';
+import { getPendingThumbnail, clearPendingThumbnail } from '../../utils/pendingThumbnail';
+import Tooltip from '../ui/Tooltip';
 // CollapsibleSection utilities available if needed
 // import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
 
@@ -82,6 +85,13 @@ const DashboardHome: React.FC = () => {
   // Modal states
   const [showFaceModal, setShowFaceModal] = useState(false);
   const [showExampleModal, setShowExampleModal] = useState(false);
+  const [showPendingThumbnailModal, setShowPendingThumbnailModal] = useState(false);
+  const [pendingThumbnailData, setPendingThumbnailData] = useState<{
+    thumbnailUrl: string;
+    thumbnailId?: string;
+    videoTitle?: string;
+    creditCost: number;
+  } | null>(null);
   
   // Face inclusion states
   const [faceImage, setFaceImage] = useState<string | null>(null);
@@ -104,11 +114,30 @@ const DashboardHome: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
+  const [reviewPromptVisible, setReviewPromptVisible] = useState(
+    () => !sessionStorage.getItem('reviewPromptDismissed')
+  );
   
   const currentPlatform = platforms[currentPlatformIndex];
 
-  // Check for pending video link from landing page
+  // Check for pending video link and pending thumbnails from landing page
   useEffect(() => {
+    // Check for pending thumbnail first (higher priority)
+    const pendingThumbnail = getPendingThumbnail();
+    if (pendingThumbnail) {
+      console.log('Found pending thumbnail in DashboardHome:', pendingThumbnail);
+      setPendingThumbnailData({
+        thumbnailUrl: pendingThumbnail.thumbnailUrl,
+        thumbnailId: pendingThumbnail.thumbnailId,
+        videoTitle: pendingThumbnail.videoTitle,
+        creditCost: pendingThumbnail.creditCost,
+      });
+      setShowPendingThumbnailModal(true);
+      // Don't clear yet - wait for user to close modal
+      return;
+    }
+    
+    // Check for pending video link
     const pendingVideoLink = localStorage.getItem('pendingVideoLink');
     if (pendingVideoLink) {
       console.log('Found pending video link in DashboardHome:', pendingVideoLink);
@@ -526,12 +555,14 @@ const DashboardHome: React.FC = () => {
                   <p className="text-sm font-medium text-slate-200">{uploadedFile.name}</p>
                   <p className="text-xs text-slate-400">{formatFileSize(uploadedFile.size)}</p>
                 </div>
+                <Tooltip content="Remove file">
                 <button
                   onClick={() => setUploadedFile(null)}
                   className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4 text-slate-400" />
                 </button>
+                </Tooltip>
               </div>
             )}
 
@@ -663,6 +694,39 @@ const DashboardHome: React.FC = () => {
           </div>
         </button>
       </div>
+
+      {/* Review Prompt Card — dismissible per session */}
+      {reviewPromptVisible && (
+        <div className="mb-6 relative overflow-hidden rounded-xl border border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 via-transparent to-yellow-500/5 p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-200">Enjoying ThumPiks?</p>
+              <p className="text-xs text-slate-400 mt-0.5">Your honest review helps other creators discover us</p>
+            </div>
+            <button
+              onClick={() => navigate('/reviews')}
+              className="flex-shrink-0 px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
+            >
+              Leave a Review
+            </button>
+            <Tooltip content="Dismiss">
+            <button
+              onClick={() => {
+                sessionStorage.setItem('reviewPromptDismissed', 'true');
+                setReviewPromptVisible(false);
+              }}
+              className="flex-shrink-0 p-1 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+              aria-label="Dismiss review prompt"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            </Tooltip>
+          </div>
+        </div>
+      )}
 
       {/* Face Inclusion Modal */}
       {showFaceModal && (
@@ -893,6 +957,27 @@ const DashboardHome: React.FC = () => {
 
       {/* Recreate Better Modal */}
       <RecreateBetterModal />
+
+      {/* Pending Thumbnail Result Modal */}
+      <ThumbnailResultModal
+        isOpen={showPendingThumbnailModal}
+        onClose={() => {
+          setShowPendingThumbnailModal(false);
+          clearPendingThumbnail(); // Clear from localStorage when closed
+          setPendingThumbnailData(null);
+        }}
+        thumbnailUrl={pendingThumbnailData?.thumbnailUrl || ''}
+        thumbnailId={pendingThumbnailData?.thumbnailId}
+        videoTitle={pendingThumbnailData?.videoTitle}
+        creditCost={pendingThumbnailData?.creditCost || 1}
+        onGenerateAnother={() => {
+          setShowPendingThumbnailModal(false);
+          clearPendingThumbnail();
+          setPendingThumbnailData(null);
+          // Scroll to the generate section
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
 
       {/* Dashboard Widgets Section */}
       <div className="mt-16 space-y-6">

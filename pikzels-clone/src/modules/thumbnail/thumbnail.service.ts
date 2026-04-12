@@ -48,6 +48,8 @@ export class ThumbnailService {
     userId: string;
     storagePublicId?: string;
     storageProvider?: string;
+    originalImageUrl?: string;
+    originalPublicId?: string;
   }) {
     // Validate parameters JSON before writing
     validateJsonColumn(

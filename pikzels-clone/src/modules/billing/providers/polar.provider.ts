@@ -141,11 +141,23 @@ export class PolarBillingProvider implements BillingProvider {
   ): Promise<string> {
     const { userId, email, packId, packName, credits, successUrl } = params;
 
+    // Look up the Polar product ID from the credit pack config
+    const { CREDIT_PACKS } = await import('../../subscription/subscription.config');
+    const creditPack = CREDIT_PACKS.find(p => p.id === packId);
+    const polarProductId = creditPack?.polarProductId;
+
+    if (!polarProductId) {
+      throw new Error(
+        `Polar product ID not configured for credit pack: ${packId}. ` +
+        `Please add the polarProductId to subscription.config.ts after creating the product in Polar.`
+      );
+    }
+
     try {
       // Credit packs must be created as one-time products in the Polar dashboard.
       // The price is set on the product itself -- do NOT pass amount here.
       const checkout = await this.polar.checkouts.create({
-        products: [packId],
+        products: [polarProductId],
         successUrl,
         customerEmail: email,
         metadata: {
@@ -165,12 +177,8 @@ export class PolarBillingProvider implements BillingProvider {
 
       return checkout.url;
     } catch (error) {
-      logger.error(
-        'Failed to create Polar credit pack checkout',
-        error as Error,
-        { userId, packId }
-      );
-      throw error;
+      // Use centralized error parser for consistent logging and user messaging
+      throw parsePolarError(error, { userId, packId, email, packName });
     }
   }
 

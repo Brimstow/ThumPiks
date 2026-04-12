@@ -19,14 +19,14 @@ const ChangelogPage: React.FC = () => {
         },
         {
           type: 'feature',
-          title: 'Enhanced Face Training',
-          description: 'Train AI on up to 5 faces simultaneously with improved accuracy and expression morphing.',
+          title: 'Improved Face Swap',
+          description: 'More accurate face swapping with better blending and multi-face support. Expression morphing coming soon.',
           icon: <Zap className="w-5 h-5" />,
         },
         {
           type: 'improvement',
-          title: 'A/B Testing Dashboard',
-          description: 'New analytics dashboard to compare thumbnail performance and track click-through rates.',
+          title: 'A/B Testing Dashboard (Preview)',
+          description: 'Dashboard UI for comparing thumbnail variants. Automatic tracking integration coming soon.',
           icon: <Rocket className="w-5 h-5" />,
         },
       ],
@@ -57,15 +57,9 @@ const ChangelogPage: React.FC = () => {
       items: [
         {
           type: 'feature',
-          title: 'Trending Insights',
-          description: 'AI-powered analysis of top-performing thumbnails in your niche with actionable recommendations.',
+          title: 'Trending Insights (Preview)',
+          description: 'Browse trending YouTube thumbnails by category and region. Full live data integration coming soon.',
           icon: <Sparkles className="w-5 h-5" />,
-        },
-        {
-          type: 'feature',
-          title: 'Batch Generation',
-          description: 'Generate up to 50 thumbnails at once with consistent styling and branding.',
-          icon: <Zap className="w-5 h-5" />,
         },
         {
           type: 'improvement',
@@ -82,8 +76,8 @@ const ChangelogPage: React.FC = () => {
       items: [
         {
           type: 'improvement',
-          title: 'Template Library',
-          description: 'Added 100+ new templates across gaming, tech, lifestyle, and education niches.',
+          title: 'Style Presets & Layouts',
+          description: 'Added curated style presets and composition layouts across gaming, tech, lifestyle, and education niches.',
           icon: <Rocket className="w-5 h-5" />,
         },
         {
@@ -322,18 +316,6 @@ const ChangelogPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Wrench className="w-6 h-6 text-green-500" />
-                <h3 className="text-xl font-semibold">API Access</h3>
-              </div>
-              <p className="text-gray-400">
-                Integrate ThumPiks into your existing workflow with our RESTful API. Perfect for agencies and automation.
-              </p>
-              <div className="mt-4 text-sm text-gray-500">
-                Expected: Q2 2026
-              </div>
-            </div>
           </div>
         </div>
       </section>

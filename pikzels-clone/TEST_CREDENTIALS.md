@@ -6,7 +6,7 @@
 
 | **Username** | **Email** | **Password** | **Display Name** |
 |--------------|-----------|--------------|------------------|
-| tester1 | `Test123!` | `Test123!` | Tester One |
+| tester1 | `tester1@example.com` | `Test123!` | Tester One |
 | tester2 | `tester2@example.com` | `Test123!` | Tester Two |
 | tester3 | `tester3@example.com` | `Test123!` | Tester Three |
 

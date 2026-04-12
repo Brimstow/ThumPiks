@@ -6,6 +6,7 @@ import { getUserAssets, uploadAsset, deleteAsset, getStorageUsage, recategorizeA
 import { formatRelativeTime, formatFileSize } from '../../lib/formatters';
 import ImagePreviewModal from '../ui/ImagePreviewModal';
 import AssetContextMenu, { AssetType } from '../ui/AssetContextMenu';
+import Tooltip from '../ui/Tooltip';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -383,14 +384,15 @@ const UploadsPage: React.FC = () => {
               <Search className="w-4 h-4" />
             </div>
           </div>
+          <Tooltip content="Refresh uploads">
           <button
             onClick={handleRefresh}
             disabled={loading}
             className="p-2.5 rounded-lg border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
-            title="Refresh uploads"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          </Tooltip>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
@@ -595,16 +597,17 @@ const UploadsPage: React.FC = () => {
                       <span className="text-xs text-slate-300 truncate">
                         {asset.sizeBytes ? formatFileSize(asset.sizeBytes) : ''}
                       </span>
+                      <Tooltip content="Delete" side="top">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteConfirmId(asset.id);
                         }}
                         className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 hover:text-red-200 transition-colors"
-                        title="Delete"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

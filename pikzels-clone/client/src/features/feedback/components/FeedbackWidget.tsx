@@ -53,7 +53,14 @@ const TYPE_OPTIONS: { value: FeedbackType; label: string; icon: React.ReactNode 
   },
 ];
 
-export function FeedbackWidget() {
+interface FeedbackWidgetProps {
+  /** Set to true to open the widget programmatically from a parent */
+  externalOpen?: boolean;
+  /** Called after the widget has consumed the externalOpen signal */
+  onExternalOpenHandled?: () => void;
+}
+
+export function FeedbackWidget({ externalOpen, onExternalOpenHandled }: FeedbackWidgetProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [type, setType] = useState<FeedbackType>('GENERAL');
@@ -71,6 +78,14 @@ export function FeedbackWidget() {
     // Focus the subject field after animation
     setTimeout(() => subjectRef.current?.focus(), 200);
   }, [reset]);
+
+  // Allow parent to open the widget programmatically
+  useEffect(() => {
+    if (externalOpen && !isOpen) {
+      handleOpen();
+      onExternalOpenHandled?.();
+    }
+  }, [externalOpen, isOpen, handleOpen, onExternalOpenHandled]);
 
   const handleClose = useCallback(() => {
     setIsOpen(false);

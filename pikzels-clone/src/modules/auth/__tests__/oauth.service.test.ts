@@ -12,6 +12,10 @@ jest.mock('@prisma/client', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    subscription: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
   };
   return {
     PrismaClient: jest.fn(() => mockPrismaClient),
@@ -51,7 +55,9 @@ describe('OAuthService', () => {
       expect(passport.use).toHaveBeenCalled();
       expect(passport.serializeUser).toHaveBeenCalled();
       expect(passport.deserializeUser).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('Google OAuth strategy initialized');
+      expect(logger.info).toHaveBeenCalledWith(
+        'Google OAuth strategy initialized'
+      );
     });
 
     it('should initialize GitHub OAuth strategy when credentials are provided', () => {
@@ -61,7 +67,9 @@ describe('OAuthService', () => {
       OAuthService.initializePassport();
 
       expect(passport.use).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('GitHub OAuth strategy initialized');
+      expect(logger.info).toHaveBeenCalledWith(
+        'GitHub OAuth strategy initialized'
+      );
     });
 
     it('should not initialize OAuth strategies when credentials are missing', () => {
@@ -79,7 +87,8 @@ describe('OAuthService', () => {
     it('should serialize user correctly', () => {
       OAuthService.initializePassport();
 
-      const serializeCallback = (passport.serializeUser as jest.Mock).mock.calls[0][0];
+      const serializeCallback = (passport.serializeUser as jest.Mock).mock
+        .calls[0][0];
       const done = jest.fn();
       const user = { id: 'user123', email: 'test@example.com' };
 
@@ -100,7 +109,8 @@ describe('OAuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       OAuthService.initializePassport();
 
-      const deserializeCallback = (passport.deserializeUser as jest.Mock).mock.calls[0][0];
+      const deserializeCallback = (passport.deserializeUser as jest.Mock).mock
+        .calls[0][0];
       const done = jest.fn();
 
       await deserializeCallback('user123', done);
@@ -123,7 +133,8 @@ describe('OAuthService', () => {
       mockPrisma.user.findUnique.mockRejectedValue(error);
       OAuthService.initializePassport();
 
-      const deserializeCallback = (passport.deserializeUser as jest.Mock).mock.calls[0][0];
+      const deserializeCallback = (passport.deserializeUser as jest.Mock).mock
+        .calls[0][0];
       const done = jest.fn();
 
       await deserializeCallback('user123', done);
@@ -161,7 +172,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'existing@example.com' },
@@ -207,7 +223,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'newuser@example.com' },
@@ -223,11 +244,14 @@ describe('OAuthService', () => {
         }),
       });
       expect(done).toHaveBeenCalledWith(null, newUser);
-      expect(logger.info).toHaveBeenCalledWith('OAuth user created', {
-        userId: expect.any(String),
-        provider: 'github',
-        email: 'newuser@example.com',
-      });
+      expect(logger.info).toHaveBeenCalledWith(
+        'OAuth user created with free subscription',
+        {
+          userId: expect.any(String),
+          provider: 'github',
+          email: 'newuser@example.com',
+        }
+      );
     });
 
     it('should reject OAuth callback when no email provided', async () => {
@@ -240,7 +264,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(done).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -263,7 +292,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -286,7 +320,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(mockPrisma.user.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -316,7 +355,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user123' },
@@ -341,7 +385,12 @@ describe('OAuthService', () => {
 
       const done = jest.fn();
 
-      await OAuthService.handleOAuthCallback('access-token', 'refresh-token', profile, done);
+      await OAuthService.handleOAuthCallback(
+        'access-token',
+        'refresh-token',
+        profile,
+        done
+      );
 
       expect(done).toHaveBeenCalledWith(dbError, null);
       expect(logger.error).toHaveBeenCalledWith(
@@ -370,11 +419,16 @@ describe('OAuthService', () => {
         refreshToken: 'mock-refresh-token',
       };
 
-      (EnhancedJWTService.createTokens as jest.Mock).mockReturnValue(mockTokens);
+      (EnhancedJWTService.createTokens as jest.Mock).mockReturnValue(
+        mockTokens
+      );
 
       const result = await OAuthService.generateTokensForOAuthUser(user);
 
-      expect(EnhancedJWTService.createTokens).toHaveBeenCalledWith('user123', 'oauth@example.com');
+      expect(EnhancedJWTService.createTokens).toHaveBeenCalledWith(
+        'user123',
+        'oauth@example.com'
+      );
       expect(result).toEqual({
         user: {
           id: 'user123',
@@ -405,9 +459,9 @@ describe('OAuthService', () => {
         throw tokenError;
       });
 
-      await expect(OAuthService.generateTokensForOAuthUser(user)).rejects.toThrow(
-        'Failed to generate authentication tokens'
-      );
+      await expect(
+        OAuthService.generateTokensForOAuthUser(user)
+      ).rejects.toThrow('Failed to generate authentication tokens');
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to generate OAuth tokens',

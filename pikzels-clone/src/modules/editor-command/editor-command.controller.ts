@@ -32,7 +32,7 @@ export const parseEditorCommand = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { prompt, canvasContext } = req.body;
+    const { prompt, canvasContext, canvasScreenshot } = req.body;
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -56,6 +56,7 @@ export const parseEditorCommand = async (req: AuthRequest, res: Response) => {
     const result = await getEditorCommandService().parseCommand(
       prompt.trim(),
       ctx,
+      canvasScreenshot,
       req.user.id
     );
 

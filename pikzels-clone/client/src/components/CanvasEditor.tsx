@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   initializeCanvas,
   clearCanvas as clearCanvasHelper,
@@ -11,6 +11,7 @@ import {
   type Point,
   type DrawingConfig,
 } from './editor/canvas/canvasDrawingHelpers';
+import { INLINE_EDIT_STYLES } from '../hooks/useInlineTextEdit';
 
 interface CanvasEditorProps {
   thumbnailId?: string;
@@ -37,6 +38,26 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState<ImageData[]>([]);
   const [historyStep, setHistoryStep] = useState(0);
+
+  // Text tool state
+  const [textInput, setTextInput] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const commitText = useCallback(() => {
+    if (!textInput || !textInput.text.trim()) {
+      setTextInput(null);
+      return;
+    }
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) { setTextInput(null); return; }
+
+    ctx.font = `${brushSize * 4}px Inter, Arial, sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textBaseline = 'top';
+    ctx.fillText(textInput.text, textInput.x, textInput.y);
+    setTextInput(null);
+    // saveToHistory is called after state update via effect
+  }, [textInput, brushSize, color]);
 
   // Initialize canvas
   useEffect(() => {
@@ -124,6 +145,15 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
     if (!canvas) return;
 
     const point = getCanvasCoordinates(canvas, e.clientX, e.clientY);
+
+    // Text tool: place input overlay instead of drawing
+    if (selectedTool === 'text') {
+      // Commit any previous text first
+      if (textInput) commitText();
+      setTextInput({ x: point.x, y: point.y, text: '' });
+      return;
+    }
+
     setIsDrawing(true);
 
     const ctx = canvas.getContext('2d');
@@ -228,17 +258,44 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
         <main className="flex-1 flex flex-col overflow-hidden">
           {/* Canvas Container */}
           <div className="flex-1 flex items-center justify-center bg-gray-100 p-8 overflow-auto">
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden border-2 border-gray-300">
+            <div className="bg-white shadow-lg rounded-lg overflow-hidden border-2 border-gray-300 relative">
               <canvas
                 ref={canvasRef}
                 width={1280}
                 height={720}
-                className="cursor-crosshair"
+                className={selectedTool === 'text' ? 'cursor-text' : 'cursor-crosshair'}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
               />
+              {/* Text tool input overlay */}
+              {textInput && (
+                <textarea
+                  autoFocus
+                  value={textInput.text}
+                  onChange={e => setTextInput(prev => prev ? { ...prev, text: e.target.value } : null)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') { setTextInput(null); }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); saveToHistory(); }
+                  }}
+                  onBlur={() => { commitText(); saveToHistory(); }}
+                  style={{
+                    ...INLINE_EDIT_STYLES,
+                    position: 'absolute',
+                    left: textInput.x,
+                    top: textInput.y,
+                    width: 400,
+                    minHeight: brushSize * 5,
+                    fontSize: brushSize * 4,
+                    fontFamily: 'Inter, Arial, sans-serif',
+                    color: color,
+                    caretColor: '#6366f1',
+                    zIndex: 10,
+                  }}
+                  placeholder="Type here..."
+                />
+              )}
             </div>
           </div>
 

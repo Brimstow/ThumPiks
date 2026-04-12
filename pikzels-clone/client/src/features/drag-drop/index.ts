@@ -109,3 +109,11 @@ export type { TrashDropZoneProps } from './components/TrashDropZone';
 
 export { DraggableLayerItem, LayerDragHandle } from './components/DraggableLayerItem';
 export type { DraggableLayerItemProps, LayerDragHandleProps } from './components/DraggableLayerItem';
+
+// Components - Template Reset (drag layer back to layouts panel)
+export { TemplateResetDropZone } from './components/TemplateResetDropZone';
+export type { TemplateResetDropZoneProps } from './components/TemplateResetDropZone';
+
+// Components - Canvas Template Group Drag Handle (drag from canvas to layouts)
+export { TemplateGroupDragHandle } from './components/TemplateGroupDragHandle';
+export type { TemplateGroupDragHandleProps } from './components/TemplateGroupDragHandle';

@@ -6,7 +6,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authGet, authPost, setTokenExpiration } from '../utils/api';
+import { authGet, authPost, publicPost, setTokenExpiration } from '../utils/api';
 
 interface User {
   id: string;
@@ -27,6 +27,9 @@ interface AuthContextType {
     name: string,
     username: string
   ) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (
+    email: string
+  ) => Promise<{ success: boolean; error?: string; message?: string }>;
   loading: boolean;
   isAuthenticated: boolean;
 }
@@ -72,14 +75,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Store session ID for session tracking (non-critical, may fail in Safari Private Browsing)
+        try { if (data.sessionId) localStorage.setItem('sessionId', data.sessionId); } catch { /* Safari Private Browsing */ }
         // Initialize token expiration for proactive refresh (15 minutes)
         setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Login failed' };
       }
-    } catch (err) {
-      return { success: false, error: 'Network error. Please try again.' };
+    } catch {
+      return { success: false, error: 'Network error' };
     }
   };
 
@@ -91,11 +96,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (response.ok) {
         // Cookie is set automatically by browser from Set-Cookie header
         setUser(data.user);
+        // Store session ID for session tracking (non-critical, may fail in Safari Private Browsing)
+        try { if (data.sessionId) localStorage.setItem('sessionId', data.sessionId); } catch { /* Safari Private Browsing */ }
         // Initialize token expiration for proactive refresh (15 minutes)
         setTokenExpiration(900);
         return { success: true };
       } else {
         return { success: false, error: data.error || 'Registration failed' };
+      }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  };
+
+  const forgotPassword = async (email: string) => {
+    try {
+      const response = await publicPost('/api/auth/request-password-reset', { email });
+      const data = await response.json();
+
+      if (response.ok) {
+        return { 
+          success: true, 
+          message: data.message || 'If your email is registered, you will receive a password reset link.' 
+        };
+      } else {
+        return { success: false, error: data.error || 'Failed to send password reset email' };
       }
     } catch (err) {
       return { success: false, error: 'Network error. Please try again.' };
@@ -111,6 +136,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
     // Clear token expiration tracking
     setTokenExpiration(0);
+    // Clear session ID
+    try { localStorage.removeItem('sessionId'); } catch { /* Safari Private Browsing */ }
     setUser(null);
     navigate('/', { replace: true });
   };
@@ -120,6 +147,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     login,
     logout,
     register,
+    forgotPassword,
     loading,
     isAuthenticated: !!user,
   };

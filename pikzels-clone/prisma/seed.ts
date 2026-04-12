@@ -70,18 +70,65 @@ const TEST_USERS: TestUser[] = [
     name: 'Ultra Tester',
     username: 'ultratester',
   },
+  {
+    email: 'tester1.thumpiks@gmail.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Polar Tester',
+    username: 'polartester',
+  },
+  {
+    email: 'wm_freetester@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Watermark Free Tester',
+    username: 'wm_freetester',
+  },
+  {
+    email: 'freeTest1@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Free Test One',
+    username: 'freeTest1',
+  },
+  {
+    email: 'creditpacktest1@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Credit Pack Tester',
+    username: 'creditPackTest1',
+  },
+  {
+    email: 'addpacktest1@gmail.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Add Pack Test One',
+    username: 'addPackTest1',
+  },
+  {
+    email: 'noteTest1@example.com',
+    // secretlint-disable-next-line @secretlint/secretlint-rule-pattern -- intentional test credential
+    password: 'Test123!',
+    name: 'Notification Tester',
+    username: 'noteTest1',
+  },
 ];
 
 // Subscription plans for test accounts (varied tiers for testing)
 // 999999 credits = effectively unlimited for staging/QA
 // All tester accounts get ultra_pro + unlimited credits so every tier is accessible
-const TEST_SUBSCRIPTIONS: Record<string, { planType: string; credits: number }> = {
+const TEST_SUBSCRIPTIONS: Record<string, { planType: string; credits: number; addonCredits?: number }> = {
   'ultratester@thumpiks.com': { planType: 'ultra_pro', credits: 999999 },
   'testerllm@example.com':    { planType: 'ultra_pro', credits: 999999 },
   'admin@example.com':        { planType: 'ultra_pro', credits: 999999 },
   'tester1@example.com':      { planType: 'ultra_pro', credits: 999999 },
   'tester2@example.com':      { planType: 'ultra_pro', credits: 999999 },
   'tester3@example.com':      { planType: 'ultra_pro', credits: 999999 },
+  'wm_freetester@example.com': { planType: 'free', credits: 150 },
+  'freeTest1@example.com': { planType: 'free', credits: 150 },
+  'creditpacktest1@example.com': { planType: 'free', credits: 10 },
+  'addpacktest1@gmail.com': { planType: 'free', credits: 150, addonCredits: 100 },
+  'noteTest1@example.com': { planType: 'free', credits: 150 },
 };
 
 /**
@@ -103,12 +150,19 @@ async function seedTestUsers() {
       });
 
       if (existingUser) {
+        // Re-hash and update password to keep credentials in sync with seed config
+        const passwordHash = await bcrypt.hash(testUser.password, 12);
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { passwordHash, isVerified: true, isActive: true },
+        });
+
         existingUsers.push({
           email: testUser.email,
           id: existingUser.id,
           projects: existingUser.Project?.length || 0,
         });
-        console.log(`✅ User already exists: ${testUser.email}`);
+        console.log(`✅ User already exists: ${testUser.email} (password reset to seed value)`);
         console.log(`   - ID: ${existingUser.id}`);
         console.log(`   - Username: ${existingUser.username}`);
         console.log(`   - Projects: ${existingUser.Project?.length || 0}\n`);
@@ -292,6 +346,9 @@ async function seedSubscriptions() {
             planType: plan.planType,
             creditsBalance: plan.credits,
             creditsUsed: 0,
+            addonCreditsBalance: plan.addonCredits || 0,
+            addonCreditsUsed: 0,
+            watermarkFreeUsed: 0,
             periodEnd,
             status: 'active',
           },
@@ -312,6 +369,9 @@ async function seedSubscriptions() {
           planType: plan.planType,
           creditsBalance: plan.credits,
           creditsUsed: 0,
+          addonCreditsBalance: plan.addonCredits || 0,
+          addonCreditsUsed: 0,
+          watermarkFreeUsed: 0,
           periodStart: now,
           periodEnd,
           billingCycle: 'monthly',
@@ -328,6 +388,158 @@ async function seedSubscriptions() {
   }
 
   console.log(`\n   📊 Subscriptions: ${created} created, ${existing} already existed\n`);
+  return { created, existing };
+}
+
+/**
+ * Seed test notifications for noteTest1 user
+ * Creates a variety of UserNotification records for E2E testing
+ */
+async function seedTestNotifications() {
+  console.log('🔔 Seeding Test Notifications...\n');
+
+  const testEmail = 'noteTest1@example.com';
+  const user = await prisma.user.findUnique({
+    where: { email: testEmail.toLowerCase() },
+  });
+
+  if (!user) {
+    console.log(`   ⏭️  Skipping notifications (${testEmail} not found)`);
+    return { created: 0 };
+  }
+
+  // Check if notifications already exist for this user
+  const existingCount = await prisma.userNotification.count({
+    where: { userId: user.id },
+  });
+
+  if (existingCount > 0) {
+    console.log(`   ♻️  ${testEmail} already has ${existingCount} notifications, skipping`);
+    return { created: 0 };
+  }
+
+  const now = new Date();
+  const notifications = [
+    {
+      userId: user.id,
+      type: 'thumbnail_ready',
+      title: 'Thumbnail Ready',
+      message: 'Your thumbnail "Epic Gaming Montage" has been generated successfully.',
+      priority: 'normal',
+      isRead: false,
+      actionUrl: '/dashboard/thumbnails',
+      createdAt: new Date(now.getTime() - 1 * 60 * 60 * 1000), // 1 hour ago
+    },
+    {
+      userId: user.id,
+      type: 'credits_low',
+      title: 'Credits Running Low',
+      message: 'You have only 3 credits remaining. Purchase more to continue creating.',
+      priority: 'high',
+      isRead: false,
+      actionUrl: '/dashboard/credits',
+      metadata: { remaining: 3 },
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000), // 2 hours ago
+    },
+    {
+      userId: user.id,
+      type: 'subscription_activated',
+      title: 'Subscription Activated',
+      message: 'Your Free plan has been activated. Welcome to Pikzels!',
+      priority: 'normal',
+      isRead: true,
+      readAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+      createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000), // 1 day ago
+    },
+    {
+      userId: user.id,
+      type: 'thumbnail_failed',
+      title: 'Thumbnail Generation Failed',
+      message: 'We could not generate your thumbnail. Please try again.',
+      priority: 'high',
+      isRead: false,
+      createdAt: new Date(now.getTime() - 3 * 60 * 60 * 1000), // 3 hours ago
+    },
+    {
+      userId: user.id,
+      type: 'credits_purchased',
+      title: 'Credits Purchased',
+      message: 'You have successfully purchased 50 credits.',
+      priority: 'normal',
+      isRead: true,
+      readAt: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+      createdAt: new Date(now.getTime() - 48 * 60 * 60 * 1000), // 2 days ago
+    },
+    {
+      userId: user.id,
+      type: 'system',
+      title: 'System Maintenance Scheduled',
+      message: 'Planned maintenance on April 15th from 2-4 AM UTC.',
+      priority: 'low',
+      isRead: false,
+      expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      createdAt: new Date(now.getTime() - 30 * 60 * 1000), // 30 min ago
+    },
+  ];
+
+  await prisma.userNotification.createMany({ data: notifications });
+
+  console.log(`   ✨ Created ${notifications.length} notifications for ${testEmail}`);
+  return { created: notifications.length };
+}
+
+/**
+ * Seed test admin notifications for E2E testing
+ * Uses upsert with fixed IDs for idempotency
+ */
+async function seedAdminTestNotifications() {
+  console.log('🔔 Seeding Admin Test Notifications...\n');
+
+  const adminNotifications = [
+    {
+      id: 'seed-admin-notif-001',
+      title: 'New User Registered',
+      message: 'A new user noteTest1@example.com has registered.',
+      type: 'new_user_registered',
+      priority: 'normal',
+      isRead: false,
+    },
+    {
+      id: 'seed-admin-notif-002',
+      title: 'High CPU Usage Alert',
+      message: 'Server CPU usage exceeded 90% for 5 minutes.',
+      type: 'system_alert',
+      priority: 'high',
+      isRead: false,
+      metadata: { cpu: 92, threshold: 90 },
+    },
+    {
+      id: 'seed-admin-notif-003',
+      title: 'Credit Pack Purchased',
+      message: 'User tester1@example.com purchased a Starter credit pack.',
+      type: 'credits_purchased',
+      priority: 'normal',
+      isRead: true,
+      readAt: new Date(),
+    },
+  ];
+
+  let created = 0;
+  let existing = 0;
+
+  for (const notif of adminNotifications) {
+    const exists = await prisma.adminNotification.findUnique({ where: { id: notif.id } });
+    if (exists) {
+      existing++;
+      console.log(`   ♻️  Admin notification ${notif.id} already exists`);
+      continue;
+    }
+    await prisma.adminNotification.create({ data: notif });
+    created++;
+    console.log(`   ✨ Created admin notification: ${notif.title}`);
+  }
+
+  console.log(`\n   📊 Admin Notifications: ${created} created, ${existing} already existed\n`);
   return { created, existing };
 }
 
@@ -650,6 +862,12 @@ async function main() {
     // Seed subscriptions for test accounts
     const { created: subsCreated, existing: subsExisting } = await seedSubscriptions();
 
+    // Seed test notifications for noteTest1
+    const { created: userNotifsCreated } = await seedTestNotifications();
+
+    // Seed admin test notifications
+    const { created: adminNotifsCreated } = await seedAdminTestNotifications();
+
     // Seed built-in composition layouts (always runs, even in production)
     const { created: layoutsCreated, updated: layoutsUpdated } = await seedCompositionLayouts();
 
@@ -665,6 +883,8 @@ async function main() {
     console.log(`   - Existing admins found: ${existingAdmins.length}`);
     console.log(`   - Total admin users: ${TEST_ADMIN_USERS.length}`);
     console.log(`   - Subscriptions created: ${subsCreated}, already existed: ${subsExisting}`);
+    console.log(`   - User notifications seeded: ${userNotifsCreated}`);
+    console.log(`   - Admin notifications seeded: ${adminNotifsCreated}`);
     console.log(`   - Composition layouts: ${layoutsCreated} new, ${layoutsUpdated} updated\n`);
 
     if (createdUsers.length > 0) {

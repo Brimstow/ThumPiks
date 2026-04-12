@@ -23,7 +23,11 @@ export type EditorActionType =
   | 'recolorLayer'
   | 'selectLayer'
   | 'analyzeImage'
-  | 'decompose';
+  | 'decompose'
+  | 'expand'
+  | 'aiText'
+  | 'vision'
+  | 'visionSearch';
 
 /** A single editor action returned by the LLM */
 export interface EditorAction {
@@ -55,6 +59,16 @@ export interface LayerContext {
   visible: boolean;
   locked: boolean;
   selected: boolean;
+  // Spatial data
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  blendMode?: string;
+  zIndex: number;
+  // Type-specific data
   text?: string;
   font?: string;
   fontSize?: number;
@@ -165,6 +179,10 @@ export function buildContextMessage(ctx: CanvasContext): string {
 
     let info = `  - [${layer.type}] "${layer.name}"`;
     if (flags) info += ` (${flags})`;
+    info += ` pos=(${layer.x},${layer.y}) size=${layer.width}x${layer.height}`;
+    if (layer.rotation) info += ` rot=${layer.rotation}deg`;
+    if (layer.opacity < 1) info += ` opacity=${Math.round(layer.opacity * 100)}%`;
+    if (layer.blendMode && layer.blendMode !== 'normal') info += ` blend=${layer.blendMode}`;
     if (layer.type === 'text' && layer.text) {
       info += ` text="${layer.text}" font=${layer.font || 'default'} size=${layer.fontSize || 24} color=${layer.color || '#FFFFFF'}`;
     }

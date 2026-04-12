@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -32,28 +34,16 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       return;
     }
 
-    try {
-      const response = await fetch('/api/auth/request-password-reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(data.message || 'Password reset email sent successfully!');
-        setEmail(''); // Clear form on success
-      } else {
-        setError(data.error || 'Failed to send password reset email');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    const result = await auth.forgotPassword(email);
+    
+    if (result.success) {
+      setMessage(result.message || 'Password reset email sent successfully!');
+      setEmail(''); // Clear form on success
+    } else {
+      setError(result.error || 'Failed to send password reset email');
     }
+    
+    setLoading(false);
   };
 
   const handleGoToPage = () => {

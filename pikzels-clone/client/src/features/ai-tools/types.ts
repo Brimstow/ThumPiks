@@ -73,6 +73,15 @@ export interface ModelTier {
 
   /** Optional badge text (e.g. "Most Popular", "Best Quality") */
   badge?: string;
+
+  /** Optional capability metadata (e.g. { maxScale: '4x' } for upscale) */
+  capabilities?: Record<string, unknown>;
+
+  /** Vision-capable model ID for multimodal requests (image + text) */
+  visionModelId?: string;
+
+  /** Human-readable label for the vision model */
+  visionModelLabel?: string;
 }
 
 // ============================================

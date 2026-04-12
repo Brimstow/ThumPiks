@@ -9,10 +9,12 @@ import { ZenmuxAIService } from './zenmux-ai.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
 import {
   resolveModelFromTier,
+  resolveVisionModelFromTier,
   buildTierAPIResponse,
   getCreditCostForTier,
   getProviderForTier,
   getDefaultTier,
+  getTierCapability,
 } from './model-tiers.config';
 import { deductCredits, refundCredits } from '../credit/credit.service';
 import { PrismaClient } from '@prisma/client';
@@ -20,6 +22,9 @@ import * as crypto from 'crypto';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
 import { systemMonitoringService } from '../admin/system-monitoring.service';
 import { isZodError } from '../../utils/json-validation';
+import { watermarkImageUrls, shouldApplyWatermark, getWatermarkFreeStatus, consumeWatermarkFreeExport, cleanupExpiredOriginals, isCleanOriginalExpired } from './watermark.service';
+import { getCurrentSubscription } from '../subscription/subscription.service';
+import { getService } from '../../utils/service-factory';
 
 // Single source of truth for valid thumbnail styles
 const VALID_STYLES = [
@@ -164,7 +169,7 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { title, imageUrl, prompt, parameters, projectId } = req.body;
+    const { title, imageUrl, prompt, parameters, projectId, originalImageUrl, originalPublicId } = req.body;
 
     // Validate required fields — prompt is optional for non-AI flows
     if (!title || !projectId) {
@@ -180,6 +185,8 @@ export const createThumbnail = async (req: AuthRequest, res: Response) => {
       parameters: parameters || {},
       projectId,
       userId: req.user.id,
+      ...(originalImageUrl && { originalImageUrl }),
+      ...(originalPublicId && { originalPublicId }),
     });
 
     return res.status(201).json({ thumbnail });
@@ -422,6 +429,38 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
     const { prompt, style, projectId, videoUrl, includeFace, tier, model } =
       req.body;
 
+    // Validate videoUrl if provided — prevent SSRF by enforcing known platform URLs
+    if (videoUrl) {
+      const allowedPatterns = [
+        /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)/i,
+        /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i,
+        /^https?:\/\/(www\.)?instagram\.com\/(p|reel|reels)\//i,
+        /^https?:\/\/(www\.)?(twitter|x)\.com\//i,
+        /^https?:\/\/(www\.)?twitch\.tv\//i,
+        /^https?:\/\/(www\.)?vimeo\.com\//i,
+      ];
+      const isValidUrl = allowedPatterns.some(p => p.test(videoUrl));
+      if (!isValidUrl) {
+        return res.status(400).json({
+          error: 'Invalid video URL. Only YouTube, TikTok, Instagram, Twitter, Twitch and Vimeo links are supported.',
+        });
+      }
+    }
+
+    // Credit check & deduction - 1 credit for video URL generation
+    const creditCost = 1;
+    const deducted = await deductCredits(
+      req.user.id,
+      creditCost,
+      'Thumbnail generation from video URL'
+    );
+    if (!deducted) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        required: creditCost,
+      });
+    }
+
     // Handle YouTube video URL generation
     if (videoUrl) {
       try {
@@ -479,18 +518,30 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           videoId: videoInfo.videoId,
         });
 
+        // Notify user of successful video thumbnail generation (fire-and-forget)
+        const videoRouter = getService('notificationRouter');
+        videoRouter.routeToUser(req.user.id, {
+          type: 'thumbnail_ready',
+          title: 'Video Thumbnail Ready',
+          message: `Thumbnail generated from video: ${videoInfo.title.substring(0, 50)}`,
+          priority: 'normal',
+          actionUrl: `/dashboard/projects/${projectId || defaultProject.id}`,
+        }).catch(() => {});
+
         return res.status(201).json({
-          success: true,
-          thumbnailId: thumbnail.id,
           thumbnailUrl: thumbnail.imageUrl,
+          creditCost,
           message: 'Thumbnail generated successfully from video',
           thumbnail,
         });
       } catch (videoError) {
+        // Refund credits on failure
+        await refundCredits(req.user.id, creditCost, 'Video URL generation failed');
         console.error('Error processing video URL:', videoError);
         return res.status(400).json({
           success: false,
           error: 'Failed to process video URL',
+          creditRefunded: true,
           message:
             videoError instanceof Error
               ? videoError.message
@@ -617,6 +668,17 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails.push(thumbnail);
         }
 
+        // Notify user of successful generation (fire-and-forget)
+        const router = getService('notificationRouter');
+        router.routeToUser(req.user.id, {
+          type: 'thumbnail_ready',
+          title: 'Thumbnails Ready',
+          message: `${thumbnails.length} thumbnail${thumbnails.length === 1 ? '' : 's'} generated successfully.`,
+          priority: 'normal',
+          actionUrl: `/dashboard/projects/${validProjectId}`,
+          metadata: { count: thumbnails.length, projectId: validProjectId },
+        }).catch(() => {});
+
         return res.status(201).json({
           message: 'Thumbnails generated successfully with AI',
           thumbnails,
@@ -631,6 +693,9 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           aiError
         );
 
+        // Refund credits since AI generation failed
+        await refundCredits(req.user.id, creditCost, 'AI generation failed - placeholder fallback');
+
         // Log to admin monitoring system for tracking
         await systemMonitoringService.logError(
           'error',
@@ -642,6 +707,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
             style: style || 'bold',
             endpoint: 'generateThumbnails',
             fallbackUsed: 'placeholder',
+            creditsRefunded: creditCost,
           }
         );
 
@@ -667,17 +733,31 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           thumbnails.push(thumbnail);
         }
 
+        // Notify user of generation failure (fire-and-forget)
+        const failRouter = getService('notificationRouter');
+        failRouter.routeToUser(req.user.id, {
+          type: 'thumbnail_failed',
+          title: 'Thumbnail Generation Failed',
+          message: 'AI generation failed. Your credits have been refunded. Please try again.',
+          priority: 'high',
+          actionUrl: `/dashboard/projects/${validProjectId}`,
+        }).catch(() => {});
+
         return res.status(201).json({
           message:
             'We could not generate AI images at this time. Placeholder images have been created instead.',
           thumbnails,
           aiError: errorMessage,
           aiErrorCode: 'AI_GENERATION_FAILED',
+          creditRefunded: true,
           userAction:
             'Please try again later or contact support if the issue persists.',
         });
       }
     } else {
+      // Refund credits since AI service is not configured
+      await refundCredits(req.user.id, creditCost, 'AI service not configured');
+
       // Log to admin monitoring - AI service not configured is a critical setup issue
       await systemMonitoringService.logError(
         'critical',
@@ -689,6 +769,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
           endpoint: 'generateThumbnails',
           fallbackUsed: 'placeholder',
           configIssue: 'OPENROUTER_API_KEY not set',
+          creditsRefunded: creditCost,
         }
       );
 
@@ -720,6 +801,7 @@ export const generateThumbnail = async (req: AuthRequest, res: Response) => {
         thumbnails,
         aiNotConfigured: true,
         aiErrorCode: 'AI_SERVICE_UNAVAILABLE',
+        creditRefunded: true,
         userAction: 'Please try again later. Our team has been notified.',
       });
     }
@@ -757,10 +839,30 @@ export const downloadThumbnail = async (req: AuthRequest, res: Response) => {
       downloadType: 'direct',
     });
 
+    // Determine if free-tier watermark should be applied
+    const subscription = await getCurrentSubscription(req.user.id);
+    const planType = subscription?.planType || 'free';
+    const needsWatermark = shouldApplyWatermark(planType);
+
+    // Check watermark-free export availability for free users
+    let watermarkFreeRemaining = 0;
+    let cleanOriginalUrl: string | null = null;
+    if (needsWatermark) {
+      const wmStatus = await getWatermarkFreeStatus(req.user.id);
+      watermarkFreeRemaining = wmStatus.remaining;
+      // Provide clean original if available and not expired
+      if (thumbnail.originalImageUrl && !isCleanOriginalExpired(thumbnail.createdAt)) {
+        cleanOriginalUrl = thumbnail.originalImageUrl;
+      }
+    }
+
     // Download logic here - normally would serve file
     return res.status(200).json({
       downloadUrl: `/api/thumbnails/${id}/file`,
       message: 'Download started',
+      watermarked: needsWatermark,
+      watermarkFreeRemaining,
+      cleanOriginalUrl,
     });
   } catch (error) {
     console.error('Error downloading thumbnail:', error);
@@ -776,7 +878,7 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     }
 
     const id = req.params.id as string;
-    const { edits } = req.body;
+    const { edits, watermarkFree } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: 'Thumbnail ID is required' });
@@ -798,11 +900,35 @@ export const applyEdits = async (req: AuthRequest, res: Response) => {
     try {
       // Only process if there are actual edits
       if (edits && Object.keys(edits).length > 0) {
+        // Check if free-tier watermark should be baked into the processed image
+        const subscription = await getCurrentSubscription(req.user.id);
+        const planType = subscription?.planType || 'free';
+        let needsWatermark = shouldApplyWatermark(planType);
+
+        // If user requests watermark-free and has quota, skip the watermark
+        if (needsWatermark && watermarkFree) {
+          const wmResult = await consumeWatermarkFreeExport(req.user.id);
+          if (wmResult.success) {
+            needsWatermark = false;
+          } else {
+            return res.status(403).json({
+              error: 'No watermark-free exports remaining this month',
+              remaining: wmResult.remaining,
+            });
+          }
+        }
+
+        // Use clean original as source if available and user is getting watermark-free
+        const sourceImageUrl = (!needsWatermark && thumbnail.originalImageUrl && !isCleanOriginalExpired(thumbnail.createdAt))
+          ? thumbnail.originalImageUrl
+          : thumbnail.imageUrl;
+
         const processedImagePath =
           await getImageProcessingService().applyEditsToImage(
-            thumbnail.imageUrl,
+            sourceImageUrl,
             edits,
-            id
+            id,
+            { applyFreemiumWatermark: needsWatermark }
           );
         processedImageUrl =
           getImageProcessingService().getProcessedImageUrl(processedImagePath);
@@ -1273,9 +1399,13 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
         promptLength: prompt.length,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
       });
     } catch (apiError) {
@@ -1392,9 +1522,13 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
         provider,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         provider,
       });
@@ -1481,9 +1615,13 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
         model,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
       });
     } catch (apiError) {
@@ -1521,6 +1659,16 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
     if (scale !== '2x' && scale !== '4x') {
       return res.status(400).json({
         error: 'Scale must be "2x" or "4x"',
+      });
+    }
+
+    // Validate scale-tier compatibility (4K requires Pro tier)
+    const effectiveTier = tier || 'standard';
+    const maxScale = getTierCapability(effectiveTier, 'upscale', 'maxScale');
+    if (maxScale && scale === '4x' && maxScale !== '4x') {
+      return res.status(400).json({
+        error: '4x upscale requires the Pro tier. Please select ThumPiks Pro for 4K output.',
+        code: 'SCALE_TIER_MISMATCH',
       });
     }
 
@@ -1589,9 +1737,13 @@ export const aiUpscale = async (req: AuthRequest, res: Response) => {
         provider,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         scale,
         provider,
@@ -1686,9 +1838,13 @@ export const aiRemoveBackground = async (req: AuthRequest, res: Response) => {
         { model, backgroundColor, provider }
       );
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         provider,
       });
@@ -1770,9 +1926,13 @@ export const aiEnhance = async (req: AuthRequest, res: Response) => {
         enhancementType,
       });
 
+      // Watermark free-tier outputs
+      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+
       return res.status(200).json({
         success: true,
-        images: imageUrls,
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         enhancementType,
       });
@@ -1936,7 +2096,7 @@ export const aiSegment = async (req: AuthRequest, res: Response) => {
  * Each detected object becomes a separate RGBA layer that can be independently
  * edited, moved, or styled in the Advanced Editor.
  *
- * Body: { image: base64, maxLayers?: number (default 8) }
+ * Body: { image: base64, maxLayers?: number (default 14) }
  * Returns: { success, layers: Array<{ name, imageBase64, bounds, score }>, predictionId }
  */
 export const aiDecompose = async (req: AuthRequest, res: Response) => {
@@ -1945,7 +2105,7 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { image, maxLayers = 8 } = req.body;
+    const { image, maxLayers = 14 } = req.body;
 
     if (!image) {
       return res.status(400).json({
@@ -1975,18 +2135,20 @@ export const aiDecompose = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-      const result = await replicateService.decompose(image, maxLayers);
+      const result = await replicateService.decompose(image, maxLayers, openRouterService);
 
       // Emit analytics event
       emitAnalyticsEvent(req.user.id, 'ai-tool', 'decompose', 'ai-decompose', {
         layerCount: result.layers.length,
         maxLayers,
+        pipeline: result.pipeline,
       });
 
       return res.status(200).json({
         success: true,
         layers: result.layers,
         predictionId: result.predictionId,
+        pipeline: result.pipeline,
       });
     } catch (apiError) {
       // Refund credits on API failure
@@ -2087,9 +2249,12 @@ export const aiExpand = async (req: AuthRequest, res: Response) => {
         hasPrompt: !!prompt,
       });
 
+      const wmResult = await watermarkImageUrls(req.user.id, [resultUrl]);
+
       return res.status(200).json({
         success: true,
-        images: [resultUrl],
+        images: wmResult.displayUrls,
+        originals: wmResult.originalUrls,
         model,
         direction,
         expandPixels: pixels,
@@ -2229,13 +2394,22 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     }
 
     const {
-      prompt,
+      prompt: rawPrompt,
       context,
       tone = 'clickbait',
       count = 5,
       maxLength = 60,
       tier,
+      imageUrl,
+      imageBase64,
     } = req.body;
+
+    const isVisionMode = !!(imageUrl || imageBase64);
+
+    // In vision mode, a prompt is optional — default to a sensible instruction
+    const prompt = rawPrompt || (isVisionMode
+      ? 'Generate click-worthy text for this YouTube thumbnail'
+      : '');
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -2254,7 +2428,7 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     const deducted = await deductCredits(
       req.user.id,
       creditCost,
-      `AI text generation - ${tier || 'flash'} tier`
+      `AI text generation - ${tier || 'flash'} tier${isVisionMode ? ' (vision)' : ''}`
     );
     if (!deducted) {
       return res.status(402).json({
@@ -2264,6 +2438,53 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
     }
 
     try {
+      // ---- Vision mode: resolve image and select vision model ----
+      let actualModel = textModel;
+      let resolvedImageUrl: string | null = null;
+      let fallbackUsed = false;
+
+      if (isVisionMode) {
+        // Select vision-capable model for this tier
+        const visionModel = resolveVisionModelFromTier(tier, 'generate-text');
+        if (visionModel) {
+          actualModel = visionModel;
+        }
+
+        // Resolve image input to a format the API can consume
+        const imageInput = imageBase64 || imageUrl;
+        if (imageInput) {
+          // Validate size for base64 inputs (~10MB limit)
+          if (imageInput.startsWith('data:') && imageInput.length > 10 * 1024 * 1024 * 1.37) {
+            await refundCredits(req.user.id, creditCost, 'Image too large');
+            return res.status(413).json({
+              error: 'Image too large for vision analysis. Please use an image under 10MB.',
+            });
+          }
+
+          // Localhost URLs must be converted to base64 since external AI APIs can't access them
+          if (!imageInput.startsWith('data:') &&
+              (imageInput.includes('localhost') || imageInput.includes('127.0.0.1'))) {
+            try {
+              const imgResp = await fetch(imageInput);
+              if (imgResp.ok) {
+                const buffer = Buffer.from(await imgResp.arrayBuffer());
+                const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+                resolvedImageUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+              } else {
+                resolvedImageUrl = imageInput;
+              }
+            } catch {
+              resolvedImageUrl = imageInput;
+            }
+          } else if (imageInput.startsWith('data:') || imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
+            resolvedImageUrl = imageInput;
+          } else {
+            // Assume raw base64 string without data URI prefix
+            resolvedImageUrl = `data:image/png;base64,${imageInput}`;
+          }
+        }
+      }
+
       // Build the system prompt for title generation
       const toneInstructions: Record<string, string> = {
         clickbait:
@@ -2289,10 +2510,20 @@ export const aiGenerateText = async (req: AuthRequest, res: Response) => {
       // Random session seed injected into system prompt to ensure unique results each call
       const sessionSeed = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-      const systemPrompt = `You are an expert YouTube thumbnail text generator. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
+      // Vision-specific instructions appended when an image is provided
+      const visionBlock = (isVisionMode && resolvedImageUrl) ? `
+VISUAL ANALYSIS INSTRUCTIONS:
+- You can SEE the thumbnail image provided. Analyze its composition, colors, subjects, facial expressions, and mood.
+- Generate text that directly complements and enhances what you see in the image.
+- Consider the dominant colors — suggest text that would contrast well and be readable over the image.
+- If faces are present, leverage the emotional tone (excited, surprised, serious) in your suggestions.
+- If existing text overlay is visible, generate improved alternatives or complementary text.
+` : '';
+
+      let systemPrompt = `You are an expert YouTube thumbnail text generator${isVisionMode ? ' with vision capability' : ''}. Generate exactly ${count} short, punchy text suggestions for a YouTube thumbnail overlay.
 
 Session: ${sessionSeed}
-
+${visionBlock}
 Rules:
 - Each suggestion must be ${maxLength} characters or fewer
 - Text must be readable at thumbnail size (short, impactful)
@@ -2305,59 +2536,117 @@ ${context ? `- Context: ${context}` : ''}
 For each suggestion, assign one of these styles: ${styleTypes.join(', ')}
 Also assign a click-worthiness score from 0.0 to 1.0.`;
 
-      const apiUrl =
-        process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
-      const response = await fetch(`${apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
-          'X-Title': 'ThumPiks AI Text Generator',
-        },
-        body: JSON.stringify({
-          model: textModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'thumbnail_suggestions',
-              strict: true,
-              schema: {
-                type: 'object',
-                properties: {
-                  suggestions: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        text: { type: 'string' },
-                        style: {
-                          type: 'string',
-                          enum: ['bold', 'question', 'listicle', 'emotional', 'curiosity'],
-                        },
-                        score: { type: 'number' },
-                      },
-                      required: ['text', 'style', 'score'],
-                      additionalProperties: false,
+      // ---- Build response_format based on model compatibility ----
+      // Models that support strict json_schema: OpenAI and Google
+      // Others (Qwen, Grok, etc.): use json_object mode + prompt instructions
+      const supportsJsonSchema = actualModel.startsWith('openai/') || actualModel.startsWith('google/');
+
+      const jsonSchemaFormat = {
+        type: 'json_schema' as const,
+        json_schema: {
+          name: 'thumbnail_suggestions',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              suggestions: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    text: { type: 'string' },
+                    style: {
+                      type: 'string',
+                      enum: ['bold', 'question', 'listicle', 'emotional', 'curiosity'],
                     },
+                    score: { type: 'number' },
                   },
+                  required: ['text', 'style', 'score'],
+                  additionalProperties: false,
                 },
-                required: ['suggestions'],
-                additionalProperties: false,
               },
             },
+            required: ['suggestions'],
+            additionalProperties: false,
           },
-        }),
-      });
+        },
+      };
+
+      let responseFormat: Record<string, unknown>;
+      if (supportsJsonSchema) {
+        responseFormat = jsonSchemaFormat;
+      } else {
+        responseFormat = { type: 'json_object' };
+        // Add explicit JSON formatting instructions for models without strict schema
+        systemPrompt += `\n\nYou MUST respond with a valid JSON object in this exact format:
+{ "suggestions": [{ "text": "YOUR TEXT", "style": "bold", "score": 0.85 }] }
+Do not include any text outside the JSON object.`;
+      }
+
+      // ---- Build messages array (multimodal when vision, text-only otherwise) ----
+      type ChatMessage = { role: 'system' | 'user'; content: string | Array<{ type: string; [key: string]: unknown }> };
+
+      const userMessage: ChatMessage =
+        (isVisionMode && resolvedImageUrl)
+          ? {
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: resolvedImageUrl } },
+                { type: 'text', text: prompt },
+              ],
+            }
+          : { role: 'user', content: prompt };
+
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        userMessage,
+      ];
+
+      // ---- API call with vision fallback ----
+      const apiUrl =
+        process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
+
+      const makeApiCall = async (model: string, msgs: ChatMessage[], resFormat: Record<string, unknown>) => {
+        return fetch(`${apiUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.APP_URL || 'https://thumpiks.com',
+            'X-Title': 'ThumPiks AI Text Generator',
+          },
+          body: JSON.stringify({
+            model,
+            messages: msgs,
+            temperature: 0.7,
+            max_tokens: 1024,
+            response_format: resFormat,
+          }),
+        });
+      };
+
+      let response = await makeApiCall(actualModel, messages, responseFormat);
+
+      // Vision fallback: if vision model fails, retry with text-only model
+      if (!response.ok && isVisionMode && actualModel !== textModel) {
+        console.warn(
+          `[aiGenerateText] Vision model ${actualModel} failed (${response.status}), falling back to text model ${textModel}`
+        );
+        fallbackUsed = true;
+        actualModel = textModel;
+
+        // Use json_schema for text model fallback (OpenAI models support it)
+        const fallbackFormat = (textModel.startsWith('openai/') || textModel.startsWith('google/'))
+          ? jsonSchemaFormat
+          : responseFormat;
+
+        // Strip image from messages for text-only fallback
+        const fallbackMessages: ChatMessage[] = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ];
+        response = await makeApiCall(textModel, fallbackMessages, fallbackFormat);
+      }
 
       if (!response.ok) {
         const errData: any = await response.json().catch(() => ({}));
@@ -2449,14 +2738,20 @@ Also assign a click-worthiness score from 0.0 to 1.0.`;
         tone,
         tier: tier || 'flash',
         suggestionsCount: suggestions.length,
+        visionMode: isVisionMode,
+        visionModel: isVisionMode ? actualModel : undefined,
+        imageSource: imageBase64 ? 'base64' : imageUrl ? 'url' : null,
+        fallbackUsed,
       });
 
       return res.status(200).json({
         success: true,
         suggestions,
-        model: textModel,
+        model: actualModel,
         tier: tier || 'flash',
         creditCost,
+        visionMode: isVisionMode,
+        ...(fallbackUsed && { fallbackUsed: true }),
       });
     } catch (apiError) {
       await refundCredits(req.user.id, creditCost, 'AI text generation failed');
@@ -2484,6 +2779,20 @@ export const getAIToolModels = async (_req: Request, res: Response) => {
     return res.status(200).json(response);
   } catch (error) {
     console.error('Error fetching AI tool models:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Admin: cleanup expired clean originals (45-day TTL)
+export const cleanupExpiredOriginalsHandler = async (_req: Request, res: Response) => {
+  try {
+    const cleaned = await cleanupExpiredOriginals();
+    return res.status(200).json({
+      success: true,
+      cleaned,
+    });
+  } catch (error) {
+    console.error('Error cleaning up expired originals:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

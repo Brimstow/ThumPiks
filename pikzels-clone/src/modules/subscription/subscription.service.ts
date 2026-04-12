@@ -12,6 +12,7 @@ import { getBillingProvider, getBillingProviderByName } from '../billing';
 import type { BillingProviderName } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getService } from '../../utils/service-factory';
 
 const prisma = getPrisma();
 
@@ -27,6 +28,8 @@ export interface SubscriptionData {
   planType: string;
   creditsBalance: number;
   creditsUsed: number;
+  addonCreditsBalance: number;
+  addonCreditsUsed: number;
   periodStart: Date;
   periodEnd: Date;
   status: 'active' | 'cancelled' | 'expired';
@@ -60,9 +63,10 @@ export async function createCheckoutSession(
   const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:8556';
 
   // Fetch active beta discount (if any) to auto-apply at checkout
-  const discountId = provider.providerName === 'polar'
-    ? (await getActiveDiscountId(billingCycle)) ?? undefined
-    : undefined;
+  const discountId =
+    provider.providerName === 'polar'
+      ? ((await getActiveDiscountId(billingCycle)) ?? undefined)
+      : undefined;
 
   return provider.createCheckoutSession({
     userId,
@@ -101,6 +105,8 @@ export async function getCurrentSubscription(
       planType: subscription.planType,
       creditsBalance: subscription.creditsBalance,
       creditsUsed: subscription.creditsUsed,
+      addonCreditsBalance: subscription.addonCreditsBalance,
+      addonCreditsUsed: subscription.addonCreditsUsed,
       periodStart: subscription.periodStart,
       periodEnd: subscription.periodEnd,
       status: isActive ? 'active' : 'expired',
@@ -155,49 +161,18 @@ export async function cancelSubscription(userId: string): Promise<void> {
   }
 }
 
-/**
- * Deduct credits from user's subscription
- */
-export async function deductCredits(
-  userId: string,
-  amount: number = 1
-): Promise<boolean> {
-  try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!subscription) {
-      throw new Error('No subscription found');
-    }
-
-    if (subscription.creditsBalance < amount) {
-      return false; // Insufficient credits
-    }
-
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: { decrement: amount },
-        creditsUsed: { increment: amount },
-      },
-    });
-
-    logger.info('Credits deducted', {
-      userId,
-      amount,
-      remaining: subscription.creditsBalance - amount,
-    });
-    return true;
-  } catch (error) {
-    logger.error('Failed to deduct credits', error as Error, {
-      userId,
-      amount,
-    });
-    throw error;
-  }
-}
+// ---------------------------------------------------------------------------
+// deductCredits — re-exported from credit.service.ts (single source of truth)
+//
+// The canonical implementation lives in ../credit/credit.service.ts and supports:
+//   • Dual credit pools (plan credits consumed first, then addon credits)
+//   • Full transaction logging (creditTransaction table with balanceBefore/After)
+//   • Low-credit and depleted-credit user notifications
+//
+// This re-export exists so that any code importing from subscription.service
+// still gets the correct, production-grade implementation.
+// ---------------------------------------------------------------------------
+export { deductCredits } from '../credit/credit.service';
 
 // =========================================================================
 // Webhook Handlers (called by subscription.controller.ts)
@@ -331,6 +306,8 @@ export async function handleSubscriptionRenewed(
       data: {
         creditsBalance: plan.credits,
         creditsUsed: 0,
+        watermarkFreeUsed: 0,
+        watermarkFreeResetDate: periodStart,
         periodStart,
         periodEnd,
       },
@@ -449,6 +426,19 @@ export async function handlePolarSubscriptionActive(data: {
       planId,
       polarSubscriptionId: subscriptionId,
     });
+
+    // Notify user of subscription activation (fire-and-forget)
+    const router = getService('notificationRouter');
+    router
+      .routeToUser(userId, {
+        type: 'subscription_activated',
+        title: 'Subscription Activated',
+        message: `Your ${plan.name} plan is now active with ${plan.credits} credits.`,
+        priority: 'normal',
+        actionUrl: '/dashboard/credits',
+        metadata: { planId, credits: plan.credits, billingCycle },
+      })
+      .catch(() => {});
   } catch (error) {
     logger.error('Failed to handle Polar subscription', error as Error, {
       userId,
@@ -488,6 +478,18 @@ export async function handlePolarSubscriptionCancelled(
       subscriptionId: subscription.id,
       periodEnd: subscription.periodEnd,
     });
+
+    // Notify user of cancellation (fire-and-forget)
+    const router = getService('notificationRouter');
+    router
+      .routeToUser(subscription.userId, {
+        type: 'subscription_cancelled',
+        title: 'Subscription Cancelled',
+        message: `Your subscription will end on ${subscription.periodEnd?.toLocaleDateString() || 'your current period end'}. You can continue using your remaining credits until then.`,
+        priority: 'high',
+        actionUrl: '/dashboard/credits',
+      })
+      .catch(() => {});
   } catch (error) {
     logger.error(
       'Failed to handle Polar subscription cancellation',
@@ -537,6 +539,8 @@ export async function handlePolarSubscriptionRenewed(
       data: {
         creditsBalance: plan.credits,
         creditsUsed: 0,
+        watermarkFreeUsed: 0,
+        watermarkFreeResetDate: periodStart,
         periodStart,
         periodEnd,
         cancelAtPeriodEnd: false,
@@ -548,6 +552,19 @@ export async function handlePolarSubscriptionRenewed(
       subscriptionId: subscription.id,
       polarSubscriptionId,
     });
+
+    // Notify user of subscription renewal (fire-and-forget)
+    const renewRouter = getService('notificationRouter');
+    renewRouter
+      .routeToUser(subscription.userId, {
+        type: 'subscription_renewed',
+        title: 'Subscription Renewed',
+        message: `Your subscription has been renewed. ${plan.credits} credits are now available.`,
+        priority: 'normal',
+        actionUrl: '/dashboard/credits',
+        metadata: { credits: plan.credits },
+      })
+      .catch(() => {});
   } catch (error) {
     logger.error('Failed to handle Polar subscription renewal', error as Error);
     throw error;

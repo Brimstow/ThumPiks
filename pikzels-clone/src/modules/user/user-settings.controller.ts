@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as userSettingsService from './user-settings.service';
+import * as profileService from './profile.service';
 import { logger } from '../../utils/logger';
 
 /**
@@ -126,5 +127,56 @@ export async function updateAutoImport(
   } catch (error) {
     logger.error('Failed to update auto-import', error as Error);
     res.status(500).json({ error: 'Failed to update auto-import setting' });
+  }
+}
+
+/**
+ * Change user password
+ */
+export async function changePassword(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Current password and new password are required' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: 'New password must be at least 8 characters' });
+      return;
+    }
+
+    await profileService.changePassword(userId, currentPassword, newPassword);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Failed to change password', error as Error);
+    const message = (error as Error).message;
+    res.status(400).json({ error: message || 'Failed to change password' });
+  }
+}
+
+/**
+ * Delete user account
+ */
+export async function deleteAccount(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await profileService.deleteUserAccount(userId);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error('Failed to delete account', error as Error);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 }
