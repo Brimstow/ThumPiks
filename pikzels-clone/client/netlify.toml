@@ -13,10 +13,32 @@
 # API_PROXY_TARGET  → build script writes _redirects with proxy rule
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+# CROSS-ORIGIN ISOLATION (SharedArrayBuffer / FFmpeg.wasm)
+# ═══════════════════════════════════════════════════════════════════
+# COOP + COEP enable window.crossOriginIsolated = true, which is
+# required for SharedArrayBuffer (multi-threaded FFmpeg.wasm).
+#
+# "credentialless" (vs "require-corp") is intentional:
+#   • Chrome 110+ / Firefox 119+: crossOriginIsolated = true ✅
+#   • Does NOT block cross-origin resources (Google Fonts, Cloudinary,
+#     unpkg CDN, analytics) — only strips credentials from them.
+#   • Safari does NOT support "credentialless" and will ignore it,
+#     so crossOriginIsolated stays false → FFmpeg falls back to
+#     single-threaded mode automatically (see video-service.ts).
+# ═══════════════════════════════════════════════════════════════════
+
 [build.environment]
   NODE_ENV = "production"
   NODE_VERSION = "22"
   CI = ""
+
+# Cross-origin isolation headers for all pages
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
 
 # Admin SPA fallback (must be before the main catch-all)
 [[redirects]]

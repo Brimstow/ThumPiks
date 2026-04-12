@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -10,85 +10,60 @@ import {
 import { Provider as TooltipProvider } from '@radix-ui/react-tooltip';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import ErrorBoundary from './components/ErrorBoundary';
-
-// Eager: Landing + Auth (needed on first paint)
 import ThumPiksLanding from './components/ThumPiksLanding';
+import ThumPiksTest from './components/PikzelsTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
+import VerifyEmailSuccess from './components/auth/VerifyEmailSuccess';
+import ShadcnTest from './components/ShadcnTest';
 
-// Lazy: Auth supplementary
-const VerifyEmailSuccess = lazy(() => import('./components/auth/VerifyEmailSuccess'));
-
-// Lazy: Dashboard shell + pages
-const DashboardLayout = lazy(() => import('./components/dashboard/DashboardLayout'));
-const DashboardHome = lazy(() => import('./components/dashboard/DashboardHome'));
-const HelpPage = lazy(() => import('./components/dashboard/HelpPage'));
-const BrandPage = lazy(() => import('./components/dashboard/BrandPage'));
-const ProjectsPage = lazy(() => import('./components/dashboard/ProjectsPage'));
-const ProjectDetail = lazy(() => import('./components/projects/ProjectDetail'));
-const TemplatesPage = lazy(() => import('./components/dashboard/TemplatesPage'));
-const AnalyticsPage = lazy(() => import('./components/dashboard/AnalyticsPage'));
-const MyThumbnailsPage = lazy(() => import('./components/dashboard/MyThumbnailsPage'));
-const UploadsPage = lazy(() => import('./components/dashboard/UploadsPage'));
-const TrendingPage = lazy(() => import('./components/dashboard/TrendingPage'));
-const PricingPage = lazy(() => import('./components/dashboard/PricingPage'));
-const CreditsPage = lazy(() => import('./components/dashboard/CreditsPage'));
-const NotificationsPage = lazy(() => import('./components/notifications/NotificationsPage'));
-const AIToolsPage = lazy(() => import('./components/dashboard/AIToolsPage'));
-const VisionToolPage = lazy(() => import('./components/dashboard/VisionToolPage'));
-const VisualSearchPage = lazy(() => import('./components/dashboard/VisualSearchPage'));
-const ABTestingPage = lazy(() => import('./components/dashboard/ABTestingPage'));
-const QuickEditView = lazy(() => import('./components/dashboard/QuickEditView'));
-const AccountPage = lazy(() => import('./components/account/AccountPage'));
-const DemoCheckout = lazy(() => import('./components/dashboard/DemoCheckout'));
-
-// Lazy: Editors (heaviest components)
-const ThumbnailStudioPage = lazy(() => import('./pages/ThumbnailStudioPage'));
-const CanvasEditorPage = lazy(() => import('./pages/CanvasEditorPage'));
-const PresetEditorPage = lazy(() => import('./pages/PresetEditorPage'));
-const VideoEditorPage = lazy(() => import('./pages/VideoEditorPage'));
-const CreatePlusPage = lazy(() => import('./pages/CreatePlusPage'));
-const BatchEditor = lazy(() => import('./components/BatchEditor'));
-
-// Lazy: Analytics
-const UserAnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
-const AdvancedAnalyticsDashboard = lazy(() => import('./components/AdvancedAnalyticsDashboard'));
-const SocialShareAnalytics = lazy(() => import('./components/SocialShareAnalytics'));
-
-// Lazy: Static content pages
-const AboutPage = lazy(() => import('./components/AboutPage'));
-const ContactPage = lazy(() => import('./components/ContactPage'));
-const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
-const TermsPage = lazy(() => import('./components/TermsPage'));
-const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
-const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
-const ChangelogPage = lazy(() => import('./pages/ChangelogPage'));
-
-// Lazy: Misc
-const SharedThumbnailPage = lazy(() => import('./components/SharedThumbnailPage'));
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const ThumPiksTest = lazy(() => import('./components/PikzelsTest'));
-const ShadcnTest = lazy(() => import('./components/ShadcnTest'));
+// User Components
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
+import DashboardLayout from './components/dashboard/DashboardLayout';
+import DashboardHome from './components/dashboard/DashboardHome';
+import HelpPage from './components/dashboard/HelpPage';
+import BrandPage from './components/dashboard/BrandPage';
+import ProjectsPage from './components/dashboard/ProjectsPage';
+import ProjectDetail from './components/projects/ProjectDetail';
+import TemplatesPage from './components/dashboard/TemplatesPage';
+import AnalyticsPage from './components/dashboard/AnalyticsPage';
+import MyThumbnailsPage from './components/dashboard/MyThumbnailsPage';
+import UploadsPage from './components/dashboard/UploadsPage';
+import TrendingPage from './components/dashboard/TrendingPage';
+import PricingPage from './components/dashboard/PricingPage';
+import CreditsPage from './components/dashboard/CreditsPage';
+import NotificationsPage from './components/notifications/NotificationsPage';
+import AIToolsPage from './components/dashboard/AIToolsPage';
+import VisionToolPage from './components/dashboard/VisionToolPage';
+import VisualSearchPage from './components/dashboard/VisualSearchPage';
+import ABTestingPage from './components/dashboard/ABTestingPage';
+import QuickEditView from './components/dashboard/QuickEditView';
+import ErrorBoundary from './components/ErrorBoundary';
+import BatchEditor from './components/BatchEditor';
+import CanvasEditorPage from './pages/CanvasEditorPage';
+import PresetEditorPage from './pages/PresetEditorPage';
+import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
+import UserAnalyticsDashboard from './components/AnalyticsDashboard';
+import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
+import SocialShareAnalytics from './components/SocialShareAnalytics';
+import AccountPage from './components/account/AccountPage';
+import SharedThumbnailPage from './components/SharedThumbnailPage';
+import AboutPage from './components/AboutPage';
+import ContactPage from './components/ContactPage';
+import PrivacyPage from './components/PrivacyPage';
+import TermsPage from './components/TermsPage';
+import FeaturesPage from './pages/FeaturesPage';
+import ReviewsPage from './pages/ReviewsPage';
+import ChangelogPage from './pages/ChangelogPage';
+import VideoEditorPage from './pages/VideoEditorPage';
+import CreatePlusPage from './pages/CreatePlusPage';
+import DemoCheckout from './components/dashboard/DemoCheckout';
 
 // Import custom styles
 import './styles/animations.css';
-
-// Suspense fallback for lazy-loaded routes
-function PageLoader() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--background, #0a0a0a)' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-        <div style={{ width: '32px', height: '32px', border: '2px solid #2563ff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <p style={{ color: '#888', fontSize: '14px' }}>Loading...</p>
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-    </div>
-  );
-}
 
 
 
@@ -242,7 +217,6 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <div className="App">
-            <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<ThumPiksLanding />} />
@@ -492,7 +466,6 @@ function App() {
               {/* Catch-all - Redirect to Landing Page */}
               <Route path="*" element={<ThumPiksLanding />} />
             </Routes>
-            </Suspense>
           </div>
         </AuthProvider>
       </ThemeProvider>
