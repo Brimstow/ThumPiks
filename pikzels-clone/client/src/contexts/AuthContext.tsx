@@ -77,6 +77,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setUser(data.user);
         // Store session ID for session tracking (non-critical, may fail in Safari Private Browsing)
         try { if (data.sessionId) localStorage.setItem('sessionId', data.sessionId); } catch { /* Safari Private Browsing */ }
+        // Reset session-only onboarding dismissal so Quick Edit overlay reappears on fresh login
+        try { sessionStorage.removeItem('thumpiks_onboarding_session_dismissed'); } catch { /* ignore */ }
         // Initialize token expiration for proactive refresh (15 minutes)
         setTokenExpiration(900);
         return { success: true };

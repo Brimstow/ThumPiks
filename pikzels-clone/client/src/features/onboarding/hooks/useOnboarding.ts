@@ -10,6 +10,7 @@ import type { OnboardingPrefs, UseOnboardingReturn } from '../types';
 import { DEFAULT_ONBOARDING_PREFS } from '../types';
 
 const STORAGE_KEY = 'thumpiks_onboarding_prefs';
+const SESSION_DISMISSED_KEY = 'thumpiks_onboarding_session_dismissed';
 
 /**
  * Read onboarding preferences from localStorage
@@ -38,6 +39,29 @@ function setStoredPrefs(prefs: OnboardingPrefs): void {
 }
 
 /**
+ * Check if overlay was dismissed this browser session (tab lifetime).
+ * Resets automatically on new tab / login.
+ */
+function isDismissedThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_DISMISSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark overlay as dismissed for this browser session only.
+ */
+function setDismissedThisSession(): void {
+  try {
+    sessionStorage.setItem(SESSION_DISMISSED_KEY, 'true');
+  } catch {
+    // sessionStorage unavailable — silently fail
+  }
+}
+
+/**
  * Hook for managing onboarding state.
  * 
  * @example
@@ -49,6 +73,7 @@ function setStoredPrefs(prefs: OnboardingPrefs): void {
  */
 export function useOnboarding(): UseOnboardingReturn {
   const [prefs, setPrefs] = useState<OnboardingPrefs>(getStoredPrefs);
+  const [sessionDismissed, setSessionDismissed] = useState(isDismissedThisSession);
 
   // Sync to localStorage when prefs change
   useEffect(() => {
@@ -56,18 +81,26 @@ export function useOnboarding(): UseOnboardingReturn {
   }, [prefs]);
 
   // Calculate whether to show Quick Edit overlay
-  // Show if: enabled in settings AND not dismissed permanently AND (not seen this session OR not dismissed)
+  // Show if: enabled in settings AND not permanently dismissed AND not dismissed this session
   const shouldShowQuickEditOverlay = 
     prefs.quickEditOverlayEnabled && 
-    !prefs.quickEditOverlayDismissed;
+    !prefs.quickEditOverlayDismissed &&
+    !sessionDismissed;
 
   // Dismiss overlay
   const dismissOverlay = useCallback((permanent = false) => {
-    setPrefs(prev => ({
-      ...prev,
-      quickEditOverlaySeen: true,
-      quickEditOverlayDismissed: permanent,
-    }));
+    if (permanent) {
+      // "Don't show again" — persist to localStorage
+      setPrefs(prev => ({
+        ...prev,
+        quickEditOverlaySeen: true,
+        quickEditOverlayDismissed: true,
+      }));
+    } else {
+      // Session-only dismiss — will reappear on next login/tab
+      setDismissedThisSession();
+      setSessionDismissed(true);
+    }
   }, []);
 
   // Mark overlay as seen (first time view)

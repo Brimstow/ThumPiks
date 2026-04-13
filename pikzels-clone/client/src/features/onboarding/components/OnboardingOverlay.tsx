@@ -29,7 +29,7 @@ interface OnboardingOverlayProps {
  */
 export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
-  const { shouldShowQuickEditOverlay, dismissOverlay, prefs, setQuickEditOverlayEnabled } = useOnboarding();
+  const { shouldShowQuickEditOverlay, dismissOverlay } = useOnboarding();
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isVisible, setIsVisible] = useState(shouldShowQuickEditOverlay);
 
@@ -54,29 +54,20 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onDismiss 
 
   const handleDismiss = useCallback(() => {
     setIsVisible(false);
-    // If "Don't show again" is checked, dismiss permanently
-    // Otherwise, just disable for this session (will show again on next login)
-    if (dontShowAgain) {
-      dismissOverlay(true);
-    } else {
-      // Disable overlay for this session only
-      setQuickEditOverlayEnabled(false);
-    }
+    // If "Don't show again" is checked, dismiss permanently via localStorage
+    // Otherwise, dismiss for this session only via sessionStorage
+    dismissOverlay(dontShowAgain);
     onDismiss?.();
-  }, [dontShowAgain, dismissOverlay, setQuickEditOverlayEnabled, onDismiss]);
+  }, [dontShowAgain, dismissOverlay, onDismiss]);
 
   const handleOptionClick = useCallback((flow: QuickEditFlow) => {
     setIsVisible(false);
-    // If "Don't show again" is checked, dismiss permanently
-    // Otherwise, just disable for this session (will show again on next login)
-    if (dontShowAgain) {
-      dismissOverlay(true);
-    } else {
-      setQuickEditOverlayEnabled(false);
-    }
+    // If "Don't show again" is checked, dismiss permanently via localStorage
+    // Otherwise, dismiss for this session only via sessionStorage
+    dismissOverlay(dontShowAgain);
     // Navigate to quick edit with the selected flow
     navigate(`/dashboard/quick-edit?flow=${flow}`);
-  }, [dontShowAgain, dismissOverlay, setQuickEditOverlayEnabled, navigate]);
+  }, [dontShowAgain, dismissOverlay, navigate]);
 
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
