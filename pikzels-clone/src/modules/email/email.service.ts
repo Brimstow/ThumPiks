@@ -385,14 +385,28 @@ export class EmailService {
     }
 
     switch (type) {
-      case 'delivered':
+      case 'email.sent':
+        // email_id is available - update log to confirm Resend accepted it
+        await updateEmailLog(messageId, {
+          status: 'sent',
+        });
+        break;
+
+      case 'email.delivered':
         await updateEmailLog(messageId, {
           status: 'delivered',
           deliveredAt: new Date(),
         });
         break;
 
-      case 'bounce':
+      case 'email.delivery_delayed':
+        await updateEmailLog(messageId, {
+          status: 'failed',
+          errorMessage: 'Delivery delayed',
+        });
+        break;
+
+      case 'email.bounced':
         const isHardBounce = bounceType === 'hard';
         await updateEmailLog(messageId, {
           status: isHardBounce ? 'bounced' : 'failed',
@@ -412,22 +426,25 @@ export class EmailService {
               email,
               reason,
             });
-            // Optionally: mark email as bounced in user record
-            // await prisma.user.update({
-            //   where: { id: emailLog.User.id },
-            //   data: { emailBounced: true },
-            // });
           }
         }
         break;
 
-      case 'complaint':
+      case 'email.complained':
         await updateEmailLog(messageId, {
           status: 'failed',
           bounceReason: 'Spam complaint',
           failedAt: new Date(),
         });
         logger.warn(`Spam complaint received for email ${email}`);
+        break;
+
+      case 'email.failed':
+        await updateEmailLog(messageId, {
+          status: 'failed',
+          errorMessage: reason || 'Email failed to send',
+          failedAt: new Date(),
+        });
         break;
 
       default:

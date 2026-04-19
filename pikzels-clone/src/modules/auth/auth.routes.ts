@@ -355,7 +355,12 @@ router.get(
  */
 router.post('/webhooks/resend', async (req, res) => {
   try {
-    const { type, email, messageId, reason, bounceType } = req.body;
+    // Resend webhook payload structure: { type, created_at, data: { email_id, to, from, ... } }
+    const { type, data } = req.body;
+    const messageId = data?.email_id;
+    const email = Array.isArray(data?.to) ? data.to[0] : data?.to;
+    const reason = data?.reason;
+    const bounceType = data?.bounce_type;
 
     logger.info('Received Resend webhook', {
       type,
