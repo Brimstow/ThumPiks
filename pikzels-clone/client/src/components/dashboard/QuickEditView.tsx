@@ -51,7 +51,7 @@ import {
   FrameExtractionProgress,
   FrameRateLimitInfo,
 } from '../../services/quickEditService';
-import { authPost } from '../../utils/api';
+import { authPost, createAIToolAbortController } from '../../utils/api';
 import AICommandBar from '../editor/components/AICommandBar';
 import { useQuickEditCommandExecutor } from './hooks/useQuickEditCommandExecutor';
 import { useAITextGenerator } from '../../hooks/useAITextGenerator';
@@ -722,6 +722,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // JJ: AbortController for cancellable AI operations
+  const [aiAbortController, setAiAbortController] = useState<AbortController | null>(null);
+  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Frame extraction progress (SSE streaming)
   const [extractionProgress, setExtractionProgress] =
@@ -1527,10 +1531,26 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
     setLoadingMessage('Enhancing image quality...');
     setError(null);
 
+    // JJ: AbortController with per-tool timeout (40s for enhance)
+    const { controller, timeoutId } = createAIToolAbortController('enhance');
+    setAiAbortController(controller);
+    aiTimeoutRef.current = timeoutId;
+
+    // JJ: Progressive feedback — escalate messaging over time
+    const startTime = Date.now();
+    aiProgressTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > 25_000) {
+        setLoadingMessage('Enhancement is slow — consider cancelling and retrying...');
+      } else if (elapsed > 15_000) {
+        setLoadingMessage('This is taking longer than usual...');
+      }
+    }, 5_000);
+
     try {
       const res = await authPost('/api/thumbnails/ai/enhance', {
         image: resultImageUrl,
-      });
+      }, { signal: controller.signal });
 
       if (!res.ok) {
         const err = await res
@@ -1546,11 +1566,31 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         aiText.clearSuggestions();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Enhancement failed');
+      // JJ: Distinguish user cancellation from actual errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Enhancement timed out or was cancelled. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Enhancement failed');
+      }
     } finally {
+      // JJ: Clean up timeout and progress timer
+      clearTimeout(aiTimeoutRef.current ?? undefined);
+      if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current);
+      aiTimeoutRef.current = null;
+      aiProgressTimerRef.current = null;
+      setAiAbortController(null);
       setLoading(false);
       setLoadingMessage('');
     }
+  };
+
+  /** JJ: Cancel the current AI operation */
+  const handleCancelAI = () => {
+    aiAbortController?.abort();
+    if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current);
+    setLoading(false);
+    setLoadingMessage('');
+    setError('Operation cancelled.');
   };
 
   // ============================================
@@ -1913,10 +1953,10 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
   const renderStartScreen = () => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
       <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3">
           Create a Thumbnail
         </h1>
-        <p className="text-gray-400 text-lg">
+        <p className="text-gray-400 text-base sm:text-lg">
           Pick how you want to start — it only takes a minute.
         </p>
       </div>
@@ -1925,7 +1965,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         {/* Paste URL */}
         <button
           onClick={() => setView('url-input')}
-          className="group flex flex-col items-center gap-4 p-8 rounded-2xl
+          className="group flex flex-col items-center gap-4 p-5 sm:p-8 rounded-2xl
                      bg-gray-800/50 border border-gray-700/50 hover:border-purple-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
@@ -1944,7 +1984,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         {/* AI Generate */}
         <button
           onClick={() => setView('ai-generate')}
-          className="group flex flex-col items-center gap-4 p-8 rounded-2xl
+          className="group flex flex-col items-center gap-4 p-5 sm:p-8 rounded-2xl
                      bg-gray-800/50 border border-gray-700/50 hover:border-amber-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
@@ -1963,7 +2003,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         {/* Upload Image */}
         <button
           onClick={() => setView('upload')}
-          className="group flex flex-col items-center gap-4 p-8 rounded-2xl
+          className="group flex flex-col items-center gap-4 p-5 sm:p-8 rounded-2xl
                      bg-gray-800/50 border border-gray-700/50 hover:border-emerald-500/50
                      hover:bg-gray-800 transition-all duration-200 cursor-pointer"
         >
@@ -2007,7 +2047,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
       <h2 className="text-2xl font-bold text-white mb-2">Paste a video link</h2>
       <p className="text-gray-400 mb-6">We'll grab the best frames for you.</p>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="flex-1 relative">
           <input
             type="url"
@@ -2017,7 +2057,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             placeholder="https://youtube.com/watch?v=..."
             className="w-full px-4 py-3 pr-10 rounded-xl bg-gray-800 border border-gray-700
                        text-white placeholder-gray-500 focus:outline-none focus:border-purple-500
-                       transition-colors"
+                       transition-colors text-sm sm:text-base"
             autoFocus
           />
           {urlInput && (
@@ -2036,7 +2076,7 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
           disabled={loading || !urlInput.trim()}
           className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500
                      text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-colors flex items-center gap-2"
+                     transition-colors flex items-center justify-center gap-2"
         >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -2048,12 +2088,12 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
       </div>
 
       {/* Quick Actions — Paste from Clipboard + Try an Example */}
-      <div className="flex items-center gap-2 mt-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3">
         <button
           onClick={handlePasteFromClipboard}
           disabled={clipboardStatus === 'pasting'}
           type="button"
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all flex-1
+          className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-medium transition-all flex-1
             ${
               clipboardStatus === 'pasted'
                 ? 'bg-green-500/15 border-green-500/40 text-green-400'
@@ -2075,9 +2115,9 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
           onClick={handleTryExample}
           type="button"
           title={`Try with: ${EXAMPLE_VIDEO_LABEL}`}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700/50
+          className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl border border-gray-700/50
                      bg-gray-800/60 text-gray-400 hover:text-white hover:border-amber-500/40
-                     text-sm font-medium transition-all whitespace-nowrap"
+                     text-xs sm:text-sm font-medium transition-all whitespace-nowrap"
         >
           <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
           Try an Example
@@ -2916,11 +2956,19 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
             );
           })}
 
-          {/* Loading overlay */}
+          {/* Loading overlay — JJ: includes Cancel button for AI operations */}
           {loading && (
             <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-white animate-spin" />
               <p className="text-white text-sm">{loadingMessage}</p>
+              {aiAbortController && (
+                <button
+                  onClick={handleCancelAI}
+                  className="px-4 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           )}
         </div>

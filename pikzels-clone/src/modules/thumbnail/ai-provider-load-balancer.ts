@@ -120,9 +120,9 @@ export class AIProviderLoadBalancer {
     maxConcurrentPerProvider: 5,
     maxConcurrentTotal: 15,
     maxQueueSize: 100,
-    queueTimeoutMs: 120000, // 2 minutes
+    queueTimeoutMs: 60_000, // JJ: 60s (was 120s — queued requests shouldn't wait 2 min)
     maxRetries: 2,
-    retryDelayMs: 1000,
+    retryDelayMs: 2000, // JJ: 2s base (was 1s) — per Gemini API best practices
     retryBackoffMultiplier: 2,
     healthCheckIntervalMs: 30000, // 30 seconds
     unhealthyThreshold: 3,
@@ -329,10 +329,12 @@ export class AIProviderLoadBalancer {
         if (this.isRetryableError(lastError)) {
           retries++;
           if (retries <= this.config.maxRetries) {
-            const delay =
+            // JJ: Exponential backoff with jitter to prevent thundering herd
+            const baseDelay =
               this.config.retryDelayMs *
               Math.pow(this.config.retryBackoffMultiplier, retries - 1);
-            await this.sleep(delay);
+            const jitter = Math.random() * 1000; // 0-1s random jitter
+            await this.sleep(baseDelay + jitter);
           }
         } else {
           // Non-retryable error, try next provider
@@ -672,6 +674,8 @@ export class AIProviderLoadBalancer {
       'not found',
       'invalid prompt',
       'content policy',
+      'insufficient credits',   // JJ: billing issues, retrying won't help
+      'model may not support',  // JJ: wrong model selected, retrying same model is pointless
     ];
     const lowerError = error.toLowerCase();
     return !nonRetryablePatterns.some((pattern) => lowerError.includes(pattern));

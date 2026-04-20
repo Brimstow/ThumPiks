@@ -1,5 +1,31 @@
 import config from '../config/environment';
 
+// JJ: Per-tool frontend timeouts (slightly longer than backend to allow backend's own timeout to fire first)
+// Backend timeouts: enhance=30s, remove-bg=25s, generate=45s, inpaint=60s, face-swap=45s, upscale=60s, expand=45s
+const AI_TOOL_TIMEOUT_MS: Record<string, number> = {
+  enhance:    40_000,
+  'remove-bg': 35_000,
+  generate:   55_000,
+  inpaint:    70_000,
+  'face-swap': 55_000,
+  upscale:    70_000,
+  expand:     55_000,
+  default:    55_000,
+};
+
+/** JJ: Get frontend timeout for an AI tool endpoint */
+export function getAIToolTimeout(toolType: string): number {
+  return AI_TOOL_TIMEOUT_MS[toolType] ?? AI_TOOL_TIMEOUT_MS.default;
+}
+
+/** JJ: Create an AbortController that auto-aborts after the given AI tool timeout */
+export function createAIToolAbortController(toolType: string): { controller: AbortController; timeoutId: ReturnType<typeof setTimeout> } {
+  const controller = new AbortController();
+  const timeoutMs = getAIToolTimeout(toolType);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return { controller, timeoutId };
+}
+
 /**
  * Authenticated fetch wrapper that uses HttpOnly cookies for auth.
  * This replaces the old pattern of reading tokens from localStorage.
@@ -148,11 +174,13 @@ export async function authGet(endpoint: string): Promise<Response> {
 
 /**
  * Convenience method for POST requests with JSON body
+ * JJ: Now accepts optional RequestInit overrides (signal, etc.) for AI tool timeouts
  */
-export async function authPost(endpoint: string, body: unknown): Promise<Response> {
+export async function authPost(endpoint: string, body: unknown, extraOptions?: RequestInit): Promise<Response> {
   return authFetch(endpoint, {
     method: 'POST',
     body: JSON.stringify(body),
+    ...extraOptions,
   });
 }
 

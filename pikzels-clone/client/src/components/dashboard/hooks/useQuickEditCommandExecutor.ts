@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { authPost } from '../../../utils/api';
+import { authPost, createAIToolAbortController } from '../../../utils/api';
 
 // ============================================================================
 // Quick Edit Command Executor Hook
@@ -286,16 +286,25 @@ export function useQuickEditCommandExecutor(
           if (!imageUrl) break;
           callbacks.setLoading(true);
           callbacks.setLoadingMessage('Enhancing image...');
+          // JJ: AbortController with per-tool timeout (40s for enhance)
+          const { controller: enhanceCtrl, timeoutId: enhanceTimeout } = createAIToolAbortController('enhance');
           try {
             const res = await authPost('/api/thumbnails/ai/enhance', {
-              imageUrl,
-            });
+              image: imageUrl,  // JJ: FIXED — was 'imageUrl', backend expects 'image'
+            }, { signal: enhanceCtrl.signal });
             if (!res.ok) throw new Error('Enhancement failed');
             const data = await res.json();
-            if (data.imageUrl) {
-              callbacks.setResultImageUrl(data.imageUrl);
+            // JJ: FIXED — backend returns data.images (array), not data.imageUrl
+            if (data.images?.length > 0) {
+              callbacks.setResultImageUrl(data.images[0]);
+            }
+          } catch (err: unknown) {
+            // JJ: Handle abort/timeout
+            if (err instanceof Error && err.name === 'AbortError') {
+              callbacks.setError('Enhancement timed out. Please try again.');
             }
           } finally {
+            clearTimeout(enhanceTimeout);
             callbacks.setLoading(false);
             callbacks.setLoadingMessage('');
           }

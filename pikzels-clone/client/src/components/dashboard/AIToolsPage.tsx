@@ -3,7 +3,7 @@
  * Standalone AI tools for image manipulation without the full editor
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -32,7 +32,7 @@ import RecreateBetterModal from '../ui/RecreateBetterModal';
 import { useAIService } from '../../hooks/useAIService';
 import { useAIWorker } from '../../hooks/useAIWorker';
 import { config } from '../../config/environment';
-import { authPost, authGet } from '../../utils/api';
+import { authPost, authGet, createAIToolAbortController } from '../../utils/api';
 import type { AIGenerateRequest } from '../../services/ai-providers';
 import { ModelTierSelector, useModelTiers } from '../../features/ai-tools';
 import type { ModelTierId } from '../../features/ai-tools';
@@ -148,6 +148,9 @@ const AIToolsPage: React.FC = () => {
   const [faceSwapSource, setFaceSwapSource] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  // JJ: AbortController for cancellable AI operations
+  const [aiAbortController, setAiAbortController] = useState<AbortController | null>(null);
+  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Expand/Outpaint state
   const [expandDirection, setExpandDirection] = useState<'all' | 'top' | 'bottom' | 'left' | 'right'>('all');
@@ -463,6 +466,11 @@ const AIToolsPage: React.FC = () => {
     setIsGenerating(true);
     setGenerateError(null);
 
+    // JJ: AbortController with per-tool timeout (40s for enhance)
+    const { controller, timeoutId } = createAIToolAbortController('enhance');
+    setAiAbortController(controller);
+    aiTimeoutRef.current = timeoutId;
+
     try {
       // Call backend OpenRouter API (auth via HttpOnly cookie)
       const response = await authPost(
@@ -470,7 +478,8 @@ const AIToolsPage: React.FC = () => {
         {
           image: uploadedImage,
           enhancementType: enhanceType,
-        }
+        },
+        { signal: controller.signal }
       );
 
       if (!response.ok) {
@@ -484,14 +493,32 @@ const AIToolsPage: React.FC = () => {
         setResultOriginalUrl(data.originals?.[0] || null);
       }
     } catch (error) {
-      console.error('Enhance failed:', error);
-      setGenerateError(
-        error instanceof Error ? error.message : 'Enhance failed'
-      );
+      // JJ: Distinguish user cancellation from actual errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        setGenerateError('Enhancement timed out or was cancelled. Please try again.');
+      } else {
+        console.error('Enhance failed:', error);
+        setGenerateError(
+          error instanceof Error ? error.message : 'Enhance failed'
+        );
+      }
     } finally {
+      clearTimeout(aiTimeoutRef.current ?? undefined);
+      aiTimeoutRef.current = null;
+      setAiAbortController(null);
       setIsGenerating(false);
     }
   }, [uploadedImage, enhanceType, ai.isLoading, isGenerating]);
+
+  /** JJ: Cancel the current AI operation */
+  const handleCancelAI = useCallback(() => {
+    aiAbortController?.abort();
+    clearTimeout(aiTimeoutRef.current ?? undefined);
+    aiTimeoutRef.current = null;
+    setAiAbortController(null);
+    setIsGenerating(false);
+    setGenerateError('Operation cancelled.');
+  }, [aiAbortController]);
 
   const handleUpscale = useCallback(async () => {
     if (!uploadedImage || ai.isLoading || isGenerating) return;
@@ -1591,32 +1618,43 @@ const AIToolsPage: React.FC = () => {
 
               {/* Process Button (hidden for object-removal and recreate-better which have their own flows) */}
               {selectedTool !== 'object-removal' && selectedTool !== 'recreate-better' && (
-                <button
-                  onClick={handleProcessTool}
-                  disabled={
-                    ai.isLoading ||
-                    isGenerating ||
-                    (selectedTool === 'generate' && !generatePrompt.trim()) ||
-                    (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
-                    (currentTool.requiresImage && !uploadedImage) ||
-                    (selectedTool === 'face-swap' && !faceSwapSource)
-                  }
-                  className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
-                >
-                  {ai.isLoading || isGenerating ? (
-                    <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      {currentTool.icon}
-                      {selectedTool === 'generate'
-                        ? 'Generate Image'
-                        : `Apply ${currentTool.name}`}
-                    </>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleProcessTool}
+                    disabled={
+                      ai.isLoading ||
+                      isGenerating ||
+                      (selectedTool === 'generate' && !generatePrompt.trim()) ||
+                      (selectedTool === 'inpaint' && !inpaintPrompt.trim()) ||
+                      (currentTool.requiresImage && !uploadedImage) ||
+                      (selectedTool === 'face-swap' && !faceSwapSource)
+                    }
+                    className={`w-full py-4 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${currentTool.color} hover:shadow-lg hover:shadow-purple-500/25`}
+                  >
+                    {ai.isLoading || isGenerating ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        {currentTool.icon}
+                        {selectedTool === 'generate'
+                          ? 'Generate Image'
+                          : `Apply ${currentTool.name}`}
+                      </>
+                    )}
+                  </button>
+                  {/* JJ: Cancel button during AI processing */}
+                  {(ai.isLoading || isGenerating) && aiAbortController && (
+                    <button
+                      onClick={handleCancelAI}
+                      className="px-4 py-4 rounded-xl font-semibold text-white transition-all bg-slate-700 hover:bg-slate-600 flex items-center justify-center gap-2"
+                    >
+                      Cancel
+                    </button>
                   )}
-                </button>
+                </div>
               )}
 
               {/* Error Display */}

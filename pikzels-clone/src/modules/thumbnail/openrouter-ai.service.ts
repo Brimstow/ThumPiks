@@ -4,8 +4,27 @@ import { logger } from '../../utils/logger';
 
 dotenv.config();
 
-// Timeout configuration (in milliseconds)
-const IMAGE_GENERATION_TIMEOUT = 120000; // 2 minutes for image generation
+// Timeout configuration (in milliseconds) — per-tool timeouts
+// Research-backed: Gemini Flash enhance/remove-bg ~5-15s, Pro inpaint ~10-30s, upscale ~15-45s
+const TOOL_TIMEOUT_MS: Record<string, number> = {
+  enhance:    30_000,  // 30s - Gemini Pro, single image edit
+  'remove-bg': 25_000,  // 25s - Gemini Pro, simple task
+  generate:   45_000,  // 45s - Gemini Flash, text-to-image
+  inpaint:    60_000,  // 60s - Gemini Pro, complex edit with context
+  'face-swap': 45_000,  // 45s - Seedream, specialized portrait
+  upscale:    60_000,  // 60s - FLUX/Gemini, detail-heavy 2K/4K
+  expand:     45_000,  // 45s - outpainting, canvas expansion
+  default:    45_000,  // 45s fallback
+} as const;
+
+// JJ: Per-tool timeout lookup — replaces flat IMAGE_GENERATION_TIMEOUT
+const DEFAULT_TIMEOUT_MS = 45_000;
+function getToolTimeout(toolType?: string): number {
+  if (!toolType) return DEFAULT_TIMEOUT_MS;
+  const val = (TOOL_TIMEOUT_MS as Record<string, number>)[toolType];
+  return typeof val === 'number' ? val : DEFAULT_TIMEOUT_MS;
+}
+
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 3000; // 3 seconds
 
@@ -184,7 +203,7 @@ export class OpenRouterAIService {
     // Use 16:9 aspect ratio for thumbnails by default
     const aspectRatio = OpenRouterAIService.ASPECT_RATIOS.LANDSCAPE_16_9;
 
-    return await this.callImageAPI(styledPrompt, model, aspectRatio);
+    return await this.callImageAPI(styledPrompt, model, aspectRatio, undefined, 'generate');
   }
 
   /**
@@ -209,7 +228,7 @@ export class OpenRouterAIService {
     }
 
     const styledPrompt = this.applyStyle(prompt, style);
-    return await this.callImageAPI(styledPrompt, model, aspectRatio, imageSize);
+    return await this.callImageAPI(styledPrompt, model, aspectRatio, imageSize, 'generate');
   }
 
   /**
@@ -251,7 +270,8 @@ export class OpenRouterAIService {
     prompt: string,
     model: string,
     aspectRatio: string = '16:9',
-    imageSize?: '1K' | '2K' | '4K'
+    imageSize?: '1K' | '2K' | '4K',
+    toolType?: string
   ): Promise<string[]> {
     let lastError: Error | null = null;
 
@@ -267,7 +287,8 @@ export class OpenRouterAIService {
           prompt,
           model,
           aspectRatio,
-          imageSize
+          imageSize,
+          toolType
         );
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -302,13 +323,15 @@ export class OpenRouterAIService {
     prompt: string,
     model: string,
     aspectRatio: string = '16:9',
-    imageSize?: '1K' | '2K' | '4K'
+    imageSize?: '1K' | '2K' | '4K',
+    toolType?: string
   ): Promise<string[]> {
-    // Create abort controller for timeout
+    // JJ: Per-tool timeout instead of flat 120s
+    const timeout = getToolTimeout(toolType);
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      IMAGE_GENERATION_TIMEOUT
+      timeout
     );
 
     try {
@@ -381,8 +404,12 @@ export class OpenRouterAIService {
           );
         }
         if (response.status === 429) {
+          // JJ: Parse Retry-After header for smarter backoff
+          const retryAfter: string | null | undefined = response.headers?.get?.('Retry-After');
+          const retryAfterSec = retryAfter ? parseInt(retryAfter, 10) : NaN;
+          const waitHint = !isNaN(retryAfterSec) ? ` Retry after ${retryAfterSec}s.` : '';
           throw new Error(
-            'OpenRouter rate limit exceeded. Please try again later.'
+            `OpenRouter rate limit exceeded.${waitHint} Please try again later.`
           );
         }
         if (response.status === 400) {
@@ -419,7 +446,7 @@ export class OpenRouterAIService {
       // Handle abort/timeout specifically
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
-          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s. Image generation may take longer - please try again.`
+          `OpenRouter: Request timed out after ${timeout / 1000}s. Image generation may take longer - please try again.`
         );
       }
 
@@ -660,7 +687,7 @@ export class OpenRouterAIService {
     const fullPrompt = `Edit this image. Apply a mask and modify the masked region as follows: ${prompt}. Preserve the unmasked areas exactly as they are.`;
 
     // Send image with prompt for inpainting
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'inpaint');
   }
 
   /**
@@ -690,7 +717,8 @@ export class OpenRouterAIService {
     return await this.callImageAPIWithMultipleImages(
       [sourceImageBase64, targetImageBase64],
       fullPrompt,
-      model
+      model,
+      'face-swap'
     );
   }
 
@@ -721,7 +749,8 @@ export class OpenRouterAIService {
       fullPrompt,
       model,
       '16:9',
-      imageSize
+      imageSize,
+      'upscale'
     );
   }
 
@@ -748,7 +777,7 @@ export class OpenRouterAIService {
         : `a solid ${backgroundColor} background`;
     const fullPrompt = `Remove the background from this image. Keep only the main subject(s) in the foreground with ${bgDesc}. Preserve fine details like hair edges and semi-transparent elements.`;
 
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'remove-bg');
   }
 
   /**
@@ -793,7 +822,7 @@ export class OpenRouterAIService {
 
     const fullPrompt = `${enhancementDesc} Maintain the original composition and style.`;
 
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model);
+    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'enhance');
   }
 
   // ===========================================================================
@@ -1314,12 +1343,15 @@ Rules:
     prompt: string,
     model: string,
     aspectRatio: string = '16:9',
-    imageSize?: '1K' | '2K' | '4K'
+    imageSize?: '1K' | '2K' | '4K',
+    toolType?: string
   ): Promise<string[]> {
+    // JJ: Per-tool timeout instead of flat 120s
+    const timeout = getToolTimeout(toolType);
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      IMAGE_GENERATION_TIMEOUT
+      timeout
     );
 
     try {
@@ -1396,7 +1428,7 @@ Rules:
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
-          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`
+          `OpenRouter: Request timed out after ${timeout / 1000}s`
         );
       }
       throw error;
@@ -1409,12 +1441,15 @@ Rules:
   private async callImageAPIWithMultipleImages(
     imagesBase64: string[],
     prompt: string,
-    model: string
+    model: string,
+    toolType?: string
   ): Promise<string[]> {
+    // JJ: Per-tool timeout instead of flat 120s
+    const timeout = getToolTimeout(toolType);
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      IMAGE_GENERATION_TIMEOUT
+      timeout
     );
 
     try {
@@ -1476,7 +1511,7 @@ Rules:
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
-          `OpenRouter: Request timed out after ${IMAGE_GENERATION_TIMEOUT / 1000}s`
+          `OpenRouter: Request timed out after ${timeout / 1000}s`
         );
       }
       throw error;
