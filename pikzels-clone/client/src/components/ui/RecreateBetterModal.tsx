@@ -26,7 +26,7 @@ import {
   Type,
   BarChart3,
 } from 'lucide-react';
-import { authPost } from '../../utils/api';
+import { authPost, createAIToolAbortController } from '../../utils/api';
 import { useImageActions, enhancePromptFromAnalysis, calculateRecreateBetterCost } from '../../hooks/useImageActions';
 import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 import type { RecreateBetterModalProps, RecreateBetterStage } from '../../types/image-actions.types';
@@ -175,11 +175,15 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
     setError(null);
 
     try {
+      // JJ: Per-tool AbortController with timeout (55s for generate)
+      const { controller, timeoutId } = createAIToolAbortController('generate');
       const response = await authPost('/api/thumbnails/ai/generate', {
         prompt: improvedPrompt,
         aspectRatio: '16:9',
         tier: 'balanced',
-      });
+      }, { signal: controller.signal });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const data = await response.json();
@@ -197,7 +201,11 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       onImageGenerated?.(newImageUrl, improvedPrompt);
       setStage('result');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Generation timed out or was cancelled. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Generation failed');
+      }
       setStage('error');
     }
   }, [improvedPrompt, onImageGenerated]);

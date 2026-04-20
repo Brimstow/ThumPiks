@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { authPost } from '../../../utils/api';
+import { authPost, createAIToolAbortController } from '../../../utils/api';
 import type { Layer, TextLayer, ImageLayer, ShapeLayer } from '../types/editor.types';
 
 // ============================================================================
@@ -450,17 +450,26 @@ export function useCommandExecutor(
         case 'decompose': {
           if (!targetLayer || targetLayer.type !== 'image') break;
           const maxLayers = typeof action.params.maxLayers === 'number' ? action.params.maxLayers : 8;
-          const decomposeResp = await authPost('/api/thumbnails/ai/decompose', {
-            image: (targetLayer as ImageLayer).src,
-            maxLayers,
-          });
-          if (decomposeResp.ok) {
-            const decomposeData = await decomposeResp.json();
-            if (decomposeData.success && decomposeData.layers) {
-              decomposeData.layers.forEach((layer: { imageBase64: string }, idx: number) => {
-                callbacks.addImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`);
-              });
+          // JJ: Per-tool AbortController with timeout
+          const { controller: decompCtrl, timeoutId: decompTimeout } = createAIToolAbortController('generate');
+          try {
+            const decomposeResp = await authPost('/api/thumbnails/ai/decompose', {
+              image: (targetLayer as ImageLayer).src,
+              maxLayers,
+            }, { signal: decompCtrl.signal });
+            clearTimeout(decompTimeout);
+            if (decomposeResp.ok) {
+              const decomposeData = await decomposeResp.json();
+              if (decomposeData.success && decomposeData.layers) {
+                decomposeData.layers.forEach((layer: { imageBase64: string }, idx: number) => {
+                  callbacks.addImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`);
+                });
+              }
             }
+          } catch (err) {
+            clearTimeout(decompTimeout);
+            if (err instanceof Error && err.name !== 'AbortError') throw err;
+            // AbortError: silently ignore timeout/abort for decompose
           }
           break;
         }
@@ -489,17 +498,25 @@ export function useCommandExecutor(
 
         case 'aiText': {
           const p = action.params;
-          const resp = await authPost('/api/thumbnails/ai/generate-text', {
-            prompt: p.prompt as string,
-            style: (p.style as string) || undefined,
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.text) {
-              const x = width / 2;
-              const y = height / 2;
-              callbacks.addTextLayer(data.text, x, y);
+          // JJ: Per-tool AbortController with timeout (generate-text uses default 55s)
+          const { controller: textCtrl, timeoutId: textTimeout } = createAIToolAbortController('generate');
+          try {
+            const resp = await authPost('/api/thumbnails/ai/generate-text', {
+              prompt: p.prompt as string,
+              style: (p.style as string) || undefined,
+            }, { signal: textCtrl.signal });
+            clearTimeout(textTimeout);
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.text) {
+                const x = width / 2;
+                const y = height / 2;
+                callbacks.addTextLayer(data.text, x, y);
+              }
             }
+          } catch (err) {
+            clearTimeout(textTimeout);
+            if (err instanceof Error && err.name !== 'AbortError') throw err;
           }
           break;
         }

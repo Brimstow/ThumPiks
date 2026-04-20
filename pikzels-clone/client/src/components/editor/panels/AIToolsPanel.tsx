@@ -176,7 +176,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
   canvasRef,
 }) => {
   // Backend AI hook for all paid operations
-  const { callBackendAI, isLoading, error } = useBackendAI();
+  const { callBackendAI, isLoading, error, cancel: cancelAI, isAborted } = useBackendAI();
   // Local AI service only for free analyze operation
   const localAI = useAIService(AI_SERVICE_CONFIG);
   // Fetch tier config from backend (needed for capability checks)
@@ -583,11 +583,27 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({
         ))}
       </div>
       
-      {/* Loading Indicator */}
+      {/* Loading Indicator with Cancel button — JJ */}
       {isLoading && currentOperation && (
         <div className="ai-tools-loading">
           <Icons.Loader />
           <span>Processing {currentOperation}...</span>
+          <button
+            className="ai-cancel-btn"
+            onClick={cancelAI}
+            style={{
+              marginLeft: '8px',
+              padding: '4px 10px',
+              background: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            Cancel
+          </button>
         </div>
       )}
       
