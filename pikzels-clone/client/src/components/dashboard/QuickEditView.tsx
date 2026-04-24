@@ -1498,11 +1498,27 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
     setLoadingMessage('Adding your face...');
     setError(null);
 
+    // JJ: AbortController with per-tool timeout (50s for face-swap — two images = larger payload)
+    const { controller, timeoutId } = createAIToolAbortController('face-swap');
+    setAiAbortController(controller);
+    aiTimeoutRef.current = timeoutId;
+
+    // JJ: Progressive feedback — escalate messaging over time
+    const startTime = Date.now();
+    aiProgressTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > 35_000) {
+        setLoadingMessage('Face swap is slow — consider cancelling and retrying...');
+      } else if (elapsed > 20_000) {
+        setLoadingMessage('This is taking longer than usual...');
+      }
+    }, 5_000);
+
     try {
       const res = await authPost('/api/thumbnails/ai/face-swap', {
         sourceImage: facePhoto,
         targetImage: resultImageUrl,
-      });
+      }, { signal: controller.signal });
 
       if (!res.ok) {
         const err = await res
@@ -1518,8 +1534,19 @@ const QuickEditView: React.FC<QuickEditViewProps> = ({
         aiText.clearSuggestions();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Face swap failed');
+      // JJ: Distinguish user cancellation from actual errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Face swap timed out or was cancelled. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Face swap failed');
+      }
     } finally {
+      // JJ: Clean up timeout and progress timer
+      clearTimeout(aiTimeoutRef.current ?? undefined);
+      if (aiProgressTimerRef.current) clearInterval(aiProgressTimerRef.current);
+      aiTimeoutRef.current = null;
+      aiProgressTimerRef.current = null;
+      setAiAbortController(null);
       setLoading(false);
       setLoadingMessage('');
     }

@@ -342,17 +342,29 @@ export function useQuickEditCommandExecutor(
           }
           callbacks.setLoading(true);
           callbacks.setLoadingMessage('Swapping face...');
+          // JJ: AbortController with per-tool timeout (face-swap sends two images = larger payload)
+          const { controller: faceSwapCtrl, timeoutId: faceSwapTimeoutId } = createAIToolAbortController('face-swap');
           try {
             const res = await authPost('/api/thumbnails/ai/face-swap', {
               sourceImage: facePhoto,
               targetImage: imageUrl,
-            });
-            if (!res.ok) throw new Error('Face swap failed');
+            }, { signal: faceSwapCtrl.signal });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Face swap failed');
+            }
             const data = await res.json();
             if (data.success && data.images?.length > 0) {
               callbacks.setResultImageUrl(data.images[0]);
             }
+          } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
+              callbacks.setError('Face swap timed out or was cancelled. Please try again.');
+            } else {
+              callbacks.setError(err instanceof Error ? err.message : 'Face swap failed');
+            }
           } finally {
+            clearTimeout(faceSwapTimeoutId);
             callbacks.setLoading(false);
             callbacks.setLoadingMessage('');
           }

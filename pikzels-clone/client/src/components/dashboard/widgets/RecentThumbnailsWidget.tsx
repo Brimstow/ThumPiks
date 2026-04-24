@@ -40,7 +40,7 @@ export const RecentThumbnailsWidget: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col" style={{ maxHeight: '480px' }}>
+    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 sm:p-6 flex flex-col" style={{ maxHeight: '480px' }}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-slate-50">Recent Thumbnails</h3>
         <button

@@ -509,7 +509,7 @@ const DashboardHome: React.FC = () => {
           <div className="absolute inset-0 -top-8 mx-auto h-56 max-w-5xl rounded-[28px] bg-gradient-to-r from-blue-500/15 via-sky-500/10 to-indigo-500/15 blur-3xl"></div>
 
           <div 
-            className={`sm:p-8 shadow-black/40 bg-[#020818] border-slate-800 border ring-slate-900/80 ring-1 rounded-2xl p-6 relative shadow-xl backdrop-blur transition-all duration-300 ${mainDragActive ? 'border-blue-500 ring-blue-500/50 bg-blue-500/5' : ''}`}
+            className={`sm:p-8 shadow-black/40 bg-[#020818] border-slate-800 border ring-slate-900/80 ring-1 rounded-2xl p-4 relative shadow-xl backdrop-blur transition-all duration-300 ${mainDragActive ? 'border-blue-500 ring-blue-500/50 bg-blue-500/5' : ''}`}
             onDragOver={(e) => handleDragOver(e, setMainDragActive)}
             onDragLeave={(e) => handleDragLeave(e, setMainDragActive)}
             onDrop={handleMainDrop}
@@ -600,7 +600,7 @@ const DashboardHome: React.FC = () => {
               {/* Center: Upload */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 group"
+                className="w-full sm:w-auto px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 group"
               >
                 <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 Upload
@@ -697,18 +697,26 @@ const DashboardHome: React.FC = () => {
 
       {/* Review Prompt Card — dismissible per session */}
       {reviewPromptVisible && (
-        <div className="mb-6 relative overflow-hidden rounded-xl border border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 via-transparent to-yellow-500/5 p-4">
-          <div className="flex items-center gap-4">
+        <div className="mb-6 relative overflow-hidden rounded-xl border border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 via-transparent to-yellow-500/5 p-3 sm:p-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center">
               <Star className="w-5 h-5 text-yellow-400" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-200">Enjoying ThumPiks?</p>
               <p className="text-xs text-slate-400 mt-0.5">Your honest review helps other creators discover us</p>
+              <div className="flex items-center gap-2 mt-2 sm:hidden">
+                <button
+                  onClick={() => navigate('/reviews')}
+                  className="px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
+                >
+                  Leave a Review
+                </button>
+              </div>
             </div>
             <button
               onClick={() => navigate('/reviews')}
-              className="flex-shrink-0 px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
+              className="hidden sm:block flex-shrink-0 px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
             >
               Leave a Review
             </button>
@@ -731,7 +739,7 @@ const DashboardHome: React.FC = () => {
       {/* Face Inclusion Modal */}
       {showFaceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-slate-50">Include Face in Thumbnail</h3>
               <button
@@ -796,7 +804,7 @@ const DashboardHome: React.FC = () => {
       {/* See Example Modal - YouTube Thumbnail Size (1280x720) */}
       {showExampleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-4xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-6 max-w-4xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-semibold text-slate-50">Thumbnail Examples</h3>
@@ -869,7 +877,7 @@ const DashboardHome: React.FC = () => {
       {/* Success Modal */}
       {successData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-8 max-w-2xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300 relative">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-8 max-w-2xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300 relative">
             <button
               onClick={() => {
                 if (navigationTimeoutRef.current) {

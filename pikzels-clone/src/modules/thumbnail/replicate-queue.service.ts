@@ -1,6 +1,7 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { ReplicateAIService } from './replicate-ai.service';
 import { createBreaker } from '../../utils/circuit-breaker';
+import { getRedisConfig } from './redis-config';
 
 /**
  * ReplicateQueueService - Production-grade request queue for Replicate API
@@ -29,55 +30,6 @@ const RATE_LIMIT_DURATION = 60000; // 1 minute window
 // Job configuration
 const JOB_TIMEOUT = 180000; // 3 minutes max per job
 const DEFAULT_ATTEMPTS = 1; // Let ReplicateAIService handle retries internally
-
-// Redis connection configuration
-// NOTE: Uses port 8520 for localhost (project convention), Railway auto-injects REDIS_URL
-function getRedisConfig(): {
-  host: string;
-  port: number;
-  password?: string;
-  maxRetriesPerRequest: null;
-} {
-  // If REDIS_URL is set (Railway production), parse it
-  const redisUrl = process.env.REDIS_URL;
-  if (redisUrl?.startsWith('redis://')) {
-    try {
-      const url = new URL(redisUrl);
-      const config: {
-        host: string;
-        port: number;
-        password?: string;
-        maxRetriesPerRequest: null;
-      } = {
-        host: url.hostname,
-        port: parseInt(url.port || '6379', 10),
-        maxRetriesPerRequest: null,
-      };
-      if (url.password) {
-        config.password = url.password;
-      }
-      return config;
-    } catch {
-      // Fall through to manual config
-    }
-  }
-
-  // Manual config (localhost development - uses port 8520 per project convention)
-  const config: {
-    host: string;
-    port: number;
-    password?: string;
-    maxRetriesPerRequest: null;
-  } = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '8520', 10),
-    maxRetriesPerRequest: null, // Required for BullMQ
-  };
-  if (process.env.REDIS_PASSWORD) {
-    config.password = process.env.REDIS_PASSWORD;
-  }
-  return config;
-}
 
 // Job types for type safety
 export type ReplicateJobType =

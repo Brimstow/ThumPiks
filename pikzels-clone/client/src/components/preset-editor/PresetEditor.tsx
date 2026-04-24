@@ -245,6 +245,8 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
     getLayerOrder: () => state.layerOrder,
     getSelectedLayerIds: () => state.selection.layerIds,
     getCanvasSize: () => ({ width: state.canvas.width, height: state.canvas.height }),
+    groupLayers: (_layerIds: string[]) => { /* no-op in preset editor */ },
+    ungroupLayers: (_groupId: string) => { /* no-op in preset editor */ },
   });
 
   // ---- Chat ---

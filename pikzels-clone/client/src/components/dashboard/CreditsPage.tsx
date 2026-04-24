@@ -189,21 +189,21 @@ const CreditsPage: React.FC = () => {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-50 mb-2">Credits & Usage</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-50 mb-2">Credits & Usage</h1>
           <p className="text-slate-400">Manage your credit balance and purchase additional credits</p>
         </div>
 
         {/* Credit Balance Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Main Balance Card with Plan/Add-on Breakdown */}
-          <div className="lg:col-span-2 bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-8">
-            <div className="flex items-start justify-between mb-6">
+          <div className="lg:col-span-2 bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-4 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="w-5 h-5 text-yellow-400" />
                   <span className="text-sm font-medium text-slate-300 uppercase tracking-wider">Current Balance</span>
                 </div>
-                <div className="text-5xl font-bold text-white mb-2">
+                <div className="text-3xl sm:text-5xl font-bold text-white mb-2">
                   {creditBreakdown.totalRemaining}
                 </div>
                 <p className="text-slate-400">
@@ -221,7 +221,7 @@ const CreditsPage: React.FC = () => {
 
             {/* Plan Credits Section */}
             <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0 mb-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-blue-400" />
                   <span className="text-sm font-medium text-slate-200">Plan Credits</span>
@@ -249,7 +249,7 @@ const CreditsPage: React.FC = () => {
             {/* Add-on Credits Section */}
             {creditBreakdown.addonCreditsTotal > 0 && (
               <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0 mb-3">
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-green-400" />
                     <span className="text-sm font-medium text-slate-200">Add-on Credits</span>
@@ -319,7 +319,7 @@ const CreditsPage: React.FC = () => {
 
           {/* Quick Stats */}
           <div className="space-y-4">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-green-500" />
@@ -333,7 +333,7 @@ const CreditsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
                   <Clock className="w-5 h-5 text-blue-500" />
@@ -353,7 +353,7 @@ const CreditsPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-slate-50 mb-1">Purchase Additional Credits</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-50 mb-1">Purchase Additional Credits</h2>
               <p className="text-slate-400">Buy credit packs to extend your usage beyond your subscription</p>
             </div>
           </div>
@@ -362,7 +362,7 @@ const CreditsPage: React.FC = () => {
             {creditPacks.map((pack) => (
               <div
                 key={pack.id}
-                className={`bg-slate-900/50 border rounded-xl p-6 hover:border-blue-500/50 transition-all relative ${
+                className={`bg-slate-900/50 border rounded-xl p-6 hover:border-blue-500/50 transition-all relative flex flex-col ${
                   pack.popular ? 'border-blue-500/50 shadow-lg shadow-blue-500/20' : 'border-slate-800'
                 }`}
               >
@@ -385,15 +385,15 @@ const CreditsPage: React.FC = () => {
                   <p className="text-sm text-slate-400">credits</p>
                 </div>
 
-                {pack.savings != null && (
-                  <div className="text-center mb-4">
+                <div className="text-center mb-4 min-h-[28px] flex items-center justify-center">
+                  {pack.savings != null && (
                     <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">
                       {typeof pack.savings === 'number' ? `Save $${pack.savings}` : pack.savings}
                     </span>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                <div className="text-center mb-4">
+                <div className="text-center mb-4 mt-auto">
                   <div className="text-2xl font-bold text-slate-50">${pack.price}</div>
                   <div className="text-xs text-slate-500">
                     ${(pack.price / pack.credits).toFixed(2)} per credit
@@ -427,13 +427,13 @@ const CreditsPage: React.FC = () => {
         </div>
 
         {/* Transaction History */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-50 mb-1">Transaction History</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-50 mb-1">Transaction History</h2>
               <p className="text-sm text-slate-400">Track all your credit transactions</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {/* Filter Dropdown */}
               <select
                 value={filterType}

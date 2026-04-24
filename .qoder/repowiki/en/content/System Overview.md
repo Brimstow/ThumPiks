@@ -1,10 +1,19 @@
 # System Overview
 
 <cite>
-**Referenced Files in This Document**   
+**Referenced Files in This Document**
 - [server.ts](file://pikzels-clone\src\server.ts)
 - [package.json](file://pikzels-clone\package.json)
 - [client/package.json](file://pikzels-clone\client\package.json)
+- [netlify.toml](file://netlify.toml)
+- [client/netlify.toml](file://pikzels-clone\client\netlify.toml)
+- [client/scripts/netlify-build.sh](file://pikzels-clone\client\scripts\netlify-build.sh)
+- [src/services/cache.service.ts](file://pikzels-clone\src\services\cache.service.ts)
+- [src/middleware/security.middleware.ts](file://pikzels-clone\src\middleware\security.middleware.ts)
+- [src/modules/auth/auth.controller.ts](file://pikzels-clone\src\modules\auth\auth.controller.ts)
+- [src/modules/video-proxy/video-proxy.routes.ts](file://pikzels-clone\src\modules\video-proxy\video-proxy.routes.ts)
+- [railway.json](file://railway.json)
+- [start.sh](file://pikzels-clone\start.sh)
 - [Project Roadmap.md](file://pikzels-clone\Project Roadmap.md)
 - [Project Glossary.md](file://pikzels-clone\Project Glossary.md)
 - [README.md](file://pikzels-clone\README.md)
@@ -18,22 +27,24 @@
 </cite>
 
 ## Update Summary
-**Changes Made**   
-- Updated system status to reflect production-ready infrastructure
-- Verified TypeScript and ESLint compatibility resolution
-- Confirmed infrastructure improvements from recent commit
-- Enhanced source tracking annotations for updated files
+**Changes Made**
+- Updated infrastructure section to reflect Netlify API proxy implementation resolving Safari authentication issues
+- Added cookie policy adjustments and CSRF vulnerability mitigation details
+- Enhanced cache service documentation with Railpack cache clobbering solutions
+- Updated security middleware to include cross-origin isolation headers
+- Added deployment configuration improvements for production stability
 
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Core Features](#core-features)
 3. [Technology Stack](#technology-stack)
 4. [System Architecture](#system-architecture)
-5. [User Workflows](#user-workflows)
-6. [Integration Points](#integration-points)
-7. [Key Technical Decisions](#key-technical-decisions)
-8. [Use Cases](#use-cases)
-9. [Roadmap and Glossary](#roadmap-and-glossary)
+5. [Infrastructure Improvements](#infrastructure-improvements)
+6. [User Workflows](#user-workflows)
+7. [Integration Points](#integration-points)
+8. [Key Technical Decisions](#key-technical-decisions)
+9. [Use Cases](#use-cases)
+10. [Roadmap and Glossary](#roadmap-and-glossary)
 
 ## Introduction
 
@@ -72,6 +83,7 @@ The application employs a modern technology stack with TypeScript as the primary
 - **AI Integration**: TensorFlow.js for client-side AI operations and potential integration with external AI services
 - **Testing**: Jest for unit and integration testing, React Testing Library for frontend tests
 - **Development Tools**: ESLint, Prettier, and Husky for code quality assurance
+- **Deployment**: Netlify for frontend hosting with API proxy, Railway for backend deployment
 
 ```mermaid
 graph TB
@@ -80,59 +92,86 @@ A[React]
 B[TypeScript]
 C[Vite]
 D[Tailwind CSS]
+E[Netlify Proxy]
 end
 subgraph "Backend"
-E[Node.js]
-F[Express]
-G[TypeScript]
-H[Prisma ORM]
+F[Node.js]
+G[Express]
+H[TypeScript]
+I[Prisma ORM]
+J[Cache Service]
 end
 subgraph "Database"
-I[SQLite]
+K[SQLite]
+L[Redis Cache]
 end
-subgraph "Services"
-J[JWT Authentication]
-K[Sharp Image Processing]
-L[TensorFlow.js]
+subgraph "Security"
+M[JWT Authentication]
+N[Security Middleware]
+O[COOP/COEP Headers]
+end
+subgraph "Deployment"
+P[Railway Platform]
+Q[Netlify Hosting]
+R[Railpack Builder]
 end
 A --> F
-E --> I
-J --> E
-K --> E
-L --> A
+E --> F
+F --> I
+F --> J
+J --> L
+M --> F
+N --> F
+O --> E
+P --> F
+Q --> E
+R --> P
 ```
 
 **Diagram sources**
 - [package.json](file://pikzels-clone\package.json)
 - [client/package.json](file://pikzels-clone\client\package.json)
+- [netlify.toml](file://netlify.toml)
+- [railway.json](file://railway.json)
 - [README.md](file://pikzels-clone\README.md)
 
 ## System Architecture
 
 The system follows a monolithic architecture with clearly defined modules and RESTful API design principles. The backend exposes a comprehensive API surface with authentication-protected endpoints for all core functionality.
 
+**Updated** Enhanced with Netlify API proxy architecture for improved Safari compatibility and CSRF protection
+
 ```mermaid
 graph TD
-A[Client Application] --> B[API Gateway]
-B --> C[Authentication Service]
-B --> D[Thumbnail Service]
-B --> E[Analytics Service]
-B --> F[Social Sharing Service]
-B --> G[Project Service]
-B --> H[Template Service]
-C --> I[Database]
-D --> I
-E --> I
-F --> I
-G --> I
-H --> I
-I --> J[Prisma ORM]
-classDef service fill:#4B5563,stroke:#374151,color:white;
-classDef database fill:#10B981,stroke:#059669,color:white;
-classDef orm fill:#8B5CF6,stroke:#7C3AED,color:white;
-class C,D,E,F,G,H service
-class I database
-class J orm
+A[Client Application] --> B[Netlify API Proxy]
+B --> C[API Gateway]
+C --> D[Authentication Service]
+C --> E[Thumbnail Service]
+C --> F[Analytics Service]
+C --> G[Social Sharing Service]
+C --> H[Project Service]
+C --> I[Template Service]
+D --> J[Database]
+E --> J
+F --> J
+G --> J
+H --> J
+I --> J
+J --> K[Prisma ORM]
+L[Cache Service] --> M[Redis Cache]
+L --> N[In-Memory Cache]
+C --> L
+O[Security Middleware] --> C
+P[Railway Deployment] --> C
+Q[Cross-Origin Isolation] --> B
+style A fill:#3B82F6,stroke:#2563EB,color:white
+style B fill:#10B981,stroke:#059669,color:white
+style C fill:#8B5CF6,stroke:#7C3AED,color:white
+style D fill:#EF4444,stroke:#DC2626,color:white
+style L fill:#F59E0B,stroke:#D97706,color:white
+style O fill:#EC4899,stroke:#DB2777,color:white
+style P fill:#06B6D4,stroke:#0891B2,color:white
+style Q fill:#8B5CF6,stroke:#7C3AED,color:white
 ```
 
 **Diagram sources**
@@ -141,6 +180,53 @@ class J orm
 - [thumbnail.routes.ts](file://pikzels-clone\src\modules\thumbnail\thumbnail.routes.ts)
 - [analytics.routes.ts](file://pikzels-clone\src\modules\analytics\analytics.routes.ts)
 - [social-share.routes.ts](file://pikzels-clone\src\modules\social-share\social-share.routes.ts)
+- [netlify.toml](file://netlify.toml)
+- [client/netlify.toml](file://pikzels-clone\client\netlify.toml)
+
+## Infrastructure Improvements
+
+**Updated** Major infrastructure enhancements for production stability and browser compatibility
+
+### Netlify API Proxy Implementation
+
+The system now implements a comprehensive API proxy architecture through Netlify to resolve critical Safari authentication issues and CSRF vulnerabilities:
+
+- **Safari ITP Compatibility**: All API requests route through Netlify proxy, making cookies first-party and resolving third-party cookie blocking
+- **CSRF Protection**: SameSite=Lax cookies with Netlify proxy eliminate cross-site request forgery vectors
+- **Cross-Origin Isolation**: COOP/COEP headers enable SharedArrayBuffer for multi-threaded FFmpeg processing
+- **Environment-Specific Configuration**: Separate proxy targets for production, preview, and staging environments
+
+### Cookie Policy Adjustments
+
+Enhanced cookie security with environment-aware configurations:
+
+- **Production**: Secure cookies with SameSite=Lax for CSRF protection
+- **Development**: Strict cookies for local development testing
+- **Fallback Mechanisms**: LocalStorage support for Safari Private Browsing mode compatibility
+
+### Railpack Cache Clobbering Solutions
+
+Railway's RAILPACK builder can clobber the built server.js file during deployments. The system implements automatic recovery:
+
+- **Build Detection**: Startup script checks for missing server.js and rebuilds if necessary
+- **Prisma Integration**: Automatic Prisma client regeneration during rebuild process
+- **Deployment Resilience**: Graceful handling of cache misses without manual intervention
+
+### Cross-Origin Isolation Headers
+
+Implemented COOP (Cross-Origin-Opener-Policy) and COEP (Cross-Origin-Embedder-Policy) headers:
+
+- **Same-Origin**: Ensures proper cross-origin isolation for SharedArrayBuffer
+- **Credentialless Mode**: Allows cross-origin resource loading without credentials
+- **Browser Compatibility**: Chrome 110+/Firefox 119+ support with Safari fallback
+
+**Section sources**
+- [netlify.toml](file://netlify.toml)
+- [client/netlify.toml](file://pikzels-clone\client\netlify.toml)
+- [client/scripts/netlify-build.sh](file://pikzels-clone\client\scripts\netlify-build.sh)
+- [src/modules/auth/auth.controller.ts](file://pikzels-clone\src\modules\auth\auth.controller.ts)
+- [src/services/cache.service.ts](file://pikzels-clone\src\services\cache.service.ts)
+- [start.sh](file://pikzels-clone\start.sh)
 
 ## User Workflows
 
@@ -151,6 +237,7 @@ The platform supports end-to-end workflows from user registration to performance
 2. JWT token generation upon successful login
 3. Token storage in localStorage for session persistence
 4. Protected route access through authentication middleware
+5. **Updated** Enhanced with Netlify proxy for seamless Safari authentication
 
 ### Thumbnail Creation and Editing
 1. Creation of new thumbnails through AI generation or manual design
@@ -166,23 +253,25 @@ The platform supports end-to-end workflows from user registration to performance
 
 ```mermaid
 flowchart TD
-A[User Registration] --> B[Login]
-B --> C[Dashboard]
-C --> D[Create Thumbnail]
-D --> E[Edit Thumbnail]
-E --> F[Save to Project]
-F --> G[Generate Share Link]
-G --> H[Post to Social Media]
-H --> I[Track Analytics]
-I --> J[Optimize Future Thumbnails]
+A[User Registration] --> B[Netlify Proxy Authentication]
+B --> C[Login with Enhanced Security]
+C --> D[Dashboard]
+D --> E[Create Thumbnail]
+E --> F[Edit Thumbnail]
+F --> G[Save to Project]
+G --> H[Generate Share Link]
+H --> I[Post to Social Media]
+I --> J[Track Analytics]
+J --> K[Optimize Future Thumbnails]
 style A fill:#3B82F6,stroke:#2563EB,color:white
-style J fill:#10B981,stroke:#059669,color:white
+style K fill:#10B981,stroke:#059669,color:white
 ```
 
 **Diagram sources**
 - [auth.middleware.ts](file://pikzels-clone\src\middleware\auth.middleware.ts)
 - [thumbnail.routes.ts](file://pikzels-clone\src\modules\thumbnail\thumbnail.routes.ts)
 - [analytics.routes.ts](file://pikzels-clone\src\modules\analytics\analytics.routes.ts)
+- [netlify.toml](file://netlify.toml)
 
 ## Integration Points
 
@@ -192,6 +281,7 @@ The system integrates with various external services and platforms:
 - **AI Services**: Extensible architecture for integrating with external AI thumbnail generation services
 - **Analytics Services**: Collection and reporting of engagement metrics from shared thumbnails
 - **Authentication Providers**: Support for third-party authentication beyond email/password
+- **Video Processing**: yt-dlp and FFmpeg integration for video thumbnail extraction
 
 The integration architecture follows a factory pattern for social media clients, allowing for easy addition of new platforms:
 
@@ -234,29 +324,39 @@ SocialMediaFactory --> SocialMediaClient
 
 ## Key Technical Decisions
 
-### JWT Authentication
-The system implements JWT-based authentication with middleware protection for all API routes. The authentication flow follows industry best practices:
+### JWT Authentication with Enhanced Security
+
+The system implements JWT-based authentication with middleware protection for all API routes, enhanced with Netlify proxy architecture:
+
+**Updated** Improved Safari compatibility and CSRF protection through proxy-based cookie handling
 
 ```mermaid
 sequenceDiagram
 participant Client
+participant NetlifyProxy
 participant Server
 participant Database
-Client->>Server : POST /api/auth/login
+Client->>NetlifyProxy : POST /api/auth/login
+NetlifyProxy->>Server : Forward with First-Party Cookies
 Server->>Database : Verify credentials
 Database-->>Server : User data
 Server->>Server : Generate JWT token
-Server-->>Client : Return token
-Client->>Server : Request with Authorization header
+Server-->>NetlifyProxy : Return token
+NetlifyProxy-->>Client : Set SameSite=Lax Cookie
+Client->>NetlifyProxy : Request with Authorization header
+NetlifyProxy->>Server : Forward authenticated request
 Server->>Server : Verify token
-Server-->>Client : Process request or return 401
+Server-->>NetlifyProxy : Process request or return 401
+NetlifyProxy-->>Client : Return response
 ```
 
 **Diagram sources**
 - [auth.middleware.ts](file://pikzels-clone\src\middleware\auth.middleware.ts)
 - [auth.routes.ts](file://pikzels-clone\src\modules\auth\auth.routes.ts)
+- [netlify.toml](file://netlify.toml)
 
 ### RESTful API Design
+
 The backend follows RESTful principles with resource-based endpoints and proper HTTP status codes:
 
 - `POST /api/auth/register` - User registration
@@ -267,6 +367,7 @@ The backend follows RESTful principles with resource-based endpoints and proper 
 - `GET /api/analytics/dashboard` - Analytics data
 
 ### Monorepo Structure
+
 The project follows a monorepo structure with clear separation of concerns:
 
 ```mermaid
@@ -278,22 +379,30 @@ A --> E[docs]
 A --> F[shared]
 B --> G[React Components]
 B --> H[UI Elements]
-C --> I[Modules]
-C --> J[Middleware]
-D --> K[Migrations]
-D --> L[Schema]
-F --> M[Shared Services]
+B --> I[Netlify Configuration]
+C --> J[Modules]
+C --> K[Middleware]
+C --> L[Security]
+D --> M[Migrations]
+D --> N[Schema]
+F --> O[Shared Services]
+P[railway.json] --> Q[Railpack Deployment]
+R[start.sh] --> S[Cache Recovery]
 style A fill:#059669,stroke:#047857,color:white
 style B fill:#3B82F6,stroke:#2563EB,color:white
 style C fill:#3B82F6,stroke:#2563EB,color:white
 style D fill:#10B981,stroke:#059669,color:white
 style E fill:#8B5CF6,stroke:#7C3AED,color:white
 style F fill:#F59E0B,stroke:#D97706,color:white
+style P fill:#EF4444,stroke:#DC2626,color:white
+style R fill:#10B981,stroke:#059669,color:white
 ```
 
 **Diagram sources**
 - [README.md](file://pikzels-clone\README.md)
 - [package.json](file://pikzels-clone\package.json)
+- [railway.json](file://railway.json)
+- [start.sh](file://pikzels-clone\start.sh)
 
 ## Use Cases
 
@@ -320,6 +429,9 @@ The platform's glossary defines key terms such as:
 - **JWT**: JSON Web Token used for authentication
 - **Prisma**: ORM used for database operations
 - **Vite**: Build tool for the frontend application
+- **Netlify Proxy**: API proxy layer resolving Safari authentication issues
+- **COOP/COEP**: Cross-origin isolation headers enabling SharedArrayBuffer
+- **Railpack**: Railway's optimized build system with cache management
 
 **Section sources**
 - [Project Roadmap.md](file://pikzels-clone\Project Roadmap.md)

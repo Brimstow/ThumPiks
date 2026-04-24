@@ -258,7 +258,7 @@ const FeaturesPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
@@ -269,13 +269,13 @@ const FeaturesPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="hidden sm:inline-flex text-gray-400 hover:text-white transition-colors"
             >
               Back to Home
             </button>
             <button
               onClick={() => navigate('/register')}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
             >
               Start Free
             </button>
@@ -284,7 +284,7 @@ const FeaturesPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-6">
+      <section className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Sparkles className="w-4 h-4 text-blue-500" />
@@ -292,12 +292,12 @@ const FeaturesPage: React.FC = () => {
               Everything you need to create stunning thumbnails
             </span>
           </div>
-          <h1 className="text-6xl font-light mb-6">
+          <h1 className="text-4xl sm:text-6xl font-light mb-6">
             Powerful Features for
             <br />
             <span className="text-blue-500">Maximum Clicks</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-10">
+          <p className="text-base sm:text-xl text-gray-400 mb-8 sm:mb-10">
             Two powerful editors, 12 AI tools, and everything you need —
             from image generation to vision analysis to video frame extraction.
           </p>
@@ -305,18 +305,18 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Features Grid */}
-      <section className="py-20 px-6 bg-gray-900/30">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 bg-gray-900/30">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-all duration-300 hover:transform hover:scale-105"
+                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 hover:border-blue-600/50 transition-all duration-300 hover:transform hover:scale-105"
               >
-                <div className="w-16 h-16 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-6">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-4 sm:mb-6">
                   {feature.icon}
                 </div>
-                <h3 className="text-2xl font-semibold mb-4">{feature.title}</h3>
+                <h3 className="text-xl sm:text-2xl font-semibold mb-3 sm:mb-4">{feature.title}</h3>
                 <p className="text-gray-400 mb-6">{feature.description}</p>
                 <ul className="space-y-2">
                   {feature.highlights.map((highlight, i) => (
@@ -336,10 +336,10 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Editor Comparison — Side by Side */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               Two Editors, <span className="text-blue-500">One Goal</span>
             </h2>
             <p className="text-gray-400 text-lg">
@@ -349,16 +349,16 @@ const FeaturesPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Quick Editor */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-purple-600/50 transition-all duration-300 relative">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 hover:border-purple-600/50 transition-all duration-300 relative">
               <div className="absolute top-4 right-4">
                 <span className="text-xs bg-purple-600/20 text-purple-400 border border-purple-600/30 rounded-full px-2.5 py-1">
                   Speed First
                 </span>
               </div>
-              <div className="w-16 h-16 bg-purple-600/10 rounded-xl flex items-center justify-center text-purple-500 mb-6">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-purple-600/10 rounded-xl flex items-center justify-center text-purple-500 mb-4 sm:mb-6">
                 <MousePointerClick className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-semibold mb-2">Quick Editor</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-2">Quick Editor</h3>
               <p className="text-gray-400 mb-6">
                 Get from idea to finished thumbnail in under a minute. Paste a link, upload, or generate — then polish with AI tools and export.
               </p>
@@ -394,16 +394,16 @@ const FeaturesPage: React.FC = () => {
             </div>
 
             {/* Full Canvas Editor */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-all duration-300 relative">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 hover:border-blue-600/50 transition-all duration-300 relative">
               <div className="absolute top-4 right-4">
                 <span className="text-xs bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-full px-2.5 py-1">
                   Full Control
                 </span>
               </div>
-              <div className="w-16 h-16 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-6">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mb-4 sm:mb-6">
                 <Palette className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-semibold mb-2">Full Canvas Editor</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-2">Full Canvas Editor</h3>
               <p className="text-gray-400 mb-6">
                 A professional layer-based editor with AI superpowers. Build complex compositions with precision tools — no Photoshop needed.
               </p>
@@ -441,14 +441,14 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Coming Soon Section */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12 sm:mb-16">
             <div className="inline-flex items-center gap-2 bg-blue-600/10 border border-blue-600/30 rounded-full px-4 py-2 mb-6">
               <Sparkles className="w-4 h-4 text-blue-400" />
               <span className="text-sm text-blue-400">On the Roadmap</span>
             </div>
-            <h2 className="text-5xl font-light mb-4">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               Coming <span className="text-blue-500">Soon</span>
             </h2>
             <p className="text-gray-400 text-lg">
@@ -490,10 +490,10 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Use Cases Section */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               Perfect for <span className="text-blue-500">Every Creator</span>
             </h2>
             <p className="text-gray-400 text-lg">
@@ -505,13 +505,13 @@ const FeaturesPage: React.FC = () => {
             {useCases.map((useCase, index) => (
               <div
                 key={index}
-                className="relative bg-gray-900/50 border border-gray-800 rounded-2xl p-8 overflow-hidden group hover:border-gray-700 transition-colors"
+                className="relative bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 overflow-hidden group hover:border-gray-700 transition-colors"
               >
                 <div
                   className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${useCase.color} opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-opacity`}
                 ></div>
                 <div className="relative z-10">
-                  <h3 className="text-2xl font-semibold mb-3">
+                  <h3 className="text-xl sm:text-2xl font-semibold mb-3">
                     {useCase.title}
                   </h3>
                   <p className="text-gray-400">{useCase.description}</p>
@@ -523,10 +523,10 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Comparison Section */}
-      <section className="py-20 px-6 bg-gray-900/30">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 bg-gray-900/30">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               Why Choose <span className="text-blue-500">ThumPiks</span>
             </h2>
             <p className="text-gray-400 text-lg">
@@ -534,8 +534,8 @@ const FeaturesPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl overflow-hidden">
-            <table className="w-full">
+          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl overflow-x-auto">
+            <table className="w-full min-w-[540px]">
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left p-6 text-gray-400 font-normal">
@@ -633,14 +633,29 @@ const FeaturesPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Link to full comparison page */}
+          <div className="text-center mt-10">
+            <p className="text-gray-400 text-sm mb-3">
+              Want the full picture? We compared {' '}
+              <span className="text-white font-medium">31 features</span> across 4 tool categories.
+            </p>
+            <button
+              onClick={() => navigate('/compare')}
+              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+            >
+              See the complete comparison
+              <Share2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-32 px-6">
+      <section className="py-20 sm:py-32 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
-            <h2 className="text-5xl font-light mb-6">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-6 sm:p-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-light mb-6">
               Ready to Create
               <br />
               <span className="text-blue-500">10/10 Thumbnails?</span>
@@ -671,7 +686,7 @@ const FeaturesPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 px-6">
+      <footer className="border-t border-gray-800 py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
           <p>
             © {new Date().getFullYear()} ThumPiks LLC. All rights reserved.

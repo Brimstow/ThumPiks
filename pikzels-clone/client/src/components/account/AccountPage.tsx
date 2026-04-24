@@ -661,16 +661,16 @@ const AccountPage: React.FC = () => {
     <div className="min-h-screen pb-12">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-100 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 mb-1 sm:mb-2">
           Account Settings
         </h1>
-        <p className="text-slate-400">
+        <p className="text-sm sm:text-base text-slate-400">
           Manage your account, billing, and preferences
         </p>
       </div>
 
       {/* Two-column layout: left sidebar + content */}
-      <div className="flex gap-8 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 lg:items-start">
         {/* Left Sidebar Nav */}
         <nav className="hidden lg:flex flex-col w-56 shrink-0 sticky top-24 gap-6">
           {navGroups.map(group => (
@@ -706,7 +706,7 @@ const AccountPage: React.FC = () => {
         </nav>
 
         {/* Mobile horizontal tabs fallback */}
-        <div className="flex lg:hidden gap-1 p-1 bg-slate-900/50 rounded-xl border border-slate-800 mb-6 overflow-x-auto w-full">
+        <div className="flex lg:hidden gap-1 p-1 bg-slate-900/50 rounded-xl border border-slate-800 overflow-x-auto w-full shrink-0">
           {navGroups
             .flatMap(g => g.items)
             .map(item => (
@@ -737,13 +737,13 @@ const AccountPage: React.FC = () => {
               ) : profileData ? (
                 <>
                   {/* Profile Picture Section */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                     <h2 className="text-lg font-semibold text-slate-100 mb-4">
                       Profile Picture
                     </h2>
-                    <div className="flex items-center gap-6">
-                      <div className="relative">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-semibold overflow-hidden">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                      <div className="relative shrink-0">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl sm:text-3xl font-semibold overflow-hidden">
                           {avatarPreview ? (
                             <img
                               src={avatarPreview}
@@ -782,7 +782,7 @@ const AccountPage: React.FC = () => {
                   </div>
 
                   {/* Profile Info Section */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                     <h2 className="text-lg font-semibold text-slate-100 mb-4">
                       Personal Information
                     </h2>
@@ -866,7 +866,7 @@ const AccountPage: React.FC = () => {
                   </div>
 
                   {/* Change Password Section */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                     <h2 className="text-lg font-semibold text-slate-100 mb-4">
                       Change Password
                     </h2>
@@ -1011,8 +1011,8 @@ const AccountPage: React.FC = () => {
           {activeTab === 'billing' && (
             <>
               {/* Current Plan */}
-              <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-6">
-                <div className="flex items-start justify-between mb-6">
+              <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Crown className="w-5 h-5 text-yellow-400" />
@@ -1028,19 +1028,19 @@ const AccountPage: React.FC = () => {
                       {subscriptionPlan.renewalDate}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => navigate('/dashboard/pricing')}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors"
+                      className="px-3 sm:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors"
                     >
                       Change Plan
                     </button>
                     <button
                       onClick={() => navigate('/dashboard/credits')}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                     >
                       <Zap className="w-4 h-4" />
-                      Manage Credits
+                      <span className="hidden sm:inline">Manage</span> Credits
                     </button>
                   </div>
                 </div>
@@ -1076,7 +1076,7 @@ const AccountPage: React.FC = () => {
                 </button>
 
                 {/* Features */}
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {subscriptionPlan.features.map((feature, idx) => (
                     <div
                       key={idx}
@@ -1090,17 +1090,18 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Payment Methods */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+                <div className="flex items-center justify-between gap-2 mb-4">
                   <h2 className="text-lg font-semibold text-slate-100">
                     Payment Methods
                   </h2>
                   <button
                     onClick={handleManagePaymentMethods}
-                    className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                    className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
-                    Manage Payment Methods
+                    <span className="hidden sm:inline">Manage Payment Methods</span>
+                    <span className="sm:hidden">Manage</span>
                   </button>
                 </div>
 
@@ -1165,7 +1166,7 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Billing History */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-slate-100 mb-4">
                   Billing History
                 </h2>
@@ -1263,10 +1264,10 @@ const AccountPage: React.FC = () => {
               ) : (
                 <>
                   {/* Two-Factor Authentication */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <div className="flex items-start justify-between">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                           <h2 className="text-lg font-semibold text-slate-100">
                             Two-Factor Authentication
                           </h2>
@@ -1305,12 +1306,12 @@ const AccountPage: React.FC = () => {
                   </div>
 
                   {/* Active Sessions */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-4">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-2 mb-4">
                       <h2 className="text-lg font-semibold text-slate-100">
                         Active Sessions
                       </h2>
-                      <button className="text-sm text-red-400 hover:text-red-300 transition-colors">
+                      <button className="text-sm text-red-400 hover:text-red-300 transition-colors whitespace-nowrap">
                         Log out all devices
                       </button>
                     </div>
@@ -1320,9 +1321,9 @@ const AccountPage: React.FC = () => {
                         {activeSessions.map(session => (
                           <div
                             key={session.id}
-                            className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700"
+                            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 bg-slate-800/50 rounded-xl border border-slate-700"
                           >
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                               <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center text-slate-400">
                                 {session.device.includes('iPhone') ||
                                 session.device.includes('Android') ? (
@@ -1376,7 +1377,7 @@ const AccountPage: React.FC = () => {
                   </div>
 
                   {/* Login History */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                     <h2 className="text-lg font-semibold text-slate-100 mb-4">
                       Recent Login Activity
                     </h2>
@@ -1429,8 +1430,8 @@ const AccountPage: React.FC = () => {
 
           {/* NOTIFICATIONS TAB */}
           {activeTab === 'notifications' && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-6">
                 <h2 className="text-lg font-semibold text-slate-100">
                   Email Preferences
                 </h2>
@@ -1519,7 +1520,7 @@ const AccountPage: React.FC = () => {
           {/* SETTINGS TAB */}
           {activeTab === 'settings' && (
             <>
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-slate-100 mb-6">
                   App Preferences
                 </h2>
@@ -1594,7 +1595,7 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Thumbnail Defaults */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-slate-100 mb-6">
                   Thumbnail Defaults
                 </h2>
@@ -1635,7 +1636,7 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Privacy */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-slate-100 mb-6">
                   Privacy
                 </h2>
@@ -1673,7 +1674,7 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Onboarding Preferences */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-slate-100 mb-6">
                   Onboarding Preferences
                 </h2>
@@ -1745,8 +1746,8 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Export Data */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                <div className="flex items-start justify-between">
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-100 mb-2">
                       Export Your Data
@@ -1789,7 +1790,7 @@ const AccountPage: React.FC = () => {
               </div>
 
               {/* Danger Zone */}
-              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-red-400 mb-2">
                   Danger Zone
                 </h2>
@@ -1845,8 +1846,8 @@ const AccountPage: React.FC = () => {
 
           {/* TEAM TAB */}
           {activeTab === 'team' && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-100">
                     Team Members
@@ -1855,15 +1856,15 @@ const AccountPage: React.FC = () => {
                     Manage your team and collaboration settings
                   </p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
+                <button className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
                   <Plus className="w-4 h-4" />
                   Invite Member
                 </button>
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                  <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between gap-2 p-3 sm:p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
                       {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
@@ -1882,7 +1883,7 @@ const AccountPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-8 p-6 bg-slate-800/30 rounded-xl border border-dashed border-slate-700 text-center">
+              <div className="mt-8 p-4 sm:p-6 bg-slate-800/30 rounded-xl border border-dashed border-slate-700 text-center">
                 <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                 <p className="text-sm text-slate-400 mb-2">
                   No team members yet

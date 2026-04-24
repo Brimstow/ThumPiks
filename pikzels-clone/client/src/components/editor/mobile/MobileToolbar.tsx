@@ -38,7 +38,7 @@ export function MobileToolbar({
       className={cn(
         'fixed bottom-0 left-0 right-0 z-30',
         'bg-[#1a1a2e] border-t border-gray-700/50',
-        'safe-area-inset-bottom'  // Respect iOS safe areas
+        'safe-area-bottom'  // Respect iOS safe areas (notch/home indicator)
       )}
     >
       <div className="flex items-center justify-around h-16">

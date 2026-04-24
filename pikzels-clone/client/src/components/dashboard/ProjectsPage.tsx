@@ -532,12 +532,12 @@ const ProjectsPage: React.FC = () => {
   return (
     <>
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between">
+      <div className="mb-8 flex flex-col sm:flex-row items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-100 tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-100 tracking-tight mb-2">
             Projects
           </h1>
-          <p className="text-slate-400 text-base max-w-2xl">
+          <p className="text-slate-400 text-sm sm:text-base max-w-2xl">
             Manage and organize your creative projects, design assets, and
             thumbnails in one centralized workspace to maintain consistency
             across all your channels.
@@ -608,7 +608,7 @@ const ProjectsPage: React.FC = () => {
           />
 
           {/* Tab Navigation for Type Filtering */}
-          <div className="flex items-center gap-1 border-b border-slate-800 mb-6">
+          <div className="flex items-center gap-1 border-b border-slate-800 mb-6 overflow-x-auto">
             <button
               onClick={() => handleTabChange('all')}
               className={`relative px-4 py-3 text-sm font-semibold transition-colors ${
@@ -653,9 +653,9 @@ const ProjectsPage: React.FC = () => {
 
           {/* Bulk Action Toolbar */}
           {bulkSelectMode && (
-            <div className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 mb-4">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-300">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/50 border border-slate-700 rounded-lg px-3 sm:px-4 py-3 mb-4">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm text-slate-300">
                   {selectedProjects.size} selected
                 </span>
                 {selectedProjects.size < visibleProjects.length && (

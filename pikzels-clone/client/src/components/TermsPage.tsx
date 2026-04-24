@@ -79,7 +79,7 @@ const TermsPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
@@ -90,13 +90,13 @@ const TermsPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="hidden sm:inline-flex text-gray-400 hover:text-white transition-colors"
             >
               Back to Home
             </button>
             <button
               onClick={() => navigate('/register')}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
             >
               Start Free
             </button>
@@ -105,20 +105,20 @@ const TermsPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-6">
+      <section className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Scale className="w-4 h-4 text-blue-500" />
             <span className="text-sm">Legal terms and conditions</span>
           </div>
-          <h1 className="text-6xl font-light mb-6">
+          <h1 className="text-4xl sm:text-6xl font-light mb-6">
             Terms of
             <br />
             <span className="text-blue-500">Service</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-4">
+          <p className="text-base sm:text-xl text-gray-400 mb-4">
             Please read these terms carefully before using ThumPiks.
-            <br />
+            <br className="hidden sm:block" />
             Your use of the Service constitutes acceptance of these terms.
           </p>
           <p className="text-sm text-gray-500">
@@ -133,10 +133,10 @@ const TermsPage: React.FC = () => {
       </section>
 
       {/* Quick Summary */}
-      <section className="py-16 px-6">
+      <section className="py-12 sm:py-16 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 text-center hover:border-blue-600/50 transition-colors">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 text-center hover:border-blue-600/50 transition-colors">
               <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mx-auto mb-4">
                 <FileText className="w-6 h-6" />
               </div>
@@ -148,7 +148,7 @@ const TermsPage: React.FC = () => {
                 ownership.
               </p>
             </div>
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 text-center hover:border-blue-600/50 transition-colors">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 text-center hover:border-blue-600/50 transition-colors">
               <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mx-auto mb-4">
                 <Shield className="w-6 h-6" />
               </div>
@@ -158,7 +158,7 @@ const TermsPage: React.FC = () => {
                 projects.
               </p>
             </div>
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 text-center hover:border-blue-600/50 transition-colors">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-8 text-center hover:border-blue-600/50 transition-colors">
               <div className="w-12 h-12 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 mx-auto mb-4">
                 <Scale className="w-6 h-6" />
               </div>
@@ -173,15 +173,15 @@ const TermsPage: React.FC = () => {
       </section>
 
       {/* Terms Content */}
-      <section className="py-20 px-6 bg-gray-900/30">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 bg-gray-900/30">
         <div className="max-w-4xl mx-auto">
           <div className="space-y-8">
             {sections.map((section, index) => (
               <div
                 key={index}
-                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-gray-700 transition-colors"
+                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-8 hover:border-gray-700 transition-colors"
               >
-                <h2 className="text-2xl font-semibold mb-4">{section.title}</h2>
+                <h2 className="text-xl sm:text-2xl font-semibold mb-4">{section.title}</h2>
                 <p className="text-gray-400 leading-relaxed mb-4">
                   {section.content}
                 </p>
@@ -205,10 +205,10 @@ const TermsPage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-32 px-6">
+      <section className="py-20 sm:py-32 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
-            <h2 className="text-5xl font-light mb-6">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-6 sm:p-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-light mb-6">
               Questions About
               <br />
               <span className="text-blue-500">Our Terms?</span>
@@ -235,7 +235,7 @@ const TermsPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 px-6">
+      <footer className="border-t border-gray-800 py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
           <p>
             © {new Date().getFullYear()} ThumPiks LLC. All rights reserved.

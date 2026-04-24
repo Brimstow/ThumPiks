@@ -52,7 +52,7 @@ export const EDITOR_TOOLS: EditorToolDefinition[] = [
       parameters: {
         type: 'object',
         properties: {
-          shape: { type: 'string', enum: ['rectangle', 'circle', 'triangle'], description: 'Shape type' },
+          shape: { type: 'string', enum: ['rectangle', 'ellipse', 'polygon', 'star', 'line', 'arrow'], description: 'Shape type: rectangle, ellipse (circle), polygon, star, line, or arrow' },
           x: { type: 'number', description: 'X position in pixels' },
           y: { type: 'number', description: 'Y position in pixels' },
           width: { type: 'number', description: 'Width in pixels' },
@@ -311,6 +311,82 @@ export const EDITOR_TOOLS: EditorToolDefinition[] = [
     },
   },
 
+  // ---- ROTATION ----
+  {
+    type: 'function',
+    function: {
+      name: 'rotateLayer',
+      description: 'Rotate a layer by a specified angle in degrees',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Layer name or "selected"' },
+          angle: { type: 'number', description: 'Rotation angle in degrees (positive = clockwise, negative = counter-clockwise)' },
+        },
+        required: ['target', 'angle'],
+      },
+    },
+  },
+
+  // ---- GROUPING ----
+  {
+    type: 'function',
+    function: {
+      name: 'groupLayers',
+      description: 'Group multiple layers together into a single group',
+      parameters: {
+        type: 'object',
+        properties: {
+          layerNames: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of layer names to group together',
+          },
+        },
+        required: ['layerNames'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'ungroupLayers',
+      description: 'Ungroup a group layer back into individual layers',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Group layer name or "selected"' },
+        },
+        required: ['target'],
+      },
+    },
+  },
+
+  // ---- CROP ----
+  {
+    type: 'function',
+    function: {
+      name: 'cropLayer',
+      description: 'Crop an image layer to a specified region',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Layer name or "selected"' },
+          x: { type: 'number', description: 'X offset of crop region in pixels (from left edge of layer)' },
+          y: { type: 'number', description: 'Y offset of crop region in pixels (from top edge of layer)' },
+          width: { type: 'number', description: 'Width of crop region in pixels' },
+          height: { type: 'number', description: 'Height of crop region in pixels' },
+          region: {
+            type: 'string',
+            enum: ['top-half', 'bottom-half', 'left-half', 'right-half', 'center'],
+            description: 'Named region preset (overrides x/y/width/height)',
+          },
+        },
+        required: ['target'],
+      },
+    },
+  },
+
   // ---- DECOMPOSITION ----
   {
     type: 'function',
@@ -401,6 +477,44 @@ export const EDITOR_TOOLS: EditorToolDefinition[] = [
           query: { type: 'string', description: 'Search query for reference images' },
         },
         required: ['query'],
+      },
+    },
+  },
+
+  // ---- LAYER EFFECTS ----
+  {
+    type: 'function',
+    function: {
+      name: 'addEffect',
+      description: 'Add a visual effect (shadow, glow, blur, stroke, or bevel) to a layer. Replaces any existing effect of the same type.',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Layer name or "selected"' },
+          effectType: { type: 'string', enum: ['shadow', 'glow', 'blur', 'stroke', 'bevel'], description: 'Type of visual effect' },
+          color: { type: 'string', description: 'Effect color in hex (for shadow/glow/stroke). Default: shadow=#000000, glow=#FFFF00, stroke=#000000' },
+          offsetX: { type: 'number', description: 'Horizontal offset in pixels (shadow/bevel). Default: 4' },
+          offsetY: { type: 'number', description: 'Vertical offset in pixels (shadow/bevel). Default: 4' },
+          blur: { type: 'number', description: 'Blur radius in pixels. Default: 8 for shadow, 15 for glow, 4 for blur effect' },
+          spread: { type: 'number', description: 'Width for stroke (px) or depth for bevel (px). Default: 3' },
+          opacity: { type: 'number', description: 'Effect opacity 0-100. Default: 80' },
+        },
+        required: ['target', 'effectType'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'removeEffect',
+      description: 'Remove a visual effect from a layer by type',
+      parameters: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: 'Layer name or "selected"' },
+          effectType: { type: 'string', enum: ['shadow', 'glow', 'blur', 'stroke', 'bevel'], description: 'Type of effect to remove' },
+        },
+        required: ['target', 'effectType'],
       },
     },
   },

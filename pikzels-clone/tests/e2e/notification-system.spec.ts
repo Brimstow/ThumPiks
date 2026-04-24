@@ -161,6 +161,12 @@ async function seedOnboardingDismissed(page: Page) {
 // ─── 1. Account Setup & Login Sanity ──────────────────────
 
 test.describe('Notification System', () => {
+  // Run this spec's tests serially. Tests in section 2 (User Notification API)
+  // perform destructive ops (mark-read, delete) against noteTest1's seeded
+  // inbox. Parallel workers against a shared DB caused 2a/2c to intermittently
+  // see count=0. Serial mode + destructive reseed in prisma/seed.ts keeps the
+  // suite deterministic.
+  test.describe.configure({ mode: 'serial' });
 
   test.describe('1. Account Setup', () => {
     test('1a. noteTest1 can login via API and receive auth token', async ({ request }) => {

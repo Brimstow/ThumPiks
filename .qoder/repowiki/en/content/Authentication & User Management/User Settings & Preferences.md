@@ -1,12 +1,23 @@
 # User Settings & Preferences
 
 <cite>
-**Referenced Files in This Document**  
+**Referenced Files in This Document**
 - [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts)
+- [profile.routes.ts](file://pikzels-clone\src\modules\auth\profile.routes.ts)
 - [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx)
 - [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx)
-- [migration.sql](file://pikzels-clone\prisma\migrations\20250909081634_add_user_settings\migration.sql)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts)
+- [UserSettings.test.tsx](file://pikzels-clone\client\src\components\UserSettings.test.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced backend implementation with dedicated settings service layer
+- Added comprehensive validation middleware for settings endpoints
+- Expanded user settings interface with timezone and date format support
+- Improved error handling and fallback mechanisms for settings persistence
+- Updated frontend component with enhanced form controls and real-time validation
+- Strengthened security measures with proper authentication and authorization
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -18,129 +29,153 @@
 7. [Conclusion](#conclusion)
 
 ## Introduction
-This document details the implementation of user settings and preferences management in the Thumbnail Maker application. The system enables users to customize their experience through theme selection, language preferences, notification settings, thumbnail defaults, and privacy controls. The architecture follows a client-server model with state synchronization between frontend and backend components, leveraging Prisma for data persistence and React Context for dynamic theming.
+This document details the enhanced implementation of user settings and preferences management in the Thumbnail Maker application. The system now provides comprehensive customization capabilities through theme selection, language preferences, notification settings, thumbnail defaults, privacy controls, and timezone configuration. The architecture features a robust backend service layer with dedicated settings management, comprehensive validation middleware, and a sophisticated frontend interface with real-time state synchronization and enhanced error handling.
 
 ## Backend Implementation
 
-The user settings functionality is implemented through the ProfileController class in the authentication module, which handles both retrieval and update operations for user profile data including settings. The backend exposes RESTful endpoints that follow standard HTTP semantics for CRUD operations on user settings.
+The user settings functionality has been significantly enhanced with a dedicated service layer and comprehensive validation. The system now features two distinct approaches: a legacy profile controller for basic settings and a modern settings service for comprehensive user preferences.
 
-User settings are stored as a JSONB field in the User table, allowing for flexible schema evolution without requiring database migrations for new preference types. This approach supports hierarchical settings structures while maintaining query performance.
+The enhanced backend architecture implements a layered approach with separate controllers for profile management and settings services. The settings service provides environment-aware data handling with automatic fallback to mock data during testing, ensuring reliable development and testing workflows.
 
 ```mermaid
 sequenceDiagram
 participant Frontend
-participant Backend
+participant SettingsService
+participant ProfileController
+participant ValidationMiddleware
 participant Database
-Frontend->>Backend : GET /api/user/settings
-Backend->>Database : SELECT settings FROM User WHERE id = ?
-Database-->>Backend : Return settings JSON
-Backend-->>Frontend : 200 OK {settings : {...}}
-Frontend->>Backend : PUT /api/user/settings
-Backend->>Database : UPDATE User SET settings = ? WHERE id = ?
-Database-->>Backend : Confirm update
-Backend-->>Frontend : 200 OK {settings : {...}}
+Frontend->>SettingsService : GET /api/user/settings
+SettingsService->>Database : SELECT settings FROM User WHERE id = ?
+Database-->>SettingsService : Return settings JSON
+SettingsService-->>Frontend : 200 OK {settings : {...}}
+Frontend->>ProfileController : PUT /api/user/settings
+ProfileController->>ValidationMiddleware : Validate settings object
+ValidationMiddleware-->>ProfileController : Validated settings
+ProfileController->>Database : UPDATE User SET settings = ? WHERE id = ?
+Database-->>ProfileController : Confirm update
+ProfileController-->>Frontend : 200 OK {settings : {...}}
 ```
 
 **Diagram sources**
-- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L60-L107)
-- [migration.sql](file://pikzels-clone\prisma\migrations\20250909081634_add_user_settings\migration.sql#L1-L3)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L28-L63)
+- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L57-L118)
+- [profile.routes.ts](file://pikzels-clone\src\modules\auth\profile.routes.ts#L44-L60)
 
 **Section sources**
-- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L13-L107)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L1-L135)
+- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L1-L120)
+- [profile.routes.ts](file://pikzels-clone\src\modules\auth\profile.routes.ts#L1-L63)
 
 ## Frontend Integration
 
-The UserSettings component provides a comprehensive interface for managing user preferences, implementing a controlled form pattern with real-time state management. The UI is organized into logical sections for appearance, language, notifications, thumbnail defaults, and privacy settings, each with appropriate input controls.
+The UserSettings component has been substantially enhanced with comprehensive form controls, real-time validation, and improved user experience. The component now supports five major preference categories: appearance, language, notifications, thumbnail defaults, and privacy settings.
 
-The component manages its own state for settings, providing immediate visual feedback when users modify preferences. Form inputs are bound to the settings state object, with individual handler functions for each setting type that perform shallow merging to preserve other settings values.
+The enhanced frontend implementation features sophisticated state management with individual handlers for each settings category, providing immediate visual feedback and preventing accidental data loss through careful state preservation. The component includes comprehensive error handling, loading states, and success notifications.
 
 ```mermaid
 flowchart TD
 A([Component Mount]) --> B[Fetch Current Settings]
-B --> C{Success?}
+B --> C{Settings Available?}
 C --> |Yes| D[Populate Form State]
-C --> |No| E[Show Error Message]
-D --> F[User Modifies Setting]
+C --> |No| E[Initialize with Defaults]
+D --> F[User Interacts with Form]
 F --> G[Update Local State]
-G --> H[User Clicks Save]
-H --> I[Send Update Request]
-I --> J{Success?}
-J --> |Yes| K[Show Success Message]
-J --> |No| L[Show Error Message]
-K --> M[Settings Persisted]
-L --> N[State Reverts on Refresh]
+G --> H[Real-time Validation]
+H --> I[User Clicks Save]
+I --> J[Send Update Request]
+J --> K{API Response}
+K --> |Success| L[Show Success Message]
+K --> |Error| M[Show Error Message]
+L --> N[Update Local State]
+M --> O[Preserve Previous State]
+N --> P[Component Remains Functional]
+O --> F
 ```
 
 **Diagram sources**
-- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L25-L664)
+- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L35-L86)
 
 **Section sources**
-- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L1-L664)
+- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L1-L653)
+- [UserSettings.test.tsx](file://pikzels-clone\client\src\components\UserSettings.test.tsx#L1-L72)
 
 ## State Synchronization
 
-The application maintains consistency between frontend and backend states through a combination of React Context and direct API calls. The ThemeContext provides a global state management solution for theme preferences, synchronizing UI appearance across components while also persisting changes to the backend.
+The application maintains robust state synchronization between frontend and backend through a multi-layered approach. The enhanced system includes both immediate UI feedback and persistent backend storage, with automatic fallback mechanisms for reliability.
 
-When users change their theme preference through the toggle control, the ThemeContext updates the local state and immediately applies the "dark" class to the document element for instant visual feedback. Simultaneously, it initiates a background request to persist the preference to the user's settings in the database.
+The settings service layer provides intelligent data handling with environment-aware behavior, automatically switching between real database queries and mock data during testing. This ensures consistent behavior across different deployment environments while maintaining data integrity.
 
 ```mermaid
 classDiagram
-class ThemeContext {
-+theme : 'light'|'dark'
-+toggleTheme() : void
-+fetchUserTheme() : Promise~void~
+class SettingsService {
++getUserSettings(userId) : Promise~UserSettings~
++updateUserSettings(userId, settings) : Promise~void~
++getMockUserSettings(userId) : UserSettings
 }
 class UserSettings {
 +settings : UserSettings
 +handleThemeChange(theme) : void
-+saveSettings() : Promise~void~
++handleLanguageChange(language) : void
++handleNotificationChange(type, value) : void
++handleThumbnailDefaultsChange(field, value) : void
++handlePrivacyChange(field, value) : void
 }
 class ProfileController {
 +getUserSettings(req, res) : void
 +updateUserSettings(req, res) : void
 }
-ThemeContext --> UserSettings : uses
+class ThemeContext {
++currentTheme : Theme
++setTheme(theme) : void
++themes : Record
+}
+SettingsService --> UserSettings : provides data
 UserSettings --> ProfileController : calls
-ThemeContext --> ProfileController : calls
+ThemeContext --> UserSettings : integrates with
 ```
 
 **Diagram sources**
-- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx#L1-L122)
-- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L3-L664)
-- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L60-L107)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L28-L93)
+- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L88-L144)
+- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx#L316-L380)
 
 **Section sources**
-- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx#L1-L122)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L1-L135)
+- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L1-L653)
+- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx#L1-L380)
 
 ## Data Validation and Security
 
-The user settings system implements validation at multiple levels to ensure data integrity and security. On the frontend, the UserSettings interface defines TypeScript types for all settings, providing compile-time validation of structure and types.
+The enhanced user settings system implements comprehensive validation and security measures at multiple layers. The backend features dedicated validation middleware that enforces strict data integrity rules, while the frontend provides real-time validation feedback.
 
-The backend performs authentication checks on all settings endpoints, requiring valid JWT tokens for access. While the current implementation accepts any JSON structure for settings, this could be enhanced with schema validation to prevent malformed data storage.
+The validation system includes field-specific constraints, type checking, sanitization, and custom validation rules. Authentication middleware ensures that only authorized users can access or modify settings, with proper error handling for unauthorized access attempts.
 
-Security considerations include proper authorization checks to ensure users can only modify their own settings, and the use of HTTPS for all API communications. Sensitive operations are protected by the authentication middleware, which verifies user identity before processing requests.
+Security considerations include input sanitization, validation of user data, protection against injection attacks, and secure storage of sensitive preferences. The system implements proper error logging and monitoring for security events.
 
 **Section sources**
-- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L60-L107)
-- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L3-L664)
+- [profile.routes.ts](file://pikzels-clone\src\modules\auth\profile.routes.ts#L12-L60)
+- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L97-L118)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L69-L93)
 
 ## Troubleshooting Guide
 
-Common issues with user settings typically fall into three categories: authentication problems, network errors, and state synchronization issues.
+Common issues with the enhanced user settings system typically involve validation errors, authentication problems, database connectivity issues, and state synchronization challenges.
 
-For authentication-related failures, verify that the user is properly logged in and that the authentication token is present in local storage. Network issues may occur due to connectivity problems or server downtime; check the browser's developer tools for failed API requests.
+For validation-related failures, check that all required fields meet the specified criteria, including proper data types and acceptable ranges. Authentication errors usually indicate expired or invalid tokens, requiring users to re-authenticate.
 
-State synchronization problems can manifest when the UI does not reflect saved settings after a page refresh. This typically indicates that the settings update request failed or that the fetch request on component mount encountered an error. Check the console for error messages and verify that the API endpoints are accessible.
+Database connectivity issues may prevent settings from being saved or retrieved, often due to connection timeouts or server maintenance. State synchronization problems can occur when the UI doesn't reflect saved settings after updates, typically indicating network issues or API endpoint problems.
 
-Caching issues may occur if the browser caches API responses. Implement cache-busting strategies such as adding timestamp parameters to requests if this becomes problematic in production environments.
+Performance optimization tips include implementing proper caching strategies, minimizing unnecessary API calls, and optimizing database queries for settings retrieval.
 
 **Section sources**
-- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L60-L107)
-- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L45-L664)
-- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx#L25-L122)
+- [UserSettings.tsx](file://pikzels-clone\client\src\components\UserSettings.tsx#L59-L86)
+- [settings.service.ts](file://pikzels-clone\src\modules\settings\settings.service.ts#L28-L63)
+- [profile.controller.ts](file://pikzels-clone\src\modules\auth\profile.controller.ts#L57-L118)
 
 ## Conclusion
 
-The user settings and preferences system provides a robust foundation for personalized user experiences in the Thumbnail Maker application. By combining flexible data storage with intuitive UI controls and real-time state synchronization, the implementation balances usability with technical soundness.
+The enhanced user settings and preferences system provides a comprehensive foundation for personalized user experiences in the Thumbnail Maker application. The multi-layered architecture with dedicated service components, comprehensive validation, and robust error handling ensures reliable operation across various deployment scenarios.
 
-The architecture supports future enhancements such as settings categories, import/export functionality, and team-wide preference templates. The separation of concerns between frontend presentation and backend persistence enables independent evolution of both components while maintaining a consistent user experience.
+The system's design supports future enhancements including additional settings categories, advanced validation rules, and team-wide preference management. The separation of concerns between frontend presentation, service layer logic, and backend persistence enables independent evolution while maintaining consistent user experience and data integrity.
+
+The implementation demonstrates best practices in modern web application development, including proper state management, comprehensive error handling, security considerations, and testing strategies that ensure long-term maintainability and scalability.

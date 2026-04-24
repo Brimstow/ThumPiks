@@ -146,7 +146,6 @@ export class AuthService {
           displayPreference: user.displayPreference,
         },
         ...tokens,
-        sessionId: tokens.accessToken, // Include session ID for client-side session tracking
         message:
           'Registration successful. Please verify your email to unlock all features.',
       };
@@ -270,32 +269,12 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         username: user.username,
+        ipAddress,
+        userAgent,
       });
 
       // Generate token pair
       const tokens = EnhancedJWTService.createTokens(user.id, user.email);
-
-      // Create session entry for tracking
-      try {
-        await prisma.userSession.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: user.id,
-            sessionId: tokens.accessToken,
-            ipAddress: ipAddress ?? 'Unknown',
-            userAgent: userAgent ?? 'Unknown',
-            loginAt: new Date(),
-            lastActivity: new Date(),
-            isActive: true,
-          },
-        });
-        logger.info('Session created', { userId: user.id });
-      } catch (sessionError) {
-        // Log error but don't fail login if session creation fails
-        logger.error('Failed to create session entry', sessionError as Error, {
-          userId: user.id,
-        });
-      }
 
       return {
         user: {
@@ -307,7 +286,6 @@ export class AuthService {
           displayPreference: user.displayPreference,
         },
         ...tokens,
-        sessionId: tokens.accessToken, // Include session ID for client-side session tracking
         requiresVerification: !user.isVerified,
       };
     } catch (error: any) {
@@ -321,26 +299,14 @@ export class AuthService {
    */
   async logout(userId: string, sessionId: string) {
     try {
-      // Terminate the specific session
-      await prisma.userSession.updateMany({
-        where: {
-          userId,
-          sessionId,
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-          logoutAt: new Date(),
-        },
-      });
-
-      logger.info('Session terminated', { userId, sessionId });
-    } catch (error) {
-      logger.error('Failed to terminate session', error as Error, {
+      logger.info('User logged out successfully', {
         userId,
-        sessionId,
+        sessionId: sessionId ? `${sessionId.substring(0, 8)}...` : undefined,
       });
-      // Don't throw error - logout should succeed even if session tracking fails
+      return { success: true };
+    } catch (error: any) {
+      logger.error('Logout failed in service', error, { userId });
+      throw error;
     }
   }
 

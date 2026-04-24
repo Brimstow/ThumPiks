@@ -192,7 +192,7 @@ const ReviewsPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
@@ -203,21 +203,21 @@ const ReviewsPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="hidden sm:inline-flex text-gray-400 hover:text-white transition-colors"
             >
               Back to Home
             </button>
             {authLoading ? null : isAuthenticated ? (
               <button
                 onClick={() => navigate('/dashboard')}
-                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
               >
                 Dashboard
               </button>
             ) : (
               <button
                 onClick={() => navigate('/register')}
-                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
               >
                 Start Free
               </button>
@@ -227,7 +227,7 @@ const ReviewsPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-6">
+      <section className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
@@ -237,12 +237,12 @@ const ReviewsPage: React.FC = () => {
                 : 'Be the first to share your experience'}
             </span>
           </div>
-          <h1 className="text-6xl font-light mb-6">
+          <h1 className="text-4xl sm:text-6xl font-light mb-6">
             Creator
             <br />
             <span className="text-blue-500">Reviews</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-10">
+          <p className="text-base sm:text-xl text-gray-400 mb-8 sm:mb-10">
             {hasReviews
               ? 'Honest reviews from real ThumPiks creators'
               : 'No reviews yet — your honest feedback could be the first one here'}
@@ -273,7 +273,7 @@ const ReviewsPage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 px-6">
+      <section className="py-12 sm:py-16 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {displayStats.map((stat, index) => (
@@ -284,7 +284,7 @@ const ReviewsPage: React.FC = () => {
                 <div className="flex justify-center mb-4 text-blue-500">
                   {stat.icon}
                 </div>
-                <div className="text-4xl font-light mb-2">{stat.value}</div>
+                <div className="text-2xl sm:text-4xl font-light mb-2">{stat.value}</div>
                 <div className="text-gray-400 text-sm">{stat.label}</div>
               </div>
             ))}
@@ -294,16 +294,16 @@ const ReviewsPage: React.FC = () => {
 
       {/* My Review Status (for logged-in users) */}
       {isAuthenticated && myReview && (
-        <section className="px-6 pb-8">
+        <section className="px-4 sm:px-6 pb-8">
           <div className="max-w-3xl mx-auto">
-            <div className={`border rounded-2xl p-6 ${
+            <div className={`border rounded-2xl p-4 sm:p-6 ${
               myReview.status === 'APPROVED'
                 ? 'bg-green-900/20 border-green-600/30'
                 : myReview.status === 'REJECTED'
                 ? 'bg-red-900/20 border-red-600/30'
                 : 'bg-yellow-900/20 border-yellow-600/30'
             }`}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   {myReview.status === 'APPROVED' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
                   {myReview.status === 'PENDING' && <Loader2 className="w-5 h-5 text-yellow-500" />}
@@ -347,9 +347,9 @@ const ReviewsPage: React.FC = () => {
 
       {/* Review Form (for logged-in users without a review, or editing) */}
       {isAuthenticated && (showForm || (!myReview && !submitSuccess)) && (
-        <section id="review-form" className="px-6 pb-12">
+        <section id="review-form" className="px-4 sm:px-6 pb-12">
           <div className="max-w-3xl mx-auto">
-            <div className="bg-gray-900/50 border border-blue-600/30 rounded-2xl p-8">
+            <div className="bg-gray-900/50 border border-blue-600/30 rounded-2xl p-4 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
                 <MessageSquarePlus className="w-6 h-6 text-blue-500" />
                 <h3 className="text-xl font-medium">
@@ -485,7 +485,7 @@ const ReviewsPage: React.FC = () => {
 
       {/* Success Message */}
       {submitSuccess && !showForm && (
-        <section className="px-6 pb-8">
+        <section className="px-4 sm:px-6 pb-8">
           <div className="max-w-3xl mx-auto">
             <div className="bg-green-900/20 border border-green-600/30 rounded-2xl p-6 flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
@@ -498,10 +498,10 @@ const ReviewsPage: React.FC = () => {
       )}
 
       {/* Reviews Grid — Real reviews or placeholder silhouettes */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-light mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               {hasReviews
                 ? <>What Creators <span className="text-blue-500">Are Saying</span></>
                 : <>Be the <span className="text-blue-500">First</span></>
@@ -514,7 +514,7 @@ const ReviewsPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {hasReviews ? (
               // Real reviews
               reviews.map((review) => (
@@ -590,10 +590,10 @@ const ReviewsPage: React.FC = () => {
 
       {/* Write Review CTA (for non-logged-in users) */}
       {!authLoading && !isAuthenticated && (
-        <section className="py-20 px-6 bg-gray-900/30">
+        <section className="py-12 sm:py-20 px-4 sm:px-6 bg-gray-900/30">
           <div className="max-w-3xl mx-auto text-center">
             <MessageSquarePlus className="w-12 h-12 text-blue-500 mx-auto mb-6" />
-            <h2 className="text-4xl font-light mb-4">
+            <h2 className="text-3xl sm:text-4xl font-light mb-4">
               Share Your <span className="text-blue-500">Experience</span>
             </h2>
             <p className="text-gray-400 text-lg mb-8">
@@ -620,10 +620,10 @@ const ReviewsPage: React.FC = () => {
       )}
 
       {/* CTA Section */}
-      <section className="py-32 px-6">
+      <section className="py-20 sm:py-32 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
-            <h2 className="text-5xl font-light mb-6">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-6 sm:p-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-light mb-6">
               Try ThumPiks
               <br />
               <span className="text-blue-500">For Yourself</span>
@@ -651,7 +651,7 @@ const ReviewsPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 px-6">
+      <footer className="border-t border-gray-800 py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
           <p>© {new Date().getFullYear()} ThumPiks LLC. All rights reserved.</p>
         </div>

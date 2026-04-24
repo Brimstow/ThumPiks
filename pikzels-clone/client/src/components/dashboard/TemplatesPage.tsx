@@ -181,8 +181,8 @@ const TemplatesPage: React.FC = () => {
     <>
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold text-slate-100 tracking-tight mb-2">Templates</h1>
-        <p className="text-slate-400 text-base max-w-2xl">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-slate-100 tracking-tight mb-2">Templates</h1>
+        <p className="text-slate-400 text-sm sm:text-base max-w-2xl">
           Browse professionally designed templates to jumpstart your thumbnail creation. Filter by category, use pre-built designs, and customize them to match your brand.
         </p>
       </div>
@@ -208,7 +208,7 @@ const TemplatesPage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-white/10"></div>
 
             {/* Content */}
-            <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-10">
+            <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-10">
               <div className="flex items-start">
                 <span className="inline-flex items-center rounded-full bg-pink-500 text-white px-3 py-1 text-xs font-bold tracking-wide shadow-lg shadow-pink-900/20">
                   {carouselItem.badge}
@@ -216,7 +216,7 @@ const TemplatesPage: React.FC = () => {
               </div>
 
               <div className="max-w-2xl">
-                <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-2 drop-shadow-sm">
+                <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight text-white mb-2 drop-shadow-sm">
                   {carouselItem.title}
                 </h2>
                 <p className="text-sm md:text-base text-slate-300 font-medium max-w-lg drop-shadow-md">
@@ -340,7 +340,10 @@ const TemplatesPage: React.FC = () => {
         </div>
 
         {/* Sort */}
-        <div className="relative flex items-center">
+        <div className="relative flex items-center gap-2">
+          <span className="uppercase tracking-wider text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+            Sort by:
+          </span>
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value as 'popular' | 'recent' | 'downloads')}
@@ -351,9 +354,6 @@ const TemplatesPage: React.FC = () => {
             <option value="downloads" className="bg-slate-800">Most Downloaded</option>
           </select>
           <ChevronDown className="w-4 h-4 absolute right-0 pointer-events-none text-slate-400" />
-          <span className="absolute -left-16 uppercase tracking-wider text-[11px] font-semibold text-slate-500">
-            Sort by:
-          </span>
         </div>
       </div>
 

@@ -1,14 +1,24 @@
 # Social Share Analytics and Tracking
 
 <cite>
-**Referenced Files in This Document**  
+**Referenced Files in This Document**
 - [SocialShareAnalytics.tsx](file://pikzels-clone\client\src\components\SocialShareAnalytics.tsx)
 - [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx)
 - [social-share.service.ts](file://pikzels-clone\src\modules\social-share\social-share.service.ts)
 - [social-share.controller.ts](file://pikzels-clone\src\modules\social-share\social-share.controller.ts)
 - [schema.prisma](file://pikzels-clone\prisma\schema.prisma)
 - [social-sharing.md](file://pikzels-clone\docs\social-sharing.md)
+- [AnalyticsDashboard.tsx](file://pikzels-clone\client\src\components\AnalyticsDashboard.tsx)
+- [App.tsx](file://pikzels-clone\client\src\App.tsx)
+- [ThemeContext.tsx](file://pikzels-clone\client\src\contexts\ThemeContext.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced SocialShareAnalytics component with optional theme prop for improved UI integration
+- Added theme-aware styling throughout the component for light/dark mode compatibility
+- Updated component usage patterns to demonstrate theme prop implementation
+- Expanded documentation to cover theme-aware analytics display
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -157,33 +167,52 @@ I --> |No| J[Return aggregated statistics]
 
 ## Frontend Analytics Display
 
-The SocialShareAnalytics component renders the aggregated sharing statistics in a visually intuitive dashboard format. This React component fetches data from the /api/social-share/stats endpoint and presents it as a series of metric cards, one for each social media platform. The design emphasizes key performance indicators while providing context through visual elements like progress bars and platform-specific icons.
+**Updated** Enhanced with optional theme prop handling for improved UI integration across light and dark modes.
+
+The SocialShareAnalytics component renders the aggregated sharing statistics in a visually intuitive dashboard format with theme-aware styling. This React component accepts an optional theme prop (either 'light' or 'dark') and fetches data from the /api/social-share/stats endpoint to present it as a series of metric cards, one for each social media platform.
+
+The component's theme-aware design ensures optimal visual presentation across different UI themes. When the theme prop is not provided, it defaults to 'light' mode. The component dynamically applies appropriate styling classes based on the theme value, affecting everything from background colors to text colors and progress bar styling.
 
 Each metric card displays the total number of shares, the count of successful shares, and the number of failed attempts for a specific platform. A horizontal progress bar visualizes the success rate by showing the proportion of successful shares relative to the total. This immediate visual feedback helps users quickly assess the performance of each platform without needing to interpret raw numbers.
 
 The component handles various states including loading (displayed as a spinner), error conditions (shown with appropriate messaging), and the empty state when no sharing data is available. The responsive grid layout adapts to different screen sizes, displaying cards in a single column on mobile devices and multiple columns on larger screens. Platform-specific emojis (🐦 for Twitter, 📘 for Facebook, etc.) provide instant visual recognition, enhancing the user experience and making the analytics more engaging.
 
+**Theme Integration Examples:**
+- Background colors: Uses `theme === 'dark' ? 'bg-gray-800' : 'bg-white'` for card backgrounds
+- Text colors: Applies `theme === 'dark' ? 'text-white' : 'text-gray-900'` for primary text
+- Progress bar styling: Sets `theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'` for progress bar containers
+- Error message styling: Uses `theme === 'dark' ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-900'` for error states
+- Empty state styling: Implements `theme === 'dark' ? 'text-gray-400' : 'text-gray-500'` for empty state messages
+
 ```mermaid
 graph TD
-A[SocialShareAnalytics Component] --> B[Fetch stats from API]
-B --> C{Loading?}
-C --> |Yes| D[Display spinner]
-C --> |No| E{Error?}
-E --> |Yes| F[Display error message]
-E --> |No| G{Data available?}
-G --> |No| H[Display empty state]
-G --> |Yes| I[Render metric cards]
-I --> J[Platform icon]
-J --> K[Total shares]
-K --> L[Success/failure counts]
-L --> M[Success rate progress bar]
+A[SocialShareAnalytics Component] --> B[Accept theme prop (optional)]
+B --> C{Theme provided?}
+C --> |Yes| D[Use provided theme value]
+C --> |No| E[Default to 'light']
+D --> F[Apply theme-aware styling classes]
+E --> F
+F --> G[Fetch stats from API]
+G --> H{Loading?}
+H --> |Yes| I[Display spinner with theme-appropriate colors]
+H --> |No| J{Error?}
+J --> |Yes| K[Display error message with theme-aware styling]
+J --> |No| L{Data available?}
+L --> |No| M[Display empty state with theme-aware styling]
+L --> |Yes| N[Render metric cards with theme-aware styling]
+N --> O[Platform icon]
+O --> P[Total shares]
+P --> Q[Success/failure counts]
+Q --> R[Success rate progress bar with theme-aware colors]
 ```
 
 **Diagram sources**
-- [SocialShareAnalytics.tsx](file://pikzels-clone\client\src\components\SocialShareAnalytics.tsx#L13-L148)
+- [SocialShareAnalytics.tsx](file://pikzels-clone\client\src\components\SocialShareAnalytics.tsx#L10-L152)
+- [AnalyticsDashboard.tsx](file://pikzels-clone\client\src\components\AnalyticsDashboard.tsx#L810-L818)
 
 **Section sources**
-- [SocialShareAnalytics.tsx](file://pikzels-clone\client\src\components\SocialShareAnalytics.tsx#L13-L148)
+- [SocialShareAnalytics.tsx](file://pikzels-clone\client\src\components\SocialShareAnalytics.tsx#L10-L152)
+- [AnalyticsDashboard.tsx](file://pikzels-clone\client\src\components\AnalyticsDashboard.tsx#L810-L818)
 
 ## Data Querying and Retrieval
 
@@ -262,4 +291,8 @@ This extensibility allows the analytics system to provide deeper insights into c
 
 ## Conclusion
 
-The Social Share Analytics and Tracking system provides a comprehensive solution for monitoring and analyzing user sharing behavior across multiple social media platforms. By capturing detailed information about each sharing attempt and aggregating it into meaningful metrics, the system empowers users to make data-driven decisions about their content distribution strategy. The architecture effectively combines frontend components, backend services, and database models to create a cohesive analytics experience that highlights successful platforms, identifies issues with failed shares, and reveals patterns in sharing frequency. With its extensible design and privacy-conscious implementation, the system provides valuable insights while maintaining data security and user privacy.
+The Social Share Analytics and Tracking system provides a comprehensive solution for monitoring and analyzing user sharing behavior across multiple social media platforms. By capturing detailed information about each sharing attempt and aggregating it into meaningful metrics, the system empowers users to make data-driven decisions about their content distribution strategy. The architecture effectively combines frontend components, backend services, and database models to create a cohesive analytics experience that highlights successful platforms, identifies issues with failed shares, and reveals patterns in sharing frequency.
+
+**Enhanced** The system now features improved UI integration through optional theme prop handling, allowing the SocialShareAnalytics component to seamlessly adapt to different user interface themes including light and dark modes. This enhancement ensures consistent visual presentation across various application themes while maintaining the component's core functionality for displaying sharing performance metrics.
+
+With its extensible design and privacy-conscious implementation, the system provides valuable insights while maintaining data security and user privacy. The addition of theme-aware styling demonstrates the system's commitment to providing a polished user experience that adapts to individual preferences and application-wide design systems.

@@ -123,13 +123,13 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
   const projectCount = projects.length;
 
   return (
-    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-6 ${className}`}>
+    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6 ${className}`}>
       {/* Header with tabs */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto min-w-0">
           <button
             onClick={() => setViewMode('all')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'all'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'
@@ -139,7 +139,7 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
           </button>
           <button
             onClick={() => setViewMode('saved')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'saved'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'
@@ -149,7 +149,7 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
           </button>
           <button
             onClick={() => setViewMode('uploads')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'uploads'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'

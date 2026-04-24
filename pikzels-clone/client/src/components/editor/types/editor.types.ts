@@ -364,6 +364,8 @@ export interface EditorState {
   history: HistoryEntry[];
   historyIndex: number;
   isModified: boolean;
+  batchInProgress?: boolean;
+  batchLabel?: string;
   adjustments: AdjustmentState; // Global adjustments for quick photo corrections
   smartSelection: SmartSelectionState; // AI-powered object selection state
 }
@@ -418,6 +420,8 @@ export type EditorAction =
   | { type: 'CLEAR_UPLOAD_ZONE'; layerId: string }
   | { type: 'UNDO' }
   | { type: 'REDO' }
+  | { type: 'BATCH_START'; label: string }
+  | { type: 'BATCH_END' }
   | { type: 'MARK_SAVED' }
   | { type: 'CLEAR_CANVAS' }
   | { type: 'RESET' };

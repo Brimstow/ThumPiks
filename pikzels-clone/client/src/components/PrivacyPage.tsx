@@ -148,7 +148,7 @@ const PrivacyPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
@@ -159,13 +159,13 @@ const PrivacyPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="hidden sm:inline-flex text-gray-400 hover:text-white transition-colors"
             >
               Back to Home
             </button>
             <button
               onClick={() => navigate('/register')}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
             >
               Start Free
             </button>
@@ -174,20 +174,20 @@ const PrivacyPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-6">
+      <section className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Shield className="w-4 h-4 text-blue-500" />
             <span className="text-sm">Your privacy matters to us</span>
           </div>
-          <h1 className="text-6xl font-light mb-6">
+          <h1 className="text-4xl sm:text-6xl font-light mb-6">
             Privacy
             <br />
             <span className="text-blue-500">Policy</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-4">
+          <p className="text-base sm:text-xl text-gray-400 mb-4">
             Learn how we collect, use, and protect your personal information
-            <br />
+            <br className="hidden sm:block" />
             when you use ThumPiks.
           </p>
           <p className="text-sm text-gray-500">
@@ -197,24 +197,24 @@ const PrivacyPage: React.FC = () => {
       </section>
 
       {/* Privacy Sections */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           <div className="space-y-8">
             {sections.map((section, index) => (
               <div
                 key={index}
-                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors"
+                className="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-8 hover:border-blue-600/50 transition-colors"
               >
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-500">
+                <div className="flex items-center gap-3 sm:gap-4 mb-6">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-500 shrink-0">
                     {section.icon}
                   </div>
-                  <h2 className="text-2xl font-semibold">
+                  <h2 className="text-xl sm:text-2xl font-semibold">
                     {index + 1}. {section.title}
                   </h2>
                 </div>
 
-                <div className="space-y-4 ml-16">
+                <div className="space-y-4 ml-0 sm:ml-16">
                   {section.content.map((text, i) => (
                     <p key={i} className="text-gray-400 leading-relaxed">
                       {text}
@@ -268,10 +268,10 @@ const PrivacyPage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-32 px-6">
+      <section className="py-20 sm:py-32 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
-            <h2 className="text-5xl font-light mb-6">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-6 sm:p-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-light mb-6">
               Have Questions About
               <br />
               <span className="text-blue-500">Your Privacy?</span>
@@ -301,7 +301,7 @@ const PrivacyPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 px-6">
+      <footer className="border-t border-gray-800 py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
           <p>
             © {new Date().getFullYear()} ThumPiks LLC. All rights reserved.

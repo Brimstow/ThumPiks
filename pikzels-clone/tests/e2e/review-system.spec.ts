@@ -65,7 +65,7 @@ async function seedOnboardingDismissed(page: Page) {
  */
 async function loginUser(page: Page, credentials = TEST_USER) {
   await page.goto('/login');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForSelector('h2:has-text("Sign in to your account")', { timeout: 10000 });
   await page.getByRole('textbox', { name: 'Username or Email *' }).fill(credentials.username);
   await page.getByRole('textbox', { name: 'Password *' }).fill(credentials.password);
@@ -267,7 +267,7 @@ test.describe('Review Flow — Full Journey', () => {
 
   test('dashboard sidebar contains Leave a Review link that navigates to /reviews', async ({ page }) => {
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const sidebarReviewBtn = page.locator('nav button[aria-label="Leave a Review"]');
     await expect(sidebarReviewBtn).toBeVisible();
@@ -279,13 +279,13 @@ test.describe('Review Flow — Full Journey', () => {
     // Ensure review prompt is not dismissed for this session
     await page.evaluate(() => sessionStorage.removeItem('reviewPromptDismissed'));
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByText('Enjoying ThumPiks?')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Your honest review helps other creators discover us')).toBeVisible();
 
-    // Click "Leave a Review" in the prompt card (not the sidebar)
-    const cardBtn = page.locator('.border-yellow-500\\/20 button:has-text("Leave a Review")');
+    // Click "Leave a Review" in the prompt card (scoped to main content area, not sidebar)
+    const cardBtn = page.getByRole('main').getByRole('button', { name: 'Leave a Review' });
     await cardBtn.click();
     await page.waitForURL(/\/reviews/, { timeout: 10000 });
   });
@@ -293,7 +293,7 @@ test.describe('Review Flow — Full Journey', () => {
   test('review prompt card dismisses and stays hidden', async ({ page }) => {
     await page.evaluate(() => sessionStorage.removeItem('reviewPromptDismissed'));
     await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const promptCard = page.getByText('Enjoying ThumPiks?');
     await expect(promptCard).toBeVisible({ timeout: 5000 });

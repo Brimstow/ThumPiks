@@ -2,9 +2,9 @@ import { EDITOR_TOOLS, buildToolsSystemPrompt } from '../tool-definitions';
 
 describe('tool-definitions', () => {
   describe('EDITOR_TOOLS', () => {
-    it('exports an array of 23 tool definitions', () => {
+    it('exports an array of 27 tool definitions', () => {
       expect(Array.isArray(EDITOR_TOOLS)).toBe(true);
-      expect(EDITOR_TOOLS).toHaveLength(23);
+      expect(EDITOR_TOOLS).toHaveLength(27);
     });
 
     it('every tool has type "function"', () => {
@@ -67,6 +67,71 @@ describe('tool-definitions', () => {
       for (const name of core) {
         expect(names).toContain(name);
       }
+    });
+
+    // Phase 1: shape enum alignment
+    it('addShape tool has correct shape enum with no deprecated values', () => {
+      const addShape = EDITOR_TOOLS.find(t => t.function.name === 'addShape');
+      expect(addShape).toBeDefined();
+      const shapeEnum = (addShape!.function.parameters.properties.shape as { enum?: string[] })?.enum;
+      expect(shapeEnum).toBeDefined();
+      expect(shapeEnum).toContain('rectangle');
+      expect(shapeEnum).toContain('ellipse');
+      expect(shapeEnum).toContain('polygon');
+      expect(shapeEnum).toContain('star');
+      expect(shapeEnum).toContain('line');
+      expect(shapeEnum).toContain('arrow');
+      // Phase 1: deprecated shapes must not be present
+      expect(shapeEnum).not.toContain('circle');
+      expect(shapeEnum).not.toContain('triangle');
+    });
+
+    // Phase 3: new operations have tool definitions
+    it('includes Phase 3 operations (rotateLayer, groupLayers, ungroupLayers, cropLayer)', () => {
+      const names = EDITOR_TOOLS.map(t => t.function.name);
+      expect(names).toContain('rotateLayer');
+      expect(names).toContain('groupLayers');
+      expect(names).toContain('ungroupLayers');
+      expect(names).toContain('cropLayer');
+    });
+
+    it('rotateLayer tool requires angle parameter', () => {
+      const rotate = EDITOR_TOOLS.find(t => t.function.name === 'rotateLayer');
+      expect(rotate).toBeDefined();
+      expect(rotate!.function.parameters.required).toContain('angle');
+      expect(rotate!.function.parameters.properties).toHaveProperty('angle');
+    });
+
+    it('groupLayers tool requires layerNames parameter', () => {
+      const group = EDITOR_TOOLS.find(t => t.function.name === 'groupLayers');
+      expect(group).toBeDefined();
+      expect(group!.function.parameters.required).toContain('layerNames');
+    });
+
+    it('cropLayer tool has region enum with preset values', () => {
+      const crop = EDITOR_TOOLS.find(t => t.function.name === 'cropLayer');
+      expect(crop).toBeDefined();
+      const regionProp = crop!.function.parameters.properties.region as { enum?: string[] };
+      expect(regionProp).toBeDefined();
+      if (regionProp.enum) {
+        expect(regionProp.enum).toContain('top-half');
+        expect(regionProp.enum).toContain('bottom-half');
+        expect(regionProp.enum).toContain('center');
+      }
+    });
+
+    // Phase 5: vision tools
+    it('analyzeImage tool has empty required params (no target needed)', () => {
+      const analyze = EDITOR_TOOLS.find(t => t.function.name === 'analyzeImage');
+      expect(analyze).toBeDefined();
+      // analyzeImage can work on selected layer or canvas screenshot
+      expect(analyze!.function.parameters.properties).toHaveProperty('target');
+    });
+
+    it('vision tool has target parameter', () => {
+      const vision = EDITOR_TOOLS.find(t => t.function.name === 'vision');
+      expect(vision).toBeDefined();
+      expect(vision!.function.parameters.properties).toHaveProperty('target');
     });
   });
 

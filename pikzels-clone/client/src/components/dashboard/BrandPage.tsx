@@ -377,8 +377,8 @@ const BrandPage: React.FC = () => {
         {isUsingMockData && !bannerDismissed && (
           <div className="mb-6 relative overflow-hidden rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
-            <div className="relative flex items-center justify-between p-4 sm:p-5">
-              <div className="flex items-start gap-4">
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 sm:p-5">
+              <div className="flex items-start gap-3 sm:gap-4">
                 <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400">
                   <Info className="w-5 h-5" />
                 </div>
@@ -394,10 +394,10 @@ const BrandPage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <button
                   onClick={() => setShowSetupWizard(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-semibold transition-all"
+                  className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs sm:text-sm font-semibold transition-all"
                 >
                   <Wand2 className="w-4 h-4" />
                   Set Up My Brand
@@ -421,19 +421,21 @@ const BrandPage: React.FC = () => {
               Manage your brand identity assets to maintain consistency across all your thumbnails and designs.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {isUsingMockData && (
               <button
                 onClick={() => setShowSetupWizard(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-semibold transition-all"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all"
               >
                 <Wand2 className="w-4 h-4" />
-                Set Up Brand Kit
+                <span className="hidden sm:inline">Set Up Brand Kit</span>
+                <span className="sm:hidden">Set Up</span>
               </button>
             )}
-            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 text-sm font-semibold transition-all">
+            <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-white text-slate-900 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all">
               <Share className="w-4 h-4" />
-              Share Kit
+              <span className="hidden sm:inline">Share Kit</span>
+              <span className="sm:hidden">Share</span>
             </button>
           </div>
         </div>

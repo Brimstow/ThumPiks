@@ -13,7 +13,10 @@
 
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../../utils/logger';
-import { contactAutoResponseEmail } from '../../services/email-templates';
+import {
+  contactAutoResponseEmail,
+  contactAdminNotificationEmail,
+} from '../../services/email-templates';
 import {
   ContactFormInput,
   ContactValidationResult,
@@ -422,6 +425,13 @@ export class ContactService {
         });
       });
 
+      // Step 6: Send admin notification email (fire and forget)
+      this.sendAdminNotificationEmail(submission).catch(error => {
+        logger.error('Failed to send admin notification email', error as Error, {
+          submissionId: submission.id,
+        });
+      });
+
       return {
         success: true,
         message:
@@ -627,6 +637,49 @@ export class ContactService {
       logger.error('Failed to send auto-response email', error as Error, {
         submissionId: submission.id,
         email: submission.email,
+      });
+    }
+  }
+
+  /**
+   * Send admin notification email when a contact form is submitted
+   */
+  private async sendAdminNotificationEmail(submission: any): Promise<void> {
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (!adminEmail) {
+        logger.warn('ADMIN_EMAIL not configured, skipping admin notification');
+        return;
+      }
+
+      const html = contactAdminNotificationEmail({
+        submissionId: submission.id,
+        name: submission.name,
+        email: submission.email,
+        subject: submission.subject,
+        message: submission.message,
+        status: submission.status,
+      });
+
+      const resend = new (await import('resend')).Resend(
+        process.env.RESEND_API_KEY
+      );
+
+      await resend.emails.send({
+        from: 'ThumPiks <noreply@notify.thumpiks.com>',
+        to: [adminEmail],
+        replyTo: submission.email,
+        subject: `[Contact] ${submission.subject} from ${submission.name}`,
+        html,
+      });
+
+      logger.info('Admin notification email sent', {
+        submissionId: submission.id,
+        adminEmail,
+      });
+    } catch (error) {
+      logger.error('Failed to send admin notification email', error as Error, {
+        submissionId: submission.id,
       });
     }
   }

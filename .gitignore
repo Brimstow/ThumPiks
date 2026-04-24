@@ -199,6 +199,7 @@ Common*.md
 DEVELOPMENT_*.md
 PERFORMANCE.md
 SECURITY_*.md
+!pikzels-clone/docs/quests/SECURITY_AUDIT_QUEST.md
 CONTRIBUTING.md
 *.summary.md
 *.verification.md
@@ -311,3 +312,6 @@ thumpiks-site-files/
 
 # Local Netlify folder
 .netlify
+
+# gate-keeper runtime (shadow copies + violation logs)
+.gate-keeper/

@@ -1,7 +1,7 @@
 # Social Media Integration
 
 <cite>
-**Referenced Files in This Document**   
+**Referenced Files in This Document**
 - [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx)
 - [social-media-factory.ts](file://pikzels-clone\src\modules\social-share\social-media-factory.ts)
 - [social-media-client.ts](file://pikzels-clone\src\modules\social-share\social-media-client.ts)
@@ -11,24 +11,36 @@
 - [pinterest-client.ts](file://pikzels-clone\src\modules\social-share\pinterest-client.ts)
 - [social-share.controller.ts](file://pikzels-clone\src\modules\social-share\social-share.controller.ts)
 - [social-share.service.ts](file://pikzels-clone\src\modules\social-share\social-share.service.ts)
+- [validation.middleware.ts](file://pikzels-clone\src\middleware\validation.middleware.ts)
+- [platforms.ts](file://pikzels-clone\client\src\services\video\platforms.ts)
+- [video-service.ts](file://pikzels-clone\client\src\services\video\video-service.ts)
+- [VideoFrameExtractor.tsx](file://pikzels-clone\client\src\components\editor\panels\VideoFrameExtractor.tsx)
 - [migration.sql](file://pikzels-clone\prisma\migrations\20250911134004_add_social_shares\migration.sql)
 - [social-media-platforms.md](file://pikzels-clone\docs\research\social-media-platforms.md)
 - [social-sharing.md](file://pikzels-clone\docs\social-sharing.md)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Enhanced social media URL validation now supports multiple platforms (YouTube, TikTok, Instagram, Twitter) instead of YouTube-only validation
+- Added platform-specific placeholder animations and example thumbnail previews in the VideoFrameExtractor component
+- Updated validation middleware to include Instagram as a supported platform
+- Expanded platform configuration system with comprehensive URL pattern matching
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Social Media Client Factory Pattern](#social-media-client-factory-pattern)
-3. [Share Workflow from UI to API](#share-workflow-from-ui-to-api)
-4. [Authentication and Token Management](#authentication-and-token-management)
-5. [Social Media Client Implementations](#social-media-client-implementations)
-6. [Error Handling](#error-handling)
-7. [Share Tracking System](#share-tracking-system)
-8. [Platform-Specific Requirements](#platform-specific-requirements)
-9. [Troubleshooting Common Issues](#troubleshooting-common-issues)
+3. [Enhanced URL Validation and Platform Detection](#enhanced-url-validation-and-platform-detection)
+4. [Share Workflow from UI to API](#share-workflow-from-ui-to-api)
+5. [Authentication and Token Management](#authentication-and-token-management)
+6. [Social Media Client Implementations](#social-media-client-implementations)
+7. [Error Handling](#error-handling)
+8. [Share Tracking System](#share-tracking-system)
+9. [Platform-Specific Requirements](#platform-specific-requirements)
+10. [Troubleshooting Common Issues](#troubleshooting-common-issues)
 
 ## Introduction
-The Social Media Integration system enables users to share generated thumbnails across multiple platforms including Facebook, Twitter (X), LinkedIn, and Pinterest. The architecture follows a factory pattern for client creation, with standardized interfaces for consistent interaction across platforms. The system handles authentication, content formatting, media uploads, post creation, and engagement tracking. This document details the implementation, workflow, and platform-specific considerations for the social sharing functionality.
+The Social Media Integration system enables users to share generated thumbnails across multiple platforms including Facebook, Twitter (X), LinkedIn, and Pinterest. The architecture follows a factory pattern for client creation, with standardized interfaces for consistent interaction across platforms. The system handles authentication, content formatting, media uploads, post creation, and engagement tracking. Recent enhancements include expanded URL validation supporting YouTube, TikTok, Instagram, and Twitter platforms, along with platform-specific placeholder animations and example thumbnail previews.
 
 ## Social Media Client Factory Pattern
 The Social Media Factory pattern provides a centralized mechanism for creating platform-specific social media clients. This design enables extensibility while maintaining a consistent interface across all platforms.
@@ -76,6 +88,41 @@ SocialMediaClient <|-- PinterestClient
 **Section sources**
 - [social-media-factory.ts](file://pikzels-clone\src\modules\social-share\social-media-factory.ts#L6-L25)
 
+## Enhanced URL Validation and Platform Detection
+The system now supports comprehensive URL validation across multiple social media platforms beyond YouTube. The platform detection system identifies supported platforms and extracts video IDs for seamless integration.
+
+### Supported Platforms and URL Patterns
+| Platform | URL Patterns | Icon | Proxy Endpoint |
+|----------|--------------|------|----------------|
+| YouTube | youtube.com/watch?v=..., youtu.be/, youtube.com/embed/... | 📺 | /api/video/proxy/youtube |
+| TikTok | tiktok.com/@.../video/, vm.tiktok.com/, tiktok.com/t/... | 🎵 | /api/video/proxy/tiktok |
+| Instagram | instagram.com/p/, instagram.com/reel/, instagr.am/... | 📷 | /api/video/proxy/instagram |
+| Twitter (X) | twitter.com/.../status/, x.com/.../status/ | 🐦 | /api/video/proxy/twitter |
+| Vimeo | vimeo.com/, player.vimeo.com/video/ | 🎬 | /api/video/proxy/vimeo |
+
+### Platform Detection Architecture
+```mermaid
+flowchart TD
+A["User Input URL"] --> B["Platform Registry"]
+B --> C{"Match URL Pattern?"}
+C --> |Yes| D["Extract Video ID"]
+D --> E["Detect Platform"]
+E --> F["Return Platform Info"]
+C --> |No| G["Not a Supported Platform"]
+F --> H["Video Service"]
+G --> H
+H --> I["Load Video"]
+```
+
+**Diagram sources**
+- [platforms.ts](file://pikzels-clone\client\src\services\video\platforms.ts#L156-L167)
+- [video-service.ts](file://pikzels-clone\client\src\services\video\video-service.ts#L550-L552)
+
+**Section sources**
+- [platforms.ts](file://pikzels-clone\client\src\services\video\platforms.ts#L12-L212)
+- [video-service.ts](file://pikzels-clone\client\src\services\video\video-service.ts#L133-L184)
+- [validation.middleware.ts](file://pikzels-clone\src\middleware\validation.middleware.ts#L333-L338)
+
 ## Share Workflow from UI to API
 The sharing process begins with a user interface modal and progresses through backend services to platform APIs. The workflow ensures proper validation, authentication, and error handling at each step.
 
@@ -88,7 +135,7 @@ participant Client as SocialMediaClient
 participant Service as SocialShareService
 participant DB as Database
 UI->>Controller : POST /api/social-share
-Controller->>Controller : Validate request
+Controller->>Controller : Validate request (including platform)
 Controller->>Service : createSocialShare() [pending]
 loop For each platform
 Controller->>Factory : createClient(platform, token)
@@ -111,12 +158,12 @@ Controller-->>UI : Response with results
 ```
 
 **Diagram sources**
-- [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx#L1-L171)
+- [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx#L1-L172)
 - [social-share.controller.ts](file://pikzels-clone\src\modules\social-share\social-share.controller.ts#L16-L281)
 - [social-media-factory.ts](file://pikzels-clone\src\modules\social-share\social-media-factory.ts#L6-L25)
 
 **Section sources**
-- [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx#L1-L171)
+- [SocialShareModal.tsx](file://pikzels-clone\client\src\components\SocialShareModal.tsx#L1-L172)
 - [social-share.controller.ts](file://pikzels-clone\src\modules\social-share\social-share.controller.ts#L16-L281)
 
 ## Authentication and Token Management
@@ -283,6 +330,10 @@ This section addresses common integration issues and provides guidance for resol
 - **Facebook**: Text should be formatted appropriately for long-form content
 - **LinkedIn**: Content should be professional in nature
 
+### Enhanced URL Validation Issues
+**Issue**: "Unsupported video platform"
+**Solution**: Verify the URL matches one of the supported patterns. Currently supports YouTube, TikTok, Instagram, and Twitter URLs with comprehensive regex pattern matching.
+
 ### API Changes
 When social media platforms update their APIs:
 1. Update the `API_BASE_URL` constant in the client
@@ -304,3 +355,5 @@ Each error type should trigger appropriate user feedback and logging for debuggi
 - [social-share.controller.ts](file://pikzels-clone\src\modules\social-share\social-share.controller.ts#L16-L281)
 - [facebook-client.ts](file://pikzels-clone\src\modules\social-share\facebook-client.ts#L6-L130)
 - [twitter-client.ts](file://pikzels-clone\src\modules\social-share\twitter-client.ts#L6-L128)
+- [platforms.ts](file://pikzels-clone\client\src\services\video\platforms.ts#L12-L212)
+- [validation.middleware.ts](file://pikzels-clone\src\middleware\validation.middleware.ts#L333-L338)

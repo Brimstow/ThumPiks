@@ -25,26 +25,6 @@ model AdminNotification {
   @@index([type])
 }
 
-model UserNotification {
-  id        String    @id @default(uuid())
-  userId    String
-  type      String
-  title     String
-  message   String
-  priority  String    @default("normal")
-  isRead    Boolean   @default(false)
-  readAt    DateTime?
-  actionUrl String?
-  metadata  Json?
-  createdAt DateTime  @default(now())
-  expiresAt DateTime?
-  User      User      @relation(fields: [userId], references: [id])
-
-  @@index([userId, isRead, createdAt])
-  @@index([userId, type])
-  @@index([createdAt])
-}
-
 model AdminRole {
   id          String    @id
   userId      String
@@ -148,10 +128,6 @@ model Subscription {
   planType             String
   creditsBalance       Int
   creditsUsed          Int      @default(0)
-  addonCreditsBalance  Int      @default(0)  // Purchased credit packs (never expires)
-  addonCreditsUsed     Int      @default(0)  // Used from purchased packs
-  watermarkFreeUsed      Int      @default(0)
-  watermarkFreeResetDate DateTime @default(now())
   periodStart          DateTime
   periodEnd            DateTime
   userId               String
@@ -179,8 +155,6 @@ model CreditTransaction {
   type            String
   amount          Int
   description     String
-  balanceBefore   Int?     // Balance before this transaction
-  balanceAfter    Int?     // Balance after this transaction
   stripePaymentId String?
   polarOrderId    String?
   metadata        Json?
@@ -291,7 +265,6 @@ model Thumbnail {
   title                                          String
   imageUrl                                       String
   originalImageUrl                               String?
-  originalPublicId                               String?
   prompt                                         String          @default("")
   parameters                                     Json
   projectId                                      String
@@ -383,8 +356,6 @@ model User {
   EmailLog                                      EmailLog[]
   // Review relations
   Review                                        Review?
-  // Notification relations
-  UserNotification                              UserNotification[]
 }
 
 model VisionAnalysis {

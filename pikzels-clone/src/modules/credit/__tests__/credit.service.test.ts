@@ -1,23 +1,9 @@
-// Ensure STRIPE_SECRET_KEY is set BEFORE module-level Stripe init
-process.env.STRIPE_SECRET_KEY = 'sk_test_xxx';
-
 // ── Mocks (hoisted) ─────────────────────────────────────────────────
 
 jest.mock('../../../utils/prisma-factory', () => {
-  // Reuse existing store so jest.resetModules / isolateModules
-  // doesn't break the reference held by the original import
   const store: any = (global as any).__creditMockPrisma || {};
   (global as any).__creditMockPrisma = store;
   return { getPrisma: jest.fn(() => store) };
-});
-
-jest.mock('stripe', () => {
-  const instance = {
-    customers: { create: jest.fn() },
-    checkout: { sessions: { create: jest.fn() } },
-  };
-  (global as any).__creditMockStripe = instance;
-  return { __esModule: true, default: jest.fn(() => instance) };
 });
 
 jest.mock('../../../utils/logger', () => ({
@@ -27,6 +13,29 @@ jest.mock('../../../utils/logger', () => ({
     error: jest.fn(),
     debug: jest.fn(),
   },
+}));
+
+// Mock the billing provider
+const mockBillingProvider = {
+  providerName: 'demo',
+  createCreditPackCheckout: jest.fn(),
+};
+jest.mock('../../billing', () => ({
+  getBillingProvider: jest.fn(() => mockBillingProvider),
+}));
+
+// Mock the service factory (used for notifications)
+jest.mock('../../../utils/service-factory', () => ({
+  getService: jest.fn(() => ({
+    routeToUser: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+// Mock user-notification service (used in deductCredits low-credits check)
+jest.mock('../../user-notification/user-notification.service', () => ({
+  getUserNotificationService: jest.fn(() => ({
+    hasDuplicate: jest.fn().mockResolvedValue(true),
+  })),
 }));
 
 // ── Imports (after mocks) ────────────────────────────────────────────
@@ -40,6 +49,7 @@ import {
   refundCredits,
 } from '../credit.service';
 import { logger } from '../../../utils/logger';
+import { getBillingProvider } from '../../billing';
 
 // ── Accessors ────────────────────────────────────────────────────────
 
@@ -47,8 +57,8 @@ function mp() {
   return (global as any).__creditMockPrisma as any;
 }
 
-function ms() {
-  return (global as any).__creditMockStripe as any;
+function mbp() {
+  return mockBillingProvider;
 }
 
 // ── Test Fixtures ────────────────────────────────────────────────────
@@ -57,6 +67,7 @@ const mockSubscription = {
   id: 'sub-1',
   userId: 'user-123',
   creditsBalance: 100,
+  addonCreditsBalance: 0,
   creditsUsed: 50,
   createdAt: new Date(),
 };
@@ -157,165 +168,57 @@ describe('CreditService', () => {
     });
   });
 
-  // ── createCreditPackCheckout (Stripe mode) ───────────────────────
+  // ── createCreditPackCheckout ────────────────────────────────────
 
   describe('createCreditPackCheckout', () => {
-    describe('with Stripe configured', () => {
-      it('throws for invalid pack ID', async () => {
-        await expect(
-          createCreditPackCheckout('user-123', 'test@test.com', 'pack_invalid')
-        ).rejects.toThrow('Invalid credit pack ID');
-      });
-
-      it('creates Stripe customer if user has no stripeCustomerId', async () => {
-        mp().user.findUnique.mockResolvedValue({ stripeCustomerId: null });
-        ms().customers.create.mockResolvedValue({ id: 'cus_new' });
-        mp().user.update.mockResolvedValue({});
-        ms().checkout.sessions.create.mockResolvedValue({
-          id: 'sess_1',
-          url: 'https://checkout.stripe.com/sess_1',
-        });
-
-        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_500');
-
-        expect(ms().customers.create).toHaveBeenCalledWith({
-          email: 'test@test.com',
-          metadata: { userId: 'user-123' },
-        });
-        expect(mp().user.update).toHaveBeenCalledWith({
-          where: { id: 'user-123' },
-          data: { stripeCustomerId: 'cus_new' },
-        });
-      });
-
-      it('uses existing stripeCustomerId without creating a new customer', async () => {
-        mp().user.findUnique.mockResolvedValue({
-          stripeCustomerId: 'cus_existing',
-        });
-        ms().checkout.sessions.create.mockResolvedValue({
-          id: 'sess_1',
-          url: 'https://checkout.stripe.com/sess_1',
-        });
-
-        await createCreditPackCheckout('user-123', 'test@test.com', 'pack_500');
-
-        expect(ms().customers.create).not.toHaveBeenCalled();
-      });
-
-      it('creates checkout session with correct line_items in cents', async () => {
-        mp().user.findUnique.mockResolvedValue({
-          stripeCustomerId: 'cus_existing',
-        });
-        ms().checkout.sessions.create.mockResolvedValue({
-          id: 'sess_1',
-          url: 'https://checkout.stripe.com/sess_1',
-        });
-
-        // pack_2000 = Power Pack, 2000 credits, $39
-        await createCreditPackCheckout(
-          'user-123',
-          'test@test.com',
-          'pack_2000'
-        );
-
-        expect(ms().checkout.sessions.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            customer: 'cus_existing',
-            mode: 'payment',
-            line_items: [
-              expect.objectContaining({
-                price_data: expect.objectContaining({
-                  currency: 'usd',
-                  unit_amount: 3900, // $39 * 100
-                  product_data: expect.objectContaining({
-                    name: 'Power Pack',
-                  }),
-                }),
-                quantity: 1,
-              }),
-            ],
-            metadata: expect.objectContaining({
-              userId: 'user-123',
-              packId: 'pack_2000',
-              credits: '2000',
-              type: 'credit_pack_purchase',
-            }),
-          })
-        );
-      });
-
-      it('returns session URL', async () => {
-        mp().user.findUnique.mockResolvedValue({
-          stripeCustomerId: 'cus_existing',
-        });
-        ms().checkout.sessions.create.mockResolvedValue({
-          id: 'sess_1',
-          url: 'https://checkout.stripe.com/sess_1',
-        });
-
-        const result = await createCreditPackCheckout(
-          'user-123',
-          'test@test.com',
-          'pack_500'
-        );
-        expect(result).toBe('https://checkout.stripe.com/sess_1');
-      });
-
-      it('returns empty string when session.url is null', async () => {
-        mp().user.findUnique.mockResolvedValue({
-          stripeCustomerId: 'cus_existing',
-        });
-        ms().checkout.sessions.create.mockResolvedValue({
-          id: 'sess_1',
-          url: null,
-        });
-
-        const result = await createCreditPackCheckout(
-          'user-123',
-          'test@test.com',
-          'pack_500'
-        );
-        expect(result).toBe('');
-      });
-
-      it('throws on Stripe error', async () => {
-        mp().user.findUnique.mockResolvedValue({
-          stripeCustomerId: 'cus_existing',
-        });
-        ms().checkout.sessions.create.mockRejectedValue(
-          new Error('Stripe down')
-        );
-
-        await expect(
-          createCreditPackCheckout('user-123', 'test@test.com', 'pack_500')
-        ).rejects.toThrow('Stripe down');
-        expect(logger.error).toHaveBeenCalled();
-      });
+    it('throws for invalid pack ID', async () => {
+      await expect(
+        createCreditPackCheckout('user-123', 'test@test.com', 'pack_invalid')
+      ).rejects.toThrow('Invalid credit pack ID');
     });
 
-    describe('demo mode (no Stripe)', () => {
-      it('returns demo URL when Stripe is not configured', async () => {
-        const savedKey = process.env.STRIPE_SECRET_KEY;
-        delete process.env.STRIPE_SECRET_KEY;
+    it('calls billing provider with correct pack data', async () => {
+      mbp().createCreditPackCheckout.mockResolvedValue(
+        'https://checkout.example.com/sess_1'
+      );
 
-        let demoModule: any;
-        jest.isolateModules(() => {
-          demoModule = require('../credit.service');
-        });
+      // starter_pack: 50 credits, $9
+      await createCreditPackCheckout('user-123', 'test@test.com', 'starter_pack');
 
-        const result = await demoModule.createCreditPackCheckout(
-          'user-123',
-          'test@test.com',
-          'pack_500'
-        );
+      expect(mbp().createCreditPackCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-123',
+          email: 'test@test.com',
+          packId: 'starter_pack',
+          packName: 'Starter Pack',
+          credits: 50,
+          price: 9,
+        })
+      );
+    });
 
-        // Restore env so subsequent tests are unaffected
-        process.env.STRIPE_SECRET_KEY = savedKey;
+    it('returns checkout URL from billing provider', async () => {
+      mbp().createCreditPackCheckout.mockResolvedValue(
+        'https://checkout.example.com/sess_1'
+      );
 
-        expect(result).toContain('demo-checkout');
-        expect(result).toContain('userId=user-123');
-        expect(result).toContain('planId=pack_500');
-      });
+      const result = await createCreditPackCheckout(
+        'user-123',
+        'test@test.com',
+        'starter_pack'
+      );
+      expect(result).toBe('https://checkout.example.com/sess_1');
+    });
+
+    it('throws on billing provider error', async () => {
+      mbp().createCreditPackCheckout.mockRejectedValue(
+        new Error('Provider down')
+      );
+
+      await expect(
+        createCreditPackCheckout('user-123', 'test@test.com', 'starter_pack')
+      ).rejects.toThrow('Provider down');
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 
@@ -332,31 +235,45 @@ describe('CreditService', () => {
       mp().subscription.findFirst.mockResolvedValue(null);
 
       await expect(
-        addPurchasedCredits('user-123', 'pack_500', 'sess_1')
+        addPurchasedCredits('user-123', 'starter_pack', 'sess_1')
       ).rejects.toThrow('No subscription found');
     });
 
-    it('increments creditsBalance and creates purchase transaction', async () => {
+    it('increments creditsBalance and creates purchase transaction (stripe)', async () => {
       mp().subscription.findFirst.mockResolvedValue(mockSubscription);
       mp().subscription.update.mockResolvedValue({});
       mp().creditTransaction.create.mockResolvedValue({});
 
-      await addPurchasedCredits('user-123', 'pack_500', 'sess_1');
+      await addPurchasedCredits('user-123', 'starter_pack', 'sess_1', 'stripe');
 
-      // pack_500 = Boost Pack, 500 credits
+      // starter_pack = Starter Pack, 50 credits
       expect(mp().subscription.update).toHaveBeenCalledWith({
         where: { id: 'sub-1' },
-        data: { creditsBalance: { increment: 500 } },
+        data: { creditsBalance: { increment: 50 } },
       });
 
       expect(mp().creditTransaction.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-123',
           type: 'purchase',
-          amount: 500,
-          description: 'Purchased Boost Pack',
+          amount: 50,
+          description: 'Purchased Starter Pack',
           stripePaymentId: 'sess_1',
         },
+      });
+    });
+
+    it('uses polarOrderId for polar provider', async () => {
+      mp().subscription.findFirst.mockResolvedValue(mockSubscription);
+      mp().subscription.update.mockResolvedValue({});
+      mp().creditTransaction.create.mockResolvedValue({});
+
+      await addPurchasedCredits('user-123', 'starter_pack', 'order_polar_1', 'polar');
+
+      expect(mp().creditTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          polarOrderId: 'order_polar_1',
+        }),
       });
     });
 
@@ -365,7 +282,7 @@ describe('CreditService', () => {
       mp().subscription.update.mockRejectedValue(new Error('DB error'));
 
       await expect(
-        addPurchasedCredits('user-123', 'pack_500', 'sess_1')
+        addPurchasedCredits('user-123', 'starter_pack', 'sess_1')
       ).rejects.toThrow('DB error');
       expect(logger.error).toHaveBeenCalled();
     });
@@ -395,28 +312,35 @@ describe('CreditService', () => {
       const result = await deductCredits('user-123', 10, 'AI generation');
 
       expect(result).toBe(true);
+      // mockSubscription has creditsBalance:100, addonCreditsBalance:0 (undefined→0)
+      // So 10 deducted from plan, 0 from addon
       expect(mp().subscription.update).toHaveBeenCalledWith({
         where: { id: 'sub-1' },
         data: {
           creditsBalance: { decrement: 10 },
           creditsUsed: { increment: 10 },
+          addonCreditsBalance: { decrement: 0 },
+          addonCreditsUsed: { increment: 0 },
         },
       });
     });
 
-    it('creates negative transaction record', async () => {
+    it('creates negative transaction record with balance tracking', async () => {
       mp().subscription.findFirst.mockResolvedValue(mockSubscription);
       mp().subscription.update.mockResolvedValue({ creditsBalance: 90 });
       mp().creditTransaction.create.mockResolvedValue({});
 
       await deductCredits('user-123', 10, 'AI generation');
 
+      // creditsBalance:100 + addonCreditsBalance:0 = totalAvailable:100
       expect(mp().creditTransaction.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-123',
           type: 'usage',
           amount: -10,
           description: 'AI generation',
+          balanceBefore: 100,
+          balanceAfter: 90,
         },
       });
     });

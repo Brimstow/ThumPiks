@@ -1,0 +1,3 @@
+# gate-keeper runtime artifacts
+node_modules/
+.gate-keeper/

@@ -4,8 +4,11 @@ import { ThumbnailService } from './thumbnail.service';
 import { ImageProcessingService } from './image-processing.service';
 import { OpenRouterAIService } from './openrouter-ai.service';
 import { ReplicateAIService } from './replicate-ai.service';
+import { getFaceSwapService } from './replicate-face-swap.service';
 import { CometAIService } from './comet-ai.service';
 import { ZenmuxAIService } from './zenmux-ai.service';
+import { getAIPriorityQueue } from './ai-priority-queue.service';
+import type { AIJobParams } from './ai-priority-queue.service';
 import { emitAnalyticsEvent } from '../../events/event-emitter';
 import {
   resolveModelFromTier,
@@ -25,6 +28,7 @@ import { isZodError } from '../../utils/json-validation';
 import { watermarkImageUrls, shouldApplyWatermark, getWatermarkFreeStatus, consumeWatermarkFreeExport, cleanupExpiredOriginals, isCleanOriginalExpired } from './watermark.service';
 import { getCurrentSubscription } from '../subscription/subscription.service';
 import { getService } from '../../utils/service-factory';
+import { getStorageService } from '../storage';
 
 // Single source of truth for valid thumbnail styles
 const VALID_STYLES = [
@@ -128,6 +132,26 @@ async function ensureBase64(image: string): Promise<string> {
   }
   // Assume raw base64 string
   return `data:image/png;base64,${image}`;
+}
+
+/**
+ * Ensure an image value is an HTTP(S) URL.
+ * If it's already a URL, return as-is.
+ * If it's a base64 data URL or raw base64, upload to Cloudinary via ImageProcessingService
+ * and return the resulting URL.
+ */
+async function ensureUrl(image: string): Promise<string> {
+  if (image.startsWith('http://') || image.startsWith('https://')) {
+    return image;
+  }
+  // Convert base64 → Cloudinary ephemeral URL
+  const base64 = image.startsWith('data:') ? image : `data:image/png;base64,${image}`;
+  const storage = getStorageService();
+  const result = await storage.uploadEphemeral(base64, {
+    folder: 'thumpiks/face-swap-inputs',
+    tags: ['face-swap', 'ephemeral'],
+  });
+  return result.secureUrl;
 }
 
 // AI service wrapper with proper interface
@@ -1386,12 +1410,40 @@ export const aiInpaint = async (req: AuthRequest, res: Response) => {
       // Ensure image is base64 — frontend may send HTTP URLs (YouTube fallback, Cloudinary, etc.)
       const imageBase64 = await ensureBase64(image);
 
-      const imageUrls = await openRouterService.inpaintImage(
-        imageBase64,
-        mask || '',
-        prompt,
-        resolvedModel || undefined
-      );
+      // Build the direct executor
+      const directExecutor = async () => {
+        const urls = await openRouterService.inpaintImage(
+          imageBase64,
+          mask || '',
+          prompt,
+          resolvedModel || undefined
+        );
+        return { images: urls };
+      };
+
+      let imageUrls: string[];
+
+      // Route through priority queue (Ultra Pro users dequeue first)
+      const aiQueue = getAIPriorityQueue();
+      if (aiQueue.isReady()) {
+        const subscription = await getCurrentSubscription(req.user.id);
+        const planType = subscription?.planType || 'free';
+        const jobParams: AIJobParams = {
+          operationType: 'inpaint',
+          userId: req.user.id,
+          planType,
+          provider: 'openrouter',
+          model,
+          tier: tier || 'default',
+          payload: { image: imageBase64, mask: mask || '', prompt, model: resolvedModel },
+          toolTimeout: 60000,
+        };
+        const result = await aiQueue.executeViaQueue(jobParams, directExecutor);
+        imageUrls = result.images as string[];
+      } else {
+        const result = await directExecutor();
+        imageUrls = result.images;
+      }
 
       // Emit analytics event
       emitAnalyticsEvent(req.user.id, 'ai-tool', 'inpaint', 'ai-inpaint', {
@@ -1495,23 +1547,50 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
     try {
       let imageUrls: string[];
 
-      // Route to the appropriate provider
-      if (provider === 'comet') {
-        imageUrls = await cometService.generateImages(
-          prompt,
-          style || 'thumbnail'
-        );
-      } else if (provider === 'zenmux') {
-        imageUrls = await zenmuxService.generateImages(
-          prompt,
-          style || 'thumbnail'
-        );
+      // Build the direct executor (the actual AI call)
+      const directExecutor = async () => {
+        let urls: string[];
+        if (provider === 'comet') {
+          urls = await cometService.generateImages(
+            prompt,
+            style || 'thumbnail'
+          );
+        } else if (provider === 'zenmux') {
+          urls = await zenmuxService.generateImages(
+            prompt,
+            style || 'thumbnail'
+          );
+        } else {
+          urls = await openRouterService.generateImages(
+            prompt,
+            resolvedModel || undefined,
+            style || 'thumbnail'
+          );
+        }
+        return { images: urls };
+      };
+
+      // Route through priority queue (Ultra Pro users dequeue first)
+      const aiQueue = getAIPriorityQueue();
+      if (aiQueue.isReady()) {
+        const subscription = await getCurrentSubscription(req.user.id);
+        const planType = subscription?.planType || 'free';
+        const jobParams: AIJobParams = {
+          operationType: 'generate',
+          userId: req.user.id,
+          planType,
+          provider,
+          model,
+          tier: tier || 'default',
+          payload: { prompt, style: style || 'thumbnail', model: resolvedModel },
+          toolTimeout: 60000,
+        };
+        const result = await aiQueue.executeViaQueue(jobParams, directExecutor);
+        imageUrls = result.images as string[];
       } else {
-        imageUrls = await openRouterService.generateImages(
-          prompt,
-          resolvedModel || undefined,
-          style || 'thumbnail'
-        );
+        // Queue not ready — direct execution (graceful degradation)
+        const result = await directExecutor();
+        imageUrls = result.images;
       }
 
       // Emit analytics event
@@ -1546,8 +1625,9 @@ export const aiGenerate = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Face swap - replace face in target image with face from source image
- * Model: bytedance-seed/seedream-4.5 (configurable via OPENROUTER_MODEL_FACESWAP)
+ * Face swap — replace face in target image with face from source image.
+ * Engine: mertguvencli/face-swap-with-indexes (InsightFace inswapper, Replicate)
+ * Pro tier: adds Reve Remix polish step for cinematic quality.
  */
 export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
   try {
@@ -1558,9 +1638,8 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
     const {
       sourceImage,
       targetImage,
-      prompt,
+      targetFaceIndex = 0,
       tier,
-      model: modelOverride,
     } = req.body;
 
     if (!sourceImage || !targetImage) {
@@ -1569,20 +1648,13 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!openRouterService.isConfigured()) {
+    const faceSwapService = getFaceSwapService();
+
+    if (!faceSwapService.isConfigured()) {
       return res.status(503).json({
-        error: 'AI service not configured. Please set OPENROUTER_API_KEY.',
+        error: 'Face swap service not configured. Please set REPLICATE_API_KEY.',
       });
     }
-
-    // Resolve model: direct override takes priority, then tier-based lookup, then default
-    const resolvedModel =
-      modelOverride || resolveModelFromTier(tier, 'face-swap');
-    const model =
-      resolvedModel || openRouterService.getModelForTool('faceSwap');
-    console.log(
-      `[AI Face Swap] Using model: ${model} (tier: ${tier || 'none'}, override: ${modelOverride || 'none'})`
-    );
 
     // Credit check & deduction (before API call)
     const creditCost = getCreditCostForTier(tier, 'face-swap');
@@ -1599,30 +1671,35 @@ export const aiFaceSwap = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-      // Ensure images are base64 — frontend may send HTTP URLs
-      const sourceBase64 = await ensureBase64(sourceImage);
-      const targetBase64 = await ensureBase64(targetImage);
+      // Ensure source and target are HTTP URLs (upload base64 to Cloudinary if needed)
+      const sourceUrl = await ensureUrl(sourceImage);
+      const targetUrl = await ensureUrl(targetImage);
 
-      const imageUrls = await openRouterService.faceSwapImage(
-        sourceBase64,
-        targetBase64,
-        prompt || '',
-        resolvedModel || undefined
-      );
+      const result = await faceSwapService.swapFace(sourceUrl, targetUrl, {
+        targetFaceIndex: Number(targetFaceIndex) || 0,
+        tier: tier === 'pro' ? 'pro' : 'standard',
+      });
+
+      console.log('[aiFaceSwap] Pipeline complete', {
+        pipeline: result.pipeline,
+        tier: tier || 'standard',
+        userId: req.user.id,
+      });
 
       // Emit analytics event
       emitAnalyticsEvent(req.user.id, 'ai-tool', 'face-swap', 'ai-face-swap', {
-        model,
+        pipeline: result.pipeline,
+        tier: tier || 'standard',
       });
 
-      // Watermark free-tier outputs
-      const wmResult = await watermarkImageUrls(req.user.id, imageUrls);
+      // Watermark free-tier outputs (download-time only — see watermark.service)
+      const wmResult = await watermarkImageUrls(req.user.id, [result.url]);
 
       return res.status(200).json({
         success: true,
         images: wmResult.displayUrls,
         originals: wmResult.originalUrls,
-        model,
+        pipeline: result.pipeline,
       });
     } catch (apiError) {
       // Refund credits on API failure

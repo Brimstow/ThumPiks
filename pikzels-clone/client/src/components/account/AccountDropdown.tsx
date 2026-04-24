@@ -34,6 +34,8 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
   const [subscription, setSubscription] = useState<SubscriptionTier | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const navigate = useNavigate();
   const { user, logout, isAuthenticated, loading } = useAuth();
 
@@ -56,6 +58,22 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
       setLoadingSubscription(false);
     }
   };
+
+  // Compute dropdown position to center in viewport on small screens
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const vw = window.innerWidth;
+      if (vw < 640) {
+        const dropdownWidth = Math.min(320, vw - 16);
+        const idealLeft = (vw - dropdownWidth) / 2;
+        const rightOffset = rect.right - idealLeft - dropdownWidth;
+        setDropdownStyle({ right: `${rightOffset}px`, width: `${dropdownWidth}px` });
+      } else {
+        setDropdownStyle({});
+      }
+    }
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -155,6 +173,7 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
       {/* Trigger Button - matches original header icon style */}
       <Tooltip content="Account" side="bottom">
         <button
+          ref={triggerRef}
           onClick={() => setIsOpen(!isOpen)}
           className="inline-flex p-2 rounded-lg hover:bg-slate-800/80 text-slate-400 hover:text-slate-50 transition-all"
           aria-label="Account menu"
@@ -166,7 +185,10 @@ const AccountDropdown: React.FC<AccountDropdownProps> = ({ className = '' }) => 
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div
+          className="absolute top-full mt-2 w-80 max-w-[calc(100vw-1rem)] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+          style={{ right: 0, ...dropdownStyle }}
+        >
           {/* User Info Header */}
           <div className="p-4 border-b border-slate-800 bg-gradient-to-r from-slate-900 to-slate-800">
             <div className="flex items-center gap-3">

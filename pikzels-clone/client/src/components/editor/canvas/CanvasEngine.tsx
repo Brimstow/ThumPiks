@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import type { EditorState, Layer, LayerTransform, GroupLayer, TextLayer } from '../types/editor.types';
+import type { EditorState, Layer, LayerTransform, LayerEffect, GroupLayer, TextLayer } from '../types/editor.types';
 import { parseTextShadow } from '../../../constants/text-styles';
 import { INLINE_EDIT_STYLES } from '../../../hooks/useInlineTextEdit';
 import { UploadZoneOverlay } from './UploadZoneOverlay';
@@ -189,6 +189,89 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     });
   }, [layers]);
 
+  // --- Effect rendering helpers ---
+
+  /** Convert hex color + opacity (0-100) to rgba string */
+  const hexToRgba = (hex: string, opacity: number): string => {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
+  };
+
+  /** Apply pre-draw effects (shadow, glow, blur, bevel) to context before content render */
+  const applyPreDrawEffects = (ctx: CanvasRenderingContext2D, effects: LayerEffect[]) => {
+    for (const effect of effects) {
+      if (!effect.enabled) continue;
+      const s = effect.settings;
+
+      switch (effect.type) {
+        case 'shadow': {
+          const color = (s.color as string) || '#000000';
+          const opacity = (s.opacity as number) ?? 80;
+          ctx.shadowColor = hexToRgba(color, opacity);
+          ctx.shadowOffsetX = (s.offsetX as number) ?? 4;
+          ctx.shadowOffsetY = (s.offsetY as number) ?? 4;
+          ctx.shadowBlur = (s.blur as number) ?? 8;
+          break;
+        }
+        case 'glow': {
+          const color = (s.color as string) || '#FFFF00';
+          const opacity = (s.opacity as number) ?? 90;
+          ctx.shadowColor = hexToRgba(color, opacity);
+          ctx.shadowOffsetX = (s.offsetX as number) ?? 0;
+          ctx.shadowOffsetY = (s.offsetY as number) ?? 0;
+          ctx.shadowBlur = (s.blur as number) ?? 15;
+          break;
+        }
+        case 'blur': {
+          const radius = (s.radius as number) ?? 4;
+          ctx.filter = `blur(${radius}px)`;
+          break;
+        }
+        case 'bevel': {
+          // Bevel approximation: render a light shadow offset in one direction
+          const lightColor = (s.lightColor as string) || '#FFFFFF';
+          const opacity = (s.opacity as number) ?? 70;
+          const depth = (s.depth as number) ?? 3;
+          const angle = (s.angle as number) ?? 135;
+          const rad = (angle * Math.PI) / 180;
+          ctx.shadowColor = hexToRgba(lightColor, opacity);
+          ctx.shadowOffsetX = Math.cos(rad) * depth;
+          ctx.shadowOffsetY = Math.sin(rad) * depth;
+          ctx.shadowBlur = depth;
+          break;
+        }
+      }
+    }
+  };
+
+  /** Apply post-draw effects (stroke) after content render */
+  const applyPostDrawEffects = (ctx: CanvasRenderingContext2D, layer: Layer, effects: LayerEffect[]) => {
+    for (const effect of effects) {
+      if (!effect.enabled || effect.type !== 'stroke') continue;
+      const s = effect.settings;
+      const color = (s.color as string) || '#000000';
+      const opacity = (s.opacity as number) ?? 100;
+      const width = (s.width as number) ?? 3;
+      const { width: lw, height: lh } = layer.transform;
+
+      ctx.strokeStyle = hexToRgba(color, opacity);
+      ctx.lineWidth = width;
+      ctx.strokeRect(0, 0, lw, lh);
+    }
+  };
+
+  /** Reset all effect-related ctx state */
+  const resetEffectState = (ctx: CanvasRenderingContext2D) => {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.shadowBlur = 0;
+    ctx.filter = 'none';
+  };
+
   // Render all layers to canvas
   const renderLayers = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -233,6 +316,15 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.scale(scaleX, scaleY);
       ctx.translate(-width / 2, -height / 2);
 
+      // Apply layer effects (pre-draw: shadow, glow, blur, bevel)
+      const layerEffects: LayerEffect[] = (layer as any).effects || [];
+      const enabledPreEffects = layerEffects.filter(
+        e => e.enabled && e.type !== 'stroke'
+      );
+      if (enabledPreEffects.length > 0) {
+        applyPreDrawEffects(ctx, enabledPreEffects);
+      }
+
       // Render based on layer type
       switch (layer.type) {
         case 'image':
@@ -250,6 +342,20 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
         case 'drawing':
           renderDrawingLayer(ctx, layer as any);
           break;
+      }
+
+      // Apply post-draw effects (stroke outline)
+      const enabledPostEffects = layerEffects.filter(
+        e => e.enabled && e.type === 'stroke'
+      );
+      if (enabledPostEffects.length > 0) {
+        resetEffectState(ctx);
+        applyPostDrawEffects(ctx, layer, enabledPostEffects);
+      }
+
+      // Reset effect state before restore
+      if (enabledPreEffects.length > 0) {
+        resetEffectState(ctx);
       }
 
       ctx.restore();
@@ -403,8 +509,11 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.restore();
     }
 
-    // Apply shadow from CSS textShadow string
-    const shadow = layer.textShadow ? parseTextShadow(layer.textShadow) : null;
+    // Apply shadow from CSS textShadow string (skip if new-style effects already set shadow)
+    const hasEffectShadow = ((layer as any).effects || []).some(
+      (e: LayerEffect) => e.enabled && (e.type === 'shadow' || e.type === 'glow')
+    );
+    const shadow = (!hasEffectShadow && layer.textShadow) ? parseTextShadow(layer.textShadow) : null;
     if (shadow) {
       ctx.shadowOffsetX = shadow.offsetX;
       ctx.shadowOffsetY = shadow.offsetY;

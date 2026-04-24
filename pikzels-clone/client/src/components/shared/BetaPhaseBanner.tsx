@@ -44,7 +44,7 @@ const BetaPhaseBanner: React.FC<BetaPhaseBannerProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border p-6 mb-8 ${
+      className={`relative overflow-hidden rounded-2xl border p-4 sm:p-6 mb-8 ${
         isUrgent
           ? 'border-red-500/50 bg-red-950/30'
           : 'border-blue-500/50 bg-blue-950/20'
@@ -61,15 +61,15 @@ const BetaPhaseBanner: React.FC<BetaPhaseBannerProps> = ({
 
       <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         {/* Phase badge + discount */}
-        <div className="flex items-center gap-3">
-          <Flame className={`w-6 h-6 ${isUrgent ? 'text-red-400' : 'text-blue-400'}`} />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold text-white">
+        <div className="flex items-start gap-3 min-w-0">
+          <Flame className={`w-6 h-6 flex-shrink-0 mt-0.5 ${isUrgent ? 'text-red-400' : 'text-blue-400'}`} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base sm:text-lg font-semibold text-white">
                 {phase.badge || phase.name}
               </span>
               <span
-                className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
                   isUrgent
                     ? 'bg-red-500/20 text-red-300'
                     : 'bg-blue-500/20 text-blue-300'
@@ -79,7 +79,7 @@ const BetaPhaseBanner: React.FC<BetaPhaseBannerProps> = ({
               </span>
               {phase.discountPercentAnnual > phase.discountPercentMonthly && (
                 <span
-                  className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                  className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
                     isUrgent
                       ? 'bg-red-500/20 text-red-300'
                       : 'bg-green-500/20 text-green-300'

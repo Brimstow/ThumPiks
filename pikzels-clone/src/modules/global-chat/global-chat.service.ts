@@ -9,6 +9,7 @@ import type {
   ChatSessionWithMessages,
   ChatMessageResponse,
 } from './types';
+import { HELP_KNOWLEDGE_BASE } from './help-knowledge';
 
 // ============================================================================
 // Global Chat Service
@@ -36,7 +37,7 @@ const ESCALATION_INSTRUCTION = `If the user explicitly asks to "talk to a human"
 const VISION_INSTRUCTION = `The user has shared an image. Analyze it carefully and relate your response to their question. If it appears to be a screenshot of the app, identify any UI issues or help them with what they're seeing. If it's a thumbnail, provide design feedback.`;
 
 function buildSystemPrompt(scope: GlobalChatScope, hasImage: boolean): string {
-  let prompt = `${BASE_IDENTITY}\n\n${SCOPE_PROMPTS[scope]}\n\n${ESCALATION_INSTRUCTION}`;
+  let prompt = `${BASE_IDENTITY}\n\n${SCOPE_PROMPTS[scope]}\n\n${HELP_KNOWLEDGE_BASE}\n\n${ESCALATION_INSTRUCTION}`;
   if (hasImage) {
     prompt += `\n\n${VISION_INSTRUCTION}`;
   }

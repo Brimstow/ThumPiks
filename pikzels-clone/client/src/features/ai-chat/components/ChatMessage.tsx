@@ -8,6 +8,10 @@ import type { ChatMessage as ChatMessageType, ActionResult } from '../types';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  /** Called when user clicks "Run All" to confirm pending actions */
+  onConfirmActions?: (messageId: string) => void;
+  /** Called when user clicks "Dismiss" to skip pending actions */
+  onDismissActions?: (messageId: string) => void;
 }
 
 /** Status badge colors */
@@ -18,7 +22,7 @@ const STATUS_ICONS: Record<ActionResult['status'], { icon: string; className: st
   error: { icon: '\u2717', className: 'chat-action-status--error' },
 };
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onConfirmActions, onDismissActions }) => {
   if (message.role === 'system') {
     return (
       <div className="chat-message chat-message--system">
@@ -70,8 +74,29 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 {result.error && (
                   <span className="chat-action-card__error">{result.error}</span>
                 )}
+                {result.resultText && (
+                  <div className="chat-action-card__result">{result.resultText}</div>
+                )}
               </div>
             ))}
+            {message.awaitingConfirmation && (
+              <div className="chat-action-cards__confirm">
+                <button
+                  type="button"
+                  className="chat-action-cards__btn chat-action-cards__btn--run"
+                  onClick={() => onConfirmActions?.(message.id)}
+                >
+                  Run All
+                </button>
+                <button
+                  type="button"
+                  className="chat-action-cards__btn chat-action-cards__btn--dismiss"
+                  onClick={() => onDismissActions?.(message.id)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1219,11 +1219,28 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     reorderLayers: (layerIds: string[]) => {
       dispatch({ type: 'REORDER_LAYERS', layerIds });
     },
+    groupLayers: (layerIds: string[]) => {
+      dispatch({ type: 'GROUP_LAYERS', layerIds });
+    },
+    ungroupLayers: (groupId: string) => {
+      dispatch({ type: 'UNGROUP_LAYER', groupId });
+    },
     callBackendAI,
     getLayers: () => layersRef.current,
     getLayerOrder: () => layerOrderRef.current,
     getSelectedLayerIds: () => selectionRef.current.layerIds,
     getCanvasSize: () => ({ width: state.canvas.width, height: state.canvas.height }),
+    startBatch: (label: string) => {
+      dispatch({ type: 'BATCH_START', label });
+    },
+    endBatch: () => {
+      dispatch({ type: 'BATCH_END' });
+    },
+    getCanvasScreenshot: () => {
+      const canvas = canvasContainerRef.current?.querySelector('canvas');
+      if (!canvas) return null;
+      return canvas.toDataURL('image/jpeg', 0.7);
+    },
   });
 
   // AI Chat conversation & actions
@@ -1251,10 +1268,15 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     actionIndex: number,
     status: 'pending' | 'executing' | 'success' | 'error',
     error?: string,
+    resultText?: string,
   ) => void) | null>(null);
   
   const chatActionsHook = useChatActions({
-    commandExecutor,
+    commandExecutor: {
+      executeAction: commandExecutor.executeAction,
+      startBatch: (label: string) => dispatch({ type: 'BATCH_START', label }),
+      endBatch: () => dispatch({ type: 'BATCH_END' }),
+    },
     updateActionResult: (...args) => updateActionResultRef.current?.(...args),
   });
   
@@ -2380,6 +2402,8 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                   isCollapsed={isChatCollapsed}
                   onToggleCollapse={toggleChatCollapsed}
                   onUpload={handleChatUpload}
+                  onConfirmActions={chatConversation.confirmActions}
+                  onDismissActions={chatConversation.dismissActions}
                 />
               </>
             )}

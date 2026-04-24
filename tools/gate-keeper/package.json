@@ -1,0 +1,24 @@
+{
+  "name": "gate-keeper",
+  "version": "0.1.0",
+  "description": "Standalone filesystem-watcher enforcement daemon. IDE-agnostic, VCS-agnostic, CLI-agnostic.",
+  "type": "module",
+  "bin": {
+    "gate-keeper": "./bin/gate-keeper.mjs"
+  },
+  "main": "./src/index.mjs",
+  "scripts": {
+    "start": "node bin/gate-keeper.mjs watch",
+    "check": "node bin/gate-keeper.mjs check",
+    "test": "node --test src/**/*.test.mjs"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["enforcement", "file-watcher", "gates", "policy", "linting", "agent-rules"],
+  "license": "MIT"
+}

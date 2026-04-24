@@ -258,16 +258,3 @@ export const emitAnalyticsEvent = (
     { action, resource, resourceId, properties: properties || {} }
   );
 };
-
-export const emitSocialShareRequested = (
-  userId: string,
-  thumbnailId: string,
-  platforms: string[],
-  shareId: string
-) => {
-  return eventEmitter.createAndEmit(
-    'social.share.requested',
-    userId,
-    { thumbnailId, platforms, shareId }
-  );
-};

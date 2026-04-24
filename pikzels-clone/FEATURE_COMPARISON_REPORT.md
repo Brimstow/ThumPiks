@@ -435,3 +435,102 @@ The FeaturesPage has a "Two Editors, One Goal" section comparing Quick Editor vs
 ---
 
 **Bottom line:** The codebase is significantly more feature-complete than the marketing suggests. The three biggest discrepancies are features incorrectly labeled "Coming Soon" (A/B Testing, Brand Kit, Trending Insights) that are fully implemented and should be promoted. The over-promise risk is low — mainly around "priority processing" specifics and "batch editing."
+
+---
+
+## 10. Addendum — May 2026: New Competitor Feature Gaps
+
+The June 2025 comparison focused on Canva / Pikzels / Snappa / Adobe / PicMonkey. Between Feb 2025 and early 2026, a new cluster of YouTube-thumbnail-specific **testing/CTR tools** launched. The table below maps ThumPiks against them on the features they lead with.
+
+**Researched via Exa MCP (May 14, 2026).** Ref MCP returned nothing (docs index, not consumer SaaS).
+
+> **⚠️ Correction (May 14, 2026, verified via codebase):** Earlier drafts understated ThumPiks' testing capability. Both **ThumPiks Score (pre-publish CTR 0-100)** and **A/B Testing** are **fully built and deployed in production**, but gated behind a "coming soon" label on the landing page ([ThumPiksLanding.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/ThumPiksLanding.tsx) and [PricingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/PricingPage.tsx)). See rows marked **✅ (flagged)** below. The gap is **marketing**, not engineering.
+
+### 10.1 New Entrants Feature Matrix
+
+| Feature | ThumPiks | Thumblytics (Feb 2025) | Thumbfast (2025) | WhichThumb (2024–2025) | ThriftyThumbs (late 2025) | Oona (Q4 2025 / Q1 2026) |
+|---|---|---|---|---|---|---|
+| AI thumbnail generation | ✅ 12+ models, 4 providers | ✅ 4 variants/run, 8 on paid | ✅ URL→thumbnail in 10s | ✅ Basic variations | ✅ AI gen included | ✅ Included |
+| Pre-publish CTR score (0-100) | ✅ **Built — "ThumPiks Score" in [VisionToolPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/VisionToolPage.tsx) + [AIToolsPanel.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/editor/panels/AIToolsPanel.tsx) — 5 sub-scores (Face 30% / Emotion 25% / Color 20% / Text 15% / Composition 10%) + circular gauge.** Flagged as "coming soon" on marketing pages. | ✅ **Headline feature** (readability, contrast, hook strength) | ✅ AI confidence % | ❌ | ✅ 0-100 score + attention heatmap | ✅ 5-dim radar (emotion/clarity/contrast/composition/CTR) |
+| Attention heatmap | ⚠️ Backend claim, **unverified in frontend** | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Mobile preview (actual YouTube size) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| A/B Testing (basic — impressions/clicks/CTR/winner) | ✅ **Built — [ABTestingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/ABTestingPage.tsx) + [ab-testing.service.ts](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/ab-testing/ab-testing.service.ts) + `/api/ab-tests` routes + `ABTest` / `ABTestVariant` / `ABTestImpression` tables.** Flagged as "coming soon" on marketing. | ❌ | ⚠️ Claims A/B lift | ❌ | ✅ Included | ✅ Included |
+| Live YouTube API rotation (real CTR from YouTube) | ❌ — A/B module tracks impressions/clicks in-app only, no YouTube OAuth | ❌ | ⚠️ Claims swap without re-upload | ❌ | ✅ **Headline** — hourly/daily schedules | ✅ Multivariate auto-distribution |
+| Audience polling (share link → votes) | ❌ | ❌ | ❌ | ✅ **Headline** — only product with this | ❌ | ❌ |
+| Bayesian / statistical confidence | ❌ — current winner logic is "highest CTR with ≥10 impressions" | ❌ | ❌ | ✅ Confidence indicators | ✅ Bayesian win probability | ✅ Statistically confident in 2h |
+| Multivariate (n×n) testing | ❌ A/B only | ❌ | ❌ | ⚠️ Multi-thumbnail only | ❌ A/B only | ✅ **Unique** — thumb × title matrix |
+| AI insight assistant (chat about results) | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ "Why did variant C win?" chat |
+| Video opening / retention review | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ First-15-sec analysis |
+| Metadata (title/tags/desc) optimization | ⚠️ Title only via AI Smart Text | ⚠️ Title scoring via $29 Pro | ❌ | ✅ AI title generator | ✅ Title scoring | ✅ Full metadata rewrite |
+| Title + thumbnail combo testing | ❌ | ⚠️ Score both | ❌ | ⚠️ Poll only | ✅ Combo tests | ✅ Full multivariate |
+| Outlier / trend discovery | ✅ youtube-trending module | ❌ | ❌ | ❌ | ✅ "Outlier research" in niche | ❌ |
+| Face swap | ✅ Multi-face Gemini/Seedream | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Auto-layer decompose (SAM 2) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Non-destructive layer editor | ✅ Canvas + blend modes | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Video frame extraction | ✅ **5 platforms** (YT/TikTok/Vimeo/IG/X) | ❌ | ⚠️ YouTube URL only | ❌ | ❌ | ❌ |
+| Chrome extension for creators | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Team workspaces / collaboration | ✅ Backend module | ❌ | ⚠️ Agency tier | ❌ | ✅ Business $69 plan | ❌ (1 channel) |
+| Face consistency across thumbnails | ✅ Via face swap | ❌ | ✅ **Headline** ("Midjourney for thumbnails") | ❌ | ❌ | ❌ |
+
+### 10.2 Features the New Entrants Lead On (Gaps in ThumPiks)
+
+These are features ThumPiks doesn't have today but the new category of competitors uses as **headline differentiators**:
+
+| Gap | Who has it | Build effort (est.) | Risk if not built |
+|---|---|---|---|
+| **Marketing flip: un-hide ThumPiks Score and A/B Testing** | n/a — internal | 0.5 day (remove "(coming soon)" labels in [ThumPiksLanding.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/ThumPiksLanding.tsx) L203-212 and [PricingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/PricingPage.tsx) L129-142 + add hero copy) | **Highest-leverage single fix** — we're invisible in the testing category despite having the features |
+| **YouTube API live rotation + real CTR** | ThriftyThumbs, Oona | 2-3 weeks (OAuth + YouTube Data API v3 + scheduler) | Current A/B module looks like "in-app only A/B" without live YouTube data |
+| **Bayesian win probability** | WhichThumb, ThriftyThumbs, Oona | 3-5 days (wrap existing variant stats in Bayesian calc; current logic is simple "highest CTR ≥ 10 impressions") | "Statistically rigorous" positioning |
+| **Attention heatmap overlay** | ThriftyThumbs | 1 week (heatmap is claimed in Vision backend but not verified/rendered) | Trust gap if backend claim doesn't ship |
+| **Mobile preview at actual YouTube size** | ThriftyThumbs | 1 day | Creator expectation in 2026 |
+| **Audience polling share-link** | WhichThumb | 1 week (share link + vote collector + analytics) | Loss of entire WhichThumb-style niche |
+| **Multivariate testing (n×n matrix)** | Oona | 1-2 weeks extension of ab-testing module | Oona differentiator remains unmatched |
+| **AI Insight Assistant (chat about results)** | Oona | 3-5 days (wrap results in LLM prompt endpoint) | Oona "AI strategist" positioning |
+| **Video opening / retention analysis** | Oona | 2-3 weeks | Adjacent feature expanding scope |
+| **Smart metadata rewriting** (title+tags+desc) | Oona | 1 week (extends aiGenerateText to full metadata) | Category expectation in 2026 |
+| **Chrome extension** | Oona | 1-2 weeks | Creator workflow friction |
+| **Face consistency across multi-generation** | Thumbfast, Pikzels | Already via face swap, needs productization | Could be marketed as existing strength |
+
+### 10.3 Features ThumPiks Leads On (Gaps in New Entrants)
+
+These are features ThumPiks has that **none** of the 5 new testing-focused competitors match:
+
+| ThumPiks lead | Competitor status | Lean into this |
+|---|---|---|
+| **Multi-face targeting** face swap (swap N faces individually in one image) | Pikzels has **single-face** swap (baked, destructive); Thumbfast has **face consistency** (not swap); none of the 5 new testing tools have face swap at all | Headline on AI Tools page — frame as "multi-face targeting," not generic "face swap" (Pikzels has face swap) |
+| Non-destructive face swap as an editable layer | Pikzels bakes the swap; all others lack a layer editor entirely | Pair with layer editor in marketing |
+| SAM 2 auto-layer decompose | None | Editor hero feature |
+| Non-destructive layer editor (blend modes, masks) | Canva/Adobe/PicMonkey have layers but not in thumbnail-specific workflow; testing tools have no editor at all | "Thumbnail maker that's actually an editor" |
+| 5-platform video frame extraction (YT/TikTok/Vimeo/IG/X) | Adobe has frame extraction for any video; thumbnail-specific tools are YouTube-only (if at all) | Target TikTok/Reels/IG creators underserved by YT-only tools |
+| Visual Similarity Search (CLIP + Qdrant) | None | "Find thumbnails that look like this" search |
+| 4-provider AI load balancer | None (single provider each) | Reliability angle: "Never miss a generation" |
+| Multi-tier model routing (Flash / Standard / Pro) | None | Price/quality control |
+| Full brand kit system (logos/fonts/colors + AI extract) | Canva has brand kit; thumbnail-specific tools don't | Teams & agency angle vs. thumbnail-specific competitors |
+| Trending insights (YouTube Data API + 20 regions) | Only ThriftyThumbs ("outlier research"); Canva/Adobe lack niche-specific trend discovery | Promote as research tool |
+
+### 10.4 Action Items (Additive to §8)
+
+**P0 — Un-flag and ship marketing (THIS WEEK, hours not days):**
+1. **Remove "(coming soon)" labels** from A/B Testing and ThumPiks Score in [ThumPiksLanding.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/ThumPiksLanding.tsx) L203-212 + [PricingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/PricingPage.tsx) L129-142. Features are already live — this is the highest-leverage fix in the entire report.
+2. Add **ThumPiks Score** as a hero feature on `/features` and landing page: "Get a 0-100 CTR prediction before you publish — with Face, Emotion, Color, Text, and Composition sub-scores."
+3. Add **A/B Testing** as a hero: "Run real variant tests with impressions, clicks, and winner detection."
+4. Verify **attention heatmap** renders in [VisionToolPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/VisionToolPage.tsx); if not, ship it (listed as P1 in §8 already).
+5. Update FeaturesPage hero: "Generate, score, and test — the only editor that does all three."
+
+**P1 — Defend the testing moat (1–3 months):**
+6. Ship **YouTube OAuth + thumbnail rotation scheduler** (A/B module extension — current module tracks in-app only).
+7. Ship **Bayesian win probability** (3-5 days; current winner logic is simple highest-CTR). Replaces the current rule in [ab-testing.service.ts](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/ab-testing/ab-testing.service.ts).
+8. Ship **multivariate testing** (n×n thumb × title matrix) — leapfrog Oona.
+9. Ship **audience polling share-link** (WhichThumb-style).
+
+**P2 — Expand headline feature set:**
+10. **AI Insight Assistant** (chat about test results) — wrap Vision Analysis in conversational endpoint.
+11. **Smart metadata optimization** (extend `aiGenerateText` to full title+tags+description).
+12. **Mobile preview overlay** (actual YouTube mobile size).
+13. **Chrome extension** for creators.
+
+**P3 — Lean into editor moat (defensive marketing):**
+14. Promote multi-face swap, SAM 2 decompose, 5-platform video as editor differentiators the testing tools can never match.
+15. Rebrand A/B Testing page around the **fusion pitch**: "The only tool where you can face-swap a variant, decompose its layers, and test it on live YouTube — all in one workspace."
+
+_Researched via Exa MCP (web_search_exa + crawling_exa) on May 14, 2026. Data sources: thriftythumbs.com, oonalab.ai, thumblytics.com, thumbfast.com, whichthumb.com, SimilarLabs (launch dates), XYZEO (Thumbfast company history), TubeAnalytics blog (category review)._

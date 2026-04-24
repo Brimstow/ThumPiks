@@ -261,7 +261,7 @@ const NotificationConfigAdmin: React.FC = () => {
   // ── Render ──
 
   return (
-    <div style={{ padding: '24px', maxWidth: 800 }}>
+    <div style={{ padding: '24px' }} className="max-w-full md:max-w-[800px]">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>

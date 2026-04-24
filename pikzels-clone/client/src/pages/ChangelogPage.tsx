@@ -149,7 +149,7 @@ const ChangelogPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
       {/* Header */}
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity"
@@ -160,13 +160,13 @@ const ChangelogPage: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="hidden sm:inline-flex text-gray-400 hover:text-white transition-colors"
             >
               Back to Home
             </button>
             <button
               onClick={() => navigate('/register')}
-              className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
             >
               Start Free
             </button>
@@ -175,27 +175,27 @@ const ChangelogPage: React.FC = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-6">
+      <section className="pt-16 sm:pt-20 pb-12 sm:pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-full px-4 py-2 mb-8">
             <Rocket className="w-4 h-4 text-blue-500" />
             <span className="text-sm">Always improving, always evolving</span>
           </div>
-          <h1 className="text-6xl font-light mb-6">
+          <h1 className="text-4xl sm:text-6xl font-light mb-6">
             Product
             <br />
             <span className="text-blue-500">Changelog</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-10">
+          <p className="text-base sm:text-xl text-gray-400 mb-8 sm:mb-10">
             Stay up to date with new features, improvements,
-            <br />
+            <br className="hidden sm:block" />
             and fixes as we continuously improve ThumPiks.
           </p>
         </div>
       </section>
 
       {/* Changelog Timeline */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           <div className="space-y-12">
             {changes.map((change, index) => (
@@ -206,15 +206,15 @@ const ChangelogPage: React.FC = () => {
                 )}
 
                 {/* Version Card */}
-                <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8 hover:border-blue-600/50 transition-colors">
+                <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-8 hover:border-blue-600/50 transition-colors">
                   {/* Header */}
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center">
-                      <Rocket className="w-6 h-6 text-blue-500" />
+                  <div className="flex items-center gap-3 sm:gap-4 mb-6">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0">
+                      <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="text-2xl font-semibold">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+                        <h3 className="text-xl sm:text-2xl font-semibold">
                           Version {change.version}
                         </h3>
                         <span
@@ -232,16 +232,16 @@ const ChangelogPage: React.FC = () => {
                     {change.items.map((item, itemIndex) => (
                       <div
                         key={itemIndex}
-                        className="flex gap-4 bg-gray-800/30 rounded-xl p-4 hover:bg-gray-800/50 transition-colors"
+                        className="flex gap-3 sm:gap-4 bg-gray-800/30 rounded-xl p-3 sm:p-4 hover:bg-gray-800/50 transition-colors"
                       >
                         <div
-                          className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border ${getTypeColor(item.type)}`}
+                          className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border ${getTypeColor(item.type)}`}
                         >
                           {item.icon}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between gap-4 mb-2">
-                            <h4 className="font-semibold text-lg">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 sm:gap-4 mb-2">
+                            <h4 className="font-semibold text-base sm:text-lg">
                               {item.title}
                             </h4>
                             <span
@@ -265,10 +265,10 @@ const ChangelogPage: React.FC = () => {
       </section>
 
       {/* Coming Soon Section */}
-      <section className="py-20 px-6 bg-gray-900/30">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 bg-gray-900/30">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-5xl font-light mb-4">
+            <h2 className="text-3xl sm:text-5xl font-light mb-4">
               Coming <span className="text-blue-500">Soon</span>
             </h2>
             <p className="text-gray-400 text-lg">
@@ -321,10 +321,10 @@ const ChangelogPage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-32 px-6">
+      <section className="py-20 sm:py-32 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-16 text-center">
-            <h2 className="text-5xl font-light mb-6">
+          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/50 rounded-3xl p-6 sm:p-16 text-center">
+            <h2 className="text-3xl sm:text-5xl font-light mb-6">
               Join Us on This
               <br />
               <span className="text-blue-500">Journey</span>
@@ -352,7 +352,7 @@ const ChangelogPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 px-6">
+      <footer className="border-t border-gray-800 py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-500 text-sm">
           <p>© {new Date().getFullYear()} ThumPiks LLC. All rights reserved.</p>
         </div>

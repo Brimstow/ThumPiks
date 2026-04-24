@@ -782,28 +782,14 @@ export function createEditorStore(storageKey: string) {
       // ============================================
 
       syncFromReducer: (reducerState) => {
-        // Only sync if there are meaningful changes
         const currentState = get();
-        
-        // Skip if no layers (empty state shouldn't overwrite persisted data)
-        if (!reducerState.layers || reducerState.layers.length === 0) {
-          // But if current state also has no layers, allow sync of other properties
-          if (currentState.layers.length === 0) {
-            set({
-              activeTool: reducerState.activeTool ?? currentState.activeTool,
-              toolSettings: reducerState.toolSettings ?? currentState.toolSettings,
-              canvas: reducerState.canvas ?? currentState.canvas,
-              adjustments: reducerState.adjustments ?? currentState.adjustments,
-              smartSelection: reducerState.smartSelection ?? currentState.smartSelection,
-              isModified: reducerState.isModified ?? currentState.isModified,
-            });
-          }
-          return;
-        }
-        
-        // Full sync when we have layers
+
+        // Always sync — including empty layers (clear canvas must flush to sessionStorage).
+        // The initialization race is handled by hasInitializedRef in useEditorState,
+        // which skips the very first sync to avoid overwriting persisted data with
+        // the initial empty reducer state.
         set({
-          layers: reducerState.layers,
+          layers: reducerState.layers ?? currentState.layers,
           layerOrder: reducerState.layerOrder ?? currentState.layerOrder,
           selection: reducerState.selection ?? currentState.selection,
           activeTool: reducerState.activeTool ?? currentState.activeTool,

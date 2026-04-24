@@ -210,4 +210,63 @@ describe('action-catalog', () => {
       expect(TARGETING_RULES.toLowerCase()).toContain('multiple');
     });
   });
+
+  // ==========================================================================
+  // Phase 1: Shape enum alignment (tool-definitions ↔ action-catalog)
+  // ==========================================================================
+  describe('Phase 1: shape enum alignment', () => {
+    it('ACTION_CATALOG lists all 6 valid shape types', () => {
+      const validShapes = ['rectangle', 'ellipse', 'polygon', 'star', 'line', 'arrow'];
+      for (const shape of validShapes) {
+        expect(ACTION_CATALOG).toContain(shape);
+      }
+    });
+
+    it('ACTION_CATALOG does not reference deprecated shape names', () => {
+      // Phase 1 fix ensured 'circle' was replaced with 'ellipse' and 'triangle' with 'polygon'
+      expect(ACTION_CATALOG).not.toMatch(/"circle"/);
+      expect(ACTION_CATALOG).not.toMatch(/"triangle"/);
+    });
+  });
+
+  // ==========================================================================
+  // Phase 3: New operations (rotateLayer, groupLayers, ungroupLayers, cropLayer)
+  // ==========================================================================
+  describe('Phase 3: new layer operations in ACTION_CATALOG', () => {
+    it('describes rotateLayer with angle param', () => {
+      expect(ACTION_CATALOG).toContain('rotateLayer');
+      expect(ACTION_CATALOG).toMatch(/angle/i);
+    });
+
+    it('describes groupLayers with layerNames param', () => {
+      expect(ACTION_CATALOG).toContain('groupLayers');
+      expect(ACTION_CATALOG).toContain('layerNames');
+    });
+
+    it('describes ungroupLayers', () => {
+      expect(ACTION_CATALOG).toContain('ungroupLayers');
+    });
+
+    it('describes cropLayer with region presets', () => {
+      expect(ACTION_CATALOG).toContain('cropLayer');
+      const regions = ['top-half', 'bottom-half', 'left-half', 'right-half', 'center'];
+      for (const region of regions) {
+        expect(ACTION_CATALOG).toContain(region);
+      }
+    });
+  });
+
+  // ==========================================================================
+  // Phase 5: Vision and analysis actions
+  // ==========================================================================
+  describe('Phase 5: analyzeImage and vision in ACTION_CATALOG', () => {
+    it('includes ANALYSIS section with analyzeImage', () => {
+      expect(ACTION_CATALOG).toContain('ANALYSIS');
+      expect(ACTION_CATALOG).toContain('analyzeImage');
+    });
+
+    it('analyzeImage description mentions suggestions', () => {
+      expect(ACTION_CATALOG).toMatch(/analyzeImage.*suggestions|Analyze.*image/i);
+    });
+  });
 });

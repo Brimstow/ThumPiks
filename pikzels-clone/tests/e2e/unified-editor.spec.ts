@@ -24,12 +24,34 @@ const TEST_USER = {
   password: 'Test123!',
 };
 
+// Onboarding localStorage key (from client/src/features/onboarding/hooks/useOnboarding.ts)
+const ONBOARDING_STORAGE_KEY = 'thumpiks_onboarding_prefs';
+const ONBOARDING_DISMISSED = JSON.stringify({
+  quickEditOverlayEnabled: false,
+  quickEditOverlayDismissed: true,
+  quickEditOverlaySeen: true,
+  dashboardTourSeen: true,
+  editorTourSeen: true,
+  tipsEnabled: false,
+  spotlights: {},
+});
+
+/**
+ * Pre-seed localStorage to skip onboarding overlay.
+ * Must be called BEFORE navigation to dashboard pages.
+ */
+async function seedOnboardingDismissed(page: Page) {
+  await page.addInitScript((args) => {
+    localStorage.setItem(args.key, args.value);
+  }, { key: ONBOARDING_STORAGE_KEY, value: ONBOARDING_DISMISSED });
+}
+
 // Helper: Login user
 async function loginUser(page: Page, credentials = TEST_USER) {
   console.log('🔐 Logging in as:', credentials.username);
   
   await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   
   // Wait for login form
   await page.waitForSelector('h2:has-text("Sign in to your account")', { timeout: 10000 });
@@ -40,8 +62,8 @@ async function loginUser(page: Page, credentials = TEST_USER) {
   await page.getByRole('textbox', { name: 'Password *' }).fill(credentials.password);
   console.log('  ✓ Credentials filled');
   
-  // Submit
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  // Submit (scoped to <form> to avoid "Sign in with Google" button)
+  await page.locator('form').getByRole('button', { name: 'Sign In', exact: true }).click();
   
   // Wait for redirect
   await page.waitForURL(/\/(dashboard|home|thumbnails)/, { timeout: 10000 });
@@ -54,7 +76,7 @@ async function navigateToMyThumbnails(page: Page) {
   
   // Click My Thumbnails in sidebar
   await page.click('button:has-text("My Thumbnails")');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   
   // Verify page loaded
   await page.waitForSelector('h1:has-text("My Thumbnails"), h2:has-text("My Thumbnails")', { timeout: 10000 });
@@ -80,6 +102,9 @@ test.describe('Unified Editor E2E Flow', () => {
   test.beforeEach(async ({ page }) => {
     // Set viewport
     await page.setViewportSize({ width: 1920, height: 1080 });
+    
+    // Pre-seed onboarding dismissal to prevent overlay from blocking interactions
+    await seedOnboardingDismissed(page);
     
     // Login
     await loginUser(page);
@@ -334,7 +359,7 @@ test.describe('Unified Editor E2E Flow', () => {
         
         // Navigate directly to editor URL
         await page.goto(`${BASE_URL}/dashboard/editor/${thumbnailId}`);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         
         // Verify editor loads
         await page.waitForSelector('h1:has-text("Thumbnail Studio")', { timeout: 10000 });
@@ -357,7 +382,7 @@ test.describe('Unified Editor E2E Flow', () => {
       
       // Navigate to editor without ID
       await page.goto(`${BASE_URL}/dashboard/editor`);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       
       // Verify editor loads
       await page.waitForSelector('h1:has-text("Thumbnail Studio")', { timeout: 10000 });

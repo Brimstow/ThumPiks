@@ -112,3 +112,95 @@ describe('createEditorStore — storage key isolation', () => {
     expect(useEditorStore).not.toBe(usePresetEditorStore);
   });
 });
+
+// ── syncFromReducer + clear canvas ───────────────────────────
+
+describe('syncFromReducer — clear canvas flushes empty layers', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  it('syncs empty layers to the store (clear canvas scenario)', () => {
+    const storeKey = 'clear-test-store';
+    const useStore = createEditorStore(storeKey);
+
+    // Add a layer so there's something to clear
+    useStore.getState().addTextLayer('Layer to clear');
+    expect(useStore.getState().layers).toHaveLength(1);
+
+    // Simulate what useEditorState.clearCanvas does: sync empty state
+    useStore.getState().syncFromReducer({
+      layers: [],
+      layerOrder: [],
+      selection: { layerIds: [] },
+      activeTool: 'select',
+      isModified: true,
+    });
+
+    // Store should now have zero layers
+    expect(useStore.getState().layers).toHaveLength(0);
+
+    // Persisted state should also have zero layers
+    const persisted = getPersistedState(storeKey);
+    expect(persisted.state.layers).toHaveLength(0);
+    expect(persisted.state.layerOrder).toHaveLength(0);
+  });
+
+  it('preserves canvas dimensions and toolSettings when clearing layers', () => {
+    const storeKey = 'clear-preserve-store';
+    const useStore = createEditorStore(storeKey);
+
+    const originalCanvas = { ...useStore.getState().canvas };
+    const originalToolSettings = { ...useStore.getState().toolSettings };
+
+    useStore.getState().addTextLayer('Layer to clear');
+
+    // Clear via syncFromReducer (like useEditorState.clearCanvas does)
+    useStore.getState().syncFromReducer({
+      layers: [],
+      layerOrder: [],
+      selection: { layerIds: [] },
+      activeTool: 'select',
+      isModified: true,
+    });
+
+    // Canvas dimensions and toolSettings should be preserved
+    expect(useStore.getState().canvas).toEqual(originalCanvas);
+    expect(useStore.getState().toolSettings).toEqual(originalToolSettings);
+  });
+
+  it('store clearCanvas method also flushes empty layers to sessionStorage', () => {
+    const storeKey = 'store-clear-store';
+    const useStore = createEditorStore(storeKey);
+
+    useStore.getState().addTextLayer('Layer to clear');
+
+    // Use the store's own clearCanvas method
+    useStore.getState().clearCanvas();
+
+    expect(useStore.getState().layers).toHaveLength(0);
+
+    const persisted = getPersistedState(storeKey);
+    expect(persisted.state.layers).toHaveLength(0);
+  });
+
+  it('syncFromReducer with layers still works normally', () => {
+    const storeKey = 'sync-normal-store';
+    const useStore = createEditorStore(storeKey);
+
+    // Sync some layers
+    useStore.getState().syncFromReducer({
+      layers: [{ id: 'test-1', name: 'Test', type: 'text' }] as any,
+      layerOrder: ['test-1'],
+      selection: { layerIds: [] },
+      activeTool: 'select',
+      isModified: true,
+    });
+
+    expect(useStore.getState().layers).toHaveLength(1);
+    expect(useStore.getState().layerOrder).toEqual(['test-1']);
+
+    const persisted = getPersistedState(storeKey);
+    expect(persisted.state.layers).toHaveLength(1);
+  });
+});

@@ -20,11 +20,12 @@ import VerifyEmailSuccess from './components/auth/VerifyEmailSuccess';
 import ShadcnTest from './components/ShadcnTest';
 
 // User Components
-import Dashboard from './components/Dashboard';
+
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import DashboardHome from './components/dashboard/DashboardHome';
 import HelpPage from './components/dashboard/HelpPage';
+import { HelpCategoryPage, HelpArticlePage } from './components/dashboard/help';
 import BrandPage from './components/dashboard/BrandPage';
 import ProjectsPage from './components/dashboard/ProjectsPage';
 import ProjectDetail from './components/projects/ProjectDetail';
@@ -48,7 +49,7 @@ import PresetEditorPage from './pages/PresetEditorPage';
 import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
 import UserAnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
-import SocialShareAnalytics from './components/SocialShareAnalytics';
+
 import AccountPage from './components/account/AccountPage';
 import SharedThumbnailPage from './components/SharedThumbnailPage';
 import AboutPage from './components/AboutPage';
@@ -56,6 +57,7 @@ import ContactPage from './components/ContactPage';
 import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
+import ComparePage from './pages/ComparePage';
 import ReviewsPage from './pages/ReviewsPage';
 import ChangelogPage from './pages/ChangelogPage';
 import VideoEditorPage from './pages/VideoEditorPage';
@@ -241,6 +243,7 @@ function App() {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/compare" element={<ComparePage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/changelog" element={<ChangelogPage />} />
 
@@ -315,6 +318,8 @@ function App() {
                 <Route path="trending" element={<TrendingPage />} />
                 <Route path="settings" element={<Navigate to="/dashboard/account/settings" replace />} />
                 <Route path="help" element={<HelpPage />} />
+                <Route path="help/:categorySlug" element={<HelpCategoryPage />} />
+                <Route path="help/:categorySlug/:articleSlug" element={<HelpArticlePage />} />
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="credits" element={<CreditsPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
@@ -336,23 +341,6 @@ function App() {
                 />
               </Route>
 
-              {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}
-              <Route
-                path="/thumbnails"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/thumbnails/create"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
 
               {/* Canvas Editor Routes */}
               <Route
@@ -426,14 +414,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <UserAnalyticsDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/analytics/social"
-                element={
-                  <ProtectedRoute>
-                    <SocialShareAnalytics />
                   </ProtectedRoute>
                 }
               />

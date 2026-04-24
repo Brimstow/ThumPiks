@@ -20,14 +20,20 @@ export type EditorActionType =
   | 'reorderLayer'
   | 'resizeLayer'
   | 'moveLayer'
+  | 'rotateLayer'
   | 'recolorLayer'
   | 'selectLayer'
+  | 'groupLayers'
+  | 'ungroupLayers'
+  | 'cropLayer'
   | 'analyzeImage'
   | 'decompose'
   | 'expand'
   | 'aiText'
   | 'vision'
-  | 'visionSearch';
+  | 'visionSearch'
+  | 'addEffect'
+  | 'removeEffect';
 
 /** A single editor action returned by the LLM */
 export interface EditorAction {
@@ -90,7 +96,7 @@ export const ACTION_CATALOG = `You have access to these actions:
 
 LAYER CREATION:
 - addText: Add a text layer. Params: { text, x, y, fontSize, fontFamily, color, bold, italic }
-- addShape: Add a shape layer. Params: { shape: "rectangle"|"circle"|"triangle", x, y, width, height, color }
+- addShape: Add a shape layer. Params: { shape: "rectangle"|"ellipse"|"polygon"|"star"|"line"|"arrow", x, y, width, height, color }
 
 TEXT EDITING (target a text layer):
 - updateText: Update text layer properties. Params: { text?, fontSize?, fontFamily?, color?, bold?, italic? }
@@ -112,11 +118,19 @@ LAYER MANAGEMENT:
 - reorderLayer: Move layer up/down. Params: { direction: "up"|"down"|"top"|"bottom" }
 - resizeLayer: Resize a layer. Params: { width?, height?, scale? }
 - moveLayer: Move a layer. Params: { x?, y?, position?: "center"|"top"|"bottom"|"left"|"right"|"top-left"|"top-right"|"bottom-left"|"bottom-right" }
+- rotateLayer: Rotate a layer by degrees. Params: { angle: number (degrees, positive=clockwise) }
 - recolorLayer: Change color of text or shape. Params: { color: string }
 - selectLayer: Select a specific layer. Params: { query: string }
+- groupLayers: Group multiple layers together. Params: { layerNames: string[] }
+- ungroupLayers: Ungroup a group layer back to individual layers. Params: {}
+- cropLayer: Crop an image layer. Params: { x?, y?, width?, height?, region?: "top-half"|"bottom-half"|"left-half"|"right-half"|"center" }
 
 DECOMPOSITION:
 - decompose: Auto-decompose image into separate layers for each detected object using SAM segmentation. Params: { maxLayers?: number }
+
+LAYER EFFECTS:
+- addEffect: Add a visual effect to a layer. Replaces existing effect of same type. Params: { effectType: "shadow"|"glow"|"blur"|"stroke"|"bevel", color?, offsetX?, offsetY?, blur?, spread?, opacity? }
+- removeEffect: Remove a visual effect from a layer by type. Params: { effectType: "shadow"|"glow"|"blur"|"stroke"|"bevel" }
 
 ANALYSIS:
 - analyzeImage: Analyze the image for suggestions. Params: {}`;

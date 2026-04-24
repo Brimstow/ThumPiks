@@ -38,6 +38,8 @@ export interface SubscriptionPlan {
     frameRegeneratesPerUrl: number;
     /** Watermark-free exports per month — 1 for free, -1 for paid (unlimited/no watermark) */
     watermarkFreeExports: number;
+    /** BullMQ queue priority — lower number = higher priority. 1 = Ultra Pro, 10 = standard. */
+    queuePriority: number;
   };
   /** Provider-specific product/price IDs — never exposed in public API responses */
   stripe: {
@@ -75,6 +77,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       frameExtractionsPerDay: 5,
       frameRegeneratesPerUrl: 1,
       watermarkFreeExports: 1,
+      queuePriority: 10,
     },
     stripe: { monthlyPriceId: '', annualPriceId: '' },
     polar: { monthlyProductId: '', annualProductId: '' },
@@ -99,6 +102,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       frameExtractionsPerDay: 20,
       frameRegeneratesPerUrl: 3,
       watermarkFreeExports: -1,
+      queuePriority: 10,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_STARTER_MONTHLY || '',
@@ -131,6 +135,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       frameExtractionsPerDay: -1,
       frameRegeneratesPerUrl: -1,
       watermarkFreeExports: -1,
+      queuePriority: 10,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_PRO_MONTHLY || '',
@@ -164,6 +169,7 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
       frameExtractionsPerDay: -1,
       frameRegeneratesPerUrl: -1,
       watermarkFreeExports: -1,
+      queuePriority: 1,
     },
     stripe: {
       monthlyPriceId: process.env.STRIPE_PRICE_ID_ULTRA_PRO_MONTHLY || '',

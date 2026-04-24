@@ -1,10 +1,14 @@
 # API Reference
 
 <cite>
-**Referenced Files in This Document**   
+**Referenced Files in This Document**
 - [server.ts](file://src/server.ts)
 - [auth.routes.ts](file://src/modules/auth/auth.routes.ts)
-- [thumbnail.routes.ts](file://src/modules/thumbnail/thumbnail.routes.ts)
+- [thumbnail.routes.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.routes.ts)
+- [thumbnail.controller.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.controller.ts)
+- [openrouter-ai.service.ts](file://pikzels-clone/src/modules/thumbnail/openrouter-ai.service.ts)
+- [ai-service-manager.ts](file://pikzels-clone/src/modules/thumbnail/ai-service-manager.ts)
+- [ai-provider-load-balancer.ts](file://pikzels-clone/src/modules/thumbnail/ai-provider-load-balancer.ts)
 - [project.routes.ts](file://src/modules/project/project.routes.ts)
 - [analytics.routes.ts](file://src/modules/analytics/analytics.routes.ts)
 - [social-share.routes.ts](file://src/modules/social-share/social-share.routes.ts)
@@ -12,25 +16,37 @@
 - [collaboration.routes.ts](file://src/modules/collaboration/collaboration.routes.ts)
 - [auth.middleware.ts](file://src/middleware/auth.middleware.ts)
 - [package.json](file://package.json)
+- [.env.example](file://pikzels-clone/.env.example)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive documentation for new AI-powered thumbnail endpoints
+- Documented AI tool operations: inpaint, face-swap, upscale, remove-background, enhance
+- Added OpenRouter AI service integration details and model configurations
+- Updated authentication requirements to include AI service configuration validation
+- Enhanced error handling documentation for AI operations
+- Added rate limiting and service availability considerations for AI endpoints
+- Documented environment variable configuration for AI tool models
 
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Authentication](#authentication)
 3. [Thumbnails API](#thumbnails-api)
-4. [Projects API](#projects-api)
-5. [Analytics API](#analytics-api)
-6. [Social Share API](#social-share-api)
-7. [Templates API](#templates-api)
-8. [Collaboration API](#collaboration-api)
-9. [Error Handling](#error-handling)
-10. [Rate Limiting and Versioning](#rate-limiting-and-versioning)
-11. [Security Considerations](#security-considerations)
-12. [Code Examples](#code-examples)
-13. [Troubleshooting Guide](#troubleshooting-guide)
+4. [AI Tools API](#ai-tools-api)
+5. [Projects API](#projects-api)
+6. [Analytics API](#analytics-api)
+7. [Social Share API](#social-share-api)
+8. [Templates API](#templates-api)
+9. [Collaboration API](#collaboration-api)
+10. [Error Handling](#error-handling)
+11. [Rate Limiting and Versioning](#rate-limiting-and-versioning)
+12. [Security Considerations](#security-considerations)
+13. [Code Examples](#code-examples)
+14. [Troubleshooting Guide](#troubleshooting-guide)
 
 ## Introduction
-This document provides comprehensive reference documentation for the RESTful API endpoints of Thumbnail Maker Studio. The API enables users to manage thumbnails, projects, templates, analytics, social sharing, and team collaboration. All endpoints follow REST conventions and return JSON responses.
+This document provides comprehensive reference documentation for the RESTful API endpoints of Thumbnail Maker Studio. The API enables users to manage thumbnails, projects, templates, analytics, social sharing, team collaboration, and AI-powered image manipulation tools. All endpoints follow REST conventions and return JSON responses.
 
 The base URL for all API endpoints is `http://localhost:8550/api`. The API uses standard HTTP methods and status codes. Authentication is required for most endpoints using JWT tokens.
 
@@ -174,7 +190,86 @@ The Thumbnails API provides full CRUD operations for managing thumbnail images, 
 - **Response**: List of available enhancement options
 
 **Section sources**
-- [thumbnail.routes.ts](file://src/modules/thumbnail/thumbnail.routes.ts#L1-L56)
+- [thumbnail.routes.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.routes.ts#L1-L56)
+
+## AI Tools API
+
+### Overview
+The AI Tools API provides advanced image manipulation capabilities powered by OpenRouter AI services. These endpoints enable users to perform sophisticated image editing operations including inpainting, face swapping, upscaling, background removal, and quality enhancement.
+
+### Base URL
+`/api/thumbnails/ai`
+
+### Endpoints
+
+#### Get AI Tool Models
+- **Method**: GET
+- **URL**: `/api/thumbnails/ai/models`
+- **Authentication**: Required
+- **Response**: Object containing model configurations for each AI tool type
+
+#### Inpaint Image
+- **Method**: POST
+- **URL**: `/api/thumbnails/ai/inpaint`
+- **Authentication**: Required
+- **Request Body**: `{ image: base64, mask?: base64, prompt: string }`
+- **Response**: `{ success: boolean, images: string[], model: string }`
+
+#### Face Swap
+- **Method**: POST
+- **URL**: `/api/thumbnails/ai/face-swap`
+- **Authentication**: Required
+- **Request Body**: `{ sourceImage: base64, targetImage: base64, prompt?: string }`
+- **Response**: `{ success: boolean, images: string[], model: string }`
+
+#### Upscale Image
+- **Method**: POST
+- **URL**: `/api/thumbnails/ai/upscale`
+- **Authentication**: Required
+- **Request Body**: `{ image: base64, scale?: '2x' | '4x' }`
+- **Response**: `{ success: boolean, images: string[], model: string, scale: string }`
+
+#### Remove Background
+- **Method**: POST
+- **URL**: `/api/thumbnails/ai/remove-background`
+- **Authentication**: Required
+- **Request Body**: `{ image: base64, backgroundColor?: string }`
+- **Response**: `{ success: boolean, images: string[], model: string }`
+
+#### Enhance Image
+- **Method**: POST
+- **URL**: `/api/thumbnails/ai/enhance`
+- **Authentication**: Required
+- **Request Body**: `{ image: base64, enhancementType?: 'auto' | 'color' | 'sharpen' | 'denoise' | 'hdr' }`
+- **Response**: `{ success: boolean, images: string[], model: string, enhancementType: string }`
+
+### AI Tool Model Configurations
+The system uses specialized models optimized for each operation:
+
+- **Generate**: `google/gemini-2.5-flash-image` (primary), `black-forest-labs/flux.2-pro` (fallback)
+- **Inpaint**: `google/gemini-3-pro-image-preview` (primary), `black-forest-labs/flux.2-flex` (fallback)
+- **Face Swap**: `bytedance-seed/seedream-4.5` (primary), `google/gemini-3-pro-image-preview` (fallback)
+- **Upscale**: `black-forest-labs/flux.2-max` (primary), `sourceful/riverflow-v2-max-preview` (fallback)
+
+### Environment Variables
+- `OPENROUTER_API_KEY`: Required for AI operations
+- `OPENROUTER_MODEL_GENERATE`: Override default generate model
+- `OPENROUTER_MODEL_INPAINT`: Override default inpaint model
+- `OPENROUTER_MODEL_FACESWAP`: Override default face swap model
+- `OPENROUTER_MODEL_UPSCALE`: Override default upscale model
+
+### Error Handling
+AI operations may encounter various errors:
+- **503 Service Unavailable**: AI service not configured or unavailable
+- **400 Bad Request**: Invalid request parameters or unsupported enhancement type
+- **429 Too Many Requests**: OpenRouter rate limit exceeded
+
+**Section sources**
+- [thumbnail.routes.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.routes.ts#L64-L99)
+- [thumbnail.controller.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.controller.ts#L933-L1245)
+- [openrouter-ai.service.ts](file://pikzels-clone/src/modules/thumbnail/openrouter-ai.service.ts#L53-L80)
+- [openrouter-ai.service.ts](file://pikzels-clone/src/modules/thumbnail/openrouter-ai.service.ts#L533-L551)
+- [.env.example](file://pikzels-clone/.env.example#L93-L104)
 
 ## Projects API
 
@@ -488,12 +583,14 @@ All error responses follow a consistent JSON format:
 - **404 Not Found**: Requested resource does not exist
 - **429 Too Many Requests**: Rate limit exceeded
 - **500 Internal Server Error**: Unexpected server error
+- **503 Service Unavailable**: AI service not configured or unavailable
 
 ### Specific Error Scenarios
 - Authentication errors return 401 or 403 status codes
 - Validation errors return 400 with descriptive messages
 - Resource not found errors return 404
 - Rate limiting returns 429 with retry-after header
+- AI service configuration errors return 503 with specific error messages
 
 **Section sources**
 - [auth.middleware.ts](file://src/middleware/auth.middleware.ts#L1-L55)
@@ -507,6 +604,12 @@ The API implements rate limiting to prevent abuse and ensure service availabilit
 - **Exemptions**: Certain public endpoints have higher limits
 
 When the rate limit is exceeded, the API returns a 429 status code with a `Retry-After` header indicating when the client can retry.
+
+### AI Service Rate Limits
+AI operations are subject to additional rate limits from OpenRouter:
+- **Default timeout**: 120 seconds for image generation operations
+- **Retry attempts**: Up to 2 automatic retries with 3-second delays
+- **Model-specific limits**: Vary by AI provider and model type
 
 ### Versioning Strategy
 The current API uses URL-based versioning:
@@ -550,6 +653,13 @@ All input data is validated:
 - Query parameters are sanitized and validated
 - File uploads are scanned for malware
 
+### AI Service Security
+AI operations include additional security measures:
+- API key validation for OpenRouter services
+- Request timeout protection (120 seconds default)
+- Model capability verification
+- Prompt content validation
+
 ### Security Headers
 The API includes security headers:
 - Strict-Transport-Security
@@ -586,6 +696,21 @@ fetch('http://localhost:8550/api/auth/login', {
     }
   });
 });
+
+// AI Enhance Example
+fetch('http://localhost:8550/api/thumbnails/ai/enhance', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+    enhancementType: 'auto'
+  })
+})
+.then(response => response.json())
+.then(data => console.log('Enhanced image URL:', data.images[0]));
 ```
 
 ### Python (requests)
@@ -609,11 +734,23 @@ response = requests.get(
     headers=headers
 )
 print(response.json())
+
+# AI Face Swap Example
+ai_response = requests.post(
+    'http://localhost:8550/api/thumbnails/ai/face-swap',
+    headers=headers,
+    json={
+        'sourceImage': 'data:image/png;base64,...',
+        'targetImage': 'data:image/png;base64,...',
+        'prompt': 'Maintain natural lighting and skin tone'
+    }
+)
+print(ai_response.json())
 ```
 
 **Section sources**
 - [auth.routes.ts](file://src/modules/auth/auth.routes.ts#L1-L17)
-- [thumbnail.routes.ts](file://src/modules/thumbnail/thumbnail.routes.ts#L1-L56)
+- [thumbnail.routes.ts](file://pikzels-clone/src/modules/thumbnail/thumbnail.routes.ts#L1-L56)
 
 ## Troubleshooting Guide
 
@@ -634,6 +771,11 @@ print(response.json())
 - **Solution**: Implement exponential backoff
 - **Debug**: Check Retry-After header value
 
+#### AI Service Configuration
+- **Symptom**: 503 Service Unavailable for AI endpoints
+- **Solution**: Set OPENROUTER_API_KEY environment variable
+- **Debug**: Verify AI service is properly configured
+
 #### Invalid Request Parameters
 - **Symptom**: 400 Bad Request
 - **Solution**: Validate request body against documentation
@@ -649,6 +791,8 @@ print(response.json())
 - Check response headers for rate limiting and version information
 - Validate JWT tokens using standard libraries
 - Test endpoints with curl or Postman before integration
+- Monitor AI service availability and model configurations
+- Check OpenRouter API key validity and credits balance
 
 **Section sources**
 - [server.ts](file://src/server.ts#L1-L58)

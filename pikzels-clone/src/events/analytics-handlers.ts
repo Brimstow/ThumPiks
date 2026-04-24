@@ -1,7 +1,6 @@
 import {
   ThumbnailCreatedEvent,
-  SocialShareCompletedEvent,
-} from './event-types'; // TODO: Use for analytics tracking
+} from './event-types';
 import { CacheService } from '../services/cache.service';
 import { getPrisma } from '../utils/prisma-factory';
 
@@ -97,46 +96,6 @@ export class AnalyticsEventHandlers {
       );
     } catch (error) {
       console.error('❌ Error processing thumbnail creation analytics:', error);
-    }
-  }
-
-  /**
-   * Handle social share completion events
-   */
-  async handleSocialShareCompleted(
-    event: SocialShareCompletedEvent
-  ): Promise<void> {
-    try {
-      const analyticsData = {
-        userId: event.userId,
-        action: event.data.success
-          ? 'social_share_success'
-          : 'social_share_failed',
-        resource: 'social_share',
-        resourceId: event.data.shareId,
-        timestamp: event.timestamp,
-        metadata: {
-          platform: event.data.platform,
-          thumbnailId: event.data.thumbnailId,
-          shareUrl: event.data.shareUrl,
-          error: event.data.error,
-        },
-      };
-
-      await this.createAnalyticsRecord(analyticsData);
-
-      // Update platform-specific statistics
-      await this.updatePlatformStatsCache(
-        event.userId,
-        event.data.platform,
-        event.data.success ? 'success' : 'failed'
-      );
-
-      console.log(
-        `📱 Social share analytics processed: ${event.data.platform} - ${event.data.success ? 'Success' : 'Failed'}`
-      );
-    } catch (error) {
-      console.error('❌ Error processing social share analytics:', error);
     }
   }
 
@@ -260,35 +219,6 @@ export class AnalyticsEventHandlers {
   }
 
   /**
-   * Update platform-specific statistics cache
-   */
-  private async updatePlatformStatsCache(
-    userId: string,
-    platform: string,
-    result: 'success' | 'failed'
-  ): Promise<void> {
-    const cacheKey = `analytics:platform_stats:${userId}`;
-
-    try {
-      const currentStats: Record<string, any> =
-        (await cache.get(cacheKey)) || {};
-
-      if (!currentStats[platform]) {
-        currentStats[platform] = { success: 0, failed: 0 };
-      }
-
-      currentStats[platform][result] =
-        (currentStats[platform][result] || 0) + 1;
-      currentStats.lastUpdated = new Date();
-
-      // Cache for 1 hour
-      await cache.set(cacheKey, currentStats, 3600);
-    } catch (error) {
-      console.error('❌ Error updating platform stats cache:', error);
-    }
-  }
-
-  /**
    * Batch processor for analytics events
    */
   private startBatchProcessor(): void {
@@ -339,19 +269,16 @@ export class AnalyticsEventHandlers {
   async getRealTimeAnalytics(userId: string): Promise<any> {
     const cacheKey = `analytics:realtime:${userId}`;
     const userStatsKey = `analytics:user_stats:${userId}`;
-    const platformStatsKey = `analytics:platform_stats:${userId}`;
 
     try {
-      const [realTimeData, userStats, platformStats] = await Promise.all([
+      const [realTimeData, userStats] = await Promise.all([
         cache.get(cacheKey),
         cache.get(userStatsKey),
-        cache.get(platformStatsKey),
       ]);
 
       return {
         realTime: realTimeData || { recentActions: [], counters: {} },
         userStats: userStats || {},
-        platformStats: platformStats || {},
         timestamp: new Date(),
       };
     } catch (error) {
@@ -359,7 +286,6 @@ export class AnalyticsEventHandlers {
       return {
         realTime: { recentActions: [], counters: {} },
         userStats: {},
-        platformStats: {},
         timestamp: new Date(),
       };
     }

@@ -123,3 +123,10 @@ scratch/
 
 # Move script (one-time use)
 _move-scripts.mjs
+
+# Testimonial images are local mock data only (not used on the deployed site).
+# Ignore everything under the testimonials directory to keep VCS clean.
+client/public/images/testimonials/
+
+# Recovered orphan blobs from 2026-04-12 Augment save session (local only)
+.rescued/

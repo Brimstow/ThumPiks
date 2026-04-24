@@ -34,6 +34,7 @@ import { logger, flushLogger } from './utils/logger';
 import { getRequestId } from './utils/request-context';
 import { eventRegistry } from './events';
 import { getReplicateQueue } from './modules/thumbnail/replicate-queue.service';
+import { getAIPriorityQueue } from './modules/thumbnail/ai-priority-queue.service';
 import { healthCheckPrisma } from './utils/prisma-factory';
 
 // Import routes
@@ -43,7 +44,6 @@ import thumbnailRoutes from './modules/thumbnail/thumbnail.routes';
 import thumbnailPublicRoutes from './modules/thumbnail/thumbnail.public.routes';
 import projectRoutes from './modules/project/project.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
-import socialShareRoutes from './modules/social-share/social-share.routes';
 import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
 import performanceRoutes from './routes/performance.routes';
@@ -219,7 +219,6 @@ app.use('/api/thumbnails', thumbnailRoutes);
 app.use('/api/thumbnails', thumbnailPublicRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/composition-layouts', compositionLayoutRoutes);
 app.use('/api/collaboration', collaborationRoutes);
@@ -402,12 +401,36 @@ async function initializeServer() {
       }
     }
 
+    // Initialize AI priority queue if Redis is available
+    if (process.env.ENABLE_AI_PRIORITY_QUEUE !== 'false') {
+      try {
+        const aiQueue = getAIPriorityQueue();
+        await aiQueue.initialize();
+        logger.info('AI priority queue initialized');
+      } catch (queueError) {
+        logger.warn('AI priority queue not initialized (Redis may be unavailable)', {
+          error: queueError instanceof Error ? queueError.message : String(queueError),
+          fallback: 'AI requests will be processed directly without priority queuing',
+        });
+      }
+    }
+
     // Start server - bind to 0.0.0.0 for Railway
     const server = app.listen(PORT, '0.0.0.0', (error?: Error) => {
       if (error) {
         logger.error('Server failed to start', error);
         process.exit(1);
       }
+
+      // JJ: Fix Railway 504 errors caused by Node.js default keepAliveTimeout=5s.
+      // Railway's edge proxy reuses keep-alive connections, but Node.js closes idle
+      // ones after 5s. When Railway sends a new request on a dead connection →
+      // ECONNRESET → Railway returns 504 to the client.
+      // Source: Node.js GitHub issue #27363 (same symptom on Railway).
+      // 61s > Railway's 60s idle timeout; headersTimeout must be > keepAliveTimeout.
+      server.keepAliveTimeout = 61_000;   // 61 seconds
+      server.headersTimeout   = 65_000;   // 65 seconds
+
       logger.info('Server started', { port: PORT, health: `http://localhost:${PORT}/health` });
 
       if (process.env.ENABLE_CACHE === 'true') {
@@ -456,6 +479,12 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
+    // Shutdown AI priority queue
+    const aiQueue = getAIPriorityQueue();
+    if (aiQueue.isReady()) {
+      await aiQueue.shutdown();
+    }
+
     // Shutdown SSE connections
     const { SSEService } = await import('./services/sse.service');
     SSEService.getInstance().shutdown();
@@ -475,6 +504,12 @@ if (require.main === module) {
     const replicateQueue = getReplicateQueue();
     if (replicateQueue.isReady()) {
       await replicateQueue.shutdown();
+    }
+
+    // Shutdown AI priority queue
+    const aiQueue2 = getAIPriorityQueue();
+    if (aiQueue2.isReady()) {
+      await aiQueue2.shutdown();
     }
 
     await flushLogger();

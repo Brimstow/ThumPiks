@@ -30,6 +30,10 @@ interface ChatPanelProps {
   onToggleCollapse: () => void;
   /** Handler for uploading an image from the chat input */
   onUpload?: (file: File) => void;
+  /** Called when user confirms pending actions (preview mode) */
+  onConfirmActions?: (messageId: string) => void;
+  /** Called when user dismisses pending actions (preview mode) */
+  onDismissActions?: (messageId: string) => void;
 }
 
 /** Generate context-aware suggestion chips based on selected layer type */
@@ -76,6 +80,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isCollapsed,
   onToggleCollapse,
   onUpload,
+  onConfirmActions,
+  onDismissActions,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -175,7 +181,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+          <ChatMessage
+            key={msg.id}
+            message={msg}
+            onConfirmActions={onConfirmActions}
+            onDismissActions={onDismissActions}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

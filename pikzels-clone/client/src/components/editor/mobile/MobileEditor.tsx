@@ -255,9 +255,9 @@ export function MobileEditor({
   }), [adjustments.brightness, adjustments.contrast, adjustments.saturation]);
 
   return (
-    <div className="fixed inset-0 bg-[#0a0a14] flex flex-col z-50">
+    <div className="fixed inset-0 bg-[#0a0a14] flex flex-col z-50 safe-area-top" role="dialog" aria-modal="true" aria-label="Thumbnail editor">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 h-14 bg-[#1a1a2e] border-b border-gray-700/50 safe-area-inset-top z-30">
+      <header className="flex items-center justify-between px-4 h-14 bg-[#1a1a2e] border-b border-gray-700/50 z-30">
         <button
           onClick={onClose}
           className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white touch-manipulation"

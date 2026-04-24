@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { authPost, authGet } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePricingData, PricingPlan } from '../../hooks/usePricingData';
@@ -191,7 +192,7 @@ const PlanCard = memo(
     return (
       <div
         data-testid={isPopular ? 'pro-plan-card' : undefined}
-        className={`bg-[#0F172A] rounded-2xl p-8 relative flex flex-col ${
+        className={`bg-[#0F172A] rounded-2xl p-5 sm:p-8 relative flex flex-col ${
           isPopular
             ? 'border-2 border-blue-600'
             : 'border border-slate-800 hover:border-blue-500/50 transition-all'
@@ -281,6 +282,7 @@ interface Subscription {
 }
 
 const PricingPage = () => {
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const {
     phase,
@@ -462,7 +464,7 @@ const PricingPage = () => {
     <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-50 mb-4">
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-50 mb-4">
           Choose Your Pricing Plan
         </h1>
         <p className="text-slate-400 text-base max-w-2xl mx-auto leading-relaxed">
@@ -483,7 +485,7 @@ const PricingPage = () => {
           />
           <button
             onClick={() => setBillingCycle('monthly')}
-            className="relative z-10 px-8 py-3 rounded-full font-medium flex items-center gap-1.5"
+            className="relative z-10 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-medium flex items-center gap-1.5 text-sm sm:text-base"
             style={{
               color: billingCycle === 'monthly' ? '#ffffff' : '#94a3b8',
             }}
@@ -502,7 +504,7 @@ const PricingPage = () => {
           </button>
           <button
             onClick={() => setBillingCycle('annual')}
-            className="relative z-10 px-8 py-3 rounded-full font-medium flex items-center gap-1.5"
+            className="relative z-10 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-medium flex items-center gap-1.5 text-sm sm:text-base"
             style={{ color: billingCycle === 'annual' ? '#ffffff' : '#94a3b8' }}
           >
             Annual
@@ -597,6 +599,20 @@ const PricingPage = () => {
         </div>
       </div>
 
+      {/* Compare link */}
+      <div className="text-center mt-10 mb-6">
+        <p className="text-slate-500 text-sm mb-2">
+          Wondering how ThumPiks compares to other thumbnail tools?
+        </p>
+        <button
+          onClick={() => navigate('/compare')}
+          className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors inline-flex items-center gap-1.5"
+        >
+          See the full feature comparison
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Confirmation Modal */}
       <AnimatePresence>
         {showConfirmModal && selectedPlan && (
@@ -621,7 +637,7 @@ const PricingPage = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="relative bg-[#0F172A] border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+              className="relative bg-[#0F172A] border border-slate-700 rounded-2xl p-5 sm:p-8 max-w-md w-full shadow-2xl"
               data-testid="checkout-confirmation-modal"
               role="dialog"
               aria-labelledby="modal-title"

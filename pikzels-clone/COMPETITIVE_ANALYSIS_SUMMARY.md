@@ -486,3 +486,181 @@ This positioning **nobody else owns**: Pikzels generates, Canva designs, but nob
 ---
 
 _This analysis was generated from a full codebase audit of 22 backend modules, 25+ frontend components, the Prisma schema, 4 AI service integrations, and market research across 6 competitors._
+
+---
+
+## Addendum — May 2026: 2nd-Wave Competitors (CTR/Testing Category)
+
+**Scope update:** The July 2025 analysis above stated "A/B Testing is unique; no competitor has this." That claim is **no longer true.** Between Feb 2025 and early 2026, a new category of purpose-built YouTube thumbnail **testing/CTR-optimization** tools launched. They do not compete with ThumPiks on editor depth, but they compete directly on the "prove which thumbnail works" positioning we recommended owning.
+
+**Research sources:** Exa web_search + crawling (May 2026), SimilarLabs, XYZEO, TubeAnalytics blog. Ref (docs index) returned nothing — these are consumer SaaS products, not dev docs.
+
+### New Entrants — At a Glance
+
+| Competitor | URL | Launch Date | Pricing | Core Value Prop | Notable Traction |
+|---|---|---|---|---|---|
+| **Thumblytics** | thumblytics.com | **Feb 18, 2025** (SimilarLabs) | Free (10 gen) / $12 Starter / $29 Pro | AI gen + **pre-publish CTR prediction (0-100 score)** | Testimonials from alpha m. (6.8M), Thoughty2 (5.3M), Roberto Blake (600K) — real |
+| **Thumbfast** | thumbfast.com | **2025** (XYZEO: "Founded 2025"), operated by Codelynx LLC | Pro $19 / Ultra | AI gen + **face consistency** + A/B variants | 2,400+ creators; claims +50% CTR lift, +51.5% view-share |
+| **WhichThumb** | whichthumb.com | Likely **2024–2025** (no public launch record) | Free trial + paid | **Real audience polling** (share link → audience votes) with statistical confidence indicators | 1M+ thumbnails tested, 50K+ creators claimed |
+| **ThriftyThumbs** | thriftythumbs.com | **Late 2025 / Early 2026** (Early Access, no PH launch) | Free / $19 / $34 / $69 | AI gen + **live YouTube rotation via YouTube API** + Bayesian stats | 2,431 tests this quarter, 1,247 live rotations (landing counters) |
+| **Oona** | oonalab.ai | **Q4 2025 / Q1 2026 public launch** ("Launch offer 🚀") | **$59/mo** (only plan, 40% off annual) | **Multivariate testing** (not just A/B) + AI Insight Assistant + Video Opening Review | Named testimonials: The Bread Code (312K), Dan Kieft (140K), plus 4 smaller creators |
+
+**Also relevant but broader:** TubeAnalytics and TubeBuddy both added thumbnail testing features in 2025/2026 (pre-publish scoring + post-publish split testing respectively). Category gravity is unmistakable.
+
+### Why This Matters for ThumPiks
+
+The original analysis identified ThumPiks' A/B Testing module as a moat. That moat is now contested on three axes:
+
+| Axis | ThumPiks (today) | New entrants |
+|---|---|---|
+| **CTR prediction (pre-publish, 0-100 score)** | ❌ Not productized as a score — Vision Analysis returns structured JSON | ✅ Thumblytics, Thumbfast both have this as headline feature |
+| **Live YouTube rotation (real CTR via API)** | ❌ | ✅ ThriftyThumbs (hourly/daily), Oona (multivariate) |
+| **Audience polling (share link → votes)** | ❌ | ✅ WhichThumb owns this niche |
+| **Multivariate (n×n, not just A/B)** | ❌ A/B only | ✅ Oona |
+| **Named creator endorsements** | ❌ 5 fabricated testimonials (per original audit) | ✅ Oona, Thumblytics have real named creators with subscriber counts |
+
+### Updated Moat Assessment
+
+**Where ThumPiks still wins (editor moat — unchanged):**
+- **Multi-face targeting** face swap (target and swap N faces individually in one image) — note: Pikzels has single-face swap, Thumbfast has face consistency, but **nobody has multi-face targeting**
+- Non-destructive face swap as editable layer (Pikzels bakes the swap destructively)
+- SAM 2 auto-layer decompose
+- Video frame extraction across **5 platforms** (YouTube, TikTok, Vimeo, Instagram, Twitter/X — new testing tools are YouTube-only)
+- Vision + Visual Search (CLIP + Qdrant) — architecturally deeper than any competitor's scoring
+- 11 AI capabilities across 4 providers with load balancer
+- Full canvas editor (layers, blend modes, masks) — none of the 5 new testing entrants have this
+
+**Where the moat is now weaker:**
+- "Data-driven thumbnails" positioning no longer unique — 5 products claim it
+- ⚠️ **Correction:** ThumPiks **already has** pre-publish CTR scoring (ThumPiks Score 0-100 in [VisionToolPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/VisionToolPage.tsx) + [AIToolsPanel.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/editor/panels/AIToolsPanel.tsx)) and **already has** A/B Testing (full module: [ABTestingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/ABTestingPage.tsx) + [ab-testing.service.ts](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/ab-testing/ab-testing.service.ts) + DB tables). **Both are flagged "coming soon" on marketing pages.** The gap is marketing, not engineering.
+- Genuinely unbuilt gaps: **YouTube API live rotation** (ThriftyThumbs/Oona headline), **audience polling** (WhichThumb), **multivariate n×n** (Oona), **Bayesian win probability**, **AI insight chat** (Oona), **Chrome extension** (Oona), **mobile preview overlay**, **attention heatmap rendering**.
+- No named creator social proof — new entrants have subscriber-count creators (alpha m. 6.8M at Thumblytics, The Bread Code 312K at Oona)
+
+### Revised Strategic Recommendations
+
+**Immediate (THIS WEEK, hours not days):**
+1. **Remove "(coming soon)" flags** from A/B Testing and ThumPiks Score in [ThumPiksLanding.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/ThumPiksLanding.tsx) L203-212 + [PricingPage.tsx](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/dashboard/PricingPage.tsx) L129-142. **Highest-leverage single fix in the entire document** — you have the features, just hidden.
+2. **Update positioning** to "Generate, score, and test — the only editor that does all three." Lead with the editor + testing fusion.
+3. **Replace fabricated testimonials** with real beta creators — category has high bar now (alpha m., Thoughty2 on Thumblytics; The Bread Code on Oona).
+
+**Short term (1–3 weeks):**
+4. Ship **Bayesian win probability** in the existing A/B module (current logic is "highest CTR with ≥10 impressions") — 3-5 days.
+5. Verify **attention heatmap** renders (Vision backend claims it; if not shipped, 1 week).
+6. **Mobile preview overlay** at actual YouTube mobile size — 1 day.
+
+**Medium term (1–3 months):**
+7. **YouTube OAuth + thumbnail rotation** — match ThriftyThumbs/Oona. Without this, ThumPiks' A/B module is "in-app only" in creators' eyes.
+8. **Audience-poll share link** (WhichThumb-style) — cheap, defensive against audience-vote niche.
+9. **Multivariate testing** (n×n thumb × title, Bayesian) — leapfrog Oona.
+10. **AI Insight Assistant** — wrap test results in conversational LLM endpoint.
+
+**Long term (moat play):**
+11. **Fuse the editor + testing loop** — none of the new entrants can do "multi-face swap variant → decompose → live YouTube rotation → winner → apply." That combo is the unique ThumPiks wedge.
+12. **5-platform video frame extraction** is a real edge (competitors are YouTube-only). Lean into TikTok/Instagram/Twitter creators who are underserved by the new entrants.
+
+### Verdict
+
+> ThumPiks is **still competitive** and was even **understating its own capability** — A/B Testing and ThumPiks Score are already shipped, just hidden behind "coming soon" marketing copy. The editor moat (face swap, decompose, non-destructive, 5-platform video) holds. The testing moat needs a **marketing fix first** (un-flag the features), then tactical builds (Bayesian, YouTube rotation, polling, multivariate) to leapfrog the new entrants. Re-position around the **editor + testing fusion** rather than either axis alone.
+
+_Addendum researched via Exa MCP (web_search + crawling) on May 14, 2026. Ref MCP returned no results (expected — indexes dev docs, not consumer SaaS)._
+
+---
+
+## Unified 2026 Competitor Landscape (Old + New, 11 Products)
+
+The original §4 matrix covered 5 general-purpose competitors. The addendum covered 5 new testing-focused entrants. This unified view organizes all 11 products by **archetype** so you can see where ThumPiks actually sits and which competitors threaten which axis.
+
+### Archetypes
+
+| Archetype | What they do | Competes with ThumPiks on |
+|---|---|---|
+| **A. General editor** (Canva, Adobe Express, PicMonkey, Snappa) | Broad design tools that also make thumbnails | Editor polish, template library, brand kit |
+| **B. Thumbnail generator** (Pikzels, Thumbfast) | AI-first, thumbnail-specific generation with some face features | Face swap, generation speed, niche-specific output |
+| **C. Testing / CTR optimizer** (Thumblytics, WhichThumb, ThriftyThumbs, Oona) | Pre-publish scoring, audience polling, live YouTube rotation, or multivariate | A/B testing, CTR prediction, "data-driven" positioning |
+| **D. Video-to-thumbnail adjacent** (Opus Clip) | Primary product is video clipping, thumbnails are a side output | Video frame extraction, auto-generated variants |
+| **E. Fusion (ThumPiks)** | Editor + Generator + Testing in one workspace | — (unique archetype if moat is defended) |
+
+### Full Competitor Matrix
+
+| # | Product | Archetype | Launched | Price range | Core pitch | Headline feature | Threat axis to ThumPiks |
+|---|---|---|---|---|---|---|---|
+| 1 | **Canva** | A. General editor | 2013 | $0 / $12.99 Pro / $14.99 Teams | "Design anything" | 3.6M+ templates, Magic Studio | Template library, brand kit, polish |
+| 2 | **Adobe Express** | A. General editor | 2021 (from Spark 2016) | $0 / $9.99 Premium | "Quick content creation" | Firefly AI, video frame extraction | AI gen (Firefly), cross-media |
+| 3 | **PicMonkey** | A. General editor | 2012 | $7.99 / $12.99 / $23 Business | "Easy photo editing" | Layer editor, photo library | Editor features, brand hub |
+| 4 | **Snappa** | A. General editor | 2015 | $0 / $10 / $20 Team | "Graphics for non-designers" | 6,000+ templates | Template-driven workflow |
+| 5 | **Pikzels** | B. Thumbnail generator | ~2023 | $14 / $28 (annual) | "AI thumbnails with your face" | **Single-face swap + Pikzels Score™** + One-Click Fix | Face swap (single), score UX, clone-yourself persona |
+| 6 | **Thumbfast** | B. Thumbnail generator | 2025 (Codelynx LLC) | $19 Pro / Ultra | "Midjourney for YouTube thumbnails" | Face **consistency** (not swap) + niche templates + URL→thumb in 10s | Generation speed, face consistency |
+| 7 | **Opus Clip** | D. Video-adjacent | 2022 | $9 / $29 / $99 | "Long video → viral shorts" | Auto-clip + auto-thumbnail from video | Video workflow (YouTube only — ThumPiks wins 5 platforms) |
+| 8 | **Thumblytics** | C. Testing (pre-publish) | **Feb 18, 2025** | Free (10) / $12 / $29 | "CTR prediction before you publish" | **0-100 CTR score** (readability/contrast/hook) | Pre-publish scoring positioning |
+| 9 | **WhichThumb** | C. Testing (polling) | 2024–2025 | Free trial + paid | "Let your audience decide" | **Audience poll share link** + confidence indicators | Audience-voting niche |
+| 10 | **ThriftyThumbs** | C. Testing (live rotation) | **Late 2025 / early 2026** | $0 / $19 / $34 / $69 | "Test with real viewers" | **YouTube API rotation** (hourly/daily) + Bayesian stats + heatmap | Real-CTR live rotation, Bayesian rigor |
+| 11 | **Oona** | C. Testing (multivariate) | **Q4 2025 / Q1 2026** | $59/mo single plan | "Find winners in hours, not weeks" | **Multivariate (n×n thumb × title)** + AI Insight Assistant + video opening review | Multivariate, AI chat about results, broader scope |
+| ★ | **ThumPiks** | E. Fusion | Current | $0 / $9 / $24 / $69 | "Generate, edit, test — in one workspace" | **Multi-face targeting swap + SAM 2 decompose + A/B testing + 5-platform video** | — |
+
+### Threat Radar — Who Threatens Which Axis
+
+| ThumPiks axis | Primary threat | Secondary threat | Severity |
+|---|---|---|---|
+| AI thumbnail generation | Pikzels, Thumbfast, Thumblytics | Canva Magic Studio, Adobe Firefly | 🟡 Medium — crowded but we have 12 models + 4 providers |
+| Face swap (single) | Pikzels | Thumbfast (consistency, not swap) | 🟡 Medium — Pikzels owns the category narrative |
+| **Face swap (multi-face targeting)** | **None** | **None** | 🟢 **Low — unique moat** |
+| Template library | Canva (3.6M+), Snappa (6K+), Pikzels (styles) | Thumbfast (niche templates) | 🔴 High — §8 Flaw #7 (empty template gallery) |
+| Brand kit | Canva | PicMonkey | 🟡 Medium — ThumPiks has backend, needs marketing |
+| Layer editor | PicMonkey, Canva, Adobe | None in testing category | 🟢 Low — generic editors don't own YouTube niche |
+| A/B testing | ThriftyThumbs, Oona, (TubeBuddy) | Thumbfast (claims), WhichThumb (poll-based) | 🟢 **We have this — just hidden behind "coming soon" label** (ABTestingPage + service + API routes all live) |
+| Pre-publish CTR score | **Thumblytics** (Feb 2025 head-start) | ThriftyThumbs, Oona | 🟢 **We have this as "ThumPiks Score"** (VisionToolPage gauge + sub-scores) — flagged "coming soon" on marketing |
+| Live YouTube rotation (real CTR) | **ThriftyThumbs** | Oona | 🔴 High — 2-3 week build (YouTube OAuth + scheduler); current A/B tracks in-app only |
+| Audience polling | **WhichThumb** | None | 🟡 Medium — niche but well-owned (1 week build) |
+| Multivariate testing | **Oona** | None | 🟡 Medium — 1-2 week extension of existing ab-testing module |
+| Bayesian win probability | WhichThumb, ThriftyThumbs, Oona | None | 🟡 Medium — 3-5 day wrap around existing variant stats |
+| Video frame extraction (5 platforms) | Adobe (any video) | Opus Clip (YouTube only) | 🟢 Low — 5-platform support is unmatched in thumbnail-specific tools |
+| Visual Similarity Search (CLIP + Qdrant) | **None** | None | 🟢 **Low — unique moat** |
+| Multi-provider AI resilience | **None** | None | 🟢 **Low — unique moat** |
+| Trending insights (20 regions) | ThriftyThumbs (outlier research only) | None | 🟢 Low — ThumPiks is more global |
+| Creator social proof | Thumblytics (alpha m. 6.8M), Oona (The Bread Code 312K), Pikzels | — | 🔴 High — §8 Flaw #4 (fabricated testimonials) |
+
+### Per-Archetype Strategy
+
+**vs. Archetype A (General editors — Canva, Adobe, PicMonkey, Snappa):**
+- Don't compete on template count — you'll lose. Pivot to **thumbnail-specific workflow**: A/B testing, CTR score, face swap, video frame extraction.
+- Seed 50 high-quality thumbnail templates (§8 Flaw #7) — not 3.6M, just enough to not feel empty.
+
+**vs. Archetype B (Thumbnail generators — Pikzels, Thumbfast):**
+- Pikzels owns "clone yourself" persona; Thumbfast owns "face consistency."
+- ThumPiks differentiates on **multi-face targeting** (N faces, independently swapped) + **non-destructive layer editor**. That combination nobody else has.
+- Price is already competitive with Pikzels ($24 vs $28). Don't discount further; invest in editor moat.
+
+**vs. Archetype C (Testing tools — Thumblytics, WhichThumb, ThriftyThumbs, Oona):**
+- This is where the moat eroded fastest (Feb 2025 – Q1 2026).
+- **P0:** ship ThumPiks Score 0-100 (close Thumblytics gap, 3-5 days, Vision backend ready).
+- **P1:** ship YouTube OAuth rotation (close ThriftyThumbs/Oona gap, 2-3 weeks).
+- **P2:** ship audience polling share-link (close WhichThumb gap, 1 week) + multivariate (close Oona gap, 1-2 weeks).
+- **Moat play:** only ThumPiks can fuse "multi-face swap variant → decompose → test on live YouTube → winner." No competitor in C has an editor, no competitor in B has live rotation.
+
+**vs. Archetype D (Video-adjacent — Opus Clip):**
+- Opus Clip's thumbnail is a byproduct of video clipping; they don't compete head-on.
+- ThumPiks' **5-platform frame extraction** (per `Video tools competitive advantage` memory: 500% advantage) out-scopes Opus Clip's YouTube-only extraction.
+- Potential partnership or Opus-Clip-output → ThumPiks-edit pipeline.
+
+### The One-Page Answer: Do We Still Have a Moat?
+
+| Axis | Status | What to do |
+|---|---|---|
+| **Multi-face targeting face swap** | 🟢 Unique | Make this the hero on AI Tools page |
+| **Editor + Testing fusion** | 🟢 Unique | Make this the hero on landing page |
+| **5-platform video extraction** | 🟢 Unique in thumbnail-specific category | Market to TikTok/Reels/IG creators |
+| **Visual Similarity Search (CLIP+Qdrant)** | 🟢 Unique | Productize in creation flow (§8 Flaw #18) |
+| **4-provider AI load balancer** | 🟢 Unique | Reliability messaging |
+| **Pre-publish CTR score (ThumPiks Score)** | 🟢 **Built — flagged "coming soon"** | Un-flag TODAY — 0.5 day marketing fix |
+| **A/B Testing** | 🟢 **Built — flagged "coming soon"** | Un-flag TODAY — 0.5 day marketing fix |
+| Live YouTube rotation | 🔴 Behind ThriftyThumbs/Oona | Ship YouTube OAuth + scheduler in 2-3 weeks |
+| Bayesian win probability | 🟡 Behind ThriftyThumbs/Oona | 3-5 day wrap around existing variant stats |
+| Audience polling | 🟡 Behind WhichThumb | Ship share-link flow in 1 week |
+| Multivariate testing | 🟡 Behind Oona | Extend ab-testing module in 1-2 weeks |
+| Creator social proof | 🔴 Behind Thumblytics/Oona | Replace fake testimonials with real beta creators |
+| Template library | 🔴 Behind everyone | Seed 50 thumbnail templates |
+
+**Net verdict:** ThumPiks has **five unique moats** (multi-face targeting, editor+testing fusion, 5-platform video, CLIP search, multi-provider resilience) plus **two built-but-hidden** features (ThumPiks Score, A/B Testing) that no competitor — old or new — matches on the combined stack. The **single highest-leverage action** is un-flagging the "coming soon" labels on ThumPiks Score and A/B Testing — that takes half a day and recovers the entire testing-category positioning. The remaining gaps (YouTube rotation, Bayesian, polling, multivariate) are tactical builds, not strategic problems.
+
+_Unified landscape researched May 14, 2026. Combines July 2025 general-purpose analysis + May 2026 testing-tool addendum + Video tools competitive advantage memory._
+

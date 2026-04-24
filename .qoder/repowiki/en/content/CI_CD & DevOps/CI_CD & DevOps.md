@@ -1,24 +1,25 @@
 # CI/CD & DevOps
 
 <cite>
-**Referenced Files in This Document**  
+**Referenced Files in This Document**
 - [ci.yml](file://pikzels-clone/.github/workflows/ci.yml)
 - [security.yml](file://pikzels-clone/.github/workflows/security.yml)
 - [package.json](file://pikzels-clone/package.json)
 - [client/package.json](file://pikzels-clone/client/package.json)
+- [client/netlify.toml](file://pikzels-clone/client/netlify.toml)
+- [client/tsconfig.json](file://pikzels-clone/client/tsconfig.json)
+- [client/tsconfig.node.json](file://pikzels-clone/client/tsconfig.node.json)
 - [.husky/pre-commit](file://pikzels-clone/.husky/pre-commit)
 - [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md)
-- [scripts/security-scan.js](file://pikzels-clone/scripts/security-scan.js) - *Updated in recent commit*
-- [PERFORMANCE.md](file://pikzels-clone/PERFORMANCE.md) - *Added in recent commit*
 </cite>
 
 ## Update Summary
-**Changes Made**   
-- Updated Security Scanning Workflow section to reflect enhanced security scanning capabilities
-- Added new section on Performance Benchmarking and Monitoring
-- Enhanced diagram sources to include new security scanning script
-- Updated section sources to reflect changes in security.yml and addition of security-scan.js
-- Added reference to PERFORMANCE.md in document sources
+**Changes Made**
+- Enhanced Netlify build process documentation with development dependency installation
+- Added Node.js version pinning details for deployment consistency
+- Updated TypeScript configuration documentation including test file exclusion from compilation
+- Improved build reliability and deployment consistency sections
+- Added new deployment configuration section with Netlify-specific details
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -30,15 +31,14 @@
 7. [Deployment Strategies](#deployment-strategies)
 8. [Troubleshooting Guide](#troubleshooting-guide)
 9. [Performance Optimization](#performance-optimization)
-10. [Performance Benchmarking & Monitoring](#performance-benchmarking--monitoring)
-11. [Conclusion](#conclusion)
+10. [Conclusion](#conclusion)
 
 ## Introduction
 
 The CI/CD and DevOps infrastructure for the Thumbnail Maker Studio project is designed to ensure code quality, security, and reliability through automated processes. This document provides a comprehensive overview of the continuous integration, security scanning, code quality enforcement, and development workflows implemented in the project. The system leverages GitHub Actions for pipeline automation, Husky and lint-staged for pre-commit quality checks, and conventional commits for standardized version control practices.
 
 **Section sources**
-- [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L0-L225)
+- [DEVELOPMENT_WORKFLOW.md:1-226](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L1-L226)
 
 ## CI/CD Pipeline Overview
 
@@ -61,13 +61,13 @@ style H fill:#f96,stroke:#333
 ```
 
 **Diagram sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
-- [security.yml](file://pikzels-clone/.github/workflows/security.yml#L1-L58)
-- [.husky/pre-commit](file://pikzels-clone/.husky/pre-commit#L1-L12)
+- [ci.yml:1-63](file://pikzels-clone/.github/workflows/ci.yml#L1-L63)
+- [security.yml:1-116](file://pikzels-clone/.github/workflows/security.yml#L1-L116)
+- [.husky/pre-commit:1-61](file://pikzels-clone/.husky/pre-commit#L1-L61)
 
 **Section sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
-- [security.yml](file://pikzels-clone/.github/workflows/security.yml#L1-L58)
+- [ci.yml:1-63](file://pikzels-clone/.github/workflows/ci.yml#L1-L63)
+- [security.yml:1-116](file://pikzels-clone/.github/workflows/security.yml#L1-L116)
 
 ## Continuous Integration Workflow
 
@@ -97,12 +97,12 @@ style N fill:#2196F3,stroke:#333
 ```
 
 **Diagram sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
+- [ci.yml:1-63](file://pikzels-clone/.github/workflows/ci.yml#L1-L63)
 
 **Section sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
-- [package.json](file://pikzels-clone/package.json#L20-L21)
-- [client/package.json](file://pikzels-clone/client/package.json#L13-L14)
+- [ci.yml:1-63](file://pikzels-clone/.github/workflows/ci.yml#L1-L63)
+- [package.json:15-16](file://pikzels-clone/package.json#L15-L16)
+- [client/package.json:6-9](file://pikzels-clone/client/package.json#L6-L9)
 
 ## Security Scanning Workflow
 
@@ -116,38 +116,9 @@ The dependency-review job runs on pull requests and fails if moderate or higher 
 
 The secret-scanning job performs pattern-based detection of potential secrets in the codebase, including API keys, JWT secrets, and database credentials with embedded passwords. This proactive scanning helps prevent accidental exposure of sensitive information.
 
-Additionally, a comprehensive security scan is executed via the `scripts/security-scan.js` script, which performs multiple security checks including dependency vulnerabilities, code security issues, configuration security, environment security, and git history analysis. This custom script generates detailed security reports in both JSON and Markdown formats.
-
-```mermaid
-flowchart TD
-A["Trigger: Weekly, Push to main, Manual"] --> B["Checkout Code"]
-B --> C["Setup Node.js"]
-C --> D["Install Dependencies"]
-D --> E["Security Audit (Backend)"]
-E --> F["Security Audit (Frontend)"]
-F --> G["Check Outdated Packages (Backend)"]
-G --> H["Check Outdated Packages (Frontend)"]
-H --> I["Run Comprehensive Security Scan"]
-I --> J["Initialize CodeQL"]
-J --> K["Autobuild"]
-K --> L["Perform CodeQL Analysis"]
-L --> M["Dependency Review"]
-M --> N["Secret Scanning"]
-N --> O["Report Security Findings"]
-style A fill:#4CAF50,stroke:#333
-style E fill:#f44336,stroke:#333
-style L fill:#9C27B0,stroke:#333
-style N fill:#FF5722,stroke:#333
-```
-
-**Diagram sources**
-- [security.yml](file://pikzels-clone/.github/workflows/security.yml#L1-L115)
-- [scripts/security-scan.js](file://pikzels-clone/scripts/security-scan.js#L1-L473)
-
 **Section sources**
-- [security.yml](file://pikzels-clone/.github/workflows/security.yml#L1-L115)
-- [package.json](file://pikzels-clone/package.json#L10-L11)
-- [scripts/security-scan.js](file://pikzels-clone/scripts/security-scan.js#L1-L473) - *Updated in recent commit*
+- [security.yml:1-116](file://pikzels-clone/.github/workflows/security.yml#L1-L116)
+- [package.json:84-88](file://pikzels-clone/package.json#L84-L88)
 
 ## Development Workflow & Pre-commit Hooks
 
@@ -175,13 +146,13 @@ style H fill:#f9f,stroke:#333
 ```
 
 **Diagram sources**
-- [.husky/pre-commit](file://pikzels-clone/.husky/pre-commit#L1-L12)
-- [package.json](file://pikzels-clone/package.json#L30-L31)
+- [.husky/pre-commit:1-61](file://pikzels-clone/.husky/pre-commit#L1-L61)
+- [package.json:33-34](file://pikzels-clone/package.json#L33-L34)
 
 **Section sources**
-- [.husky/pre-commit](file://pikzels-clone/.husky/pre-commit#L1-L12)
-- [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L100-L150)
-- [package.json](file://pikzels-clone/package.json#L30-L31)
+- [.husky/pre-commit:1-61](file://pikzels-clone/.husky/pre-commit#L1-L61)
+- [DEVELOPMENT_WORKFLOW.md:76-121](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L76-L121)
+- [package.json:33-34](file://pikzels-clone/package.json#L33-L34)
 
 ## Code Quality Enforcement
 
@@ -191,55 +162,49 @@ The lint-staged configuration in package.json defines rules for different file t
 
 The development workflow document provides comprehensive guidance on quality commands, including combined scripts for formatting and linting all code (`npm run format:all` and `npm run lint:all`), as well as a comprehensive check script (`npm run check`) that runs both formatting and linting operations. This layered approach ensures consistent code style and quality across the entire codebase.
 
-```mermaid
-classDiagram
-class CodeQualityTools {
-+ESLint
-+Prettier
-+lint-staged
-+Husky
-}
-class Configuration {
-+package.json
-+.eslintrc
-+.prettierrc
-}
-class Scripts {
-+format : all
-+lint : all
-+check
-+test
-}
-class Workflow {
-+Pre-commit Hooks
-+CI/CD Pipeline
-+Code Reviews
-}
-CodeQualityTools --> Configuration : "Uses"
-CodeQualityTools --> Scripts : "Executes"
-Scripts --> Workflow : "Integrates with"
-Configuration --> Workflow : "Configures"
-```
-
-**Diagram sources**
-- [package.json](file://pikzels-clone/package.json#L22-L31)
-- [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L50-L100)
-
 **Section sources**
-- [package.json](file://pikzels-clone/package.json#L22-L31)
-- [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L50-L100)
+- [package.json:191-199](file://pikzels-clone/package.json#L191-L199)
+- [DEVELOPMENT_WORKFLOW.md:122-146](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L122-L146)
 
 ## Deployment Strategies
 
-While the provided configuration files focus primarily on CI/CD and quality assurance, the deployment strategy can be inferred from the build processes and pipeline structure. The project appears to follow a staged deployment approach with separate main and develop branches, where the develop branch serves as an integration environment and the main branch represents production-ready code.
+The project implements a comprehensive deployment strategy with enhanced Netlify build process configuration and TypeScript compilation improvements. The deployment pipeline ensures build reliability and deployment consistency through development dependency installation and Node.js version pinning.
 
-The build pipeline generates compiled assets for both backend (via `npm run build`) and frontend (via `cd client && npm run build`) applications, suggesting a decoupled architecture where frontend and backend are built and potentially deployed independently. The multi-node testing strategy indicates consideration for runtime compatibility across different Node.js versions in production environments.
+### Netlify Build Process Enhancement
 
-Rollback procedures are not explicitly defined in the configuration files, but the use of Git branches and conventional commits provides a foundation for effective rollback strategies. The comprehensive testing and quality checks serve as safeguards against deploying problematic code, reducing the need for rollbacks.
+The client application now includes enhanced build process configuration in `client/netlify.toml` that installs development dependencies during the build phase. This ensures consistent build environments across different deployment contexts.
+
+**Updated** Enhanced development dependency installation for improved build reliability
+
+The Netlify configuration includes:
+- Development dependency installation: `npm install --include=dev && npm run build`
+- Node.js version pinning: `NODE_VERSION = "22"` for consistent runtime behavior
+- Environment-specific build commands for production, deploy previews, and branch deployments
+- Proper environment variable configuration for production deployment
+
+### TypeScript Configuration Improvements
+
+The TypeScript configuration has been enhanced to exclude test files from compilation, improving build performance and deployment consistency. The client-side TypeScript configuration now includes comprehensive test file exclusion patterns.
+
+**Updated** Added TypeScript configuration improvements for better build reliability
+
+Key TypeScript enhancements:
+- Test file exclusion from compilation: `"exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__/**"]`
+- Separate TypeScript configuration for Vite build process
+- Improved type checking for production code vs test code
+
+### Environment Management
+
+The deployment strategy includes comprehensive environment management with different contexts:
+
+**Production Context**: Strictest settings with NODE_ENV set to "production" and VITE_ENV set to "production"
+**Deploy Preview Context**: PR preview deployments with VITE_ENV set to "preview"  
+**Branch Deploy Context**: Staging deployments with VITE_ENV set to "staging"
 
 **Section sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
-- [package.json](file://pikzels-clone/package.json#L8-L9)
+- [client/netlify.toml:1-50](file://pikzels-clone/client/netlify.toml#L1-L50)
+- [client/tsconfig.json:24-26](file://pikzels-clone/client/tsconfig.json#L24-L26)
+- [client/tsconfig.node.json:1-9](file://pikzels-clone/client/tsconfig.node.json#L1-L9)
 
 ## Troubleshooting Guide
 
@@ -253,9 +218,13 @@ Common pipeline issues and their resolutions include:
 
 **Client-specific Issues**: Since the client application has its own package.json, ensure you navigate to the client directory when running client-specific commands, or use the wrapper scripts provided in the root package.json.
 
+**Netlify Build Issues**: For Netlify deployment failures, verify that development dependencies are properly installed by checking the `npm install --include=dev` step in the build command. Ensure Node.js version matches the pinned version in `netlify.toml`.
+
+**TypeScript Compilation Errors**: For TypeScript compilation issues in test files, check the `tsconfig.test.json` configuration and ensure test files are properly excluded from production compilation.
+
 **Section sources**
-- [DEVELOPMENT_WORKFLOW.md](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L180-L225)
-- [.husky/pre-commit](file://pikzels-clone/.husky/pre-commit#L1-L12)
+- [DEVELOPMENT_WORKFLOW.md:147-192](file://pikzels-clone/DEVELOPMENT_WORKFLOW.md#L147-L192)
+- [.husky/pre-commit:1-61](file://pikzels-clone/.husky/pre-commit#L1-L61)
 
 ## Performance Optimization
 
@@ -264,30 +233,11 @@ The CI/CD pipeline includes several performance optimization features. The use o
 The matrix strategy for Node.js versions allows parallel testing, reducing total pipeline execution time. Selective code coverage reporting (only from Node.js 20.x) prevents redundant uploads and saves storage space. The lint-staged configuration ensures that only modified files are processed during pre-commit checks, making the development workflow faster and more efficient.
 
 **Section sources**
-- [ci.yml](file://pikzels-clone/.github/workflows/ci.yml#L1-L62)
-- [package.json](file://pikzels-clone/package.json#L30-L31)
-
-## Performance Benchmarking & Monitoring
-
-The project includes comprehensive performance benchmarking and monitoring capabilities as documented in PERFORMANCE.md. The system implements a Redis-based caching architecture with cache-aside pattern, service layer caching, and HTTP response caching to significantly improve response times.
-
-Performance monitoring tracks key metrics including response times, request counts, error rates, cache hit ratios, memory usage, and database performance. The system provides monitoring endpoints to access performance metrics, cache statistics, and system health status.
-
-The performance optimization implementation includes:
-- Redis caching with connection pooling and smart cache keys
-- Service layer caching with automatic invalidation on data changes
-- HTTP response caching with configurable TTL values
-- Response compression using Gzip
-- Rate limiting to prevent abuse
-- Database optimization with proper indexing
-- Performance metrics API endpoints
-
-Performance testing scripts are available to validate improvements and monitor system behavior under load.
-
-**Section sources**
-- [PERFORMANCE.md](file://pikzels-clone/PERFORMANCE.md) - *Added in recent commit*
-- [package.json](file://pikzels-clone/package.json#L100-L105)
+- [ci.yml:1-63](file://pikzels-clone/.github/workflows/ci.yml#L1-L63)
+- [package.json:78-80](file://pikzels-clone/package.json#L78-L80)
 
 ## Conclusion
 
-The CI/CD and DevOps infrastructure for the Thumbnail Maker Studio project demonstrates a mature, comprehensive approach to automated development operations. By combining GitHub Actions workflows with local pre-commit hooks, the system creates multiple quality gates that ensure code reliability, security, and consistency. The integration of conventional commits, automated formatting, and comprehensive testing creates a development environment that promotes best practices and reduces technical debt. This robust infrastructure enables the team to maintain high code quality while accelerating development velocity.
+The CI/CD and DevOps infrastructure for the Thumbnail Maker Studio project demonstrates a mature, comprehensive approach to automated development operations. By combining GitHub Actions workflows with local pre-commit hooks, the system creates multiple quality gates that ensure code reliability, security, and consistency. The recent enhancements to the Netlify build process with development dependency installation and Node.js version pinning, along with TypeScript configuration improvements for test file exclusion, significantly improve build reliability and deployment consistency for the client application.
+
+The integration of conventional commits, automated formatting, and comprehensive testing creates a development environment that promotes best practices and reduces technical debt. The enhanced deployment strategy with environment-specific configurations and improved TypeScript compilation ensures reliable, consistent deployments across all environments. This robust infrastructure enables the team to maintain high code quality while accelerating development velocity and ensuring production-ready deployments.

@@ -183,7 +183,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
       />
 
       {/* Modal */}
-      <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-2xl z-50 animate-in fade-in zoom-in-95 duration-200">
+      <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-2xl px-3 sm:px-4 z-50 animate-in fade-in zoom-in-95 duration-200">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
           {/* Search Input */}
           <div className="flex items-center gap-3 p-4 border-b border-slate-800">
@@ -274,7 +274,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
+          <div className="hidden sm:flex px-4 py-3 border-t border-slate-800 items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
                 <kbd className="px-1.5 py-0.5 rounded bg-slate-800">↑↓</kbd> Navigate

@@ -10,8 +10,7 @@ export * from './event-persistence';
 export {
   eventEmitter,
   emitThumbnailCreated,
-  emitAnalyticsEvent,
-  emitSocialShareRequested
+  emitAnalyticsEvent
 } from './event-emitter';
 
 export { eventRegistry } from './event-registry';

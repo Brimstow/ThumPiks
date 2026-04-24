@@ -1346,93 +1346,131 @@ Rules:
     imageSize?: '1K' | '2K' | '4K',
     toolType?: string
   ): Promise<string[]> {
-    // JJ: Per-tool timeout instead of flat 120s
-    const timeout = getToolTimeout(toolType);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      timeout
-    );
+    let lastError: Error | null = null;
 
-    try {
-      // Ensure base64 has proper data URL prefix
-      const imageUrl = imageBase64.startsWith('data:image')
-        ? imageBase64
-        : `data:image/png;base64,${imageBase64}`;
+    // JJ: Retry loop — mirrors callImageAPI's retry logic.
+    // Without retries, a single transient 504/502/503 from Railway's edge proxy
+    // (caused by keepAliveTimeout connection reuse) kills the entire operation.
+    // A second attempt almost always succeeds on a fresh connection.
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      // JJ: Per-tool timeout instead of flat 120s
+      const timeout = getToolTimeout(toolType);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        timeout
+      );
 
-      const requestBody: any = {
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: imageUrl },
-              },
-              {
-                type: 'text',
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        stream: false,
-      };
-
-      // Add modalities based on model type
-      // FLUX models: image-only output, use ["image"]
-      // Gemini/GPT: text+image output, use ["image", "text"]
-      if (model.includes('flux')) {
-        requestBody.modalities = ['image'];
-      } else if (
-        model.includes('gemini') ||
-        model.includes('google/') ||
-        model.includes('gpt-')
-      ) {
-        requestBody.modalities = ['image', 'text'];
-      }
-
-      // Add image_config for Gemini models
-      if (model.includes('gemini') || model.includes('google/')) {
-        requestBody.image_config = { aspect_ratio: aspectRatio };
-        if (imageSize) {
-          requestBody.image_config.image_size = imageSize;
+      try {
+        if (attempt > 0) {
+          console.log(`OpenRouter (image-with-image): Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
-      }
 
-      const response = await fetch(`${this.apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
-          'X-Title': 'ThumPiks Canvas Editor',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal as any,
-      });
+        // Ensure base64 has proper data URL prefix
+        const imageUrl = imageBase64.startsWith('data:image')
+          ? imageBase64
+          : `data:image/png;base64,${imageBase64}`;
 
-      clearTimeout(timeoutId);
+        const requestBody: any = {
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrl },
+                },
+                {
+                  type: 'text',
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+          stream: false,
+        };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `OpenRouter API error (${response.status}): ${errorText}`
+        // Add modalities based on model type
+        // FLUX models: image-only output, use ["image"]
+        // Gemini/GPT: text+image output, use ["image", "text"]
+        if (model.includes('flux')) {
+          requestBody.modalities = ['image'];
+        } else if (
+          model.includes('gemini') ||
+          model.includes('google/') ||
+          model.includes('gpt-')
+        ) {
+          requestBody.modalities = ['image', 'text'];
+        }
+
+        // Add image_config for Gemini models
+        if (model.includes('gemini') || model.includes('google/')) {
+          requestBody.image_config = { aspect_ratio: aspectRatio };
+          if (imageSize) {
+            requestBody.image_config.image_size = imageSize;
+          }
+        }
+
+        const response = await fetch(`${this.apiUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+            'X-Title': 'ThumPiks Canvas Editor',
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal as any,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `OpenRouter API error (${response.status}): ${errorText}`
+          );
+        }
+
+        const data: any = await response.json();
+        return this.extractImagesFromResponse(data);
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error instanceof Error && error.name === 'AbortError') {
+          lastError = new Error(
+            `OpenRouter: Request timed out after ${timeout / 1000}s`
+          );
+          // JJ: Don't retry on timeout — if the model can't respond within
+          // the per-tool timeout, retrying won't help (it's a capacity issue).
+          throw lastError;
+        }
+
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Don't retry on certain errors (same list as callImageAPI)
+        const noRetryErrors = [
+          'API key',
+          'credits',
+          'Invalid',
+          '400',
+          '401',
+          '402',
+        ];
+        if (noRetryErrors.some(e => lastError!.message.includes(e))) {
+          throw lastError;
+        }
+
+        console.warn(
+          `OpenRouter (image-with-image) attempt ${attempt + 1} failed:`,
+          lastError.message
         );
       }
-
-      const data: any = await response.json();
-      return this.extractImagesFromResponse(data);
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(
-          `OpenRouter: Request timed out after ${timeout / 1000}s`
-        );
-      }
-      throw error;
     }
+
+    throw lastError || new Error('Image-with-image request failed after retries');
   }
 
   /**
@@ -1444,78 +1482,111 @@ Rules:
     model: string,
     toolType?: string
   ): Promise<string[]> {
-    // JJ: Per-tool timeout instead of flat 120s
-    const timeout = getToolTimeout(toolType);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      timeout
-    );
+    let lastError: Error | null = null;
 
-    try {
-      // Build content array with all images then the prompt
-      const content: any[] = imagesBase64.map(img => {
-        const imageUrl = img.startsWith('data:image')
-          ? img
-          : `data:image/png;base64,${img}`;
-        return {
-          type: 'image_url',
-          image_url: { url: imageUrl },
+    // JJ: Retry loop — same rationale as callImageAPIWithImage.
+    // Face-swap is especially vulnerable: it sends two large base64 images,
+    // making the request payload larger and more likely to hit Railway proxy issues.
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const timeout = getToolTimeout(toolType);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        timeout
+      );
+
+      try {
+        if (attempt > 0) {
+          console.log(`OpenRouter (multi-image): Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
+
+        // Build content array with all images then the prompt
+        const content: any[] = imagesBase64.map(img => {
+          const imageUrl = img.startsWith('data:image')
+            ? img
+            : `data:image/png;base64,${img}`;
+          return {
+            type: 'image_url',
+            image_url: { url: imageUrl },
+          };
+        });
+        content.push({ type: 'text', text: prompt });
+
+        const requestBody: any = {
+          model: model,
+          messages: [{ role: 'user', content }],
+          stream: false,
         };
-      });
-      content.push({ type: 'text', text: prompt });
 
-      const requestBody: any = {
-        model: model,
-        messages: [{ role: 'user', content }],
-        stream: false,
-      };
+        // Add modalities based on model type
+        if (model.includes('flux')) {
+          requestBody.modalities = ['image'];
+        } else if (
+          model.includes('gemini') ||
+          model.includes('google/') ||
+          model.includes('gpt-')
+        ) {
+          requestBody.modalities = ['image', 'text'];
+        }
 
-      // Add modalities based on model type
-      // FLUX models: image-only output, use ["image"]
-      // Gemini/GPT: text+image output, use ["image", "text"]
-      if (model.includes('flux')) {
-        requestBody.modalities = ['image'];
-      } else if (
-        model.includes('gemini') ||
-        model.includes('google/') ||
-        model.includes('gpt-')
-      ) {
-        requestBody.modalities = ['image', 'text'];
-      }
+        const response = await fetch(`${this.apiUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+            'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+            'X-Title': 'ThumPiks Canvas Editor',
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal as any,
+        });
 
-      const response = await fetch(`${this.apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
-          'X-Title': 'ThumPiks Canvas Editor',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal as any,
-      });
+        clearTimeout(timeoutId);
 
-      clearTimeout(timeoutId);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `OpenRouter API error (${response.status}): ${errorText}`
+          );
+        }
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `OpenRouter API error (${response.status}): ${errorText}`
+        const data: any = await response.json();
+        return this.extractImagesFromResponse(data);
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error instanceof Error && error.name === 'AbortError') {
+          lastError = new Error(
+            `OpenRouter: Request timed out after ${timeout / 1000}s`
+          );
+          // Don't retry on timeout — capacity issue, not transient.
+          throw lastError;
+        }
+
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Don't retry on certain errors (same list as callImageAPI)
+        const noRetryErrors = [
+          'API key',
+          'credits',
+          'Invalid',
+          '400',
+          '401',
+          '402',
+        ];
+        if (noRetryErrors.some(e => lastError!.message.includes(e))) {
+          throw lastError;
+        }
+
+        console.warn(
+          `OpenRouter (multi-image) attempt ${attempt + 1} failed:`,
+          lastError.message
         );
       }
-
-      const data: any = await response.json();
-      return this.extractImagesFromResponse(data);
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(
-          `OpenRouter: Request timed out after ${timeout / 1000}s`
-        );
-      }
-      throw error;
     }
+
+    throw lastError || new Error('Multi-image request failed after retries');
   }
 
   /**

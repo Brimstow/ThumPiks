@@ -179,6 +179,10 @@ const pushHistory = (
   newSelection: Selection,
   newAdjustments: AdjustmentState,
 ): { history: HistoryEntry[]; historyIndex: number } => {
+  // During a batch, skip pushing history entries — one consolidated entry is pushed on BATCH_END
+  if (state.batchInProgress) {
+    return { history: state.history, historyIndex: state.historyIndex };
+  }
   let newHistory = state.history.slice(0, state.historyIndex + 1);
   newHistory.push(
     createHistoryEntry(actionLabel, newLayers, newLayerOrder, newSelection, newAdjustments),
@@ -601,6 +605,57 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'BATCH_START': {
+      // If already in a batch, auto-end the previous one first
+      if (state.batchInProgress) {
+        const hist = pushHistory(
+          { ...state, batchInProgress: false },
+          state.batchLabel || 'AI batch',
+          state.layers,
+          state.layerOrder,
+          state.selection,
+          state.adjustments,
+        );
+        return {
+          ...state,
+          ...hist,
+          batchInProgress: true,
+          batchLabel: action.label,
+        };
+      }
+      return {
+        ...state,
+        batchInProgress: true,
+        batchLabel: action.label,
+      };
+    }
+
+    case 'BATCH_END': {
+      if (!state.batchInProgress) return state;
+      // Push a single consolidated history entry for the entire batch
+      let newHistory = state.history.slice(0, state.historyIndex + 1);
+      newHistory.push(
+        createHistoryEntry(
+          state.batchLabel || 'AI batch',
+          state.layers,
+          state.layerOrder,
+          state.selection,
+          state.adjustments,
+        ),
+      );
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+      }
+      return {
+        ...state,
+        batchInProgress: false,
+        batchLabel: undefined,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isModified: true,
+      };
+    }
+
     case 'UNDO': {
       if (state.historyIndex <= 0) return state; // Can't undo past initial state
       const prevEntry = state.history[state.historyIndex - 1];
@@ -968,9 +1023,23 @@ export function useEditorState(
   }, []);
 
   // Clear canvas — removes all layers/history but preserves canvas dimensions and tool settings
+  // JJ: Sync immediately (not debounced) to the Zustand store so that navigating away
+  // before the 300ms debounce fires doesn't leave stale layers in sessionStorage.
   const clearCanvas = useCallback(() => {
     dispatch({ type: 'CLEAR_CANVAS' });
-  }, []);
+    // Flush the empty state to the persistent store RIGHT NOW.
+    // Without this, the 300ms-debounced sync effect may not fire before unmount,
+    // and the old layers (with the image base64) survive in sessionStorage.
+    store.syncFromReducer({
+      layers: [],
+      layerOrder: [],
+      selection: { layerIds: [] },
+      activeTool: 'select',
+      adjustments: { ...DEFAULT_ADJUSTMENTS },
+      smartSelection: { ...DEFAULT_SMART_SELECTION },
+      isModified: true,
+    });
+  }, [store]);
 
   return {
     state,

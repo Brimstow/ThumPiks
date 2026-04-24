@@ -138,8 +138,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
     // Clear token expiration tracking
     setTokenExpiration(0);
-    // Clear session ID
-    try { localStorage.removeItem('sessionId'); } catch { /* Safari Private Browsing */ }
+    // Clear client-side auth/session artifacts
+    try {
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('thumpiks_session'); // written by useSessionPersistence
+    } catch { /* Safari Private Browsing */ }
     setUser(null);
     navigate('/', { replace: true });
   };

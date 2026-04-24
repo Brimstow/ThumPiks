@@ -408,14 +408,15 @@ async function seedTestNotifications() {
     return { created: 0 };
   }
 
-  // Check if notifications already exist for this user
-  const existingCount = await prisma.userNotification.count({
+  // Destructive reseed: clear any existing notifications for this user so the
+  // E2E suite (notification-system.spec.ts) always starts from a known 6-row
+  // baseline. Safe — noteTest1@example.com is a fixture account, not a real user.
+  const { count: deletedCount } = await prisma.userNotification.deleteMany({
     where: { userId: user.id },
   });
 
-  if (existingCount > 0) {
-    console.log(`   ♻️  ${testEmail} already has ${existingCount} notifications, skipping`);
-    return { created: 0 };
+  if (deletedCount > 0) {
+    console.log(`   ♻️  Cleared ${deletedCount} existing notifications for ${testEmail} (fresh reseed)`);
   }
 
   const now = new Date();

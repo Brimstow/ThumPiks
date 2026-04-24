@@ -1,7 +1,6 @@
 import { eventEmitter } from './event-emitter';
 import { AppEvent } from './event-types';
 import { analyticsHandlers } from './analytics-handlers';
-import { socialShareHandlers } from './social-share-handlers';
 
 /**
  * Event Handler Registry
@@ -41,9 +40,6 @@ export class EventHandlerRegistry {
     // Register analytics handlers
     this.registerAnalyticsHandlers();
     
-    // Register social sharing handlers
-    this.registerSocialSharingHandlers();
-    
     // Register cleanup handlers
     this.registerCleanupHandlers();
 
@@ -52,7 +48,7 @@ export class EventHandlerRegistry {
   }
 
   /**
-   * Get enhanced stats including analytics and social share handlers
+   * Get enhanced stats including analytics handlers
    */
   getStats() {
     const stats = { totalHandlers: 0, eventTypes: 0 };
@@ -73,11 +69,6 @@ export class EventHandlerRegistry {
       analyticsHandlers: {
         initialized: true,
         batchProcessing: true
-      },
-      socialShareHandlers: {
-        initialized: true,
-        retryLogic: true,
-        platforms: ['twitter', 'facebook', 'linkedin', 'pinterest']
       }
     };
   }
@@ -90,25 +81,10 @@ export class EventHandlerRegistry {
   }
 
   /**
-   * Get social share status
-   */
-  async getShareStatus(userId: string, shareId: string) {
-    return await socialShareHandlers.getShareStatus(userId, shareId);
-  }
-
-  /**
-   * Get platform statistics
-   */
-  async getPlatformStats(userId: string) {
-    return await socialShareHandlers.getPlatformStats(userId);
-  }
-
-  /**
    * Cleanup method for graceful shutdown
    */
   async cleanup(): Promise<void> {
     await analyticsHandlers.cleanup();
-    await socialShareHandlers.cleanup();
     console.log('🧼 Event registry cleaned up');
   }
 
@@ -139,15 +115,6 @@ export class EventHandlerRegistry {
       );
     }, 10);
 
-    // Handle social sharing analytics with enhanced handlers
-    this.register('social.share.completed', async (event: AppEvent) => {
-      const shareEvent = event as any;
-      console.log(`📊 Analytics: Social share ${shareEvent.data.success ? 'completed' : 'failed'} - ${shareEvent.data.platform}`);
-      
-      // Use enhanced analytics handler
-      await analyticsHandlers.handleSocialShareCompleted(shareEvent);
-    }, 10);
-
     // Handle general analytics tracking events
     this.register('analytics.track', async (event: AppEvent) => {
       const analyticsEvent = event as any;
@@ -157,17 +124,6 @@ export class EventHandlerRegistry {
       
       console.log(`📈 Enhanced analytics processed: ${analyticsEvent.data.action} on ${analyticsEvent.data.resource}`);
     }, 1);
-  }
-
-  private registerSocialSharingHandlers(): void {
-    // Handle social share requests with enhanced processing
-    this.register('social.share.requested', async (event: AppEvent) => {
-      const shareEvent = event as any;
-      console.log(`📤 Processing enhanced social share request: ${shareEvent.data.shareId}`);
-      
-      // Use enhanced social share handler
-      await socialShareHandlers.handleSocialShareRequest(shareEvent);
-    }, 5);
   }
 
   private registerCleanupHandlers(): void {

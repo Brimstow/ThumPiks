@@ -324,11 +324,12 @@ const inpaintTiers: ToolTierConfig = {
 /**
  * Face swap tiers.
  *
- * Flash    → FLUX Schnell (Comet): fast, acceptable face quality
- * Standard → Seedream 4.5 (OpenRouter): portrait-optimized, natural results (default)
- * Pro      → Gemini 3 Pro Image (OpenRouter): highest fidelity face reconstruction
+ * Flash    → InsightFace inswapper (Replicate): fast landmark-based swap, ~3s
+ * Standard → InsightFace inswapper (Replicate): same model, standard billing tier (default)
+ * Pro      → InsightFace inswapper + Reve Remix polish (Replicate): cinematic output, ~13s
  *
- * NOTE: Standard tier uses Seedream 4.5 (special case for face-optimized model).
+ * All tiers route through ReplicateFaceSwapService (replicate-face-swap.service.ts).
+ * The controller passes `tier` to the service; `pro` triggers the Reve Remix step.
  */
 const faceSwapTiers: ToolTierConfig = {
   toolId: 'face-swap',
@@ -336,29 +337,29 @@ const faceSwapTiers: ToolTierConfig = {
   tiers: [
     {
       ...TIER_BASE.flash,
-      tagline: 'Quick swaps, good enough for drafts',
-      modelId: getModelForTier('flash'),
-      modelLabel: getModelLabelForTier('flash'),
+      tagline: 'Fast landmark-based face swap',
+      modelId: 'mertguvencli/face-swap-with-indexes',
+      modelLabel: 'InsightFace inswapper',
       credits: 1,
-      estimatedTime: '~4s',
+      estimatedTime: '~3s',
     },
     {
       ...TIER_BASE.standard,
-      tagline: 'Portrait-optimized, natural results',
-      modelId: 'bytedance-seed/seedream-4.5', // Special case: Seedream optimized for faces
-      modelLabel: 'Seedream 4.5',
+      tagline: 'Precise face swap with index targeting',
+      modelId: 'mertguvencli/face-swap-with-indexes',
+      modelLabel: 'InsightFace inswapper',
       credits: 2,
-      estimatedTime: '~8s',
+      estimatedTime: '~3s',
       isDefault: true,
       badge: 'Best for Faces',
     },
     {
       ...TIER_BASE.pro,
-      tagline: 'Highest fidelity face reconstruction',
-      modelId: getModelForTier('pro'),
-      modelLabel: getModelLabelForTier('pro'),
+      tagline: 'Face swap + cinematic Reve polish',
+      modelId: 'mertguvencli/face-swap-with-indexes+reve/remix',
+      modelLabel: 'InsightFace + Reve Remix',
       credits: 5,
-      estimatedTime: '~14s',
+      estimatedTime: '~13s',
       badge: 'Most Realistic',
     },
   ],

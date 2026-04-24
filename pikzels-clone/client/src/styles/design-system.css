@@ -417,3 +417,77 @@ button {
     --color-error-500: #ff0000;
   }
 }
+
+/* =============================================================================
+   MOBILE PERFORMANCE: Backdrop-filter fallback
+   backdrop-filter: blur() is among the most expensive CSS features on mobile.
+   Multiple simultaneous instances cause scroll jank and frame drops.
+   On mobile viewports, replace with semi-opaque solid backgrounds.
+   Reference: https://colorfyi.com/blog/web-color-performance/
+   ========================================================================== */
+
+@media (max-width: 767px) {
+  /*
+   * Disable backdrop-filter on mobile for performance.
+   * backdrop-filter: blur() is among the most expensive CSS features on mobile.
+   * Multiple simultaneous instances cause scroll jank and frame drops.
+   * Replace with more opaque backgrounds for visual distinction.
+   * Reference: https://colorfyi.com/blog/web-color-performance/
+   */
+  .backdrop-blur-sm,
+  .backdrop-blur,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /*
+   * Also override backdrop-filter set directly in CSS component files.
+   * These selectors target elements that have backdrop-filter in their
+   * component CSS and are visible on mobile.
+   */
+  .feedback-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* =============================================================================
+   iOS SAFE AREA INSETS
+   Required for devices with notches, Dynamic Island, and home indicators.
+   viewport-fit=cover must be set in the viewport meta tag for these to work.
+   Reference: https://webkit.org/blog/7929/designing-websites-for-iphone-x/
+   ========================================================================== */
+
+/*
+ * Safe area utility classes for fixed-position mobile elements.
+ * Apply these classes to fixed headers/footers that need to avoid
+ * the notch, Dynamic Island, and home indicator on iOS.
+ *
+ * Usage: <header class="safe-area-top ...">
+ *        <footer class="safe-area-bottom ...">
+ */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Combined safe area for full-screen overlays */
+.safe-area-all {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}

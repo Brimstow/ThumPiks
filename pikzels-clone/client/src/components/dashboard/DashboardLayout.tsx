@@ -210,24 +210,24 @@ const DashboardLayout: React.FC = () => {
   return (
     <div
       className={`min-h-screen transition-all duration-300 ${
-        sidebarExpanded ? 'lg:pl-[200px]' : 'lg:pl-16'
+        sidebarExpanded ? 'md:pl-[200px]' : 'md:pl-16'
       } text-slate-100 bg-[#020817]`}
     >
       {/* Header */}
-      <header className="sticky z-40 bg-[#020817]/95 border-b border-slate-800 top-0 backdrop-blur">
+      <header className="sticky z-40 bg-[#020817]/95 border-b border-slate-800 top-0 backdrop-blur safe-area-top">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 hover:text-slate-50 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-slate-700 lg:hidden"
+              className="inline-flex items-center justify-center rounded-md p-2 text-slate-400 hover:text-slate-50 hover:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-slate-700 md:hidden"
               aria-label="Open menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
             {/* Brand */}
-            <button onClick={() => navigate('/dashboard')} className="flex-1 lg:flex-none text-center flex items-center justify-center lg:justify-start gap-2">
+            <button onClick={() => navigate('/dashboard')} className="flex-1 md:flex-none text-center flex items-center justify-center md:justify-start gap-2">
               <span className="sm:text-3xl text-2xl font-semibold text-slate-50 tracking-tight">
                 ThumPiks
               </span>
@@ -375,7 +375,7 @@ const DashboardLayout: React.FC = () => {
 
       {/* Sidebar */}
       <nav
-        className="hidden lg:flex flex-col fixed transition-all duration-300 z-50 bg-[#020818] border-slate-800 border-r top-0 bottom-0 left-0 backdrop-blur overflow-visible h-screen"
+        className="hidden md:flex flex-col fixed transition-all duration-300 z-50 bg-[#020818] border-slate-800 border-r top-0 bottom-0 left-0 backdrop-blur overflow-visible h-screen"
         style={{ width: sidebarExpanded ? '200px' : '64px' }}
       >
         {/* Rail toggle — half-circle ear on the right edge, vertically centered */}
@@ -592,10 +592,10 @@ const DashboardLayout: React.FC = () => {
       {mobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="fixed top-16 left-0 bottom-0 w-64 bg-slate-900 border-r border-slate-800 z-50 lg:hidden overflow-y-auto animate-in slide-in-from-left duration-200">
+          <nav className="fixed top-16 left-0 bottom-0 w-64 bg-slate-900 border-r border-slate-800 z-50 md:hidden overflow-y-auto animate-in slide-in-from-left duration-200">
             <div className="p-4 space-y-2">
               {allNavItems.map((item) => {
                 const isActive = isNavActive(item.path);

@@ -57,28 +57,6 @@ export interface ProjectUpdatedEvent extends BaseEvent {
   };
 }
 
-// Social Sharing Events
-export interface SocialShareRequestedEvent extends BaseEvent {
-  type: 'social.share.requested';
-  data: {
-    thumbnailId: string;
-    platforms: string[];
-    shareId: string;
-  };
-}
-
-export interface SocialShareCompletedEvent extends BaseEvent {
-  type: 'social.share.completed';
-  data: {
-    shareId: string;
-    thumbnailId: string;
-    platform: string;
-    success: boolean;
-    shareUrl?: string;
-    error?: string;
-  };
-}
-
 // Analytics Events
 export interface AnalyticsTrackingEvent extends BaseEvent {
   type: 'analytics.track';
@@ -108,8 +86,6 @@ export type AppEvent =
   | ThumbnailDeletedEvent
   | ProjectCreatedEvent
   | ProjectUpdatedEvent
-  | SocialShareRequestedEvent
-  | SocialShareCompletedEvent
   | AnalyticsTrackingEvent
   | UserActionEvent;
 

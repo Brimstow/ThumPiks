@@ -267,8 +267,7 @@ router.post(
 );
 
 // Generate Text - AI-powered title/text suggestions (no cache invalidation needed)
-// Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number, tier?: string, imageUrl?: string, imageBase64?: string }
-// When imageUrl/imageBase64 is provided, uses a vision model to analyze the image directly
+// Body: { prompt: string, context?: string, tone?: string, count?: number, maxLength?: number }
 router.post('/ai/generate-text', userAiRateLimit, (req, res) =>
   aiGenerateText(req as AuthRequest, res)
 );
