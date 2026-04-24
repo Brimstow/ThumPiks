@@ -346,13 +346,13 @@ describe('BillingService', () => {
         {
           id: 'tx-1',
           createdAt: new Date('2025-03-01'),
-          description: 'Purchased Boost Pack',
+          description: 'Purchased Starter Pack',
           type: 'purchase',
         },
         {
           id: 'tx-2',
           createdAt: new Date('2025-02-01'),
-          description: 'Purchased Power Pack',
+          description: 'Purchased Pro Pack',
           type: 'purchase',
         },
       ]);
@@ -361,8 +361,8 @@ describe('BillingService', () => {
 
       const creditItems = result.filter((r: any) => r.type === 'credit_pack');
       // Amounts derived from CREDIT_PACKS single source of truth (dollars * 100 -> cents)
-      expect(creditItems.find((c: any) => c.id === 'tx-1')!.amount).toBe(1200); // Boost Pack: $12
-      expect(creditItems.find((c: any) => c.id === 'tx-2')!.amount).toBe(3900); // Power Pack: $39
+      expect(creditItems.find((c: any) => c.id === 'tx-1')!.amount).toBe(900);  // Starter Pack: $9
+      expect(creditItems.find((c: any) => c.id === 'tx-2')!.amount).toBe(3500); // Pro Pack: $35
     });
 
     it('returns 0 for unknown pack descriptions', async () => {
