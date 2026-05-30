@@ -1,20 +1,54 @@
 import fetch from 'node-fetch';
+import type { AbortSignal as NodeFetchAbortSignal } from 'node-fetch/externals';
 import dotenv from 'dotenv';
 import { logger } from '../../utils/logger';
+import { getFrontendUrl } from '../../utils/env';
 
 dotenv.config();
+
+// ── OpenRouter API response types ─────────────────────────────────────────────
+interface OpenRouterImageContent {
+  type?: string;
+  text?: string;
+  image_url?: { url: string };
+  url?: string;
+}
+interface OpenRouterMessage {
+  role?: string;
+  content?: string | OpenRouterImageContent[];
+  images?: (OpenRouterImageContent | string)[];
+}
+interface OpenRouterChoice {
+  message?: OpenRouterMessage;
+  finish_reason?: string;
+}
+interface OpenRouterChatResponse {
+  choices?: OpenRouterChoice[];
+  error?: { message?: string };
+}
+interface OpenRouterModel {
+  id: string;
+  output_modalities?: string[];
+}
+interface OpenRouterModelsResponse {
+  data?: OpenRouterModel[];
+}
+interface OpenRouterErrorResponse {
+  error?: { message?: string };
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Timeout configuration (in milliseconds) — per-tool timeouts
 // Research-backed: Gemini Flash enhance/remove-bg ~5-15s, Pro inpaint ~10-30s, upscale ~15-45s
 const TOOL_TIMEOUT_MS: Record<string, number> = {
-  enhance:    30_000,  // 30s - Gemini Pro, single image edit
-  'remove-bg': 25_000,  // 25s - Gemini Pro, simple task
-  generate:   45_000,  // 45s - Gemini Flash, text-to-image
-  inpaint:    60_000,  // 60s - Gemini Pro, complex edit with context
-  'face-swap': 45_000,  // 45s - Seedream, specialized portrait
-  upscale:    60_000,  // 60s - FLUX/Gemini, detail-heavy 2K/4K
-  expand:     45_000,  // 45s - outpainting, canvas expansion
-  default:    45_000,  // 45s fallback
+  enhance: 30_000, // 30s - Gemini Pro, single image edit
+  'remove-bg': 25_000, // 25s - Gemini Pro, simple task
+  generate: 45_000, // 45s - Gemini Flash, text-to-image
+  inpaint: 60_000, // 60s - Gemini Pro, complex edit with context
+  'face-swap': 45_000, // 45s - Seedream, specialized portrait
+  upscale: 60_000, // 60s - FLUX/Gemini, detail-heavy 2K/4K
+  expand: 45_000, // 45s - outpainting, canvas expansion
+  default: 45_000, // 45s fallback
 } as const;
 
 // JJ: Per-tool timeout lookup — replaces flat IMAGE_GENERATION_TIMEOUT
@@ -29,7 +63,13 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY = 3000; // 3 seconds
 
 // Detection categories for comprehensive scene decomposition
-const VALID_CATEGORIES = ['foreground', 'background', 'text', 'logo', 'decoration'] as const;
+const VALID_CATEGORIES = [
+  'foreground',
+  'background',
+  'text',
+  'logo',
+  'decoration',
+] as const;
 export type DetectionCategory = (typeof VALID_CATEGORIES)[number];
 
 // Native tool definition for object detection via function calling
@@ -37,7 +77,8 @@ const DETECT_OBJECTS_TOOL = {
   type: 'function' as const,
   function: {
     name: 'report_detected_objects',
-    description: 'Report all detected visual elements in the image with their bounding boxes.',
+    description:
+      'Report all detected visual elements in the image with their bounding boxes.',
     parameters: {
       type: 'object',
       properties: {
@@ -46,10 +87,33 @@ const DETECT_OBJECTS_TOOL = {
           items: {
             type: 'object',
             properties: {
-              label: { type: 'string', description: 'Descriptive name (1-4 words). For text elements, prefix with "text:" (e.g. "text: SUBSCRIBE")' },
-              category: { type: 'string', enum: ['foreground', 'background', 'text', 'logo', 'decoration'] },
-              confidence: { type: 'number', description: 'Detection confidence 0.0-1.0' },
-              box_2d: { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4, description: 'Bounding box [y_min, x_min, y_max, x_max] normalized to 0-1000' },
+              label: {
+                type: 'string',
+                description:
+                  'Descriptive name (1-4 words). For text elements, prefix with "text:" (e.g. "text: SUBSCRIBE")',
+              },
+              category: {
+                type: 'string',
+                enum: [
+                  'foreground',
+                  'background',
+                  'text',
+                  'logo',
+                  'decoration',
+                ],
+              },
+              confidence: {
+                type: 'number',
+                description: 'Detection confidence 0.0-1.0',
+              },
+              box_2d: {
+                type: 'array',
+                items: { type: 'number' },
+                minItems: 4,
+                maxItems: 4,
+                description:
+                  'Bounding box [y_min, x_min, y_max, x_max] normalized to 0-1000',
+              },
             },
             required: ['label', 'category', 'confidence', 'box_2d'],
           },
@@ -140,7 +204,7 @@ export class OpenRouterAIService {
     // Object detection (Reka Edge) - uses native Detect: format
     // Best-in-class spatial detection (RefCOCO-A: 93.13), runs parallel with Gemini
     detectReka: {
-      primary: 'rekaai/reka-edge',   // Correct OpenRouter slug (reka/reka-edge was removed)
+      primary: 'rekaai/reka-edge', // Correct OpenRouter slug (reka/reka-edge was removed)
       fallback: 'rekaai/reka-flash-3',
       envVar: 'OPENROUTER_MODEL_DETECT_REKA',
     },
@@ -170,7 +234,7 @@ export class OpenRouterAIService {
       OpenRouterAIService.IMAGE_MODELS.NANO_BANANA;
 
     if (!this.apiKey) {
-      console.warn(
+      logger.warn(
         'OPENROUTER_API_KEY not found in environment variables. OpenRouter AI features will not work.'
       );
     }
@@ -203,7 +267,13 @@ export class OpenRouterAIService {
     // Use 16:9 aspect ratio for thumbnails by default
     const aspectRatio = OpenRouterAIService.ASPECT_RATIOS.LANDSCAPE_16_9;
 
-    return await this.callImageAPI(styledPrompt, model, aspectRatio, undefined, 'generate');
+    return await this.callImageAPI(
+      styledPrompt,
+      model,
+      aspectRatio,
+      undefined,
+      'generate'
+    );
   }
 
   /**
@@ -228,7 +298,13 @@ export class OpenRouterAIService {
     }
 
     const styledPrompt = this.applyStyle(prompt, style);
-    return await this.callImageAPI(styledPrompt, model, aspectRatio, imageSize, 'generate');
+    return await this.callImageAPI(
+      styledPrompt,
+      model,
+      aspectRatio,
+      imageSize,
+      'generate'
+    );
   }
 
   /**
@@ -279,7 +355,9 @@ export class OpenRouterAIService {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         if (attempt > 0) {
-          console.log(`OpenRouter: Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          logger.info(`OpenRouter: Retry attempt ${attempt}/${MAX_RETRIES}`, {
+            service: 'openrouter',
+          });
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
 
@@ -306,10 +384,10 @@ export class OpenRouterAIService {
           throw lastError;
         }
 
-        console.warn(
-          `OpenRouter attempt ${attempt + 1} failed:`,
-          lastError.message
-        );
+        logger.warn('OpenRouter attempt failed', {
+          attempt: attempt + 1,
+          error: lastError.message,
+        });
       }
     }
 
@@ -329,14 +407,11 @@ export class OpenRouterAIService {
     // JJ: Per-tool timeout instead of flat 120s
     const timeout = getToolTimeout(toolType);
     const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      timeout
-    );
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       // Build request body
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         model: model,
         messages: [
           {
@@ -362,12 +437,13 @@ export class OpenRouterAIService {
 
       // Add image_config for Gemini models
       if (model.includes('gemini') || model.includes('google/')) {
-        requestBody.image_config = {
+        const imageConfig: Record<string, unknown> = {
           aspect_ratio: aspectRatio,
         };
         if (imageSize) {
-          requestBody.image_config.image_size = imageSize;
+          imageConfig.image_size = imageSize;
         }
+        requestBody.image_config = imageConfig;
       }
 
       const response = await fetch(`${this.apiUrl}/chat/completions`, {
@@ -375,11 +451,11 @@ export class OpenRouterAIService {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'HTTP-Referer': getFrontendUrl(),
           'X-Title': 'ThumPiks Canvas Editor',
         },
         body: JSON.stringify(requestBody),
-        signal: controller.signal as any, // Cast for node-fetch compatibility
+        signal: controller.signal as unknown as NodeFetchAbortSignal, // Cast for node-fetch compatibility
       });
 
       // Clear timeout on successful response
@@ -387,7 +463,7 @@ export class OpenRouterAIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData: any = {};
+        let errorData: OpenRouterErrorResponse = {};
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -405,9 +481,12 @@ export class OpenRouterAIService {
         }
         if (response.status === 429) {
           // JJ: Parse Retry-After header for smarter backoff
-          const retryAfter: string | null | undefined = response.headers?.get?.('Retry-After');
+          const retryAfter: string | null | undefined =
+            response.headers?.get?.('Retry-After');
           const retryAfterSec = retryAfter ? parseInt(retryAfter, 10) : NaN;
-          const waitHint = !isNaN(retryAfterSec) ? ` Retry after ${retryAfterSec}s.` : '';
+          const waitHint = !isNaN(retryAfterSec)
+            ? ` Retry after ${retryAfterSec}s.`
+            : '';
           throw new Error(
             `OpenRouter rate limit exceeded.${waitHint} Please try again later.`
           );
@@ -435,7 +514,7 @@ export class OpenRouterAIService {
         );
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as OpenRouterChatResponse;
 
       // Extract images from OpenRouter response
       return this.extractImagesFromResponse(data);
@@ -481,7 +560,7 @@ export class OpenRouterAIService {
    * @param data The API response data
    * @returns Array of image URLs
    */
-  private extractImagesFromResponse(data: any): string[] {
+  private extractImagesFromResponse(data: OpenRouterChatResponse): string[] {
     const images: string[] = [];
 
     if (!data.choices || !Array.isArray(data.choices)) {
@@ -495,17 +574,17 @@ export class OpenRouterAIService {
       // Primary format: images array in message
       if (message.images && Array.isArray(message.images)) {
         for (const img of message.images) {
+          // Direct base64 data (some APIs return plain string)
+          if (typeof img === 'string') {
+            if (img.startsWith('data:image')) images.push(img);
+          }
           // Format: { type: "image_url", image_url: { url: "data:..." } }
-          if (img.image_url?.url) {
+          else if (img.image_url?.url) {
             images.push(img.image_url.url);
           }
           // Alternative format: { url: "data:..." }
           else if (img.url) {
             images.push(img.url);
-          }
-          // Direct base64 data
-          else if (typeof img === 'string' && img.startsWith('data:image')) {
-            images.push(img);
           }
         }
       }
@@ -566,21 +645,24 @@ export class OpenRouterAIService {
         throw new Error(`Failed to fetch models (${response.status})`);
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as OpenRouterModelsResponse;
 
       if (data.data && Array.isArray(data.data)) {
         // Filter for models with image output capability
         return data.data
-          .filter((model: any) => {
+          .filter((model: OpenRouterModel) => {
             const outputModalities = model.output_modalities || [];
             return outputModalities.includes('image');
           })
-          .map((model: any) => model.id);
+          .map((model: OpenRouterModel) => model.id);
       }
 
       return [];
     } catch (error) {
-      console.error('Failed to list OpenRouter image models:', error);
+      logger.error(
+        'Failed to list OpenRouter image models',
+        error instanceof Error ? error : new Error(String(error))
+      );
       // Return known image models as fallback
       return Object.values(OpenRouterAIService.IMAGE_MODELS);
     }
@@ -607,15 +689,18 @@ export class OpenRouterAIService {
         throw new Error(`Failed to fetch models (${response.status})`);
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as OpenRouterModelsResponse;
 
       if (data.data && Array.isArray(data.data)) {
-        return data.data.map((model: any) => model.id);
+        return data.data.map((model: OpenRouterModel) => model.id);
       }
 
       return [];
     } catch (error) {
-      console.error('Failed to list OpenRouter models:', error);
+      logger.error(
+        'Failed to list OpenRouter models',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return [];
     }
   }
@@ -687,7 +772,14 @@ export class OpenRouterAIService {
     const fullPrompt = `Edit this image. Apply a mask and modify the masked region as follows: ${prompt}. Preserve the unmasked areas exactly as they are.`;
 
     // Send image with prompt for inpainting
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'inpaint');
+    return await this.callImageAPIWithImage(
+      imageBase64,
+      fullPrompt,
+      model,
+      '16:9',
+      undefined,
+      'inpaint'
+    );
   }
 
   /**
@@ -777,7 +869,14 @@ export class OpenRouterAIService {
         : `a solid ${backgroundColor} background`;
     const fullPrompt = `Remove the background from this image. Keep only the main subject(s) in the foreground with ${bgDesc}. Preserve fine details like hair edges and semi-transparent elements.`;
 
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'remove-bg');
+    return await this.callImageAPIWithImage(
+      imageBase64,
+      fullPrompt,
+      model,
+      '16:9',
+      undefined,
+      'remove-bg'
+    );
   }
 
   /**
@@ -822,7 +921,14 @@ export class OpenRouterAIService {
 
     const fullPrompt = `${enhancementDesc} Maintain the original composition and style.`;
 
-    return await this.callImageAPIWithImage(imageBase64, fullPrompt, model, '16:9', undefined, 'enhance');
+    return await this.callImageAPIWithImage(
+      imageBase64,
+      fullPrompt,
+      model,
+      '16:9',
+      undefined,
+      'enhance'
+    );
   }
 
   // ===========================================================================
@@ -838,7 +944,8 @@ export class OpenRouterAIService {
     const interXMin = Math.max(a.xMin, b.xMin);
     const interYMax = Math.min(a.yMax, b.yMax);
     const interXMax = Math.min(a.xMax, b.xMax);
-    const interArea = Math.max(0, interYMax - interYMin) * Math.max(0, interXMax - interXMin);
+    const interArea =
+      Math.max(0, interYMax - interYMin) * Math.max(0, interXMax - interXMin);
     const aArea = (a.yMax - a.yMin) * (a.xMax - a.xMin);
     const bArea = (b.yMax - b.yMin) * (b.xMax - b.xMin);
     const unionArea = aArea + bArea - interArea;
@@ -847,12 +954,26 @@ export class OpenRouterAIService {
 
   /** Remove detections with >70% bbox overlap, keeping earlier (higher-priority) entries. */
   private static deduplicateDetections(
-    detections: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>,
+    detections: Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }>,
     iouThreshold: number = 0.7
-  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+  ): Array<{
+    label: string;
+    category: DetectionCategory;
+    confidence: number;
+    bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+  }> {
     return detections.filter((a, i) => {
       for (let j = 0; j < i; j++) {
-        if (OpenRouterAIService.computeIoU(a.bbox, detections[j]!.bbox) > iouThreshold) return false;
+        if (
+          OpenRouterAIService.computeIoU(a.bbox, detections[j]!.bbox) >
+          iouThreshold
+        )
+          return false;
       }
       return true;
     });
@@ -874,7 +995,14 @@ export class OpenRouterAIService {
   async detectObjects(
     imageBase64: string,
     maxObjects: number = 14
-  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
+  ): Promise<
+    Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }>
+  > {
     if (!this.apiKey) {
       logger.warn('[detectObjects] OpenRouter API key not configured');
       return [];
@@ -906,7 +1034,7 @@ Rules:
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -914,12 +1042,18 @@ Rules:
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: imageUrl } },
-              { type: 'text', text: `Detect all visual elements in this image — foreground subjects, background regions, text overlays, logos, and decorations (up to ${maxObjects}). Call report_detected_objects with the results.` },
+              {
+                type: 'text',
+                text: `Detect all visual elements in this image — foreground subjects, background regions, text overlays, logos, and decorations (up to ${maxObjects}). Call report_detected_objects with the results.`,
+              },
             ],
           },
         ],
         tools: [DETECT_OBJECTS_TOOL],
-        tool_choice: { type: 'function', function: { name: 'report_detected_objects' } },
+        tool_choice: {
+          type: 'function',
+          function: { name: 'report_detected_objects' },
+        },
         stream: false,
       };
 
@@ -928,73 +1062,129 @@ Rules:
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'HTTP-Referer': getFrontendUrl(),
           'X-Title': 'ThumPiks Canvas Editor',
         },
         body: JSON.stringify(requestBody),
-        signal: controller.signal as any,
+        signal: controller.signal as unknown as NodeFetchAbortSignal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.warn('[detectObjects] API error', { status: response.status, model, errorPreview: errorText.slice(0, 500) });
+        logger.warn('[detectObjects] API error', {
+          status: response.status,
+          model,
+          errorPreview: errorText.slice(0, 500),
+        });
         return [];
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as OpenRouterChatResponse & {
+        choices?: Array<
+          OpenRouterChoice & {
+            message?: OpenRouterMessage & {
+              tool_calls?: Array<{ function: { arguments: string | unknown } }>;
+            };
+          }
+        >;
+      };
       const toolCalls = data.choices?.[0]?.message?.tool_calls;
 
       if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
         // Fallback: try to parse text content as JSON (in case model ignores tool_choice)
-        const rawContent = data.choices?.[0]?.message?.content || '';
-        logger.warn('[detectObjects] No tool_calls in response, attempting text fallback', { contentPreview: rawContent.slice(0, 300) });
+        const rawContent =
+          (data.choices?.[0]?.message?.content as string) || '';
+        logger.warn(
+          '[detectObjects] No tool_calls in response, attempting text fallback',
+          { contentPreview: rawContent.slice(0, 300) }
+        );
         return this.parseDetectionFallback(rawContent);
       }
 
       const toolCall = toolCalls[0];
-      let args: any;
+      if (!toolCall) {
+        return this.parseDetectionFallback(
+          (data.choices?.[0]?.message?.content as string) || ''
+        );
+      }
+      let args: Record<string, unknown>;
       try {
-        args = typeof toolCall.function.arguments === 'string'
-          ? JSON.parse(toolCall.function.arguments)
-          : toolCall.function.arguments;
+        args =
+          typeof toolCall.function.arguments === 'string'
+            ? JSON.parse(toolCall.function.arguments)
+            : toolCall.function.arguments;
       } catch {
-        logger.warn('[detectObjects] Failed to parse tool_call arguments', { raw: String(toolCall.function?.arguments).slice(0, 500) });
+        logger.warn('[detectObjects] Failed to parse tool_call arguments', {
+          raw: String(toolCall.function?.arguments).slice(0, 500),
+        });
         return [];
       }
 
       const objects = Array.isArray(args.objects) ? args.objects : [];
-      const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+      const results: Array<{
+        label: string;
+        category: DetectionCategory;
+        confidence: number;
+        bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+      }> = [];
 
       for (const item of objects) {
         const label = typeof item.label === 'string' ? item.label : '';
         if (!label) continue;
 
         const box = item.box_2d;
-        if (!Array.isArray(box) || box.length !== 4 || !box.every((v: any) => typeof v === 'number')) continue;
+        if (
+          !Array.isArray(box) ||
+          box.length !== 4 ||
+          !box.every((v: unknown) => typeof v === 'number')
+        )
+          continue;
 
-        const [yMin, xMin, yMax, xMax] = box as [number, number, number, number];
+        const [yMin, xMin, yMax, xMax] = box as [
+          number,
+          number,
+          number,
+          number,
+        ];
 
         const category: DetectionCategory =
-          typeof item.category === 'string' && (VALID_CATEGORIES as readonly string[]).includes(item.category)
+          typeof item.category === 'string' &&
+          (VALID_CATEGORIES as readonly string[]).includes(item.category)
             ? (item.category as DetectionCategory)
             : 'foreground';
 
         const confidence: number =
-          typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1
+          typeof item.confidence === 'number' &&
+          item.confidence >= 0 &&
+          item.confidence <= 1
             ? item.confidence
             : 0.5;
 
-        results.push({ label, category, confidence, bbox: { yMin, xMin, yMax, xMax } });
+        results.push({
+          label,
+          category,
+          confidence,
+          bbox: { yMin, xMin, yMax, xMax },
+        });
       }
 
       const deduped = OpenRouterAIService.deduplicateDetections(results);
-      logger.info('[detectObjects] Parsed detection results (native tool calling)', { raw: results.length, deduped: deduped.length, elements: deduped.map(r => `${r.label} [${r.category}]`) });
+      logger.info(
+        '[detectObjects] Parsed detection results (native tool calling)',
+        {
+          raw: results.length,
+          deduped: deduped.length,
+          elements: deduped.map(r => `${r.label} [${r.category}]`),
+        }
+      );
       return deduped;
     } catch (error) {
       clearTimeout(timeoutId);
-      logger.warn('[detectObjects] Detection failed', { error: error instanceof Error ? error.message : String(error) });
+      logger.warn('[detectObjects] Detection failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return [];
     }
   }
@@ -1003,9 +1193,12 @@ Rules:
    * Lightweight fallback parser for when the model ignores tool_choice
    * and returns detection results as plain text/JSON instead.
    */
-  private parseDetectionFallback(
-    rawContent: string
-  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+  private parseDetectionFallback(rawContent: string): Array<{
+    label: string;
+    category: DetectionCategory;
+    confidence: number;
+    bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+  }> {
     let content = rawContent.trim();
     if (!content) return [];
 
@@ -1022,26 +1215,54 @@ Rules:
       const parsed = JSON.parse(content);
       if (!Array.isArray(parsed)) return [];
 
-      const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+      const results: Array<{
+        label: string;
+        category: DetectionCategory;
+        confidence: number;
+        bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+      }> = [];
       for (const item of parsed) {
         const label = item.label || item.name || item.object;
         if (typeof label !== 'string') continue;
 
         const box = item.box_2d || item.bounding_box || item.bbox;
-        if (!Array.isArray(box) || box.length !== 4 || !box.every((v: any) => typeof v === 'number')) continue;
+        if (
+          !Array.isArray(box) ||
+          box.length !== 4 ||
+          !box.every((v: unknown) => typeof v === 'number')
+        )
+          continue;
 
-        const [yMin, xMin, yMax, xMax] = box as [number, number, number, number];
+        const [yMin, xMin, yMax, xMax] = box as [
+          number,
+          number,
+          number,
+          number,
+        ];
         const category: DetectionCategory =
-          typeof item.category === 'string' && (VALID_CATEGORIES as readonly string[]).includes(item.category)
+          typeof item.category === 'string' &&
+          (VALID_CATEGORIES as readonly string[]).includes(item.category)
             ? (item.category as DetectionCategory)
             : 'foreground';
-        const confidence = typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1 ? item.confidence : 0.5;
-        results.push({ label, category, confidence, bbox: { yMin, xMin, yMax, xMax } });
+        const confidence =
+          typeof item.confidence === 'number' &&
+          item.confidence >= 0 &&
+          item.confidence <= 1
+            ? item.confidence
+            : 0.5;
+        results.push({
+          label,
+          category,
+          confidence,
+          bbox: { yMin, xMin, yMax, xMax },
+        });
       }
 
       return OpenRouterAIService.deduplicateDetections(results);
     } catch {
-      logger.warn('[detectObjects] Fallback text parsing failed', { preview: content.slice(0, 300) });
+      logger.warn('[detectObjects] Fallback text parsing failed', {
+        preview: content.slice(0, 300),
+      });
       return [];
     }
   }
@@ -1055,12 +1276,18 @@ Rules:
    * Each entry maps a DetectionCategory to a comma-separated expression string.
    * Reka was trained on "Detect: {expression}" and returns <obj> tagged output.
    */
-  private static readonly REKA_DETECT_EXPRESSIONS: Record<DetectionCategory, string> = {
-    foreground: 'people, person, animal, vehicle, car, product, furniture, main subject, figure',
+  private static readonly REKA_DETECT_EXPRESSIONS: Record<
+    DetectionCategory,
+    string
+  > = {
+    foreground:
+      'people, person, animal, vehicle, car, product, furniture, main subject, figure',
     text: 'text overlay, title text, caption, subtitle, watermark, label, timestamp, rendered text',
     logo: 'logo, brand mark, YouTube play button, channel logo, product logo, social media icon',
-    decoration: 'arrow, border, frame, shape, line, circle, star, emoji, graphic element, banner',
-    background: 'sky, mountain, ground, floor, water, wall, horizon, scenery, background region',
+    decoration:
+      'arrow, border, frame, shape, line, circle, star, emoji, graphic element, banner',
+    background:
+      'sky, mountain, ground, floor, water, wall, horizon, scenery, background region',
   };
 
   /**
@@ -1071,7 +1298,14 @@ Rules:
   async detectObjectsReka(
     imageBase64: string,
     maxObjects: number = 14
-  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
+  ): Promise<
+    Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }>
+  > {
     if (!this.apiKey) {
       logger.warn('[detectObjectsReka] OpenRouter API key not configured');
       return [];
@@ -1082,22 +1316,37 @@ Rules:
       ? imageBase64
       : `data:image/png;base64,${imageBase64}`;
 
-    const categories = Object.keys(OpenRouterAIService.REKA_DETECT_EXPRESSIONS) as DetectionCategory[];
+    const categories = Object.keys(
+      OpenRouterAIService.REKA_DETECT_EXPRESSIONS
+    ) as DetectionCategory[];
 
     // Run all category-specific Detect: calls in parallel
-    logger.info('[detectObjectsReka] Starting parallel Detect: calls', { model, categories: categories.length });
+    logger.info('[detectObjectsReka] Starting parallel Detect: calls', {
+      model,
+      categories: categories.length,
+    });
     const categoryResults = await Promise.allSettled(
       categories.map(category =>
-        this.rekaDetectCall(imageUrl, OpenRouterAIService.REKA_DETECT_EXPRESSIONS[category], model)
-          .then(rawContent => ({ category, rawContent }))
+        this.rekaDetectCall(
+          imageUrl,
+          OpenRouterAIService.REKA_DETECT_EXPRESSIONS[category],
+          model
+        ).then(rawContent => ({ category, rawContent }))
       )
     );
 
-    const allResults: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+    const allResults: Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }> = [];
 
     for (const result of categoryResults) {
       if (result.status !== 'fulfilled') {
-        logger.warn('[detectObjectsReka] Category call failed', { error: (result.reason as Error)?.message });
+        logger.warn('[detectObjectsReka] Category call failed', {
+          error: (result.reason as Error)?.message,
+        });
         continue;
       }
 
@@ -1131,7 +1380,7 @@ Rules:
     const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s per call
 
     try {
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         model,
         messages: [
           {
@@ -1150,28 +1399,39 @@ Rules:
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+          'HTTP-Referer': getFrontendUrl(),
           'X-Title': 'ThumPiks Canvas Editor',
         },
         body: JSON.stringify(requestBody),
-        signal: controller.signal as any,
+        signal: controller.signal as unknown as NodeFetchAbortSignal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.warn('[rekaDetectCall] API error', { status: response.status, model, errorPreview: errorText.slice(0, 300) });
+        logger.warn('[rekaDetectCall] API error', {
+          status: response.status,
+          model,
+          errorPreview: errorText.slice(0, 300),
+        });
         return '';
       }
 
-      const data: any = await response.json();
-      const rawContent = data.choices?.[0]?.message?.content || '';
-      logger.info('[rekaDetectCall] Reka response', { expression: expression.slice(0, 50), contentLength: rawContent.length, contentPreview: rawContent.slice(0, 300) });
+      const data = (await response.json()) as OpenRouterChatResponse;
+      const rawContent = (data.choices?.[0]?.message?.content as string) || '';
+      logger.info('[rekaDetectCall] Reka response', {
+        expression: expression.slice(0, 50),
+        contentLength: rawContent.length,
+        contentPreview: rawContent.slice(0, 300),
+      });
       return rawContent;
     } catch (error) {
       clearTimeout(timeoutId);
-      logger.warn('[rekaDetectCall] Failed', { expression: expression.slice(0, 50), error: error instanceof Error ? error.message : String(error) });
+      logger.warn('[rekaDetectCall] Failed', {
+        expression: expression.slice(0, 50),
+        error: error instanceof Error ? error.message : String(error),
+      });
       return '';
     }
   }
@@ -1184,10 +1444,20 @@ Rules:
   private parseRekaDetectResponse(
     rawContent: string,
     category: DetectionCategory
-  ): Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> {
+  ): Array<{
+    label: string;
+    category: DetectionCategory;
+    confidence: number;
+    bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+  }> {
     if (!rawContent.trim()) return [];
 
-    const results: Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }> = [];
+    const results: Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }> = [];
 
     // Match <obj> ... </obj> tags
     const objRegex = /<obj>\s*([\s\S]*?)\s*<\/obj>/gi;
@@ -1197,7 +1467,8 @@ Rules:
       const inner = match[1]!.trim();
       // Expected: "label x1,y1,x2,y2" or "label x1,y1,x2,y2;x3,y3,x4,y4"
       // The coordinates are at the end, separated from the label
-      const coordPattern = /(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/g;
+      const coordPattern =
+        /(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/g;
       const allCoords: Array<[number, number, number, number]> = [];
       let coordMatch: RegExpExecArray | null;
 
@@ -1213,8 +1484,11 @@ Rules:
       if (allCoords.length === 0) continue;
 
       // Extract label: everything before the first coordinate match
-      const firstCoordIdx = inner.search(/\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,/);
-      let label = firstCoordIdx > 0 ? inner.substring(0, firstCoordIdx).trim() : inner;
+      const firstCoordIdx = inner.search(
+        /\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,/
+      );
+      let label =
+        firstCoordIdx > 0 ? inner.substring(0, firstCoordIdx).trim() : inner;
       // Clean up trailing/leading whitespace and punctuation
       label = label.replace(/[\s,;]+$/, '').trim();
       if (!label) label = `${category} element`;
@@ -1242,29 +1516,37 @@ Rules:
 
     // Fallback: if no <obj> tags found, try to parse as plain text with coordinates
     if (results.length === 0 && rawContent.includes(',')) {
-      logger.info('[parseRekaDetectResponse] No <obj> tags found, trying coordinate fallback', { category, preview: rawContent.slice(0, 200) });
+      logger.info(
+        '[parseRekaDetectResponse] No <obj> tags found, trying coordinate fallback',
+        { category, preview: rawContent.slice(0, 200) }
+      );
       // Some Reka responses may just return "label: x1,y1,x2,y2" without tags
-      const lineRegex = /^(.+?)\s+(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/gm;
+      const lineRegex =
+        /^(.+?)\s+(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/gm;
       let lineMatch: RegExpExecArray | null;
       while ((lineMatch = lineRegex.exec(rawContent)) !== null) {
         const label = lineMatch[1]!.replace(/[\s:;]+$/, '').trim();
         if (!label) continue;
-        const clamp = (v: number) => Math.max(0, Math.min(1000, Math.round(parseFloat(v as any))));
+        const clamp = (v: string | undefined) =>
+          Math.max(0, Math.min(1000, Math.round(parseFloat(v ?? '0'))));
         results.push({
           label,
           category,
-          confidence: 0.80,
+          confidence: 0.8,
           bbox: {
-            yMin: clamp(lineMatch[3] as any),
-            xMin: clamp(lineMatch[2] as any),
-            yMax: clamp(lineMatch[5] as any),
-            xMax: clamp(lineMatch[4] as any),
+            yMin: clamp(lineMatch[3]),
+            xMin: clamp(lineMatch[2]),
+            yMax: clamp(lineMatch[5]),
+            xMax: clamp(lineMatch[4]),
           },
         });
       }
     }
 
-    logger.info('[parseRekaDetectResponse] Parsed Reka results', { category, count: results.length });
+    logger.info('[parseRekaDetectResponse] Parsed Reka results', {
+      category,
+      count: results.length,
+    });
     return results;
   }
 
@@ -1287,8 +1569,17 @@ Rules:
   async detectObjectsParallel(
     imageBase64: string,
     maxObjects: number = 14
-  ): Promise<Array<{ label: string; category: DetectionCategory; confidence: number; bbox: { yMin: number; xMin: number; yMax: number; xMax: number } }>> {
-    logger.info('[detectObjectsParallel] Starting trybrid detection (Reka + Gemini)');
+  ): Promise<
+    Array<{
+      label: string;
+      category: DetectionCategory;
+      confidence: number;
+      bbox: { yMin: number; xMin: number; yMax: number; xMax: number };
+    }>
+  > {
+    logger.info(
+      '[detectObjectsParallel] Starting trybrid detection (Reka + Gemini)'
+    );
 
     // Run both detectors in parallel
     const [rekaResult, geminiResult] = await Promise.allSettled([
@@ -1296,17 +1587,28 @@ Rules:
       this.detectObjects(imageBase64, maxObjects),
     ]);
 
-    const rekaObjects = rekaResult.status === 'fulfilled' ? rekaResult.value : [];
-    const geminiObjects = geminiResult.status === 'fulfilled' ? geminiResult.value : [];
+    const rekaObjects =
+      rekaResult.status === 'fulfilled' ? rekaResult.value : [];
+    const geminiObjects =
+      geminiResult.status === 'fulfilled' ? geminiResult.value : [];
 
     if (rekaResult.status === 'rejected') {
-      logger.warn('[detectObjectsParallel] Reka detection failed, using Gemini only', { error: (rekaResult.reason as Error)?.message });
+      logger.warn(
+        '[detectObjectsParallel] Reka detection failed, using Gemini only',
+        { error: (rekaResult.reason as Error)?.message }
+      );
     }
     if (geminiResult.status === 'rejected') {
-      logger.warn('[detectObjectsParallel] Gemini detection failed, using Reka only', { error: (geminiResult.reason as Error)?.message });
+      logger.warn(
+        '[detectObjectsParallel] Gemini detection failed, using Reka only',
+        { error: (geminiResult.reason as Error)?.message }
+      );
     }
 
-    logger.info('[detectObjectsParallel] Raw results', { reka: rekaObjects.length, gemini: geminiObjects.length });
+    logger.info('[detectObjectsParallel] Raw results', {
+      reka: rekaObjects.length,
+      gemini: geminiObjects.length,
+    });
 
     // Merge: Reka results first (higher spatial precision), then Gemini
     const merged = [...rekaObjects, ...geminiObjects];
@@ -1356,14 +1658,14 @@ Rules:
       // JJ: Per-tool timeout instead of flat 120s
       const timeout = getToolTimeout(toolType);
       const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        timeout
-      );
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
         if (attempt > 0) {
-          console.log(`OpenRouter (image-with-image): Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          logger.info('OpenRouter (image-with-image): Retry attempt', {
+            attempt,
+            maxRetries: MAX_RETRIES,
+          });
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
 
@@ -1372,7 +1674,7 @@ Rules:
           ? imageBase64
           : `data:image/png;base64,${imageBase64}`;
 
-        const requestBody: any = {
+        const requestBody: Record<string, unknown> = {
           model: model,
           messages: [
             {
@@ -1407,10 +1709,13 @@ Rules:
 
         // Add image_config for Gemini models
         if (model.includes('gemini') || model.includes('google/')) {
-          requestBody.image_config = { aspect_ratio: aspectRatio };
+          const imageConfig: Record<string, unknown> = {
+            aspect_ratio: aspectRatio,
+          };
           if (imageSize) {
-            requestBody.image_config.image_size = imageSize;
+            imageConfig.image_size = imageSize;
           }
+          requestBody.image_config = imageConfig;
         }
 
         const response = await fetch(`${this.apiUrl}/chat/completions`, {
@@ -1418,11 +1723,11 @@ Rules:
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.apiKey}`,
-            'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+            'HTTP-Referer': getFrontendUrl(),
             'X-Title': 'ThumPiks Canvas Editor',
           },
           body: JSON.stringify(requestBody),
-          signal: controller.signal as any,
+          signal: controller.signal as unknown as NodeFetchAbortSignal,
         });
 
         clearTimeout(timeoutId);
@@ -1434,7 +1739,7 @@ Rules:
           );
         }
 
-        const data: any = await response.json();
+        const data = (await response.json()) as OpenRouterChatResponse;
         return this.extractImagesFromResponse(data);
       } catch (error) {
         clearTimeout(timeoutId);
@@ -1463,14 +1768,16 @@ Rules:
           throw lastError;
         }
 
-        console.warn(
-          `OpenRouter (image-with-image) attempt ${attempt + 1} failed:`,
-          lastError.message
-        );
+        logger.warn('OpenRouter (image-with-image) attempt failed', {
+          attempt: attempt + 1,
+          error: lastError.message,
+        });
       }
     }
 
-    throw lastError || new Error('Image-with-image request failed after retries');
+    throw (
+      lastError || new Error('Image-with-image request failed after retries')
+    );
   }
 
   /**
@@ -1490,19 +1797,19 @@ Rules:
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const timeout = getToolTimeout(toolType);
       const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        timeout
-      );
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
         if (attempt > 0) {
-          console.log(`OpenRouter (multi-image): Retry attempt ${attempt}/${MAX_RETRIES}...`);
+          logger.info('OpenRouter (multi-image): Retry attempt', {
+            attempt,
+            maxRetries: MAX_RETRIES,
+          });
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
 
         // Build content array with all images then the prompt
-        const content: any[] = imagesBase64.map(img => {
+        const content: OpenRouterImageContent[] = imagesBase64.map(img => {
           const imageUrl = img.startsWith('data:image')
             ? img
             : `data:image/png;base64,${img}`;
@@ -1513,7 +1820,7 @@ Rules:
         });
         content.push({ type: 'text', text: prompt });
 
-        const requestBody: any = {
+        const requestBody: Record<string, unknown> = {
           model: model,
           messages: [{ role: 'user', content }],
           stream: false,
@@ -1535,11 +1842,11 @@ Rules:
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.apiKey}`,
-            'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:8556',
+            'HTTP-Referer': getFrontendUrl(),
             'X-Title': 'ThumPiks Canvas Editor',
           },
           body: JSON.stringify(requestBody),
-          signal: controller.signal as any,
+          signal: controller.signal as unknown as NodeFetchAbortSignal,
         });
 
         clearTimeout(timeoutId);
@@ -1551,7 +1858,7 @@ Rules:
           );
         }
 
-        const data: any = await response.json();
+        const data = (await response.json()) as OpenRouterChatResponse;
         return this.extractImagesFromResponse(data);
       } catch (error) {
         clearTimeout(timeoutId);
@@ -1579,10 +1886,10 @@ Rules:
           throw lastError;
         }
 
-        console.warn(
-          `OpenRouter (multi-image) attempt ${attempt + 1} failed:`,
-          lastError.message
-        );
+        logger.warn('OpenRouter (multi-image) attempt failed', {
+          attempt: attempt + 1,
+          error: lastError.message,
+        });
       }
     }
 

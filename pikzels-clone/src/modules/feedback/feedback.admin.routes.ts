@@ -6,7 +6,10 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { authenticateAdmin, requireAdmin } from '../../modules/admin/admin-auth.middleware';
+import {
+  authenticateAdmin,
+  requireAdmin,
+} from '../../modules/admin/admin-auth.middleware';
 import type { AuthRequest } from '../../types/auth';
 import {
   listAllFeedback,
@@ -25,12 +28,12 @@ router.use(requireAdmin);
 
 // Bridge adminUser -> user so controllers that read req.user work
 router.use((req: Request, _res: Response, next: NextFunction) => {
-  if (req.adminUser && !(req as any).user) {
-    (req as any).user = {
+  if (req.adminUser && !(req as AuthRequest).user) {
+    (req as AuthRequest).user = {
       id: req.adminUser.id,
       email: req.adminUser.email,
       name: req.adminUser.name,
-    };
+    } as NonNullable<AuthRequest['user']>;
   }
   next();
 });

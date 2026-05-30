@@ -14,6 +14,7 @@
     "@secretlint/secretlint-rule-preset-recommend": "^11.2.5",
     "@types/cors": "^2.8.19",
     "@types/helmet": "^0.0.48",
+    "agentsmesh": "^0.18.1",
     "lint-staged": "^16.2.3",
     "prettier": "^3.6.2",
     "prisma": "^6.18.0",
@@ -24,16 +25,6 @@
     "axios": "^1.11.0"
   },
   "lint-staged": {
-    "pikzels-clone/**/*.{ts,tsx}": [
-      "cd pikzels-clone && prettier --write",
-      "cd pikzels-clone && eslint --fix"
-    ],
-    "pikzels-clone/**/*.{js,jsx}": [
-      "cd pikzels-clone && prettier --write"
-    ],
-    "pikzels-clone/**/*.{json,md}": [
-      "cd pikzels-clone && prettier --write"
-    ],
     "*.{json,md}": [
       "prettier --write"
     ]

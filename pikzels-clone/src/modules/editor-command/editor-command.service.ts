@@ -1,9 +1,6 @@
 import fetch from 'node-fetch';
 import { deductCredits } from '../credit/credit.service';
-import {
-  TARGETING_RULES,
-  buildContextMessage,
-} from './action-catalog';
+import { TARGETING_RULES, buildContextMessage } from './action-catalog';
 import { EDITOR_TOOLS, buildToolsSystemPrompt } from './tool-definitions';
 import type {
   EditorActionType,
@@ -12,6 +9,7 @@ import type {
   LayerContext,
   CanvasContext,
 } from './action-catalog';
+import { getFrontendUrl } from '../../utils/env';
 
 // Re-export types so existing imports from this file continue to work
 export type {
@@ -107,7 +105,7 @@ export class EditorCommandService {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.openrouterApiKey}`,
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:8556',
+        'HTTP-Referer': getFrontendUrl(),
         'X-Title': 'ThumPiks Editor Command',
       },
       body: JSON.stringify(requestBody),
@@ -120,7 +118,16 @@ export class EditorCommandService {
       );
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          tool_calls?: Array<{
+            function?: { name?: string; arguments?: string };
+          }>;
+          content?: string;
+        };
+      }>;
+    };
     const message = data.choices?.[0]?.message;
 
     // Extract actions from native tool_calls
@@ -132,23 +139,32 @@ export class EditorCommandService {
       if (textContent) {
         throw new Error(textContent);
       }
-      throw new Error('No actions returned. Please try a more specific command.');
+      throw new Error(
+        'No actions returned. Please try a more specific command.'
+      );
     }
 
-    const actions: EditorAction[] = toolCalls.map((tc: any) => {
-      const params = tc.function?.arguments
-        ? JSON.parse(tc.function.arguments)
-        : {};
-      const target = (params.target as string) || 'selected';
-      delete params.target;
+    const actions: EditorAction[] = toolCalls.map(
+      (tc: { function?: { name?: string; arguments?: string } }) => {
+        const params = tc.function?.arguments
+          ? JSON.parse(tc.function.arguments)
+          : {};
+        const target = (params.target as string) || 'selected';
+        delete params.target;
 
-      return {
-        action: tc.function.name as EditorActionType,
-        target,
-        description: `${tc.function.name}: ${Object.values(params).filter(v => typeof v === 'string').slice(0, 2).join(', ') || 'execute'}`,
-        params,
-      };
-    });
+        return {
+          action: (tc.function?.name ?? '') as EditorActionType,
+          target,
+          description: `${tc.function?.name ?? ''}: ${
+            Object.values(params)
+              .filter(v => typeof v === 'string')
+              .slice(0, 2)
+              .join(', ') || 'execute'
+          }`,
+          params,
+        };
+      }
+    );
 
     return {
       actions,

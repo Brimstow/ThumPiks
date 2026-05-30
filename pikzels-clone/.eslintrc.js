@@ -13,11 +13,7 @@ module.exports = {
     project: './tsconfig.json',
     tsconfigRootDir: __dirname,
   },
-  ignorePatterns: [
-    'dist/',
-    'node_modules/',
-    'src/generated/**/*',
-  ],
+  ignorePatterns: ['dist/', 'node_modules/', 'src/generated/**/*'],
   rules: {
     // Naming conventions
     '@typescript-eslint/naming-convention': [
@@ -50,11 +46,17 @@ module.exports = {
     '@typescript-eslint/prefer-optional-chain': 'warn', // Consistent warning level
     '@typescript-eslint/no-unused-vars': [
       'error',
-      { argsIgnorePattern: '^_', caughtErrors: 'none' },
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrors: 'none',
+      },
     ],
     '@typescript-eslint/explicit-function-return-type': 'off',
     // PROFESSIONAL CODE QUALITY RULES
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': 'error',
+    // Console logging: use structured logger (src/utils/logger.ts) in production code
+    'no-console': ['error', { allow: ['warn'] }],
     // v8 new strict rules - disabled for now, enable incrementally
     '@typescript-eslint/no-require-imports': 'off',
     '@typescript-eslint/no-unsafe-function-type': 'off',
@@ -107,12 +109,28 @@ module.exports = {
         '@typescript-eslint/naming-convention': 'off',
         'no-magic-numbers': 'off',
         'max-lines-per-function': 'off',
+        'no-console': 'off',
         complexity: 'off',
         'max-depth': 'off',
         // Keep these enforced in tests
         // '@typescript-eslint/no-unused-vars': 'error',
         // 'prefer-const': 'error',
         // 'no-var': 'error',
+      },
+    },
+    {
+      files: ['src/scripts/**/*'],
+      rules: {
+        // Scripts are CLI utilities — console output is expected
+        'no-console': 'off',
+        'max-lines-per-function': 'off',
+      },
+    },
+    {
+      files: ['src/utils/logger.ts'],
+      rules: {
+        // Logger uses console internally by design (outputs to stdout for transports)
+        'no-console': 'off',
       },
     },
   ],

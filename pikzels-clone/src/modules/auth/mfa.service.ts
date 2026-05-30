@@ -1,5 +1,6 @@
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
+import { Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 import { encryptData, decryptData } from '../../config/security.config';
@@ -95,7 +96,9 @@ export class MFAService {
         logger.error('MFA setup failed', err, { userId, step: 'setup' });
       } catch (logError) {
         // If logger fails, don't let it break the error reporting
+        // eslint-disable-next-line no-console
         console.error('Logger error:', logError);
+        // eslint-disable-next-line no-console
         console.error('Original MFA error:', err.message);
       }
 
@@ -359,7 +362,7 @@ export class MFAService {
         select: { settings: true },
       });
 
-      const currentSettings = (user?.settings as any) || {};
+      const currentSettings = (user?.settings as Record<string, unknown>) || {};
 
       // Update with encrypted MFA settings
       await prisma.user.update({
@@ -386,17 +389,21 @@ export class MFAService {
         select: { settings: true },
       });
 
-      const settings = user?.settings as any;
+      const settings = user?.settings as
+        | Record<string, unknown>
+        | null
+        | undefined;
       if (!settings?.mfa) {
         return null; // MFA not set up - this is valid, not an error
       }
 
       // Decrypt MFA settings
-      const decryptedData = decryptData(
-        settings.mfa.encrypted,
-        settings.mfa.iv,
-        settings.mfa.authTag
-      );
+      const mfa = settings.mfa as {
+        encrypted: string;
+        iv: string;
+        authTag: string;
+      };
+      const decryptedData = decryptData(mfa.encrypted, mfa.iv, mfa.authTag);
       return JSON.parse(decryptedData) as MFASettings;
     } catch (error) {
       // SECURITY: Don't swallow errors - throw them so callers can handle appropriately
@@ -412,13 +419,13 @@ export class MFAService {
         select: { settings: true },
       });
 
-      const currentSettings = (user?.settings as any) || {};
+      const currentSettings = (user?.settings as Record<string, unknown>) || {};
       delete currentSettings.mfa;
 
       await prisma.user.update({
         where: { id: userId },
         data: {
-          settings: currentSettings,
+          settings: currentSettings as Prisma.InputJsonValue,
         },
       });
     } catch (error) {

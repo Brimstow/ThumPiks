@@ -12,6 +12,7 @@ import { getBillingProvider, getBillingProviderByName } from '../billing';
 import type { BillingProviderName } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getClientUrl } from '../../utils/env';
 import { getService } from '../../utils/service-factory';
 
 const prisma = getPrisma();
@@ -60,7 +61,7 @@ export async function createCheckoutSession(
     );
   }
 
-  const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:8556';
+  const clientUrl = getClientUrl();
 
   // Fetch active beta discount (if any) to auto-apply at checkout
   const discountId =
@@ -295,10 +296,12 @@ export async function handleSubscriptionRenewed(
     }
 
     const periodStart = new Date(
-      (stripeSubscription as any).current_period_start * 1000
+      (stripeSubscription as unknown as { current_period_start: number })
+        .current_period_start * 1000
     );
     const periodEnd = new Date(
-      (stripeSubscription as any).current_period_end * 1000
+      (stripeSubscription as unknown as { current_period_end: number })
+        .current_period_end * 1000
     );
 
     await prisma.subscription.update({

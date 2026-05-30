@@ -1,5 +1,8 @@
 import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import {
+  Strategy as GoogleStrategy,
+  VerifyCallback,
+} from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
@@ -49,7 +52,7 @@ export class OAuthService {
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
             callbackURL: '/api/auth/google/callback',
           },
-          this.handleOAuthCallback as any
+          this.handleOAuthCallback as unknown as VerifyCallback
         )
       ); // OAuth library types are complex
 
@@ -68,7 +71,7 @@ export class OAuthService {
             clientSecret: process.env.GITHUB_CLIENT_SECRET,
             callbackURL: '/api/auth/github/callback',
           },
-          this.handleOAuthCallback as any
+          this.handleOAuthCallback as unknown as VerifyCallback
         )
       ); // OAuth library types are complex
 
@@ -76,9 +79,8 @@ export class OAuthService {
     }
 
     // Serialize/deserialize user for session
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    passport.serializeUser((user: any, done) => {
-      done(null, user.id);
+    passport.serializeUser((user: Express.User, done) => {
+      done(null, (user as { id: string }).id);
     });
 
     passport.deserializeUser(async (id: string, done) => {
@@ -104,8 +106,7 @@ export class OAuthService {
     _accessToken: string,
     _refreshToken: string,
     profile: PassportProfile,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    done: any
+    done: (error: Error | null, user?: object | null) => void
   ) {
     try {
       const oauthProfile: OAuthProfile = {
@@ -219,7 +220,7 @@ export class OAuthService {
         provider: profile.provider,
         profileId: profile.id,
       });
-      return done(error, null);
+      return done(error as Error, null);
     }
   }
 

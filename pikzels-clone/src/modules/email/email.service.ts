@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getFrontendUrl } from '../../utils/env';
 
 const prisma = getPrisma();
 
@@ -45,7 +46,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 };
 
 // Sleep utility for exponential backoff
-const sleep = (ms: number): Promise<void> => 
+const sleep = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 // Calculate delay with exponential backoff and jitter
@@ -56,17 +57,25 @@ const getRetryDelay = (attempt: number, baseDelay: number): number => {
 };
 
 // Determine if an error is retryable
-const isRetryableError = (error: any): boolean => {
+const isRetryableError = (error: unknown): boolean => {
   if (!error) return false;
-  
+
   // Network errors (no response)
-  if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || 
-      error.code === 'ENOTFOUND' || error.code === 'ECONNRESET') {
+  const errorCode = (error as NodeJS.ErrnoException).code;
+  if (
+    errorCode === 'ECONNREFUSED' ||
+    errorCode === 'ETIMEDOUT' ||
+    errorCode === 'ENOTFOUND' ||
+    errorCode === 'ECONNRESET'
+  ) {
     return true;
   }
-  
+
   // Resend API errors
-  const statusCode = error.statusCode || error.status;
+  const errorObj = error as Record<string, unknown>;
+  const statusCode = (errorObj.statusCode ?? errorObj.status) as
+    | number
+    | undefined;
   if (statusCode) {
     // 5xx errors are retryable
     if (statusCode >= 500 && statusCode < 600) return true;
@@ -75,12 +84,10 @@ const isRetryableError = (error: any): boolean => {
     // 4xx errors are NOT retryable (client errors)
     if (statusCode >= 400 && statusCode < 500) return false;
   }
-  
+
   // Default: don't retry unknown errors
   return false;
 };
-
-
 
 // Update email log status
 const updateEmailLog = async (
@@ -96,7 +103,7 @@ const updateEmailLog = async (
   }
 ) => {
   try {
-    const data: any = { ...updates };
+    const data: Record<string, unknown> = { ...updates };
     // Only include bounceReason if it's explicitly provided
     if (updates.bounceReason !== undefined) {
       data.bounceReason = updates.bounceReason;
@@ -128,9 +135,13 @@ const sendEmailWithRetry = async (
     subject: string;
   },
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
-): Promise<{ success: boolean; messageId?: string | undefined; error?: string | undefined }> => {
-  let lastError: any;
-  
+): Promise<{
+  success: boolean;
+  messageId?: string | undefined;
+  error?: string | undefined;
+}> => {
+  let lastError: unknown;
+
   // Create initial log entry
   const logEntry = await prisma.emailLog.create({
     data: {
@@ -148,15 +159,17 @@ const sendEmailWithRetry = async (
   for (let attempt = 1; attempt <= retryConfig.maxRetries; attempt++) {
     try {
       const result = await getResend().emails.send(emailData);
-      
+
       // Check for Resend API errors
-      const resendError = (result as any).error;
+      const resendError = (result as Record<string, unknown>).error as
+        | { message?: string }
+        | undefined;
       if (resendError) {
         throw new Error(`Resend API error: ${resendError.message}`);
       }
 
       const messageId = result.data?.id;
-      
+
       // Update log on success
       await prisma.emailLog.update({
         where: { id: logEntry.id },
@@ -176,15 +189,15 @@ const sendEmailWithRetry = async (
       });
 
       return { success: true, messageId: messageId || undefined };
-      
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
       const isRetryable = isRetryableError(error);
-      
+      const message = error instanceof Error ? error.message : String(error);
+
       logger.warn(`Email send attempt ${attempt} failed`, {
         emailType: logData.emailType,
         recipientEmail: logData.recipientEmail,
-        error: error.message,
+        error: message,
         isRetryable,
         attempt,
       });
@@ -201,9 +214,18 @@ const sendEmailWithRetry = async (
   }
 
   // All retries exhausted - mark as failed
-  const errorMessage = lastError?.message || 'Unknown error';
-  const errorCode = lastError?.statusCode || lastError?.code;
-  
+  const errorMessage =
+    lastError instanceof Error
+      ? lastError.message
+      : lastError
+        ? String(lastError)
+        : 'Unknown error';
+  const lastErrorObj = lastError as Record<string, unknown> | null;
+  const errorCode = (lastErrorObj?.statusCode ?? lastErrorObj?.code) as
+    | number
+    | string
+    | undefined;
+
   await prisma.emailLog.update({
     where: { id: logEntry.id },
     data: {
@@ -233,8 +255,12 @@ export class EmailService {
     resetToken: string,
     userId?: string | undefined,
     options?: EmailOptions
-  ): Promise<{ success: boolean; messageId?: string | undefined; error?: string | undefined }> {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+  ): Promise<{
+    success: boolean;
+    messageId?: string | undefined;
+    error?: string | undefined;
+  }> {
+    const resetUrl = `${getFrontendUrl()}/reset-password?token=${resetToken}`;
     const fromEmail = options?.from || EMAIL_ADDRESSES.noreply;
     const fromName = options?.fromName || FROM_NAME;
 
@@ -280,10 +306,14 @@ export class EmailService {
     name: string,
     userId?: string | undefined,
     options?: EmailOptions
-  ): Promise<{ success: boolean; messageId?: string | undefined; error?: string | undefined }> {
+  ): Promise<{
+    success: boolean;
+    messageId?: string | undefined;
+    error?: string | undefined;
+  }> {
     const fromEmail = options?.from || EMAIL_ADDRESSES.welcome;
     const fromName = options?.fromName || FROM_NAME;
-    const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard`;
+    const dashboardUrl = `${getFrontendUrl()}/dashboard`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -325,10 +355,14 @@ export class EmailService {
     token: string,
     userId?: string | undefined,
     options?: EmailOptions
-  ): Promise<{ success: boolean; messageId?: string | undefined; error?: string | undefined }> {
+  ): Promise<{
+    success: boolean;
+    messageId?: string | undefined;
+    error?: string | undefined;
+  }> {
     const fromEmail = options?.from || EMAIL_ADDRESSES.noreply;
     const fromName = options?.fromName || FROM_NAME;
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
+    const verificationUrl = `${getFrontendUrl()}/verify-email/${token}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -406,7 +440,7 @@ export class EmailService {
         });
         break;
 
-      case 'email.bounced':
+      case 'email.bounced': {
         const isHardBounce = bounceType === 'hard';
         await updateEmailLog(messageId, {
           status: isHardBounce ? 'bounced' : 'failed',
@@ -429,6 +463,7 @@ export class EmailService {
           }
         }
         break;
+      }
 
       case 'email.complained':
         await updateEmailLog(messageId, {
@@ -462,13 +497,7 @@ export class EmailService {
   }> {
     const where = userId ? { userId } : {};
 
-    const [
-      total,
-      sent,
-      delivered,
-      failed,
-      bounced,
-    ] = await Promise.all([
+    const [total, sent, delivered, failed, bounced] = await Promise.all([
       prisma.emailLog.count({ where }),
       prisma.emailLog.count({ where: { ...where, status: 'sent' } }),
       prisma.emailLog.count({ where: { ...where, status: 'delivered' } }),

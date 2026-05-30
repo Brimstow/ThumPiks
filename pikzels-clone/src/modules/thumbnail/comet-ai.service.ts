@@ -1,7 +1,30 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
+
+// ── Comet/Replicate API response types ────────────────────────────────────────
+interface ReplicatePredictionResponse {
+  id?: string;
+  status?: string;
+  output?: string | string[];
+  error?: string;
+  data?: {
+    task_id?: string;
+    status?: string;
+    fail_reason?: string;
+    output?: string | string[];
+    data?: { output?: string | string[]; error?: string };
+  };
+  code?: string;
+  detail?: string;
+}
+
+interface CometErrorResponse {
+  error?: { message?: string };
+  detail?: string;
+}
 
 /**
  * CometAIService - Flash-tier image generation service
@@ -36,7 +59,7 @@ export class CometAIService {
     this.apiUrl = baseUrl;
 
     if (!this.replicateApiKey && !this.apiKey) {
-      console.warn(
+      logger.warn(
         'Neither REPLICATE_API_KEY nor COMET_API_KEY found. Flash-tier image generation will not work.'
       );
     }
@@ -82,11 +105,11 @@ export class CometAIService {
     // 1. Primary: Replicate API directly (the actual model provider)
     if (this.replicateApiKey) {
       try {
-        console.log('[CometAI] Trying Replicate API directly (primary)');
+        logger.info('[CometAI] Trying Replicate API directly (primary)');
         return await this.generateWithReplicateAPI(styledPrompt);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[CometAI] Replicate API failed:', msg);
+        logger.warn('[CometAI] Replicate API failed', { error: msg });
         errors.push(`Replicate: ${msg}`);
       }
     }
@@ -94,13 +117,13 @@ export class CometAIService {
     // 2. Fallback: CometAPI — same flux-schnell model, different gateway
     if (this.apiKey) {
       try {
-        console.log(
+        logger.info(
           '[CometAI] Trying CometAPI fallback (same model, different gateway)'
         );
         return await this.generateWithCometEndpoint(styledPrompt);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[CometAI] CometAPI fallback failed:', msg);
+        logger.warn('[CometAI] CometAPI fallback failed', { error: msg });
         errors.push(`CometAPI: ${msg}`);
       }
     }
@@ -140,7 +163,9 @@ export class CometAIService {
     });
 
     if (!response.ok) {
-      const errorData: any = await response.json().catch(() => ({}));
+      const errorData = (await response
+        .json()
+        .catch(() => ({}))) as CometErrorResponse;
       if (response.status === 401) {
         throw new Error('Replicate API key is invalid or expired');
       }
@@ -152,7 +177,7 @@ export class CometAIService {
       );
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as ReplicatePredictionResponse;
 
     // If prediction completed synchronously (Prefer: wait)
     if (data.status === 'succeeded' && data.output) {
@@ -205,7 +230,8 @@ export class CometAIService {
         throw new Error(`Replicate poll failed (${pollResponse.status})`);
       }
 
-      const pollData: any = await pollResponse.json();
+      const pollData =
+        (await pollResponse.json()) as ReplicatePredictionResponse;
 
       if (pollData.status === 'succeeded' && pollData.output) {
         const imageUrls = Array.isArray(pollData.output)
@@ -256,7 +282,9 @@ export class CometAIService {
     });
 
     if (!response.ok) {
-      const errorData: any = await response.json().catch(() => ({}));
+      const errorData = (await response
+        .json()
+        .catch(() => ({}))) as CometErrorResponse;
 
       if (response.status === 401) {
         throw new Error('Comet API key is invalid or expired');
@@ -274,7 +302,7 @@ export class CometAIService {
       );
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as ReplicatePredictionResponse;
 
     // Get prediction ID - could be in id or data.task_id (CometAPI format)
     const predictionId = data.id || data.data?.task_id;
@@ -359,7 +387,8 @@ export class CometAIService {
         throw new Error(`Polling failed with status ${pollResponse.status}`);
       }
 
-      const pollData: any = await pollResponse.json();
+      const pollData =
+        (await pollResponse.json()) as ReplicatePredictionResponse;
 
       // CometAPI wrapped response format: { code, data: { status, data: { output } } }
       if (pollData.code === 'success' && pollData.data) {
@@ -444,12 +473,17 @@ export class CometAIService {
       throw new Error(`Failed to query task status: ${response.status}`);
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as Record<string, unknown>;
 
     // Handle CometAPI wrapped format
     if (data.code === 'success' && data.data) {
-      const taskData = data.data;
-      const output = taskData.data?.output || taskData.output;
+      const taskData = data.data as {
+        status: string;
+        output?: unknown;
+        fail_reason?: string;
+        data?: { output?: unknown; error?: string };
+      };
+      const output = taskData.data?.output ?? taskData.output;
 
       const result: {
         status: string;
@@ -460,11 +494,13 @@ export class CometAIService {
       };
 
       if (output) {
-        result.output = Array.isArray(output) ? output : [output];
+        result.output = Array.isArray(output)
+          ? (output as string[])
+          : [String(output)];
       }
 
-      if (taskData.fail_reason || taskData.data?.error) {
-        result.error = taskData.fail_reason || taskData.data?.error;
+      if (taskData.fail_reason ?? taskData.data?.error) {
+        result.error = taskData.fail_reason ?? taskData.data?.error;
       }
 
       return result;
@@ -476,15 +512,17 @@ export class CometAIService {
       output?: string[] | undefined;
       error?: string | undefined;
     } = {
-      status: data.status,
+      status: data.status as string,
     };
 
     if (data.output) {
-      result.output = Array.isArray(data.output) ? data.output : [data.output];
+      result.output = Array.isArray(data.output)
+        ? (data.output as string[])
+        : [String(data.output)];
     }
 
     if (data.error) {
-      result.error = data.error;
+      result.error = data.error as string;
     }
 
     return result;

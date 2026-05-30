@@ -31,7 +31,7 @@ export class ABTestingService {
     }
 
     // Ensure at least one control variant
-    const hasControl = data.variants.some((v) => v.isControl);
+    const hasControl = data.variants.some(v => v.isControl);
     if (!hasControl) {
       data.variants[0]!.isControl = true;
     }
@@ -44,7 +44,7 @@ export class ABTestingService {
         userId,
         status: 'draft',
         variants: {
-          create: data.variants.map((v) => ({
+          create: data.variants.map(v => ({
             id: uuidv4(),
             name: v.name,
             thumbnailId: v.thumbnailId,
@@ -83,7 +83,7 @@ export class ABTestingService {
         orderBy: { createdAt: 'desc' },
       });
 
-      return tests.map((t) => this.formatTestResult(t));
+      return tests.map(t => this.formatTestResult(t));
     };
 
     return this.cache.getOrSet(cacheKey, fetchFn, 60);
@@ -280,7 +280,9 @@ export class ABTestingService {
     }
 
     if (test.status === 'active') {
-      throw new Error('Cannot delete an active test. Pause or complete it first.');
+      throw new Error(
+        'Cannot delete an active test. Pause or complete it first.'
+      );
     }
 
     await this.prisma.aBTest.delete({ where: { id: testId } });
@@ -291,19 +293,31 @@ export class ABTestingService {
     await this.cache.set(`abtests:user:${userId}`, null, 0);
   }
 
-  private formatTestResult(test: any): ABTestResult {
-    const variants: ABTestVariantStats[] = (test.variants || []).map(
-      (v: any) => ({
-        id: v.id,
-        name: v.name,
-        thumbnailId: v.thumbnailId,
-        thumbnailUrl: v.Thumbnail?.imageUrl || null,
-        impressions: v.impressions,
-        clicks: v.clicks,
-        ctr: v.ctr,
-        isControl: v.isControl,
-      })
-    );
+  private formatTestResult(test: Record<string, unknown>): ABTestResult {
+    const variants: ABTestVariantStats[] = (
+      (test.variants as unknown[]) || []
+    ).map((v: unknown) => {
+      const variant = v as {
+        id: string;
+        name: string;
+        thumbnailId: string;
+        Thumbnail?: { imageUrl?: string };
+        impressions: number;
+        clicks: number;
+        ctr: number;
+        isControl: boolean;
+      };
+      return {
+        id: variant.id,
+        name: variant.name,
+        thumbnailId: variant.thumbnailId,
+        thumbnailUrl: (variant.Thumbnail?.imageUrl || null) as string,
+        impressions: variant.impressions,
+        clicks: variant.clicks,
+        ctr: variant.ctr,
+        isControl: variant.isControl,
+      };
+    });
 
     const totalImpressions = variants.reduce(
       (sum, v) => sum + v.impressions,
@@ -312,22 +326,21 @@ export class ABTestingService {
     const totalClicks = variants.reduce((sum, v) => sum + v.clicks, 0);
 
     // Determine winner: variant with highest CTR (needs minimum impressions)
-    const eligibleVariants = variants.filter((v) => v.impressions >= 10);
+    const eligibleVariants = variants.filter(v => v.impressions >= 10);
     const winner =
       eligibleVariants.length > 0
-        ? eligibleVariants.reduce((best, v) =>
-            v.ctr > best.ctr ? v : best
-          )
+        ? eligibleVariants.reduce((best, v) => (v.ctr > best.ctr ? v : best))
         : null;
 
     return {
-      id: test.id,
-      name: test.name,
-      description: test.description,
-      status: test.status,
-      startDate: test.startDate?.toISOString() || null,
-      endDate: test.endDate?.toISOString() || null,
-      createdAt: test.createdAt.toISOString(),
+      id: test.id as string,
+      name: test.name as string,
+      description: test.description as string | null,
+      status: test.status as string,
+      startDate:
+        (test.startDate as Date | null | undefined)?.toISOString() ?? null,
+      endDate: (test.endDate as Date | null | undefined)?.toISOString() ?? null,
+      createdAt: (test.createdAt as Date).toISOString(),
       variants,
       totalImpressions,
       totalClicks,

@@ -55,7 +55,12 @@ export class SSEService {
    * Register a user SSE connection. Sets headers, starts heartbeat,
    * enforces connection limits, and schedules max-duration disconnect.
    */
-  registerUserConnection(userId: string, ip: string, req: Request, res: Response): boolean {
+  registerUserConnection(
+    userId: string,
+    ip: string,
+    req: Request,
+    res: Response
+  ): boolean {
     // Check per-IP limit
     const ipCount = this.connectionsByIP.get(ip) || 0;
     if (ipCount >= MAX_CONNECTIONS_PER_IP) {
@@ -152,7 +157,11 @@ export class SSEService {
   }
 
   /** Get connection statistics for health monitoring. */
-  getStats(): { userConnections: number; adminConnections: number; uniqueUsers: number } {
+  getStats(): {
+    userConnections: number;
+    adminConnections: number;
+    uniqueUsers: number;
+  } {
     let totalUserConns = 0;
     for (const conns of this.userConnections.values()) {
       totalUserConns += conns.size;
@@ -169,7 +178,10 @@ export class SSEService {
     for (const [, conns] of this.userConnections) {
       for (const conn of conns) {
         this.cleanupConnection(conn);
-        try { conn.res.end(); } catch {}
+        try {
+          conn.res.end();
+          // eslint-disable-next-line no-empty
+        } catch {}
       }
       conns.clear();
     }
@@ -177,7 +189,10 @@ export class SSEService {
 
     for (const conn of this.adminConnections) {
       this.cleanupConnection(conn);
-      try { conn.res.end(); } catch {}
+      try {
+        conn.res.end();
+        // eslint-disable-next-line no-empty
+      } catch {}
     }
     this.adminConnections.clear();
     this.connectionsByIP.clear();
@@ -191,14 +206,18 @@ export class SSEService {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
     // Set retry interval for client reconnection
     res.write(`retry: ${SSE_RETRY_MS}\n\n`);
   }
 
-  private createConnection(res: Response, ip: string, userId?: string): SSEConnection {
+  private createConnection(
+    res: Response,
+    ip: string,
+    userId?: string
+  ): SSEConnection {
     // Heartbeat timer — keeps connection alive and detects dead clients
     const heartbeatTimer = setInterval(() => {
       try {
@@ -232,7 +251,12 @@ export class SSEService {
    * Safely write an SSE event. Returns false if the write failed (dead connection).
    * Sanitizes event name to prevent SSE injection (CVE-2026-33128).
    */
-  private sendSSE(res: Response, event: string, data: unknown, id?: string): boolean {
+  private sendSSE(
+    res: Response,
+    event: string,
+    data: unknown,
+    id?: string
+  ): boolean {
     try {
       if (id) {
         res.write(`id: ${this.sanitizeSSEField(id)}\n`);

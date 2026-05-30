@@ -94,20 +94,27 @@ export async function getBillingHistory(userId: string) {
       })
       .catch(() => []);
 
-    const creditPurchases = creditTransactions.map((tx: any) => ({
-      id: tx.id,
-      date: tx.createdAt.toISOString().split('T')[0],
-      description: tx.description,
-      amount: getAmountFromDescription(tx.description),
-      status: 'paid',
-      type: 'credit_pack',
-      invoiceUrl: null,
-      pdfUrl: null,
-    }));
+    const creditPurchases = creditTransactions.map(
+      (tx: Record<string, unknown>) => {
+        const createdAt = tx.createdAt as Date;
+        return {
+          id: tx.id,
+          date: createdAt.toISOString().split('T')[0],
+          description: tx.description,
+          amount: getAmountFromDescription(tx.description as string),
+          status: 'paid',
+          type: 'credit_pack',
+          invoiceUrl: null,
+          pdfUrl: null,
+        };
+      }
+    );
 
     // Combine and sort by date
     const allHistory = [...providerInvoices, ...creditPurchases].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) =>
+        new Date(b.date as string).getTime() -
+        new Date(a.date as string).getTime()
     );
 
     return allHistory;

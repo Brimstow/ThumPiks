@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CacheService, CacheKeys, CacheTTL } from '../services/cache.service';
 import { logger } from '../utils/logger';
+import { AuthRequest } from '../types/auth';
 
 interface CacheOptions {
   ttl?: number;
@@ -29,7 +30,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
 
     try {
       // Try to get cached response
-      const cachedResponse = await cache.get<any>(cacheKey);
+      const cachedResponse = await cache.get<unknown>(cacheKey);
       if (cachedResponse) {
         logger.info('cache-middleware', {
           category: 'cache',
@@ -47,10 +48,17 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
 
       // Intercept response to cache it
       const originalJson = res.json;
-      res.json = function (data: any) {
+      res.json = function (data: unknown) {
         // Cache successful responses
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          cache.set(cacheKey, data, ttl).catch(console.error);
+          cache
+            .set(cacheKey, data, ttl)
+            .catch(err =>
+              logger.error(
+                'Cache set error',
+                err instanceof Error ? err : undefined
+              )
+            );
         }
         return originalJson.call(this, data);
       };
@@ -71,7 +79,7 @@ export const cacheMiddleware = (options: CacheOptions = {}) => {
  * Default cache key generator
  */
 function defaultKeyGenerator(req: Request): string {
-  const userId = (req as any).user?.id || 'anonymous';
+  const userId = (req as AuthRequest).user?.id || 'anonymous';
   const path = req.path;
   const query = JSON.stringify(req.query);
   return `api:${userId}:${path}:${Buffer.from(query).toString('base64')}`;
@@ -88,30 +96,29 @@ export const invalidateCacheMiddleware = (patterns: string[]) => {
     const originalJson = res.json.bind(res);
 
     // Override res.json to trigger cache invalidation before response
-    (res as any).json = async function (data: any) {
-      // Only invalidate on successful responses
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res.json = function (data: unknown): any {
+      // Only invalidate on successful responses (fire-and-forget — res.json must be sync)
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const cache = CacheService.getInstance();
-
-        // Wait for all cache invalidations to complete before sending response
-        // This prevents race condition where refetch hits stale cache
-        try {
-          await Promise.all(patterns.map(pattern => cache.delPattern(pattern)));
-          logger.info('cache-invalidation', {
-            category: 'cache',
-            operation: 'invalidate',
-            patterns: patterns.length,
-            method: req.method,
-            path: req.path,
+        Promise.all(patterns.map(pattern => cache.delPattern(pattern)))
+          .then(() => {
+            logger.info('cache-invalidation', {
+              category: 'cache',
+              operation: 'invalidate',
+              patterns: patterns.length,
+              method: req.method,
+              path: req.path,
+            });
+          })
+          .catch((err: unknown) => {
+            logger.warn('cache-invalidation-failed', {
+              category: 'cache',
+              operation: 'invalidate-error',
+              patterns,
+              error: err instanceof Error ? err.message : String(err),
+            });
           });
-        } catch (err) {
-          logger.warn('cache-invalidation-failed', {
-            category: 'cache',
-            operation: 'invalidate-error',
-            patterns,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
       }
       return originalJson(data);
     };
@@ -124,7 +131,7 @@ export const invalidateCacheMiddleware = (patterns: string[]) => {
  * User-specific cache invalidation
  */
 export const invalidateUserCache = (req: Request) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as AuthRequest).user?.id;
   if (userId) {
     const cache = CacheService.getInstance();
     const patterns = [
@@ -133,7 +140,14 @@ export const invalidateUserCache = (req: Request) => {
       `analytics:${userId}*`,
     ];
     patterns.forEach(pattern => {
-      cache.delPattern(pattern).catch(console.error);
+      cache
+        .delPattern(pattern)
+        .catch(err =>
+          logger.error(
+            'Cache delete error',
+            err instanceof Error ? err : undefined
+          )
+        );
     });
   }
 };
@@ -146,7 +160,7 @@ export const CacheMiddlewares = {
   userProjects: cacheMiddleware({
     ttl: CacheTTL.MEDIUM,
     keyGenerator: req => {
-      const userId = (req as any).user?.id;
+      const userId = (req as AuthRequest).user?.id ?? '';
       return CacheKeys.userProjects(userId);
     },
   }),
@@ -155,7 +169,7 @@ export const CacheMiddlewares = {
   userThumbnails: cacheMiddleware({
     ttl: CacheTTL.MEDIUM,
     keyGenerator: req => {
-      const userId = (req as any).user?.id;
+      const userId = (req as AuthRequest).user?.id ?? '';
       const page = req.query.page || '1';
       return CacheKeys.userThumbnails(userId, parseInt(page as string));
     },
@@ -165,7 +179,7 @@ export const CacheMiddlewares = {
   analytics: cacheMiddleware({
     ttl: CacheTTL.LONG,
     keyGenerator: req => {
-      const userId = (req as any).user?.id;
+      const userId = (req as AuthRequest).user?.id ?? '';
       const period = req.query.period || 'week';
       return CacheKeys.analytics(userId, period as string);
     },

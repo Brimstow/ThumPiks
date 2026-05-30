@@ -4,20 +4,69 @@ import path from 'path';
 import axios from 'axios';
 import { getStorageService } from '../storage';
 import { applyFreemiumWatermark } from './watermark.service';
+import { logger } from '../../utils/logger';
+
+interface TextOverlay {
+  id?: string;
+  text?: string;
+  fontSize?: number;
+  color?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+  align?: 'left' | 'center' | 'right';
+  x?: number;
+  y?: number;
+  position?: string;
+  stroke?: { color?: string; width?: number };
+  shadow?: {
+    color?: string;
+    blur?: number;
+    offsetX?: number;
+    offsetY?: number;
+  };
+}
+
+interface DrawingPath {
+  id?: string;
+  points?: { x: number; y: number }[];
+  color?: string;
+  lineWidth?: number;
+}
+
+interface ImageEdits {
+  resize?: { width: number; height: number };
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  hue?: number;
+  blur?: number;
+  rotation?: number;
+  flipHorizontal?: boolean;
+  flipVertical?: boolean;
+  crop?: { x: number; y: number; width: number; height: number };
+  filter?: string;
+  textOverlays?: TextOverlay[];
+  drawingPaths?: DrawingPath[];
+}
 
 // Local fallback directory (used when Cloudinary unavailable)
 const processedImagesDir = path.join(__dirname, '../../../processed-images');
 if (typeof fs !== 'undefined' && fs.mkdir) {
-  fs.mkdir(processedImagesDir, { recursive: true }).catch(console.error);
+  fs.mkdir(processedImagesDir, { recursive: true }).catch(err => {
+    logger.error(
+      'Failed to create processed images directory',
+      err instanceof Error ? err : new Error(String(err))
+    );
+  });
 }
 
 export class ImageProcessingService {
   /**
    * Apply comprehensive edits to an image using Sharp.js for high-performance processing
-   * 
+   *
    * Supports resize, color adjustments, filters, transformations, and crop operations.
    * Processes the image server-side and saves result to the processed-images directory.
-   * 
+   *
    * @param {string} imageUrl - URL or path to the source image to process
    * @param {Object} edits - Edit parameters configuration object
    * @param {Object} [edits.resize] - Resize dimensions
@@ -40,7 +89,7 @@ export class ImageProcessingService {
    * @param {string} thumbnailId - Unique identifier for the thumbnail (used in output filename)
    * @returns {Promise<string>} Absolute file path to the processed image (PNG format)
    * @throws {Error} When image processing fails or invalid parameters provided
-   * 
+   *
    * @example Basic resize and brightness adjustment
    * ```typescript
    * const processedPath = await imageService.applyEditsToImage(
@@ -54,7 +103,7 @@ export class ImageProcessingService {
    * );
    * console.log('Processed image saved to:', processedPath);
    * ```
-   * 
+   *
    * @example Apply filter and crop
    * ```typescript
    * const editedImage = await imageService.applyEditsToImage(
@@ -67,13 +116,13 @@ export class ImageProcessingService {
    *   'thumb_456'
    * );
    * ```
-   * 
+   *
    * @since 1.0.0
    * @see {@link batchApplyEditsToImages} For processing multiple images with same edits
    */
   async applyEditsToImage(
     imageUrl: string,
-    edits: any,
+    edits: ImageEdits,
     thumbnailId: string,
     options?: { applyFreemiumWatermark?: boolean }
   ): Promise<string> {
@@ -241,9 +290,16 @@ export class ImageProcessingService {
             yPos = Math.round((overlay.y / 100) * imgHeight);
           } else {
             switch (overlay.position) {
-              case 'top':    yPos = Math.round(fontSize * 1.5); break;
-              case 'center': yPos = Math.round(imgHeight / 2); break;
-              case 'bottom': default: yPos = imgHeight - Math.round(fontSize * 1.5); break;
+              case 'top':
+                yPos = Math.round(fontSize * 1.5);
+                break;
+              case 'center':
+                yPos = Math.round(imgHeight / 2);
+                break;
+              case 'bottom':
+              default:
+                yPos = imgHeight - Math.round(fontSize * 1.5);
+                break;
             }
           }
 
@@ -255,7 +311,12 @@ export class ImageProcessingService {
             xPos = Math.round(imgWidth / 2);
           }
 
-          const textAnchor = overlay.align === 'left' ? 'start' : overlay.align === 'right' ? 'end' : 'middle';
+          const textAnchor =
+            overlay.align === 'left'
+              ? 'start'
+              : overlay.align === 'right'
+                ? 'end'
+                : 'middle';
 
           // Build SVG filters for shadow
           const filterId = `shadow_${Date.now()}`;
@@ -269,9 +330,10 @@ export class ImageProcessingService {
             : '';
 
           const filterAttr = shadowColor ? `filter="url(#${filterId})"` : '';
-          const strokeAttr = strokeColor && strokeWidth > 0
-            ? `stroke="${strokeColor}" stroke-width="${strokeWidth}" paint-order="stroke"`
-            : '';
+          const strokeAttr =
+            strokeColor && strokeWidth > 0
+              ? `stroke="${strokeColor}" stroke-width="${strokeWidth}" paint-order="stroke"`
+              : '';
 
           const svg = `<svg width="${imgWidth}" height="${imgHeight}" xmlns="http://www.w3.org/2000/svg">
             ${filterDef}
@@ -289,10 +351,12 @@ export class ImageProcessingService {
             >${overlay.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
           </svg>`;
 
-          processedImage = processedImage.composite([{
-            input: Buffer.from(svg),
-            gravity: 'northwest',
-          }]);
+          processedImage = processedImage.composite([
+            {
+              input: Buffer.from(svg),
+              gravity: 'northwest',
+            },
+          ]);
         }
       }
 
@@ -314,22 +378,29 @@ export class ImageProcessingService {
             processedBuffer,
             thumbnailId
           );
-          console.log(`☁️ Processed image uploaded to Cloudinary: ${uploadResult.publicId}`);
+          logger.info('Processed image uploaded to Cloudinary', {
+            publicId: uploadResult.publicId,
+          });
           return uploadResult.secureUrl;
         }
       } catch (cloudinaryError) {
-        console.warn('Cloudinary upload failed, falling back to local storage:', cloudinaryError);
+        logger.warn('Cloudinary upload failed, falling back to local storage', {
+          error: String(cloudinaryError),
+        });
       }
 
       // Fallback: Save locally (for development or if Cloudinary unavailable)
       const outputFilename = `processed_${thumbnailId}_${Date.now()}.png`;
       const outputPath = path.join(processedImagesDir, outputFilename);
       await fs.writeFile(outputPath, processedBuffer);
-      console.log(`💾 Processed image saved locally: ${outputPath}`);
+      logger.info('Processed image saved locally', { outputPath });
 
       return outputPath;
     } catch (error) {
-      console.error('Error processing image:', error);
+      logger.error(
+        'Error processing image',
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw new Error('Failed to process image');
     }
   }
@@ -343,7 +414,7 @@ export class ImageProcessingService {
    */
   async batchApplyEditsToImages(
     imageUrls: string[],
-    edits: any,
+    edits: ImageEdits,
     thumbnailIds: string[]
   ): Promise<string[]> {
     try {
@@ -369,7 +440,10 @@ export class ImageProcessingService {
 
       return processedImagePaths;
     } catch (error) {
-      console.error('Error processing batch of images:', error);
+      logger.error(
+        'Error processing batch of images',
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw new Error('Failed to process batch of images');
     }
   }

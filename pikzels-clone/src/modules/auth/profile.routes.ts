@@ -1,18 +1,17 @@
-import { Router, Response } from 'express';
+import { Router, Response, RequestHandler } from 'express';
 import { ProfileController } from './profile.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import { userApiRateLimit } from '../../middleware/security.middleware';
 import { validateRequest } from '../../middleware/validation.middleware';
+import { AuthRequest } from '../../types/auth';
 
 const router = Router();
 const profileController = new ProfileController();
 
-router.get(
-  '/profile',
-  authenticateToken,
-  userApiRateLimit,
-  (req: any, res: Response) => profileController.getProfile(req, res)
-);
+router.get('/profile', authenticateToken, userApiRateLimit, ((
+  req: AuthRequest,
+  res: Response
+) => profileController.getProfile(req, res)) as unknown as RequestHandler);
 router.put(
   '/profile',
   authenticateToken,
@@ -26,9 +25,9 @@ router.put(
         minLength: 1,
         maxLength: 100,
         sanitize: true,
-        custom: (value: string) => {
+        custom: (value: unknown) => {
           const htmlPattern = /<[^>]*>/g;
-          if (htmlPattern.test(value)) {
+          if (typeof value === 'string' && htmlPattern.test(value)) {
             return 'Name cannot contain HTML tags or scripts';
           }
           return true;
@@ -42,16 +41,15 @@ router.put(
       },
     ],
   }),
-  (req: any, res: Response) => profileController.updateProfile(req, res)
+  ((req: AuthRequest, res: Response) =>
+    profileController.updateProfile(req, res)) as unknown as RequestHandler
 );
 
 // User settings routes
-router.get(
-  '/settings',
-  authenticateToken,
-  userApiRateLimit,
-  (req: any, res: Response) => profileController.getUserSettings(req, res)
-);
+router.get('/settings', authenticateToken, userApiRateLimit, ((
+  req: AuthRequest,
+  res: Response
+) => profileController.getUserSettings(req, res)) as unknown as RequestHandler);
 router.put(
   '/settings',
   authenticateToken,
@@ -65,7 +63,8 @@ router.put(
       },
     ],
   }),
-  (req: any, res: Response) => profileController.updateUserSettings(req, res)
+  ((req: AuthRequest, res: Response) =>
+    profileController.updateUserSettings(req, res)) as unknown as RequestHandler
 );
 
 export default router;

@@ -26,6 +26,7 @@ import { requestIdMiddleware } from './middleware/request-id.middleware';
 // Import services AFTER environment variables are loaded
 import { CacheService } from './services/cache.service';
 import { OAuthService } from './modules/auth/oauth.service';
+import { AuthRequest } from './types/auth';
 import {
   performanceMiddleware,
   responseTimeMiddleware,
@@ -80,8 +81,21 @@ import sitemapRoutes from './modules/admin/sitemap.routes';
 import notificationConfigRoutes from './modules/notification-config/notification-config.routes';
 import adminNotificationRoutes from './modules/admin-notification/admin-notification.routes';
 import userNotificationRoutes from './modules/user-notification/user-notification.routes';
-import userSSERoutes, { adminSSERouter } from './modules/notification-sse/notification-sse.routes';
+import userSSERoutes, {
+  adminSSERouter,
+} from './modules/notification-sse/notification-sse.routes';
 import { startDigestScheduler } from './schedulers/digest.scheduler';
+
+// Fail fast: ensure critical secrets are set in production/staging
+if (isProductionLike()) {
+  const requiredSecrets = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET'];
+  const missing = requiredSecrets.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required secrets in production: ${missing.join(', ')}`
+    );
+  }
+}
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8550;
@@ -190,10 +204,15 @@ app.use(
   express.json({
     limit: process.env.MAX_FILE_SIZE || '10mb',
     strict: true,
-    verify: (req: any, _res, buf) => {
+    verify: ((req: { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
       // Store raw body for webhook verification if needed
       req.rawBody = buf;
-    },
+    }) as unknown as (
+      req: import('http').IncomingMessage,
+      res: import('http').ServerResponse,
+      buf: Buffer,
+      encoding: string
+    ) => void,
   })
 );
 
@@ -362,11 +381,13 @@ app.use(
   ) => {
     const requestId = getRequestId();
 
+    const userId = (req as AuthRequest).user?.id;
+    const userAgent = req.get('User-Agent');
     logger.error('Unhandled API error', err, {
       url: req.url,
       method: req.method,
-      userId: (req as any).user?.id,
-      userAgent: req.get('User-Agent'),
+      ...(userId !== undefined && { userId }),
+      ...(userAgent !== undefined && { userAgent }),
     });
 
     // Don't leak error details in production/staging
@@ -394,10 +415,17 @@ async function initializeServer() {
         await replicateQueue.initialize();
         logger.info('Replicate job queue initialized');
       } catch (queueError) {
-        logger.warn('Replicate queue not initialized (Redis may be unavailable)', {
-          error: queueError instanceof Error ? queueError.message : String(queueError),
-          fallback: 'Replicate requests will be processed directly without queuing',
-        });
+        logger.warn(
+          'Replicate queue not initialized (Redis may be unavailable)',
+          {
+            error:
+              queueError instanceof Error
+                ? queueError.message
+                : String(queueError),
+            fallback:
+              'Replicate requests will be processed directly without queuing',
+          }
+        );
       }
     }
 
@@ -408,10 +436,17 @@ async function initializeServer() {
         await aiQueue.initialize();
         logger.info('AI priority queue initialized');
       } catch (queueError) {
-        logger.warn('AI priority queue not initialized (Redis may be unavailable)', {
-          error: queueError instanceof Error ? queueError.message : String(queueError),
-          fallback: 'AI requests will be processed directly without priority queuing',
-        });
+        logger.warn(
+          'AI priority queue not initialized (Redis may be unavailable)',
+          {
+            error:
+              queueError instanceof Error
+                ? queueError.message
+                : String(queueError),
+            fallback:
+              'AI requests will be processed directly without priority queuing',
+          }
+        );
       }
     }
 
@@ -428,10 +463,13 @@ async function initializeServer() {
       // ECONNRESET → Railway returns 504 to the client.
       // Source: Node.js GitHub issue #27363 (same symptom on Railway).
       // 61s > Railway's 60s idle timeout; headersTimeout must be > keepAliveTimeout.
-      server.keepAliveTimeout = 61_000;   // 61 seconds
-      server.headersTimeout   = 65_000;   // 65 seconds
+      server.keepAliveTimeout = 61_000; // 61 seconds
+      server.headersTimeout = 65_000; // 65 seconds
 
-      logger.info('Server started', { port: PORT, health: `http://localhost:${PORT}/health` });
+      logger.info('Server started', {
+        port: PORT,
+        health: `http://localhost:${PORT}/health`,
+      });
 
       if (process.env.ENABLE_CACHE === 'true') {
         logger.info('Redis caching enabled');

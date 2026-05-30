@@ -33,14 +33,16 @@ const REVE_REMIX_MODEL_DEFAULT = 'reve/remix';
 // Community models require the versioned /predictions endpoint with an explicit version ID.
 const COMMUNITY_MODEL_VERSIONS: Record<string, string> = {
   // lucataco/faceswap — 27M runs, InsightFace inswapper, simple swap_image + target_image
-  'lucataco/faceswap': '9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109e843d20d',
+  'lucataco/faceswap':
+    '9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109e843d20d',
   // mertguvencli/face-swap-with-indexes — index-based multi-face (upgrade path)
-  'mertguvencli/face-swap-with-indexes': '518f2116425c40acb5c234031c55daf843c1357eff784370fe9489e57b65c150',
+  'mertguvencli/face-swap-with-indexes':
+    '518f2116425c40acb5c234031c55daf843c1357eff784370fe9489e57b65c150',
   // NOTE: fofr/face-swap-with-ideogram is a deployment model — no version hash, uses /models/ endpoint
 };
 
-const PREDICTION_TIMEOUT = 180_000;  // 180s — fofr cold boot ~85s, warm ~15-20s; Reve ~15s
-const POLL_INTERVAL      = 1_000;   // 1s between polls
+const PREDICTION_TIMEOUT = 180_000; // 180s — fofr cold boot ~85s, warm ~15-20s; Reve ~15s
+const POLL_INTERVAL = 1_000; // 1s between polls
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,14 @@ export interface FaceSwapResult {
 
 // ─── Service ────────────────────────────────────────────────────────────────
 
+interface ReplicatePrediction {
+  id: string;
+  status: string;
+  error?: string;
+  output?: unknown;
+  urls?: { get?: string };
+}
+
 export class ReplicateFaceSwapService {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -70,13 +80,18 @@ export class ReplicateFaceSwapService {
   private readonly reveRemixModel: string;
 
   constructor() {
-    this.apiKey       = process.env.REPLICATE_API_KEY || '';
-    this.baseUrl      = process.env.REPLICATE_API_URL || 'https://api.replicate.com/v1';
-    this.faceSwapModel = process.env.REPLICATE_MODEL_FACE_SWAP || FACE_SWAP_MODEL_DEFAULT;
-    this.reveRemixModel = process.env.REPLICATE_MODEL_REVE_REMIX || REVE_REMIX_MODEL_DEFAULT;
+    this.apiKey = process.env.REPLICATE_API_KEY || '';
+    this.baseUrl =
+      process.env.REPLICATE_API_URL || 'https://api.replicate.com/v1';
+    this.faceSwapModel =
+      process.env.REPLICATE_MODEL_FACE_SWAP || FACE_SWAP_MODEL_DEFAULT;
+    this.reveRemixModel =
+      process.env.REPLICATE_MODEL_REVE_REMIX || REVE_REMIX_MODEL_DEFAULT;
 
     if (!this.apiKey) {
-      logger.warn('[FaceSwap] REPLICATE_API_KEY not set — face swap will fail at runtime');
+      logger.warn(
+        '[FaceSwap] REPLICATE_API_KEY not set — face swap will fail at runtime'
+      );
     }
   }
 
@@ -105,7 +120,7 @@ export class ReplicateFaceSwapService {
     }
 
     const targetFaceIndex = options.targetFaceIndex ?? 0;
-    const tier            = options.tier ?? 'standard';
+    const tier = options.tier ?? 'standard';
 
     logger.info('[FaceSwap] Starting pipeline', {
       tier,
@@ -120,20 +135,30 @@ export class ReplicateFaceSwapService {
       targetFaceIndex
     );
 
-    logger.info('[FaceSwap] Step 1 complete — InsightFace swap', { swappedUrl });
+    logger.info('[FaceSwap] Step 1 complete — InsightFace swap', {
+      swappedUrl,
+    });
 
     // ── Step 2: Reve Remix polish (pro tier only) ───────────────────────────
     if (tier === 'pro') {
       logger.info('[FaceSwap] Step 2 starting — Reve Remix polish');
       try {
-        const polishedUrl = await this.runReveRemixPolish(swappedUrl, targetImageUrl);
-        logger.info('[FaceSwap] Step 2 complete — Reve Remix polish', { polishedUrl });
+        const polishedUrl = await this.runReveRemixPolish(
+          swappedUrl,
+          targetImageUrl
+        );
+        logger.info('[FaceSwap] Step 2 complete — Reve Remix polish', {
+          polishedUrl,
+        });
         return { url: polishedUrl, pipeline: 'insightface+reve' };
       } catch (reveError) {
         // Reve failing must not block the user — return the InsightFace result
-        logger.warn('[FaceSwap] Reve Remix failed, returning InsightFace result', {
-          error: (reveError as Error).message,
-        });
+        logger.warn(
+          '[FaceSwap] Reve Remix failed, returning InsightFace result',
+          {
+            error: (reveError as Error).message,
+          }
+        );
         return { url: swappedUrl, pipeline: 'insightface' };
       }
     }
@@ -150,8 +175,9 @@ export class ReplicateFaceSwapService {
     targetImageUrl: string,
     targetFaceIndex: number
   ): Promise<string> {
-    const isMertModel  = this.faceSwapModel === 'mertguvencli/face-swap-with-indexes';
-    const isFofrModel  = this.faceSwapModel === 'fofr/face-swap-with-ideogram';
+    const isMertModel =
+      this.faceSwapModel === 'mertguvencli/face-swap-with-indexes';
+    const isFofrModel = this.faceSwapModel === 'fofr/face-swap-with-ideogram';
 
     let input: Record<string, unknown>;
 
@@ -160,23 +186,23 @@ export class ReplicateFaceSwapService {
       // character_image = the face donor, target_image = the thumbnail to place into
       input = {
         character_image: sourceImageUrl,
-        target_image:    targetImageUrl,
+        target_image: targetImageUrl,
         // No prompt = Claude auto-generates one from the target image
-        cleanup:         false,  // skip Nano Banana pass (we handle polish in step 2 if pro tier)
+        cleanup: false, // skip Nano Banana pass (we handle polish in step 2 if pro tier)
       };
     } else if (isMertModel) {
       // mertguvencli/face-swap-with-indexes — InsightFace, index-based
       input = {
-        execution_type:         'face_swap',
-        source_face_image:      sourceImageUrl,
-        destination_image:      targetImageUrl,
-        source_face_index:      0,
+        execution_type: 'face_swap',
+        source_face_image: sourceImageUrl,
+        destination_image: targetImageUrl,
+        source_face_index: 0,
         destination_face_index: targetFaceIndex,
       };
     } else {
       // lucataco/faceswap — simple InsightFace inswapper
       input = {
-        swap_image:   sourceImageUrl,
+        swap_image: sourceImageUrl,
         target_image: targetImageUrl,
       };
     }
@@ -188,7 +214,9 @@ export class ReplicateFaceSwapService {
       : prediction.output;
 
     if (!output || typeof output !== 'string') {
-      throw new Error(`[FaceSwap] Model returned unexpected output: ${JSON.stringify(prediction.output)}`);
+      throw new Error(
+        `[FaceSwap] Model returned unexpected output: ${JSON.stringify(prediction.output)}`
+      );
     }
 
     return output;
@@ -223,7 +251,9 @@ export class ReplicateFaceSwapService {
       : prediction.output;
 
     if (!output || typeof output !== 'string') {
-      throw new Error(`[FaceSwap] Reve Remix returned unexpected output: ${JSON.stringify(prediction.output)}`);
+      throw new Error(
+        `[FaceSwap] Reve Remix returned unexpected output: ${JSON.stringify(prediction.output)}`
+      );
     }
 
     return output;
@@ -242,11 +272,11 @@ export class ReplicateFaceSwapService {
   private async runPrediction(
     model: string,
     input: Record<string, unknown>
-  ): Promise<any> {
-    const hasVersion    = model.includes(':');
+  ): Promise<ReplicatePrediction> {
     // Community models need the versioned /predictions endpoint
     const communityVersion = COMMUNITY_MODEL_VERSIONS[model];
     // Deployment models (like fofr/*) use /models/{owner}/{name}/predictions with NO version
+    const hasVersion = model.includes(':');
 
     let endpoint: string;
     let requestBody: Record<string, unknown>;
@@ -266,11 +296,11 @@ export class ReplicateFaceSwapService {
     }
 
     const createRes = await fetch(endpoint, {
-      method:  'POST',
+      method: 'POST',
       headers: {
-        Authorization:  `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
-        Prefer:         'wait',          // Replicate sync mode
+        Prefer: 'wait', // Replicate sync mode
       },
       body: JSON.stringify(requestBody),
     });
@@ -283,7 +313,7 @@ export class ReplicateFaceSwapService {
       );
     }
 
-    const prediction = await createRes.json() as any;
+    const prediction = (await createRes.json()) as ReplicatePrediction;
     return this.awaitPrediction(prediction);
   }
 
@@ -291,11 +321,19 @@ export class ReplicateFaceSwapService {
    * If the prediction already succeeded (sync mode), return immediately.
    * Otherwise poll until done or timeout.
    */
-  private async awaitPrediction(prediction: any): Promise<any> {
+  private async awaitPrediction(prediction: {
+    id: string;
+    status: string;
+    error?: string;
+    output?: unknown;
+    urls?: { get?: string };
+  }): Promise<typeof prediction> {
     if (prediction.status === 'succeeded') return prediction;
 
     if (prediction.status === 'failed') {
-      throw new Error(prediction.error || '[FaceSwap] Prediction failed immediately');
+      throw new Error(
+        prediction.error || '[FaceSwap] Prediction failed immediately'
+      );
     }
 
     const startTime = Date.now();
@@ -309,17 +347,22 @@ export class ReplicateFaceSwapService {
         // Attempt cancel to avoid billing for a stuck prediction
         try {
           await fetch(`${this.baseUrl}/predictions/${prediction.id}/cancel`, {
-            method:  'POST',
+            method: 'POST',
             headers: { Authorization: `Bearer ${this.apiKey}` },
           });
-        } catch { /* ignore */ }
-        throw new Error(`[FaceSwap] Prediction timed out after ${PREDICTION_TIMEOUT / 1000}s`);
+        } catch {
+          /* ignore */
+        }
+        throw new Error(
+          `[FaceSwap] Prediction timed out after ${PREDICTION_TIMEOUT / 1000}s`
+        );
       }
 
       await sleep(POLL_INTERVAL);
 
-      const pollUrl = prediction.urls?.get ?? `${this.baseUrl}/predictions/${prediction.id}`;
-      const pollRes  = await fetch(pollUrl, {
+      const pollUrl =
+        prediction.urls?.get ?? `${this.baseUrl}/predictions/${prediction.id}`;
+      const pollRes = await fetch(pollUrl, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
 
@@ -343,13 +386,13 @@ export class ReplicateFaceSwapService {
 
 // ─── Singleton ──────────────────────────────────────────────────────────────
 
-let _instance: ReplicateFaceSwapService | null = null;
+let instance: ReplicateFaceSwapService | null = null;
 
 export function getFaceSwapService(): ReplicateFaceSwapService {
-  if (!_instance) {
-    _instance = new ReplicateFaceSwapService();
+  if (!instance) {
+    instance = new ReplicateFaceSwapService();
   }
-  return _instance;
+  return instance;
 }
 
 // ─── Utility ────────────────────────────────────────────────────────────────

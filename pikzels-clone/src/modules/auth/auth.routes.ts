@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, RequestHandler, Response, NextFunction } from 'express';
 import passport from 'passport';
 import {
   register,
@@ -18,8 +18,9 @@ import {
   commonValidations,
 } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
+import { AuthRequest } from '../../types/auth';
 import { OAuthService } from './oauth.service';
-import { isProductionLike } from '../../utils/env';
+import { isProductionLike, getClientUrl } from '../../utils/env';
 import { logger } from '../../utils/logger';
 import { EmailService } from '../email/email.service';
 
@@ -48,10 +49,10 @@ router.post(
         minLength: 1,
         maxLength: 100,
         sanitize: true,
-        custom: (value: string) => {
+        custom: (value: unknown) => {
           // Reject if contains HTML tags after sanitization check
           const htmlPattern = /<[^>]*>/g;
-          if (htmlPattern.test(value)) {
+          if (typeof value === 'string' && htmlPattern.test(value)) {
             return 'Name cannot contain HTML tags or scripts';
           }
           return true;
@@ -83,7 +84,7 @@ router.post(
  * POST /api/auth/logout
  * Logout user by clearing cookies
  */
-router.post('/logout', logout);
+router.post('/logout', logout as unknown as RequestHandler);
 
 /**
  * GET /api/auth/verify-email/:token
@@ -141,7 +142,7 @@ router.post(
       { field: 'refreshToken', required: false, type: 'string', minLength: 1 },
     ],
   }),
-  refreshToken
+  refreshToken as unknown as RequestHandler
 );
 
 /**
@@ -159,9 +160,9 @@ router.post(
         minLength: 1,
         maxLength: 100,
         sanitize: true,
-        custom: (value: string) => {
+        custom: (value: unknown) => {
           const htmlPattern = /<[^>]*>/g;
-          if (htmlPattern.test(value)) {
+          if (typeof value === 'string' && htmlPattern.test(value)) {
             return 'Name cannot contain HTML tags or scripts';
           }
           return true;
@@ -196,7 +197,7 @@ router.put(
       },
     ],
   }),
-  updateDisplayPreference
+  updateDisplayPreference as unknown as RequestHandler
 );
 
 // =============================================================================
@@ -216,6 +217,55 @@ router.get(
 );
 
 /**
+ * Shared OAuth callback handler — eliminates duplication between providers.
+ */
+function oauthCallbackHandler(provider: string) {
+  return async (req: AuthRequest, res: Response, _next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.redirect(`${getClientUrl()}/login?error=oauth_no_user`);
+      }
+
+      const result = await OAuthService.generateTokensForOAuthUser(
+        req.user as unknown as Parameters<
+          typeof OAuthService.generateTokensForOAuthUser
+        >[0]
+      );
+
+      const isProduction = isProductionLike();
+      const cookieOptions = {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax' as const,
+      };
+
+      res.cookie('token', result.accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60 * 1000,
+      });
+
+      if (result.refreshToken) {
+        res.cookie('refreshToken', result.refreshToken, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      logger.info('OAuth login successful', {
+        userId: result.user.id,
+        provider,
+        email: result.user.email,
+      });
+
+      res.redirect(`${getClientUrl()}/dashboard`);
+    } catch (error) {
+      logger.error('OAuth callback error', error as Error);
+      res.redirect(`${getClientUrl()}/login?error=oauth_callback_error`);
+    }
+  };
+}
+
+/**
  * GET /api/auth/google/callback
  * Google OAuth callback - handles success/failure and sets cookies
  */
@@ -223,57 +273,9 @@ router.get(
   '/google/callback',
   passport.authenticate('google', {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:8556'}/login?error=oauth_failed`,
+    failureRedirect: `${getClientUrl()}/login?error=oauth_failed`,
   }),
-  async (req, res) => {
-    try {
-      if (!req.user) {
-        const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-        return res.redirect(`${clientUrl}/login?error=oauth_no_user`);
-      }
-
-      // Generate tokens for OAuth user
-      const result = await OAuthService.generateTokensForOAuthUser(
-        req.user as any
-      );
-
-      // Cookie settings
-      const isProduction = isProductionLike();
-      const cookieOptions = {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? ('none' as const) : ('lax' as const),
-      };
-
-      // Set access token cookie
-      res.cookie('token', result.accessToken, {
-        ...cookieOptions,
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-
-      // Set refresh token cookie
-      if (result.refreshToken) {
-        res.cookie('refreshToken', result.refreshToken, {
-          ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
-      }
-
-      logger.info('OAuth login successful', {
-        userId: result.user.id,
-        provider: 'google',
-        email: result.user.email,
-      });
-
-      // Redirect to frontend dashboard
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-      res.redirect(`${clientUrl}/dashboard`);
-    } catch (error) {
-      logger.error('OAuth callback error', error as Error);
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-      res.redirect(`${clientUrl}/login?error=oauth_callback_error`);
-    }
-  }
+  oauthCallbackHandler('google') as RequestHandler
 );
 
 /**
@@ -296,57 +298,9 @@ router.get(
   '/github/callback',
   passport.authenticate('github', {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:8556'}/login?error=oauth_failed`,
+    failureRedirect: `${getClientUrl()}/login?error=oauth_failed`,
   }),
-  async (req, res) => {
-    try {
-      if (!req.user) {
-        const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-        return res.redirect(`${clientUrl}/login?error=oauth_no_user`);
-      }
-
-      // Generate tokens for OAuth user
-      const result = await OAuthService.generateTokensForOAuthUser(
-        req.user as any
-      );
-
-      // Cookie settings
-      const isProduction = isProductionLike();
-      const cookieOptions = {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? ('none' as const) : ('lax' as const),
-      };
-
-      // Set access token cookie
-      res.cookie('token', result.accessToken, {
-        ...cookieOptions,
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-
-      // Set refresh token cookie
-      if (result.refreshToken) {
-        res.cookie('refreshToken', result.refreshToken, {
-          ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
-      }
-
-      logger.info('OAuth login successful', {
-        userId: result.user.id,
-        provider: 'github',
-        email: result.user.email,
-      });
-
-      // Redirect to frontend dashboard
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-      res.redirect(`${clientUrl}/dashboard`);
-    } catch (error) {
-      logger.error('OAuth callback error', error as Error);
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-      res.redirect(`${clientUrl}/login?error=oauth_callback_error`);
-    }
-  }
+  oauthCallbackHandler('github') as RequestHandler
 );
 
 /**

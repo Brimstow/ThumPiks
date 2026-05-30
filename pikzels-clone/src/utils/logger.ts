@@ -9,7 +9,7 @@ interface LogContext {
   requestId?: string;
   url?: string;
   method?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const isTestEnv = (): boolean =>
@@ -91,8 +91,7 @@ if (!isTestEnv() && isProductionLike()) {
 }
 
 // Axiom: centralized log aggregation (when configured)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let axiomTransport: any = null;
+let axiomTransport: winston.transport | null = null;
 
 if (!isTestEnv() && process.env.AXIOM_TOKEN) {
   try {
@@ -106,9 +105,9 @@ if (!isTestEnv() && process.env.AXIOM_TOKEN) {
       onError: (err: Error) =>
         console.warn('Axiom transport error:', err.message),
     });
-    winstonLogger.add(axiomTransport);
-    winstonLogger.exceptions.handle(axiomTransport);
-    winstonLogger.rejections.handle(axiomTransport);
+    winstonLogger.add(axiomTransport!);
+    winstonLogger.exceptions.handle(axiomTransport!);
+    winstonLogger.rejections.handle(axiomTransport!);
   } catch (err) {
     console.warn(
       'Axiom transport failed to initialize:',
@@ -164,9 +163,23 @@ class Logger {
     this.logToWinston('info', message, enriched);
   }
 
-  warn(message: string, context?: LogContext): void {
-    const enriched = this.enrichContext(context);
-    console.warn(this.formatMessage('warn', message, enriched));
+  warn(
+    message: string,
+    errorOrContext?: Error | LogContext,
+    context?: LogContext
+  ): void {
+    const isErrorObj = errorOrContext instanceof Error;
+    const enriched = this.enrichContext(
+      isErrorObj ? context : (errorOrContext as LogContext | undefined)
+    );
+    const warnInfo = isErrorObj
+      ? {
+          message: (errorOrContext as Error).message,
+          stack: (errorOrContext as Error).stack,
+          ...enriched,
+        }
+      : enriched;
+    console.warn(this.formatMessage('warn', message, warnInfo));
     this.logToWinston('warn', message, enriched);
   }
 
@@ -246,9 +259,17 @@ export type { LogContext };
 /** Flush all Winston transports (call before process exit). */
 export async function flushLogger(): Promise<void> {
   // Explicitly flush Axiom's internal batch buffer (it doesn't implement Winston's close hook)
-  if (axiomTransport && typeof axiomTransport.flush === 'function') {
+  if (
+    axiomTransport &&
+    typeof (axiomTransport as unknown as { flush?: unknown }).flush ===
+      'function'
+  ) {
     await new Promise<void>(resolve => {
-      axiomTransport.flush((err: Error | null) => {
+      (
+        axiomTransport as unknown as {
+          flush: (cb: (err: Error | null) => void) => void;
+        }
+      ).flush((err: Error | null) => {
         if (err) console.warn('Axiom flush error:', err.message);
         resolve();
       });

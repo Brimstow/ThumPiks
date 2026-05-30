@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import crypto from 'crypto';
 import { logger } from '../../utils/logger';
@@ -115,7 +116,7 @@ export class PasswordResetService {
       // Send password reset email
       try {
         await EmailService.sendPasswordResetEmail(email, token, user.id);
-      } catch (emailError: any) {
+      } catch (emailError: unknown) {
         logger.error(
           'Failed to send password reset email',
           emailError instanceof Error
@@ -135,11 +136,15 @@ export class PasswordResetService {
         message:
           'If your email is registered, you will receive a password reset link.',
       };
-    } catch (error: any) {
-      logger.error('Password reset request failed', error, {
-        email,
-        ipAddress,
-      });
+    } catch (error: unknown) {
+      logger.error(
+        'Password reset request failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          email,
+          ipAddress,
+        }
+      );
       throw new Error('Password reset request failed');
     }
   }
@@ -182,8 +187,11 @@ export class PasswordResetService {
       }
 
       return { valid: true, userId: tokenRecord.userId };
-    } catch (error: any) {
-      logger.error('Token verification failed', error);
+    } catch (error: unknown) {
+      logger.error(
+        'Token verification failed',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return { valid: false, message: 'Invalid or expired reset token' };
     }
   }
@@ -262,8 +270,12 @@ export class PasswordResetService {
           'Password successfully reset. Please log in with your new password.',
         userId,
       };
-    } catch (error: any) {
-      logger.error('Password reset failed', error, { token: '***' });
+    } catch (error: unknown) {
+      logger.error(
+        'Password reset failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { token: '***' }
+      );
       throw new Error('Password reset failed');
     }
   }
@@ -345,7 +357,7 @@ export class PasswordResetService {
     action: string;
     ipAddress?: string | undefined;
     userAgent?: string | undefined;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   }): Promise<void> {
     try {
       await prisma.auditLog.create({
@@ -354,18 +366,22 @@ export class PasswordResetService {
           userId,
           action,
           resource: 'PASSWORD_RESET',
-          details: details || {},
+          details: (details || {}) as Prisma.InputJsonValue,
           ipAddress: ipAddress || null,
           userAgent: userAgent || null,
           severity: 'info',
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Don't fail the main operation if audit logging fails
-      logger.error('Failed to create audit log', error, {
-        userId,
-        action,
-      });
+      logger.error(
+        'Failed to create audit log',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          userId,
+          action,
+        }
+      );
     }
   }
 
@@ -386,8 +402,11 @@ export class PasswordResetService {
       });
 
       return result.count;
-    } catch (error: any) {
-      logger.error('Failed to cleanup expired tokens', error);
+    } catch (error: unknown) {
+      logger.error(
+        'Failed to cleanup expired tokens',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return 0;
     }
   }
