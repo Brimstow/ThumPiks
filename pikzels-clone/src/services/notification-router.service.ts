@@ -14,6 +14,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../utils/prisma-factory';
+import { Prisma } from '@prisma/client';
 import { EmailService, EmailOptions } from './email.service';
 import { logger } from '../utils/logger';
 import { getUserNotificationService } from '../modules/user-notification/user-notification.service';
@@ -148,7 +149,7 @@ export class NotificationRouter {
         message: payload.message,
         type: payload.type,
         priority: payload.priority || 'normal',
-        metadata: payload.metadata as any,
+        metadata: payload.metadata as Prisma.InputJsonValue,
       },
     });
 

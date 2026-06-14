@@ -4,6 +4,7 @@ import {
   buildContextMessage,
 } from '../editor-command/action-catalog';
 import { EDITOR_TOOLS, buildToolsSystemPrompt } from '../editor-command/tool-definitions';
+import { getFrontendUrl } from '../../utils/env';
 import type { CanvasContext } from '../editor-command/action-catalog';
 import type { ChatMessagePayload, PlatformPresetContext } from './types';
 
@@ -131,7 +132,7 @@ export class EditorChatService {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.openrouterApiKey}`,
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:8556',
+        'HTTP-Referer': getFrontendUrl(),
         'X-Title': 'ThumPiks Editor Chat',
       },
       body: JSON.stringify(requestBody),

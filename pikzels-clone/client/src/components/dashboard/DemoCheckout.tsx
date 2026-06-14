@@ -88,8 +88,8 @@ export default function DemoCheckout() {
           setError(data.error || 'Failed to complete demo checkout');
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || 'An error occurred');
     } finally {
       setProcessing(false);
     }

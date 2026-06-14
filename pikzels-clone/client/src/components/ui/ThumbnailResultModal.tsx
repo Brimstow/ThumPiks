@@ -103,7 +103,12 @@ export const ThumbnailResultModal: React.FC<ThumbnailResultModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="thumbnail-result-modal-title"
+        className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
           <div className="flex items-center gap-3">
@@ -111,7 +116,7 @@ export const ThumbnailResultModal: React.FC<ThumbnailResultModalProps> = ({
               <CheckCircle className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Your Thumbnail is Ready!</h2>
+              <h2 id="thumbnail-result-modal-title" className="text-lg font-semibold text-white">Your Thumbnail is Ready!</h2>
               <p className="text-xs text-slate-400">
                 Generated successfully {creditCost > 0 && `• ${creditCost} credit used`}
               </p>

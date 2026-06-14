@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../../types/auth';
 import {
   createCheckoutSession,
   getCurrentSubscription,
@@ -38,8 +39,8 @@ export const getPlans = async (_req: Request, res: Response) => {
       creditPacks: CREDIT_PACKS,
       faqs: PRICING_FAQS,
     });
-  } catch (error: any) {
-    logger.error('Failed to retrieve pricing plans', error);
+  } catch (error: unknown) {
+    logger.error('Failed to retrieve pricing plans', error instanceof Error ? error : new Error(String(error)));
 
     return res.status(500).json({
       error: 'Failed to retrieve pricing plans',
@@ -53,11 +54,11 @@ export const getPlans = async (_req: Request, res: Response) => {
  * Body: { planId, billingCycle }
  * Requires authentication
  */
-export const createCheckout = async (req: Request, res: Response) => {
+export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
     const { planId, billingCycle } = req.body;
-    const userId = (req as any).user?.id;
-    const email = (req as any).user?.email;
+    const userId = req.user?.id;
+    const email = req.user?.email;
 
     if (!userId || !email) {
       return res.status(401).json({
@@ -85,9 +86,9 @@ export const createCheckout = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Checkout session creation failed', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Checkout session creation failed', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
       planId: req.body.planId,
     });
 
@@ -115,9 +116,9 @@ export const createCheckout = async (req: Request, res: Response) => {
  * GET /api/subscription/current
  * Requires authentication
  */
-export const getCurrent = async (req: Request, res: Response) => {
+export const getCurrent = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -141,9 +142,9 @@ export const getCurrent = async (req: Request, res: Response) => {
       watermarkFreeRemaining: wmStatus.remaining,
       watermarkFreeTotal: wmStatus.total,
     });
-  } catch (error: any) {
-    logger.error('Failed to get current subscription', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Failed to get current subscription', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
     });
 
     return res.status(500).json({
@@ -157,9 +158,9 @@ export const getCurrent = async (req: Request, res: Response) => {
  * POST /api/subscription/use-watermark-free-export
  * Requires authentication
  */
-export const useWatermarkFreeExport = async (req: Request, res: Response) => {
+export const useWatermarkFreeExport = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -180,9 +181,9 @@ export const useWatermarkFreeExport = async (req: Request, res: Response) => {
       success: true,
       remaining: result.remaining,
     });
-  } catch (error: any) {
-    logger.error('Failed to use watermark-free export', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Failed to use watermark-free export', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
     });
 
     return res.status(500).json({
@@ -196,9 +197,9 @@ export const useWatermarkFreeExport = async (req: Request, res: Response) => {
  * POST /api/subscription/cancel
  * Requires authentication
  */
-export const cancel = async (req: Request, res: Response) => {
+export const cancel = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -209,14 +210,15 @@ export const cancel = async (req: Request, res: Response) => {
     const result = await cancelSubscription(userId);
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Subscription cancellation failed', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Subscription cancellation failed', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
     });
 
-    if (error.message.includes('No active subscription')) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('No active subscription')) {
       return res.status(404).json({
-        error: error.message,
+        error: message,
       });
     }
 
@@ -251,10 +253,11 @@ export const webhook = async (req: Request, res: Response) => {
         sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
-    } catch (err: any) {
-      logger.error('Webhook signature verification failed', err);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('Webhook signature verification failed', err instanceof Error ? err : new Error(errMessage));
       return res.status(400).json({
-        error: `Webhook Error: ${err.message}`,
+        error: `Webhook Error: ${errMessage}`,
       });
     }
 
@@ -300,8 +303,8 @@ export const webhook = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json({ received: true });
-  } catch (error: any) {
-    logger.error('Webhook processing failed', error, {
+  } catch (error: unknown) {
+    logger.error('Webhook processing failed', error instanceof Error ? error : new Error(String(error)), {
       eventType: req.body?.type,
     });
 
@@ -317,10 +320,10 @@ export const webhook = async (req: Request, res: Response) => {
  * Body: { amount, thumbnailId }
  * Requires authentication
  */
-export const deduct = async (req: Request, res: Response) => {
+export const deduct = async (req: AuthRequest, res: Response) => {
   try {
     const { amount } = req.body;
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -341,15 +344,16 @@ export const deduct = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Credit deduction failed', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Credit deduction failed', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
       amount: req.body.amount,
     });
 
-    if (error.message.includes('Insufficient credits')) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Insufficient credits')) {
       return res.status(402).json({
-        error: error.message,
+        error: message,
       });
     }
 
@@ -368,8 +372,8 @@ export const getPricing = async (_req: Request, res: Response) => {
   try {
     const pricing = await getCurrentPricing();
     return res.status(200).json(pricing);
-  } catch (error: any) {
-    logger.error('Failed to retrieve current pricing', error);
+  } catch (error: unknown) {
+    logger.error('Failed to retrieve current pricing', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({
       error: 'Failed to retrieve pricing data',
     });
@@ -382,10 +386,10 @@ export const getPricing = async (_req: Request, res: Response) => {
  * Body: { session, plan, cycle }
  * Requires authentication
  */
-export const demoComplete = async (req: Request, res: Response) => {
+export const demoComplete = async (req: AuthRequest, res: Response) => {
   try {
     const { session, plan, cycle } = req.body;
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -405,14 +409,15 @@ export const demoComplete = async (req: Request, res: Response) => {
       success: true,
       message: 'Demo subscription created successfully',
     });
-  } catch (error: any) {
-    logger.error('Demo checkout completion failed', error, {
-      userId: (req as any).user?.id,
+  } catch (error: unknown) {
+    logger.error('Demo checkout completion failed', error instanceof Error ? error : new Error(String(error)), {
+      userId: req.user?.id || '',
       plan: req.body.plan,
     });
 
+    const message = error instanceof Error ? error.message : String(error);
     return res.status(500).json({
-      error: error.message || 'Failed to complete demo checkout',
+      error: message || 'Failed to complete demo checkout',
     });
   }
 };

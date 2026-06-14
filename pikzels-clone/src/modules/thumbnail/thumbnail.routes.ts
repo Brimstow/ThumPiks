@@ -93,6 +93,11 @@ router.post(
   (req, res) => bulkMoveThumbnails(req as AuthRequest, res)
 );
 
+// Trash / Restore routes — MUST be registered before /:id to avoid parameter capture
+router.get('/trash', (req, res) =>
+  getDeletedThumbnails(req as unknown as AuthRequest, res)
+);
+
 router.get('/:id', cacheMiddleware({ ttl: 600 }), (req, res) =>
   getThumbnailById(req as AuthRequest, res)
 );
@@ -124,10 +129,6 @@ router.get('/:id/download', (req, res) =>
   downloadThumbnail(req as unknown as AuthRequest, res)
 );
 
-// Trash / Restore routes
-router.get('/trash', (req, res) =>
-  getDeletedThumbnails(req as unknown as AuthRequest, res)
-);
 router.post(
   '/:id/restore',
   invalidateCacheMiddleware([

@@ -47,7 +47,7 @@ export class UserNotificationService {
         message: input.message,
         priority: input.priority || 'normal',
         actionUrl: input.actionUrl || null,
-        metadata: input.metadata as any || null,
+        metadata: (input.metadata ?? null) as never,
         expiresAt: input.expiresAt || null,
       },
     });
@@ -117,10 +117,8 @@ export class UserNotificationService {
       where: { id: notificationId },
     });
 
-    if (!notification || notification.userId !== userId) {
-      const err: any = new Error('Notification not found');
-      err.code = 'P2025';
-      throw err;
+    if (notification?.userId !== userId) {
+      throw Object.assign(new Error('Notification not found'), { code: 'P2025' });
     }
 
     await prisma.userNotification.update({
@@ -146,10 +144,8 @@ export class UserNotificationService {
       where: { id: notificationId },
     });
 
-    if (!notification || notification.userId !== userId) {
-      const err: any = new Error('Notification not found');
-      err.code = 'P2025';
-      throw err;
+    if (notification?.userId !== userId) {
+      throw Object.assign(new Error('Notification not found'), { code: 'P2025' });
     }
 
     await prisma.userNotification.delete({ where: { id: notificationId } });

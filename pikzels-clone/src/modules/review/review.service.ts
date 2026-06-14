@@ -77,8 +77,7 @@ export class ReviewService {
       throw new Error('Cannot edit an approved review. Contact support to request changes.');
     }
 
-    const data: any = {};
-    if (input.rating !== undefined) data.rating = input.rating;
+    const data: Record<string, unknown> = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.body !== undefined) data.body = input.body;
     if (input.channelName !== undefined) data.channelName = input.channelName;
@@ -125,7 +124,7 @@ export class ReviewService {
   async getPublicReviews(
     options: { featured?: boolean; limit?: number } = {}
   ): Promise<PublicReview[]> {
-    const where: any = { status: 'APPROVED' };
+    const where: Record<string, unknown> = { status: 'APPROVED' };
     if (options.featured) where.isFeatured = true;
 
     const reviews = await this.prisma.review.findMany({
@@ -219,11 +218,11 @@ export class ReviewService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize || 20));
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (query.status) where.status = query.status;
     if (query.isFeatured !== undefined) where.isFeatured = query.isFeatured;
 
-    const orderBy: any = {};
+    const orderBy: Record<string, string> = {};
     const sortBy = query.sortBy || 'createdAt';
     orderBy[sortBy] = query.sortOrder || 'desc';
 
@@ -241,7 +240,7 @@ export class ReviewService {
     ]);
 
     return {
-      data: data as any[],
+      data: data as unknown as (ReviewRecord & { User: { name: string; email: string } })[],
       total,
       page,
       pageSize,
@@ -263,7 +262,7 @@ export class ReviewService {
 
     if (!existing) return null;
 
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     if (input.status !== undefined) {
       data.status = input.status;
       data.reviewedAt = new Date();

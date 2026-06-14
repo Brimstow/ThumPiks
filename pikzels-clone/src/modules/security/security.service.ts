@@ -169,24 +169,6 @@ export async function getLoginHistory(
 }
 
 /**
- * Enable/disable 2FA for user
- * Only affects real database, never mock data
- */
-export async function update2FAStatus(
-  userId: string,
-  enabled: boolean,
-  method: '2fa' | 'sms' | 'email'
-): Promise<void> {
-  // TODO: Implement 2FA in database schema
-  logger.info('2FA update requested but not yet implemented', {
-    userId,
-    enabled,
-    method,
-  });
-  throw new Error('2FA feature not yet implemented');
-}
-
-/**
  * Terminate a session
  * Only affects real database, never mock data
  */

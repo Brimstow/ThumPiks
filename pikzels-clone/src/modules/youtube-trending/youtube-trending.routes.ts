@@ -9,6 +9,7 @@ import {
   SUPPORTED_REGIONS,
   YOUTUBE_CATEGORY_IDS,
 } from './youtube-trending.service';
+import { logger } from '../../utils/logger';
 
 const router = Router();
 
@@ -130,11 +131,11 @@ router.get('/videos', async (req: Request, res: Response) => {
       ...result,
       region: validRegion,
     });
-  } catch (error: any) {
-    console.error('[YouTubeTrending] Route error:', error);
+  } catch (error: unknown) {
+    logger.error('[YouTubeTrending] Route error', error instanceof Error ? error : undefined);
 
     // Handle specific YouTube API errors
-    if (error.message?.includes('YouTube API error')) {
+    if (error instanceof Error && error.message?.includes('YouTube API error')) {
       return res.status(502).json({
         error: 'YouTube API error',
         message: 'Failed to fetch data from YouTube. Please try again later.',

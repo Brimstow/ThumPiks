@@ -11,7 +11,7 @@ import { Provider as TooltipProvider } from '@radix-ui/react-tooltip';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ThumPiksLanding from './components/ThumPiksLanding';
-import ThumPiksTest from './components/PikzelsTest';
+import ThumPiksTest from './components/ThumPiksTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';

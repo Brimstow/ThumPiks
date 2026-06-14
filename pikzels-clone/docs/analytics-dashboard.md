@@ -1,7 +1,7 @@
 # Analytics Dashboard Implementation
 
 ## Overview
-This document describes the implementation of the detailed analytics and reporting dashboard for the Pikzels Thumbnail Maker Studio. The analytics dashboard provides users with insights into their thumbnail creation activities, helping them understand their usage patterns and optimize their workflow.
+This document describes the implementation of the detailed analytics and reporting dashboard for the ThumPiks Thumbnail Maker Studio. The analytics dashboard provides users with insights into their thumbnail creation activities, helping them understand their usage patterns and optimize their workflow.
 
 ## Backend Implementation
 

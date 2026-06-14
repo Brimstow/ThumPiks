@@ -1,17 +1,18 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import * as creditService from './credit.service';
 import { logger } from '../../utils/logger';
 import { BillingError } from '../billing/billing-provider.interface';
+import { AuthRequest } from '../../types/auth';
 
 /**
  * Get credit transaction history
  */
 export async function getTransactions(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -28,9 +29,9 @@ export async function getTransactions(
 /**
  * Get current credit balance
  */
-export async function getBalance(req: Request, res: Response): Promise<void> {
+export async function getBalance(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -48,12 +49,12 @@ export async function getBalance(req: Request, res: Response): Promise<void> {
  * Purchase credit pack (create Stripe checkout session)
  */
 export async function purchaseCreditPack(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
-    const userEmail = (req as any).user?.email;
+    const userId = req.user?.id;
+    const userEmail = req.user?.email;
 
     if (!userId || !userEmail) {
       res.status(401).json({ error: 'Unauthorized' });

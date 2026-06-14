@@ -10,6 +10,7 @@
  */
 
 import fetch from 'node-fetch';
+import { logger } from '../../utils/logger';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ interface BrandDevScreenshotResponse {
 export async function extractBrandFromUrl(
   url: string
 ): Promise<BrandExtractionResult> {
-  console.log('[Brand Extraction] Starting extraction for:', url);
+  logger.info('[Brand Extraction] Starting extraction', { url });
 
   // Parse domain from URL
   const parsedUrl = new URL(url);
@@ -137,15 +138,10 @@ export async function extractBrandFromUrl(
     try {
       return await extractWithBrandDevAPI(domain, url);
     } catch (error) {
-      console.error(
-        '[Brand Extraction] Brand.dev API failed, using fallback:',
-        error
-      );
+      logger.error('[Brand Extraction] Brand.dev API failed, using fallback', error instanceof Error ? error : new Error(String(error)));
     }
   } else {
-    console.log(
-      '[Brand Extraction] No BRAND_DEV_API_KEY configured, using fallback'
-    );
+    logger.info('[Brand Extraction] No BRAND_DEV_API_KEY configured, using fallback');
   }
 
   // Fallback to basic HTTP extraction
@@ -159,7 +155,7 @@ async function extractWithBrandDevAPI(
   domain: string,
   originalUrl: string
 ): Promise<BrandExtractionResult> {
-  console.log('[Brand Extraction] Using Brand.dev API for domain:', domain);
+  logger.info('[Brand Extraction] Using Brand.dev API for domain', { domain });
 
   // Call Brand.dev retrieve endpoint for logos and basic info
   const [retrieveData, styleguideData, screenshotData] = await Promise.all([
@@ -345,7 +341,7 @@ async function extractWithHttpFallback(
   url: string,
   _domain: string
 ): Promise<BrandExtractionResult> {
-  console.log('[Brand Extraction] Using HTTP fallback for:', url);
+  logger.info('[Brand Extraction] Using HTTP fallback', { url });
 
   const colors: ExtractedColor[] = [];
   const fonts: ExtractedFont[] = [];
@@ -450,7 +446,7 @@ async function extractWithHttpFallback(
       }
     }
   } catch (error) {
-    console.error('[Brand Extraction] HTTP fallback error:', error);
+    logger.error('[Brand Extraction] HTTP fallback error', error instanceof Error ? error : new Error(String(error)));
   }
 
   return {

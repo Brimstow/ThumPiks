@@ -316,6 +316,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
                     }
                   `}
                   title="Undo (Ctrl+Z)"
+                  aria-label="Undo (Ctrl+Z)"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -333,6 +334,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ thumbnailId, onClose, onSav
                     }
                   `}
                   title="Redo (Ctrl+Y)"
+                  aria-label="Redo (Ctrl+Y)"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />

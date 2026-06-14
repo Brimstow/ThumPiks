@@ -178,6 +178,8 @@ export interface DrawingPath {
   opacity: number;
   blendMode: BlendMode;
   smoothing: number;
+  /** Source sampling point for clone stamp tool */
+  cloneSource?: { x: number; y: number };
 }
 
 // ============================================

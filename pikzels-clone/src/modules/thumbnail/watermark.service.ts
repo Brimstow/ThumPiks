@@ -186,9 +186,9 @@ export async function watermarkImageUrls(
           originalPublicIds[index] = '';
         }
       } catch (error) {
-        console.warn(
-          `[Watermark] Failed to watermark image, returning original: ${url}`,
-          error
+        logger.warn(
+          '[Watermark] Failed to watermark image, returning original',
+          { url, error: String(error) }
         );
         // Degrade gracefully — don't break the user flow
         displayUrls[index] = url;

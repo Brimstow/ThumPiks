@@ -231,3 +231,35 @@ input:-webkit-autofill:active {
   caret-color: #ffffff;
   transition: background-color 5000s ease-in-out 0s;
 }
+
+/* ============================================================
+   CSP-COMPLIANT KEYFRAMES
+   Moved from inline <style> tags in React components to this
+   CSS file to eliminate the need for 'unsafe-inline' in CSP
+   style-src-elem directive (Security Audit Finding 2, Phase B).
+   ============================================================ */
+
+/* DashboardHome — Quick Edit banner animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+@keyframes nudge-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.qe-banner:hover .qe-anim {
+  animation-play-state: paused !important;
+}

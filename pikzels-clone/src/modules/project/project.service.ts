@@ -2,6 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import { CacheService } from '../../services/cache.service';
 import { v4 as uuidv4 } from 'uuid';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
+
+interface TreeNode { [key: string]: unknown; children: unknown[] }
 
 // Default instances for production use
 const defaultPrisma = getPrisma();
@@ -142,7 +145,7 @@ export class ProjectService {
       cacheKey,
       async () => {
         // Build where clause
-        const where: any = { userId };
+        const where: Record<string, unknown> = { userId };
 
         // Apply filters
         if (filters?.searchTerm) {
@@ -170,7 +173,7 @@ export class ProjectService {
         }
 
         // Build orderBy clause
-        const orderBy: any = {};
+        const orderBy: Record<string, string> = {};
         if (filters?.sortBy) {
           orderBy[filters.sortBy] = filters.sortOrder || 'desc';
         } else {
@@ -561,20 +564,19 @@ export class ProjectService {
           },
         });
 
-        console.log('DEBUG: All projects fetched:', allProjects.length);
-        console.log(
-          'DEBUG: Projects with parent IDs:',
-          allProjects.filter(p => p.parentProjectId).length
-        );
-        console.log('DEBUG: Projects by depth:', {
+        logger.debug('Projects tree fetched', { total: allProjects.length });
+        logger.debug('Projects with parent IDs', {
+          count: allProjects.filter(p => p.parentProjectId).length,
+        });
+        logger.debug('Projects by depth', {
           depth0: allProjects.filter(p => p.depth === 0).length,
           depth1: allProjects.filter(p => p.depth === 1).length,
           depth2: allProjects.filter(p => p.depth === 2).length,
         });
 
         // Build tree structure
-        const projectMap = new Map();
-        const rootProjects: any[] = [];
+        const projectMap = new Map<string, TreeNode>();
+        const rootProjects: TreeNode[] = [];
 
         // First pass: create map of all projects
         allProjects.forEach(project => {
@@ -588,25 +590,26 @@ export class ProjectService {
         allProjects.forEach(project => {
           if (project.parentProjectId) {
             const parent = projectMap.get(project.parentProjectId);
-            if (parent) {
-              parent.children.push(projectMap.get(project.id));
+            const child = projectMap.get(project.id);
+            if (parent && child) {
+              parent.children.push(child);
             }
           } else {
-            rootProjects.push(projectMap.get(project.id));
+            const node = projectMap.get(project.id);
+            if (node) rootProjects.push(node);
           }
         });
 
-        console.log('DEBUG: Root projects count:', rootProjects.length);
-        console.log(
-          'DEBUG: Sample root project:',
-          rootProjects[0]
+        logger.debug('Root projects count', { count: rootProjects.length });
+        logger.debug('Sample root project', {
+          sample: rootProjects[0]
             ? {
                 id: rootProjects[0].id,
                 name: rootProjects[0].name,
-                childrenCount: rootProjects[0].children?.length || 0,
+                childrenCount: (rootProjects[0].children as unknown[])?.length || 0,
               }
-            : 'No root projects'
-        );
+            : null,
+        });
 
         return rootProjects;
       },

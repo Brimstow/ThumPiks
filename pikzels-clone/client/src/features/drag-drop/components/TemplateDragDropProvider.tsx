@@ -15,7 +15,7 @@ import React, { createContext, useContext, useRef, useCallback, useState } from 
 import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
 import type { LayoutPreset, CompositionState } from '../../composition-templates/types';
 import { useTemplateDragDrop, type UseTemplateDragDropReturn } from '../hooks/useTemplateDragDrop';
-import { isTemplateDragItem, isCanvasLayerDragItem, type CanvasLayerDragItem } from '../types';
+import { isTemplateDragItem, isCanvasLayerDragItem, type CanvasLayerDragItem, type DndEvent } from '../types';
 import {
   buildTemplateAnnouncement,
   buildLayerRemovalAnnouncement,
@@ -291,8 +291,7 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
   }, []);
 
   // Handle drag start - detect template vs layer drags
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragStart = useCallback((event: any) => {
+  const handleDragStart = useCallback((event: DndEvent) => {
     const source = event?.operation?.source;
     if (!source?.data) return;
 
@@ -310,7 +309,7 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
   }, [handleTemplateDragStart]);
 
   // Handle drag end with canvas rect and position
-  const onDragEnd = useCallback((event: unknown) => {
+  const onDragEnd = useCallback((event: DndEvent) => {
     // Handle template drag end
     const canvasRect = canvasRef.current?.getBoundingClientRect() ?? null;
     handleTemplateDragEnd(event, canvasRect, lastDropPosition.current);
@@ -358,8 +357,7 @@ export const TemplateDragDropProvider: React.FC<TemplateDragDropProviderProps> =
 
   // Track mouse position during drag for drop coordinates
   // PERFORMANCE: Throttled to 16ms to prevent excessive updates during drag
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const onDragMove = useCallback((event: any) => {
+  const onDragMove = useCallback((event: DndEvent) => {
     // Throttle check - skip if called too frequently
     const now = Date.now();
     if (now - lastDragMoveTime.current < THROTTLE_MS) {

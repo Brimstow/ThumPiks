@@ -131,6 +131,7 @@ const DraggableThumbnailCard: React.FC<DraggableThumbnailCardProps> = ({
               onClick={onEdit}
               className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
               title="Edit in Editor"
+              aria-label="Edit in Editor"
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -138,6 +139,7 @@ const DraggableThumbnailCard: React.FC<DraggableThumbnailCardProps> = ({
               onClick={onDownload}
               className="p-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
               title="Download"
+              aria-label="Download"
             >
               <Download className="w-4 h-4" />
             </button>
@@ -145,6 +147,7 @@ const DraggableThumbnailCard: React.FC<DraggableThumbnailCardProps> = ({
               onClick={onMove}
               className="p-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors"
               title="Move to Project"
+              aria-label="Move to Project"
             >
               <FolderInput className="w-4 h-4" />
             </button>
@@ -152,6 +155,7 @@ const DraggableThumbnailCard: React.FC<DraggableThumbnailCardProps> = ({
               onClick={onDelete}
               className="p-2.5 bg-red-600/80 hover:bg-red-600 text-white rounded-lg transition-colors"
               title="Delete"
+              aria-label="Delete"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -280,6 +284,7 @@ const MoveToProjectModal: React.FC<MoveModalProps> = ({
             onClick={onClose}
             className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
             title="Close"
+            aria-label="Close"
           >
             <X className="w-4 h-4 text-slate-400" />
           </button>
@@ -566,6 +571,7 @@ const ProjectDetail: React.FC = () => {
                 onClick={() => navigate('/projects')}
                 className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                 title="Back to Projects"
+                aria-label="Back to Projects"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-400" />
               </button>
@@ -593,6 +599,7 @@ const ProjectDetail: React.FC = () => {
                   onClick={() => setBulkSelectMode(true)}
                   className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                   title="Select multiple"
+                  aria-label="Select multiple"
                 >
                   <Square className="w-4 h-4 text-slate-400" />
                 </button>
@@ -603,6 +610,7 @@ const ProjectDetail: React.FC = () => {
                 }}
                 className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
                 title="Refresh thumbnails"
+                aria-label="Refresh thumbnails"
               >
                 <RefreshCw className="w-4 h-4 text-slate-400" />
               </button>

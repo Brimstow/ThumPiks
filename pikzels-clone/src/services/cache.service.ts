@@ -35,7 +35,7 @@ export class CacheService {
 
     // Skip Redis connection in test environment
     if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
-      console.log('🧪 Test environment detected - using in-memory cache only');
+      logger.info('Test environment detected - using in-memory cache only');
       return;
     }
 
@@ -72,7 +72,7 @@ export class CacheService {
 
     // Handle connection events
     this.redis.on('connect', () => {
-      console.log('✅ Redis connected successfully - using Redis cache');
+      logger.info('Redis connected successfully - using Redis cache');
       this.isRedisAvailable = true;
       if (this.redisCheckInterval) {
         clearInterval(this.redisCheckInterval);
@@ -83,14 +83,14 @@ export class CacheService {
     this.redis.on('error', _error => {
       if (!this.isRedisAvailable) {
         // Only log once when initially failing
-        console.log('⚠️  Redis unavailable - falling back to in-memory cache');
+        logger.info('Redis unavailable - falling back to in-memory cache');
       }
       this.isRedisAvailable = false;
       this.startRedisRetryCheck();
     });
 
     this.redis.on('close', () => {
-      console.log('📴 Redis connection closed - using in-memory cache');
+      logger.info('Redis connection closed - using in-memory cache');
       this.isRedisAvailable = false;
       this.startRedisRetryCheck();
     });
@@ -213,7 +213,7 @@ export class CacheService {
       try {
         await this.redis.del(key);
       } catch (error) {
-        console.warn(`Cache del error for key ${key}:`, error);
+        logger.warn('Cache del error', { key, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -231,7 +231,7 @@ export class CacheService {
       try {
         await this.scanAndDelete(this.redis, pattern);
       } catch (error) {
-        console.warn(`Cache delPattern error for pattern ${pattern}:`, error);
+        logger.warn('Cache delPattern error', { pattern, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -276,7 +276,7 @@ export class CacheService {
       try {
         return (await this.redis.exists(key)) === 1;
       } catch (error) {
-        console.warn(`Cache exists error for key ${key}:`, error);
+        logger.warn('Cache exists error', { key, error: error instanceof Error ? error.message : String(error) });
         this.isRedisAvailable = false;
         this.startRedisRetryCheck();
       }
@@ -338,7 +338,7 @@ export class CacheService {
         }
         return count;
       } catch (error) {
-        console.warn(`Cache increment error for key ${key}:`, error);
+        logger.warn('Cache increment error', { key, error: error instanceof Error ? error.message : String(error) });
         this.isRedisAvailable = false;
         this.startRedisRetryCheck();
       }

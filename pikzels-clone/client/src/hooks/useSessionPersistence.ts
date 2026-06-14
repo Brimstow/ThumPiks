@@ -99,14 +99,17 @@ export const useSessionPersistence = () => {
     };
 
     try {
-      // Check backend health
+      // Check backend health with 5s timeout via AbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(`/health`, {
         method: 'GET',
-        timeout: 5000,
+        signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache'
         }
-      } as any);
+      });
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         status.backendOnline = true;

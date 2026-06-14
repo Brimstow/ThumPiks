@@ -1,7 +1,7 @@
 # Advanced Thumbnail Filtering and Sorting Implementation
 
 ## Overview
-This document describes the implementation of advanced thumbnail filtering and sorting functionality in the Pikzels Clone application. This feature allows users to efficiently organize and find their thumbnails using various filter criteria and sorting options.
+This document describes the implementation of advanced thumbnail filtering and sorting functionality in the ThumPiks application. This feature allows users to efficiently organize and find their thumbnails using various filter criteria and sorting options.
 
 ## Backend Implementation
 

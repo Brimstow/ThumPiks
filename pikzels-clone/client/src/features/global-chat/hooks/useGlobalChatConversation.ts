@@ -61,11 +61,12 @@ export function useGlobalChatConversation() {
           const session = await createSession(scope);
           currentSessionId = session.id;
           setSessionId(session.id);
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Unknown error';
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantMessageId
-                ? { ...m, content: `Error: ${err.message}`, isStreaming: false }
+                ? { ...m, content: `Error: ${message}`, isStreaming: false }
                 : m
             )
           );

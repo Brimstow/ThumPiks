@@ -3,6 +3,8 @@
  * Fetches trending videos and thumbnails from YouTube Data API v3
  */
 
+import { logger } from '../../utils/logger';
+
 // YouTube video category IDs (official)
 // See: https://developers.google.com/youtube/v3/docs/videoCategories/list
 export const YOUTUBE_CATEGORY_IDS: Record<string, string> = {
@@ -70,6 +72,40 @@ export interface YouTubeTrendingResponse {
   categoryId: string;
 }
 
+interface YouTubeApiThumbnailInfo {
+  url?: string;
+}
+
+interface YouTubeApiItem {
+  id?: string;
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    channelId?: string;
+    publishedAt?: string;
+    categoryId?: string;
+    tags?: string[];
+    thumbnails?: {
+      default?: YouTubeApiThumbnailInfo;
+      medium?: YouTubeApiThumbnailInfo;
+      high?: YouTubeApiThumbnailInfo;
+      maxres?: YouTubeApiThumbnailInfo;
+    };
+    assignable?: boolean;
+  };
+  statistics?: {
+    viewCount?: string;
+    likeCount?: string;
+    commentCount?: string;
+  };
+}
+
+interface YouTubeApiResponse {
+  items?: YouTubeApiItem[];
+  nextPageToken?: string;
+  pageInfo?: { totalResults?: number };
+}
+
 class YouTubeTrendingService {
   private apiKey: string | undefined;
   private baseUrl = 'https://www.googleapis.com/youtube/v3';
@@ -131,18 +167,18 @@ class YouTubeTrendingService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('[YouTubeTrending] API error:', errorData);
+        logger.error('[YouTubeTrending] API error', undefined, { errorData });
         throw new Error(
           `YouTube API error: ${response.status} ${response.statusText}`
         );
       }
 
-      const data: any = await response.json();
+      const data = await response.json() as YouTubeApiResponse;
 
       // Transform YouTube API response to our format
       const videos: YouTubeTrendingVideo[] = (data.items || []).map(
-        (item: any) => ({
-          id: item.id,
+        (item: YouTubeApiItem) => ({
+          id: item.id ?? '',
           title: item.snippet?.title || '',
           channelTitle: item.snippet?.channelTitle || '',
           channelId: item.snippet?.channelId || '',
@@ -151,25 +187,25 @@ class YouTubeTrendingService {
             default: item.snippet?.thumbnails?.default?.url || '',
             medium: item.snippet?.thumbnails?.medium?.url || '',
             high: item.snippet?.thumbnails?.high?.url || '',
-            maxres: item.snippet?.thumbnails?.maxres?.url,
+            ...(item.snippet?.thumbnails?.maxres?.url && { maxres: item.snippet.thumbnails.maxres.url }),
           },
           viewCount: item.statistics?.viewCount || '0',
-          likeCount: item.statistics?.likeCount,
-          commentCount: item.statistics?.commentCount,
+          ...(item.statistics?.likeCount !== undefined && { likeCount: item.statistics.likeCount }),
+          ...(item.statistics?.commentCount !== undefined && { commentCount: item.statistics.commentCount }),
           categoryId: item.snippet?.categoryId || '',
-          tags: item.snippet?.tags,
+          ...(item.snippet?.tags && { tags: item.snippet.tags }),
         })
       );
 
       return {
         videos,
-        nextPageToken: data.nextPageToken,
+        ...(data.nextPageToken && { nextPageToken: data.nextPageToken }),
         totalResults: data.pageInfo?.totalResults || videos.length,
         regionCode,
         categoryId,
       };
     } catch (error) {
-      console.error('[YouTubeTrending] Error fetching trending videos:', error);
+      logger.error('[YouTubeTrending] Error fetching trending videos', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -199,16 +235,16 @@ class YouTubeTrendingService {
         throw new Error(`YouTube API error: ${response.status}`);
       }
 
-      const data: any = await response.json();
+      const data = await response.json() as YouTubeApiResponse;
 
       return (data.items || [])
-        .filter((item: any) => item.snippet?.assignable)
-        .map((item: any) => ({
-          id: item.id,
+        .filter((item: YouTubeApiItem) => item.snippet?.assignable)
+        .map((item: YouTubeApiItem) => ({
+          id: item.id ?? '',
           title: item.snippet?.title || '',
         }));
     } catch (error) {
-      console.error('[YouTubeTrending] Error fetching categories:', error);
+      logger.error('[YouTubeTrending] Error fetching categories', error instanceof Error ? error : undefined);
       throw error;
     }
   }

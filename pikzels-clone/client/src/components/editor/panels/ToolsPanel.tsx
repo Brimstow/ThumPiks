@@ -254,6 +254,7 @@ const ShapesFlyout: React.FC<ShapesFlyoutProps> = ({ activeTool, onToolSelect })
         <button
           className={`tool-button tool-button--flyout ${isShapeActive ? 'tool-button--active' : ''}`}
           title="Shapes (R)"
+          aria-label="Shapes (R)"
         >
           <ActiveIcon />
           <ChevronDown className="tool-button__chevron" size={10} />

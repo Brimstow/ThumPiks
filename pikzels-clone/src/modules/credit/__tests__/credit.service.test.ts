@@ -49,7 +49,6 @@ import {
   refundCredits,
 } from '../credit.service';
 import { logger } from '../../../utils/logger';
-import { getBillingProvider } from '../../billing';
 
 // ── Accessors ────────────────────────────────────────────────────────
 

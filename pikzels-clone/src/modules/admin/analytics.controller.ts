@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query, validationResult } from 'express-validator';
 import { analyticsService, DateRange } from './analytics.service';
+import { logger } from '../../utils/logger';
 
 export class AnalyticsController {
 
@@ -37,7 +38,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get analytics overview error:', error);
+      logger.error('Get analytics overview error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve analytics overview',
         code: 'ANALYTICS_OVERVIEW_ERROR'
@@ -78,7 +79,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get user metrics error:', error);
+      logger.error('Get user metrics error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve user metrics',
         code: 'USER_METRICS_ERROR'
@@ -119,7 +120,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get content metrics error:', error);
+      logger.error('Get content metrics error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve content metrics',
         code: 'CONTENT_METRICS_ERROR'
@@ -160,7 +161,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get revenue metrics error:', error);
+      logger.error('Get revenue metrics error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve revenue metrics',
         code: 'REVENUE_METRICS_ERROR'
@@ -201,7 +202,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get system metrics error:', error);
+      logger.error('Get system metrics error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve system metrics',
         code: 'SYSTEM_METRICS_ERROR'
@@ -239,7 +240,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Store system metric error:', error);
+      logger.error('Store system metric error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to store system metric',
         code: 'STORE_METRIC_ERROR'
@@ -291,7 +292,7 @@ export class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('Get user activity logs error:', error);
+      logger.error('Get user activity logs error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve user activity logs',
         code: 'ACTIVITY_LOGS_ERROR'
@@ -343,7 +344,7 @@ export class AnalyticsController {
       res.send(exportData);
 
     } catch (error) {
-      console.error('Export analytics data error:', error);
+      logger.error('Export analytics data error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to export analytics data',
         code: 'EXPORT_ERROR'

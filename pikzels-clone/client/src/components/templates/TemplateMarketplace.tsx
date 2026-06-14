@@ -100,8 +100,8 @@ const TemplateMarketplace: React.FC = () => {
         ? data.map(normalizeTemplate)
         : [];
       setTemplates(normalized);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch templates');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || 'Failed to fetch templates');
     } finally {
       setLoading(false);
     }
@@ -295,8 +295,7 @@ const TemplateMarketplace: React.FC = () => {
                   <button
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     onClick={() => {
-                      // TODO: Implement template usage
-                      alert(`Use template: ${template.name}`);
+                      alert(`Template "${template.name}" — coming soon!`);
                     }}
                   >
                     Use Template

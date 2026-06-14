@@ -10,13 +10,14 @@
  * - Service Factory: Uses lazy-init pattern (like feedback.controller.ts)
  */
 
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { ReviewService } from './review.service';
 import { logger } from '../../utils/logger';
-import type { CreateReviewInput, UpdateReviewInput, AdminReviewUpdate, ReviewStatus } from './types';
+import type { CreateReviewInput, UpdateReviewInput, AdminReviewUpdate, ReviewStatus, ReviewListQuery } from './types';
 
 // ============================================
 // LAZY SERVICE INITIALIZATION
@@ -59,9 +60,9 @@ const VALID_STATUSES: ReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
  * GET /api/reviews/public - Get all approved reviews for public display
  */
 export const getPublicReviews = async (
-  req: any,
+  req: Request,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const featured = req.query.featured === 'true' ? true : undefined;
     const limit = parseInt(req.query.limit as string) || undefined;
@@ -72,8 +73,8 @@ export const getPublicReviews = async (
     });
 
     return res.json({ reviews });
-  } catch (error: any) {
-    logger.error('Failed to get public reviews', error);
+  } catch (error: unknown) {
+    logger.error('Failed to get public reviews', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to get reviews' });
   }
 };
@@ -82,14 +83,14 @@ export const getPublicReviews = async (
  * GET /api/reviews/stats - Get public review stats
  */
 export const getPublicStats = async (
-  _req: any,
+  _req: Request,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const stats = await getReviewService().getPublicStats();
     return res.json(stats);
-  } catch (error: any) {
-    logger.error('Failed to get review stats', error);
+  } catch (error: unknown) {
+    logger.error('Failed to get review stats', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to get stats' });
   }
 };
@@ -104,11 +105,10 @@ export const getPublicStats = async (
 export const submitReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { rating, title, body, channelName, channelUrl, subscribers, niche, improvement } = req.body;
 
@@ -152,14 +152,15 @@ export const submitReview = async (
       improvement: improvement?.trim(),
     };
 
-    const review = await getReviewService().create(req.user.id, input);
+    const review = await getReviewService().create(user.id, input);
 
     return res.status(201).json(review);
-  } catch (error: any) {
-    if (error.message === 'You have already submitted a review') {
-      return res.status(409).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === 'You have already submitted a review') {
+      return res.status(409).json({ error: message });
     }
-    logger.error('Failed to submit review', error, { userId: req.user?.id || '' });
+    logger.error('Failed to submit review', error instanceof Error ? error : new Error(String(error)), { userId: req.user?.id || '' });
     return res.status(500).json({ error: 'Failed to submit review' });
   }
 };
@@ -170,17 +171,16 @@ export const submitReview = async (
 export const getMyReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
-    const review = await getReviewService().getByUserId(req.user.id);
+    const review = await getReviewService().getByUserId(user.id);
 
     return res.json({ review });
-  } catch (error: any) {
-    logger.error('Failed to get user review', error, { userId: req.user?.id || '' });
+  } catch (error: unknown) {
+    logger.error('Failed to get user review', error instanceof Error ? error : new Error(String(error)), { userId: req.user?.id || '' });
     return res.status(500).json({ error: 'Failed to get review' });
   }
 };
@@ -191,11 +191,10 @@ export const getMyReview = async (
 export const updateMyReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { rating, title, body, channelName, channelUrl, subscribers, niche, improvement } = req.body;
 
@@ -221,18 +220,19 @@ export const updateMyReview = async (
     if (niche !== undefined) input.niche = niche?.trim();
     if (improvement !== undefined) input.improvement = improvement?.trim();
 
-    const review = await getReviewService().update(req.user.id, input);
+    const review = await getReviewService().update(user.id, input);
 
     if (!review) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
     return res.json(review);
-  } catch (error: any) {
-    if (error.message?.includes('Cannot edit an approved review')) {
-      return res.status(403).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Cannot edit an approved review')) {
+      return res.status(403).json({ error: message });
     }
-    logger.error('Failed to update review', error, { userId: req.user?.id || '' });
+    logger.error('Failed to update review', error instanceof Error ? error : new Error(String(error)), { userId: req.user?.id || '' });
     return res.status(500).json({ error: 'Failed to update review' });
   }
 };
@@ -243,21 +243,20 @@ export const updateMyReview = async (
 export const deleteMyReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
-    const deleted = await getReviewService().delete(req.user.id);
+    const deleted = await getReviewService().delete(user.id);
 
     if (!deleted) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
     return res.status(204).send();
-  } catch (error: any) {
-    logger.error('Failed to delete review', error, { userId: req.user?.id || '' });
+  } catch (error: unknown) {
+    logger.error('Failed to delete review', error instanceof Error ? error : new Error(String(error)), { userId: req.user?.id || '' });
     return res.status(500).json({ error: 'Failed to delete review' });
   }
 };
@@ -272,22 +271,22 @@ export const deleteMyReview = async (
 export const adminListReviews = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const query = {
       page: parseInt(req.query.page as string) || 1,
       pageSize: parseInt(req.query.pageSize as string) || 20,
       ...(req.query.status ? { status: req.query.status as ReviewStatus } : {}),
       ...(req.query.isFeatured === 'true' ? { isFeatured: true } : req.query.isFeatured === 'false' ? { isFeatured: false } : {}),
-      sortBy: (req.query.sortBy as any) || 'createdAt',
-      sortOrder: (req.query.sortOrder as any) || 'desc',
-    };
+      ...((req.query.sortBy) && { sortBy: req.query.sortBy as ReviewListQuery['sortBy'] }),
+      ...((req.query.sortOrder) && { sortOrder: req.query.sortOrder as 'asc' | 'desc' }),
+    } as ReviewListQuery;
 
     const result = await getReviewService().adminList(query);
 
     return res.json(result);
-  } catch (error: any) {
-    logger.error('Failed to list reviews (admin)', error);
+  } catch (error: unknown) {
+    logger.error('Failed to list reviews (admin)', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to list reviews' });
   }
 };
@@ -298,11 +297,10 @@ export const adminListReviews = async (
 export const adminUpdateReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     const { status, isFeatured, adminNote } = req.body;
@@ -316,15 +314,15 @@ export const adminUpdateReview = async (
     if (isFeatured !== undefined) input.isFeatured = isFeatured;
     if (adminNote !== undefined) input.adminNote = adminNote;
 
-    const review = await getReviewService().adminUpdate(id, req.user!.id, input);
+    const review = await getReviewService().adminUpdate(id, user.id, input);
 
     if (!review) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
     return res.json(review);
-  } catch (error: any) {
-    logger.error('Failed to update review (admin)', error, { reviewId: req.params.id });
+  } catch (error: unknown) {
+    logger.error('Failed to update review (admin)', error instanceof Error ? error : new Error(String(error)), { reviewId: req.params.id });
     return res.status(500).json({ error: 'Failed to update review' });
   }
 };
@@ -335,7 +333,7 @@ export const adminUpdateReview = async (
 export const adminDeleteReview = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const id = req.params.id as string;
 
@@ -346,8 +344,8 @@ export const adminDeleteReview = async (
     }
 
     return res.status(204).send();
-  } catch (error: any) {
-    logger.error('Failed to delete review (admin)', error, { reviewId: req.params?.id || '' });
+  } catch (error: unknown) {
+    logger.error('Failed to delete review (admin)', error instanceof Error ? error : new Error(String(error)), { reviewId: req.params?.id || '' });
     return res.status(500).json({ error: 'Failed to delete review' });
   }
 };

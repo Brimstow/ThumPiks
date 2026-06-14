@@ -351,6 +351,7 @@ const TrendingPage = () => {
               disabled={isLoading}
               className="p-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-50"
               title="Refresh"
+              aria-label="Refresh"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>

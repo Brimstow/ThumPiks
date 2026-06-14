@@ -4,6 +4,7 @@ import {
   AdminUser,
   ADMIN_PERMISSIONS,
 } from './admin-auth.service';
+import { logger } from '../../utils/logger';
 
 // Extend Express Request interface to include admin user
 declare global {
@@ -64,7 +65,7 @@ export const authenticateAdmin = async (
 
     next();
   } catch (error) {
-    console.error('Admin authentication error:', error);
+    logger.error('Admin authentication error', error instanceof Error ? error : undefined);
     res.status(500).json({
       error: 'Authentication error',
       code: 'ADMIN_AUTH_ERROR',

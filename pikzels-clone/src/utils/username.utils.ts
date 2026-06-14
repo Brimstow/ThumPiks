@@ -1,4 +1,5 @@
 import { getPrisma } from './prisma-factory';
+import { logger } from './logger';
 
 const prisma = getPrisma();
 
@@ -153,7 +154,7 @@ export class UsernameUtils {
 
       return !existing;
     } catch (error) {
-      console.error('Error checking username availability:', error);
+      logger.error('Error checking username availability', error instanceof Error ? error : undefined);
       return false;
     }
   }

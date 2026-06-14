@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Search, RefreshCw, Loader2, AlertCircle, Trash2, X, Image } from 'lucide-react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { useDraggable, useDroppable } from '@dnd-kit/react';
+import type { DndEvent } from '../../features/drag-drop/types';
 import { getUserAssets, uploadAsset, deleteAsset, getStorageUsage, recategorizeAsset, UserAsset } from '../../services/quickEditService';
 import { formatRelativeTime, formatFileSize } from '../../lib/formatters';
 import ImagePreviewModal from '../ui/ImagePreviewModal';
@@ -338,14 +339,13 @@ const UploadsPage: React.FC = () => {
   // Map filter tab value → asset type for drag-drop recategorization
   const tabToAssetType: Record<string, AssetType> = { face: 'face', background: 'background', logo: 'logo' };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragEnd = useCallback((event: DndEvent) => {
     const source = event.operation?.source;
     const target = event.operation?.target;
     if (!source || !target) return;
 
-    const assetId = source.data?.assetId as string | undefined;
-    const tabValue = target.data?.tabValue as AssetTypeFilter | undefined;
+    const assetId = (source.data as Record<string, unknown>)?.assetId as string | undefined;
+    const tabValue = (target.data as Record<string, unknown>)?.tabValue as AssetTypeFilter | undefined;
     if (assetId && tabValue && tabValue !== 'all' && tabToAssetType[tabValue]) {
       handleRecategorizeAsset(assetId, tabToAssetType[tabValue]);
     }

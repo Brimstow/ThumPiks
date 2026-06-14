@@ -42,7 +42,7 @@ export class EmailService {
         <p><a href="http://localhost:5173/reset-password?token=${resetToken}">Reset Password</a></p>
         <p>This link will expire in 1 hour.</p>
         <p>If you did not request a password reset, please ignore this email.</p>
-        <p>Thanks,<br>The Pikzels Team</p>
+        <p>Thanks,<br>The ThumPiks Team</p>
       `,
     };
 

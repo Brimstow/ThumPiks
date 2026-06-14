@@ -61,7 +61,6 @@ jest.mock('../../credit/credit.service', () => ({
 }));
 
 import { AIPriorityQueueService, getAIPriorityQueue } from '../ai-priority-queue.service';
-import { getCurrentSubscription } from '../../subscription/subscription.service';
 import { Queue } from 'bullmq';
 
 // Get mock handles
@@ -83,13 +82,13 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
     it('ultra_pro subscription resolves to priority 1 in executeViaQueue', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(0);
       bullmq.__mockWaitUntilFinished.mockResolvedValue({ images: ['result.png'] });
 
       const directExecutor = jest.fn().mockResolvedValue({ images: ['result.png'] });
 
-      const result = await service.executeViaQueue(
+      await service.executeViaQueue(
         {
           operationType: 'generate',
           userId: 'user-ultra',
@@ -116,7 +115,7 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
     it('free subscription resolves to priority 10 in executeViaQueue', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(0);
       bullmq.__mockWaitUntilFinished.mockResolvedValue({ images: ['result.png'] });
 
@@ -136,7 +135,7 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
         directExecutor
       );
 
-      const mockQueueInstance = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueueInstance = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       expect(mockQueueInstance.add).toHaveBeenCalledWith(
         'generate',
         expect.objectContaining({ planType: 'free' }),
@@ -174,7 +173,7 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
     it('falls back when Redis connection fails during capacity check', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockRejectedValue(new Error('ECONNREFUSED'));
 
       const directExecutor = jest.fn().mockResolvedValue({ images: ['fallback.png'] });
@@ -202,7 +201,7 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
     it('throws 503 when queue is at capacity (500 waiting)', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(500);
 
       const directExecutor = jest.fn();
@@ -231,7 +230,7 @@ describe('AI Priority Queue Integration (Controller-level)', () => {
     it('allows request when queue is below capacity (499 waiting)', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(499);
       bullmq.__mockWaitUntilFinished.mockResolvedValue({ images: ['ok.png'] });
 

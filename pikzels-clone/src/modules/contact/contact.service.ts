@@ -11,7 +11,7 @@
  * - Modular Design: Shared service under src/modules/contact/
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger';
 import {
   contactAutoResponseEmail,
@@ -29,6 +29,16 @@ import {
   CONTACT_VALIDATION,
   SPAM_PROTECTION,
 } from './types';
+
+/** Minimal type for submission records used in email methods */
+interface ContactSubmissionForEmail {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: string;
+}
 
 // ============================================
 // VALIDATION HELPERS
@@ -475,7 +485,7 @@ export class ContactService {
       const skip = (page - 1) * pageSize;
 
       // Build where clause
-      const where: any = {};
+      const where: Prisma.ContactSubmissionWhereInput = {};
 
       if (query.status) {
         where.status = query.status;
@@ -534,7 +544,7 @@ export class ContactService {
     ticketId?: string
   ): Promise<ContactSubmissionRecord | null> {
     try {
-      const updateData: any = { status };
+      const updateData: Prisma.ContactSubmissionUncheckedUpdateInput = { status };
 
       if (
         status === 'TRIAGED' ||
@@ -607,7 +617,7 @@ export class ContactService {
   /**
    * Send auto-response email to user confirming their submission
    */
-  private async sendAutoResponseEmail(submission: any): Promise<void> {
+  private async sendAutoResponseEmail(submission: ContactSubmissionForEmail): Promise<void> {
     try {
       const html = contactAutoResponseEmail({
         name: submission.name,
@@ -644,7 +654,7 @@ export class ContactService {
   /**
    * Send admin notification email when a contact form is submitted
    */
-  private async sendAdminNotificationEmail(submission: any): Promise<void> {
+  private async sendAdminNotificationEmail(submission: ContactSubmissionForEmail): Promise<void> {
     try {
       const adminEmail = process.env.ADMIN_EMAIL;
       if (!adminEmail) {

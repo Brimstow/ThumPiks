@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { EditorRouter } from '../components/editor/EditorRouter';
-import { authGet } from '../utils/api';
+import { authGet, authPost } from '../utils/api';
 import type { AdjustmentState, Layer } from '../components/editor/types/editor.types';
 
 interface ThumbnailData {
@@ -108,9 +108,19 @@ const ThumbnailStudioPage: React.FC = () => {
     fetchThumbnail();
   }, [fetchThumbnail]);
 
-  const handleSave = (data: { layers: Layer[]; preview: string }) => {
-    console.log('Saving thumbnail:', data);
-    // TODO: Implement save logic with API call
+  const handleSave = async (data: { layers: Layer[]; preview: string }) => {
+    try {
+      const response = await authPost(`/api/thumbnails/${id}/edit`, {
+        layers: data.layers,
+        previewImage: data.preview,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save thumbnail');
+      }
+    } catch (error) {
+      console.error('Error saving thumbnail:', error);
+      alert('Failed to save thumbnail. Please try again.');
+    }
   };
 
   const handleClose = () => {
@@ -144,11 +154,7 @@ const ThumbnailStudioPage: React.FC = () => {
             Loading thumbnail...
           </p>
         </div>
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+
       </div>
     );
   }

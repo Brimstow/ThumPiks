@@ -6,6 +6,7 @@ import {
   StorageDeleteResult,
   ImageTransformation,
 } from './storage.types';
+import { logger } from '../../utils/logger';
 
 /**
  * Cloudinary Storage Provider
@@ -58,7 +59,7 @@ export class CloudinaryProvider implements StorageProvider {
     }
 
     if (this.configured) {
-      console.log('☁️ Cloudinary provider configured');
+      logger.info('Cloudinary provider configured');
     }
   }
 
@@ -142,7 +143,7 @@ export class CloudinaryProvider implements StorageProvider {
         provider: 'cloudinary',
       };
     } catch (error) {
-      console.error('Cloudinary delete error:', error);
+      logger.error('Cloudinary delete error', error instanceof Error ? error : undefined);
       return {
         success: false,
         publicId,
@@ -155,7 +156,7 @@ export class CloudinaryProvider implements StorageProvider {
     publicId: string,
     transformation: ImageTransformation
   ): string {
-    const transformOptions: any = {};
+    const transformOptions: Record<string, unknown> = {};
 
     if (transformation.width) transformOptions.width = transformation.width;
     if (transformation.height) transformOptions.height = transformation.height;
@@ -189,17 +190,17 @@ export class CloudinaryProvider implements StorageProvider {
         healthy: true,
         latency: Date.now() - start,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         healthy: false,
         latency: Date.now() - start,
-        error: error.message || 'Ping failed',
+        error: error instanceof Error ? error.message : 'Ping failed',
       };
     }
   }
 
-  private buildUploadOptions(options: StorageUploadOptions): any {
-    const uploadOptions: any = {
+  private buildUploadOptions(options: StorageUploadOptions): Record<string, unknown> {
+    const uploadOptions: Record<string, unknown> = {
       resource_type: options.resourceType || 'image',
       unique_filename: true,
       overwrite: false,
@@ -233,8 +234,8 @@ export class CloudinaryProvider implements StorageProvider {
     return uploadOptions;
   }
 
-  private buildTransformation(t: ImageTransformation): any {
-    const transform: any = {};
+  private buildTransformation(t: ImageTransformation): Record<string, unknown> {
+    const transform: Record<string, unknown> = {};
     if (t.width) transform.width = t.width;
     if (t.height) transform.height = t.height;
     if (t.crop) transform.crop = t.crop;

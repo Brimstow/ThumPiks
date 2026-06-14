@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../../utils/logger';
 
 const defaultPrisma = getPrisma();
 
@@ -41,9 +42,7 @@ export class UserUrlHistoryService {
           createdAt: new Date(), // bump to top of recents
         },
       });
-      console.log(
-        `🔗 URL history updated: ${updated.id} for user ${data.userId}`
-      );
+      logger.info('URL history updated', { entryId: updated.id, userId: data.userId });
       return updated;
     }
 
@@ -74,7 +73,7 @@ export class UserUrlHistoryService {
       },
     });
 
-    console.log(`🔗 URL history created: ${entry.id} for user ${data.userId}`);
+    logger.info('URL history created', { entryId: entry.id, userId: data.userId });
     return entry;
   }
 
@@ -113,7 +112,7 @@ export class UserUrlHistoryService {
       where: { id },
       data: { pinned: !entry.pinned },
     });
-    console.log(`🔗 URL ${updated.pinned ? 'pinned' : 'unpinned'}: ${id}`);
+    logger.info('URL pin toggled', { entryId: id, pinned: updated.pinned });
     return updated;
   }
 
@@ -129,9 +128,7 @@ export class UserUrlHistoryService {
     const result = await this.prisma.userUrlHistory.deleteMany({
       where: { id: { in: validIds } },
     });
-    console.log(
-      `🔗 URL history bulk deleted: ${result.count} entries for user ${userId}`
-    );
+    logger.info('URL history bulk deleted', { count: result.count, userId });
     return { success: true, deletedCount: result.count };
   }
 
@@ -140,9 +137,7 @@ export class UserUrlHistoryService {
     if (!includePinned) where.pinned = false;
 
     const result = await this.prisma.userUrlHistory.deleteMany({ where });
-    console.log(
-      `🔗 URL history cleared: ${result.count} entries for user ${userId}`
-    );
+    logger.info('URL history cleared', { count: result.count, userId, includePinned });
     return { success: true, deletedCount: result.count };
   }
 }

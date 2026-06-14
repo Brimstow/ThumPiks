@@ -10,7 +10,7 @@
  * - Service Factory: Lazy-init singleton via getNotificationConfigService()
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { NotificationRouter } from '../../services/notification-router.service';
 import { logger } from '../../utils/logger';
@@ -70,13 +70,13 @@ export class NotificationConfigService {
       where: { key: input.key },
       create: {
         key: input.key,
-        channels: input.channels as any,
-        emails: input.emails as any,
+        channels: input.channels as Prisma.InputJsonValue,
+        emails: input.emails as Prisma.InputJsonValue,
         enabled: input.enabled,
       },
       update: {
-        channels: input.channels as any,
-        emails: input.emails as any,
+        channels: input.channels as Prisma.InputJsonValue,
+        emails: input.emails as Prisma.InputJsonValue,
         enabled: input.enabled,
       },
     });

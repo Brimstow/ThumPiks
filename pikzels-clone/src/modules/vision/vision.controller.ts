@@ -1,15 +1,18 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { VisionService } from './vision.service';
 import { PrismaClient } from '@prisma/client';
 import { getPrisma as getPrismaFactory } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
+import { CacheService } from '../../services/cache.service';
 
 let sharedVisionService: VisionService;
 
-export const initializeServices = (prismaClient?: PrismaClient, cacheService?: any) => {
+export const initializeServices = (prismaClient?: PrismaClient, cacheService?: CacheService) => {
   sharedVisionService = new VisionService({
     prisma: prismaClient || getPrismaFactory(),
-    cache: cacheService,
+    ...(cacheService && { cache: cacheService }),
   });
 };
 
@@ -26,9 +29,8 @@ const getVisionService = () => {
 
 export const describeImage = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { imageUrl, imageBase64 } = req.body;
     const image = imageUrl || imageBase64;
@@ -44,27 +46,27 @@ export const describeImage = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid image URL' });
     }
 
-    const result = await getVisionService().analyzeImage(image, req.user.id);
+    const result = await getVisionService().analyzeImage(image, user.id);
 
     return res.status(201).json(result);
-  } catch (error: any) {
-    if (error.message === 'Insufficient credits for vision analysis') {
-      return res.status(402).json({ error: error.message });
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : 'Internal server error';
+    if (errMsg === 'Insufficient credits for vision analysis') {
+      return res.status(402).json({ error: errMsg });
     }
-    if (error.message?.includes('API key not configured')) {
-      console.error('Vision describe config error:', error.message);
+    if (errMsg.includes('API key not configured')) {
+      logger.error('Vision describe config error', error instanceof Error ? error : new Error(String(error)));
       return res.status(503).json({ error: 'Vision service not configured' });
     }
-    console.error('Error in vision describe:', error.message || error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    logger.error('Error in vision describe', error instanceof Error ? error : new Error(String(error)));
+    return res.status(500).json({ error: errMsg });
   }
 };
 
 export const searchImages = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const query = req.query.q as string;
     const count = parseInt(req.query.count as string) || 20;
@@ -80,25 +82,25 @@ export const searchImages = async (req: AuthRequest, res: Response) => {
     const results = await getVisionService().searchWebImages(query.trim(), count);
 
     return res.status(200).json({ results });
-  } catch (error: any) {
-    console.error('Error in vision search:', error.message || error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : 'Internal server error';
+    logger.error('Error in vision search', error instanceof Error ? error : new Error(String(error)));
+    return res.status(500).json({ error: errMsg });
   }
 };
 
 export const getHistory = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const limit = parseInt(req.query.limit as string) || 20;
 
-    const analyses = await getVisionService().getHistory(req.user.id, limit);
+    const analyses = await getVisionService().getHistory(user.id, limit);
 
     return res.status(200).json({ analyses });
   } catch (error) {
-    console.error('Error fetching vision history:', error);
+    logger.error('Error fetching vision history', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

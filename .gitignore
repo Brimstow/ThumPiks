@@ -315,3 +315,128 @@ thumpiks-site-files/
 
 # gate-keeper runtime (shadow copies + violation logs)
 .gate-keeper/
+agentsmesh.local.yaml
+.agentsmeshcache
+.agentsmesh/.lock.tmp
+.agentsmesh/packs/
+
+# AI IDE tooling configs (machine-local, not project source)
+.agents/
+.claude/
+.clinerules/
+.cursor/
+.gemini/
+.github/hooks/
+.kiro/
+.playbooks/
+.qoder/hooks/
+.qoder/agents/
+.qoder/quests/
+.qoder/repowiki/
+.qoder/skills/
+.roo/
+.trae/
+.windsurf/
+.zed/
+
+# Test result artifacts (Playwright, generated)
+test-results-full/
+test-results-new/
+test-results-run2/
+pikzels-clone/test-results-full/
+pikzels-clone/test-results-new/
+pikzels-clone/test-results-run2/
+
+# Gate-keeper state files
+.gate-keeperplaybook-state.json
+
+# Misc root-level generated files
+nul
+QWEN.md
+agentsmesh.yaml
+*.png
+
+SESSION_SUMMARY_GROUP_B.md
+.rules
+
+# ============================================================
+# Portfolio cleanup (2026-07): keep local, exclude from repo
+# ============================================================
+
+# Agent/assistant instruction docs (multi-IDE, machine-local)
+/AGENTS.md
+/best_practices.md
+/WARP.md
+/WARP-*.md
+/WARP_*.md
+/ZED_AGENT_*.md
+
+# Root-level dev status/log/fix write-ups
+/AUTH_DOCUMENTATION_INDEX.md
+/AUTH_FLOW_DIAGRAMS.md
+/BACK_BUTTON_FIX.md
+/DEPLOYMENT_SETUP.md
+/HOOK_FIX_COMPLETE.md
+/IMPLEMENTATION_COMPLETE.md
+/IMPLEMENTATION_PROGRESS.md
+/NAVIGATION_GUIDELINES.md
+/PASSWORD_VISIBILITY_IMPLEMENTATION.md
+/PRODUCTION_READINESS_ROADMAP.md
+/REBRANDING_SUMMARY.md
+/SIGN_IN_INTEGRATION_GUIDE.md
+/SIGN_IN_QUICK_START.md
+/TEST_FIX_DOCUMENTATION.md
+/test-hook.txt
+/test-hook2.txt
+
+# Agent tooling dirs/files
+/.agentsmesh/
+/.hook-test/
+/.voidrules
+
+# pikzels-clone internal docs & scratch text (keep local, not in repo)
+pikzels-clone/*.md
+pikzels-clone/*.txt
+
+# Sensitive (must never be in repo; rotate if these held real values)
+pikzels-clone/cookies.txt
+pikzels-clone/TEST_CREDENTIALS.md
+pikzels-clone/TEST_USERS_SECURITY.md
+
+# Obsolete/orphaned test scratch (stale PikzelsLanding refs; keep local)
+/test-drop-link.html
+pikzels-clone/client/run-landing-tests.mjs
+
+# Browser/session artifacts (Playwright MCP output; keep local)
+/.playwright-mcp/
+
+# Debug/temp scratch + duplicated agent instructions (keep local, not in repo)
+/debug-faceswap.mjs
+/.github/copilot-instructions.md
+pikzels-clone/audit-tmp.json
+pikzels-clone/scripts/admin-dashboard-debug.js
+pikzels-clone/scripts/admin-screenshots/debug-report.json
+
+# ============================================================
+# Portfolio cleanup (2026-07 pass 2): AI-harness/tooling (keep local, exclude from repo)
+# ============================================================
+
+# Gate-keeper enforcement engine + config
+/tools/gate-keeper/
+/.gates.yml
+
+# Agent config template
+/agents-template/
+
+# Agent policy rules
+/policy/rules/
+
+# Tooling debris
+/.hook-test
+/.qoderignore
+
+# Agent-harness/manipulation docs (behavior gaming, cipher memory, codewords)
+pikzels-clone/docs/agents/behavior-harness.md
+pikzels-clone/docs/agents/cipher-integration.md
+pikzels-clone/docs/agents/codewords.md
+

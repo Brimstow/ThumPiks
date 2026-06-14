@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { getGlobalChatService } from './global-chat.service';
+import { logger } from '../../utils/logger';
 import type {
   GlobalChatStreamRequest,
   CreateSessionRequest,
@@ -27,9 +29,8 @@ export const streamGlobalChat = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { sessionId, messages, scope, imageData } =
       req.body as GlobalChatStreamRequest;
@@ -64,7 +65,7 @@ export const streamGlobalChat = async (
     let resolvedSessionId = sessionId;
 
     if (!resolvedSessionId) {
-      const session = await svc.createSession(req.user.id, chatScope);
+      const session = await svc.createSession(user.id, chatScope);
       resolvedSessionId = session.id;
     }
 
@@ -91,7 +92,7 @@ export const streamGlobalChat = async (
 
     await svc.streamChat(
       resolvedSessionId,
-      req.user.id,
+      user.id,
       messages,
       chatScope,
       imageData,
@@ -102,16 +103,17 @@ export const streamGlobalChat = async (
     if (!res.writableEnded) {
       res.end();
     }
-  } catch (error: any) {
-    console.error('Error in global chat stream:', error.message || error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Error in global chat stream', error instanceof Error ? error : undefined);
 
     if (res.headersSent && !res.writableEnded) {
       res.write(
-        `event: error\ndata: ${JSON.stringify({ message: error.message || 'Chat failed' })}\n\n`
+        `event: error\ndata: ${JSON.stringify({ message: msg || 'Chat failed' })}\n\n`
       );
       res.end();
     } else if (!res.headersSent) {
-      return res.status(500).json({ error: error.message || 'Chat failed' });
+      return res.status(500).json({ error: msg || 'Chat failed' });
     }
   }
 };
@@ -123,14 +125,13 @@ export const streamGlobalChat = async (
 export const createSession = async (
   req: AuthRequest,
   res: Response
-): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+): Promise<Response | void> => {
+  const user = requireUser(req, res);
+  if (!user) return;
 
   const { scope } = req.body as CreateSessionRequest;
   const session = await getService().createSession(
-    req.user.id,
+    user.id,
     scope || 'general'
   );
 
@@ -144,15 +145,14 @@ export const createSession = async (
 export const listSessions = async (
   req: AuthRequest,
   res: Response
-): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+): Promise<Response | void> => {
+  const user = requireUser(req, res);
+  if (!user) return;
 
   const limit = Math.min(Number(req.query.limit) || 20, 50);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-  const result = await getService().listSessions(req.user.id, limit, offset);
+  const result = await getService().listSessions(user.id, limit, offset);
   return res.json(result);
 };
 
@@ -163,12 +163,11 @@ export const listSessions = async (
 export const getSession = async (
   req: AuthRequest,
   res: Response
-): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+): Promise<Response | void> => {
+  const user = requireUser(req, res);
+  if (!user) return;
 
-  const session = await getService().getSession(req.params.id!, req.user.id);
+  const session = await getService().getSession(req.params.id!, user.id);
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
@@ -183,14 +182,13 @@ export const getSession = async (
 export const escalateSession = async (
   req: AuthRequest,
   res: Response
-): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+): Promise<Response | void> => {
+  const user = requireUser(req, res);
+  if (!user) return;
 
   const result = await getService().escalateToTicket(
     req.params.id!,
-    req.user.id
+    user.id
   );
   if (!result) {
     return res
@@ -208,14 +206,13 @@ export const escalateSession = async (
 export const archiveSession = async (
   req: AuthRequest,
   res: Response
-): Promise<Response> => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+): Promise<Response | void> => {
+  const user = requireUser(req, res);
+  if (!user) return;
 
   const success = await getService().archiveSession(
     req.params.id!,
-    req.user.id
+    user.id
   );
   if (!success) {
     return res.status(404).json({ error: 'Session not found' });

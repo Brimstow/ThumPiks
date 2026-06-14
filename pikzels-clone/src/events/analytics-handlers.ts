@@ -1,8 +1,10 @@
 import {
   ThumbnailCreatedEvent,
+  AnalyticsTrackingEvent,
 } from './event-types';
 import { CacheService } from '../services/cache.service';
 import { getPrisma } from '../utils/prisma-factory';
+import { logger } from '../utils/logger';
 
 const prisma = getPrisma();
 const cache = CacheService.getInstance();
@@ -17,7 +19,7 @@ const cache = CacheService.getInstance();
  * - Batch processing for high-volume events
  */
 export class AnalyticsEventHandlers {
-  private eventQueue: any[] = [];
+  private eventQueue: AnalyticsTrackingEvent[] = [];
   private batchSize = 10;
   private flushInterval = 5000; // 5 seconds
   private flushTimer: NodeJS.Timeout | null = null;
@@ -35,7 +37,7 @@ export class AnalyticsEventHandlers {
   /**
    * Handle individual analytics tracking events
    */
-  async handleAnalyticsEvent(event: any): Promise<void> {
+  async handleAnalyticsEvent(event: AnalyticsTrackingEvent): Promise<void> {
     try {
       // Add to batch queue for efficient processing
       this.eventQueue.push(event);
@@ -48,11 +50,9 @@ export class AnalyticsEventHandlers {
       // Update real-time cache for instant dashboard updates
       await this.updateRealTimeCache(event);
 
-      console.log(
-        `📊 Analytics event queued: ${event.data.action} on ${event.data.resource}`
-      );
+      logger.info('Analytics event queued', { action: event.data.action, resource: event.data.resource });
     } catch (error) {
-      console.error('❌ Error handling analytics event:', error);
+      logger.error('Error handling analytics event', error instanceof Error ? error : undefined);
     }
   }
 
@@ -91,11 +91,9 @@ export class AnalyticsEventHandlers {
         );
       }
 
-      console.log(
-        `📈 Thumbnail creation analytics processed: ${event.data.thumbnailId}`
-      );
+      logger.info('Thumbnail creation analytics processed', { thumbnailId: event.data.thumbnailId });
     } catch (error) {
-      console.error('❌ Error processing thumbnail creation analytics:', error);
+      logger.error('Error processing thumbnail creation analytics', error instanceof Error ? error : undefined);
     }
   }
 
@@ -108,7 +106,7 @@ export class AnalyticsEventHandlers {
     resource: string;
     resourceId: string;
     timestamp: Date;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
   }): Promise<void> {
     try {
       // For now, we'll store analytics data as JSON in a simple table
@@ -119,8 +117,8 @@ export class AnalyticsEventHandlers {
         ON CONFLICT DO NOTHING
       `;
     } catch (error) {
-      // If analytics table doesn't exist, log to console for now
-      console.log(`📊 Analytics Record:`, {
+      // If analytics table doesn't exist, log structured data
+      logger.debug('Analytics record (table unavailable)', {
         userId: data.userId,
         action: data.action,
         resource: data.resource,
@@ -133,16 +131,17 @@ export class AnalyticsEventHandlers {
   /**
    * Update real-time cache for instant dashboard updates
    */
-  private async updateRealTimeCache(event: any): Promise<void> {
+  private async updateRealTimeCache(event: AnalyticsTrackingEvent): Promise<void> {
     const cacheKey = `analytics:realtime:${event.userId}`;
 
     try {
+      interface RecentAction { action: string; resource: string; timestamp: Date; properties?: Record<string, unknown> }
       // Get current real-time data
       const currentData: {
         lastActivity: Date;
-        recentActions: any[];
+        recentActions: RecentAction[];
         counters: Record<string, number>;
-      } = (await cache.get(cacheKey)) || {
+      } = (await cache.get(cacheKey) as { lastActivity: Date; recentActions: RecentAction[]; counters: Record<string, number> }) || {
         lastActivity: new Date(),
         recentActions: [],
         counters: {},
@@ -154,7 +153,7 @@ export class AnalyticsEventHandlers {
           action: event.data.action,
           resource: event.data.resource,
           timestamp: event.timestamp,
-          properties: event.data.properties,
+          ...(event.data.properties && { properties: event.data.properties as Record<string, unknown> }),
         },
         ...currentData.recentActions.slice(0, 9),
       ];
@@ -168,7 +167,7 @@ export class AnalyticsEventHandlers {
       // Store back in cache for 1 hour
       await cache.set(cacheKey, currentData, 3600);
     } catch (error) {
-      console.error('❌ Error updating real-time cache:', error);
+      logger.error('Error updating real-time cache', error instanceof Error ? error : undefined);
     }
   }
 
@@ -183,15 +182,15 @@ export class AnalyticsEventHandlers {
     const cacheKey = `analytics:user_stats:${userId}`;
 
     try {
-      const currentStats: Record<string, any> =
+      const currentStats: Record<string, unknown> =
         (await cache.get(cacheKey)) || {};
-      currentStats[stat] = (currentStats[stat] || 0) + increment;
+      currentStats[stat] = (currentStats[stat] as number || 0) + increment;
       currentStats.lastUpdated = new Date();
 
       // Cache for 30 minutes
       await cache.set(cacheKey, currentStats, 1800);
     } catch (error) {
-      console.error('❌ Error updating user stats cache:', error);
+      logger.error('Error updating user stats cache', error instanceof Error ? error : undefined);
     }
   }
 
@@ -206,15 +205,15 @@ export class AnalyticsEventHandlers {
     const cacheKey = `analytics:project_stats:${projectId}`;
 
     try {
-      const currentStats: Record<string, any> =
+      const currentStats: Record<string, unknown> =
         (await cache.get(cacheKey)) || {};
-      currentStats[stat] = (currentStats[stat] || 0) + increment;
+      currentStats[stat] = (currentStats[stat] as number || 0) + increment;
       currentStats.lastUpdated = new Date();
 
       // Cache for 30 minutes
       await cache.set(cacheKey, currentStats, 1800);
     } catch (error) {
-      console.error('❌ Error updating project stats cache:', error);
+      logger.error('Error updating project stats cache', error instanceof Error ? error : undefined);
     }
   }
 
@@ -252,11 +251,9 @@ export class AnalyticsEventHandlers {
         });
       }
 
-      console.log(
-        `📊 Batch processed ${eventsToProcess.length} analytics events`
-      );
+      logger.info('Batch processed analytics events', { count: eventsToProcess.length });
     } catch (error) {
-      console.error('❌ Error flushing analytics event queue:', error);
+      logger.error('Error flushing analytics event queue', error instanceof Error ? error : undefined);
 
       // Put events back in queue for retry
       this.eventQueue.unshift(...eventsToProcess);
@@ -266,7 +263,7 @@ export class AnalyticsEventHandlers {
   /**
    * Get real-time analytics for a user
    */
-  async getRealTimeAnalytics(userId: string): Promise<any> {
+  async getRealTimeAnalytics(userId: string): Promise<Record<string, unknown>> {
     const cacheKey = `analytics:realtime:${userId}`;
     const userStatsKey = `analytics:user_stats:${userId}`;
 
@@ -282,7 +279,7 @@ export class AnalyticsEventHandlers {
         timestamp: new Date(),
       };
     } catch (error) {
-      console.error('❌ Error getting real-time analytics:', error);
+      logger.error('Error getting real-time analytics', error instanceof Error ? error : undefined);
       return {
         realTime: { recentActions: [], counters: {} },
         userStats: {},
@@ -303,7 +300,7 @@ export class AnalyticsEventHandlers {
     // Flush any remaining events
     await this.flushEventQueue();
 
-    console.log('🧹 Analytics handlers cleaned up');
+    logger.info('Analytics handlers cleaned up');
   }
 }
 

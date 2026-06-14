@@ -22,6 +22,23 @@ import {
 import { addPurchasedCredits } from '../credit/credit.service';
 import { logger } from '../../utils/logger';
 
+interface PolarWebhookEvent {
+  type: string;
+  data: {
+    id: string;
+    status?: string;
+    metadata?: Record<string, string>;
+    customer_id?: string;
+    customerId?: string;
+    subscription_id?: string;
+    subscriptionId?: string;
+  };
+}
+
+interface RawBodyRequest extends Request {
+  rawBody?: Buffer;
+}
+
 const router = Router();
 
 /**
@@ -32,7 +49,7 @@ const router = Router();
  *
  * The raw body is already captured by the JSON parser (req.rawBody).
  */
-router.post('/webhook', async (req: Request, res: Response) => {
+router.post('/webhook', async (req: RawBodyRequest, res: Response) => {
   const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
@@ -48,16 +65,16 @@ router.post('/webhook', async (req: Request, res: Response) => {
   };
 
   // Use raw body for signature verification
-  const rawBody = (req as any).rawBody as Buffer | undefined;
+  const rawBody = req.rawBody;
   if (!rawBody) {
     logger.error('Raw body not available for Polar webhook verification');
     return res.status(400).json({ error: 'Raw body not available' });
   }
 
-  let event: any;
+  let event: PolarWebhookEvent;
 
   try {
-    event = validateEvent(rawBody.toString('utf-8'), headers, webhookSecret);
+    event = validateEvent(rawBody.toString('utf-8'), headers, webhookSecret) as PolarWebhookEvent;
   } catch (err: unknown) {
     if (err instanceof WebhookVerificationError) {
       logger.error('Polar webhook signature verification failed', err as Error);
@@ -72,7 +89,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
       // ── Checkout Events ─────────────────────────────────────────
       case 'checkout.created':
       case 'checkout.updated': {
-        const checkout = (event as any).data;
+        const checkout = event.data;
 
         // Only act on successful checkouts
         if (checkout.status !== 'succeeded') {
@@ -124,7 +141,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
       // ── Subscription Events ──────────────────────────────────────
       case 'subscription.active': {
-        const sub = (event as any).data;
+        const sub = event.data;
         const metadata = sub.metadata || {};
 
         // If metadata exists, do full activation (fallback if checkout event missed)
@@ -150,7 +167,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
       }
 
       case 'subscription.canceled': {
-        const sub = (event as any).data;
+        const sub = event.data;
         await handlePolarSubscriptionCancelled(sub.id);
 
         logger.info('Polar subscription.canceled handled', {
@@ -160,7 +177,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
       }
 
       case 'subscription.revoked': {
-        const sub = (event as any).data;
+        const sub = event.data;
         await handlePolarSubscriptionCancelled(sub.id);
 
         logger.info('Polar subscription.revoked handled', {
@@ -170,7 +187,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
       }
 
       case 'subscription.updated': {
-        const sub = (event as any).data;
+        const sub = event.data;
         // subscription.updated fires on renewals and plan changes
         if (sub.status === 'active') {
           await handlePolarSubscriptionRenewed(sub.id);
@@ -184,7 +201,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
 
       // ── Order Events (Credit Pack Purchases) ────────────────────
       case 'order.paid': {
-        const order = (event as any).data;
+        const order = event.data;
         const metadata = order.metadata || {};
 
         if (

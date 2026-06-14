@@ -2,6 +2,7 @@ import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { ReplicateAIService } from './replicate-ai.service';
 import { createBreaker } from '../../utils/circuit-breaker';
 import { getRedisConfig } from './redis-config';
+import { logger } from '../../utils/logger';
 
 /**
  * ReplicateQueueService - Production-grade request queue for Replicate API
@@ -57,7 +58,7 @@ export interface ReplicateJobData {
 
 export interface ReplicateJobResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
@@ -92,14 +93,12 @@ export class ReplicateQueueService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('ReplicateQueueService: Already initialized');
+      logger.info('ReplicateQueueService: Already initialized');
       return;
     }
 
     const redisConfig = getRedisConfig();
-    console.log(
-      `ReplicateQueueService: Connecting to Redis at ${redisConfig.host}:${redisConfig.port}`
-    );
+    logger.info('ReplicateQueueService: Connecting to Redis', { host: redisConfig.host, port: redisConfig.port });
 
     try {
       // Create the queue
@@ -147,13 +146,9 @@ export class ReplicateQueueService {
       this.setupEventHandlers();
 
       this.isInitialized = true;
-      console.log('ReplicateQueueService: Initialized successfully');
-      console.log(`  - Max concurrent: ${MAX_CONCURRENT_JOBS}`);
-      console.log(
-        `  - Rate limit: ${RATE_LIMIT_MAX} jobs per ${RATE_LIMIT_DURATION / 1000}s`
-      );
+      logger.info('ReplicateQueueService: Initialized successfully', { maxConcurrent: MAX_CONCURRENT_JOBS, rateLimitMax: RATE_LIMIT_MAX, rateLimitDurationSec: RATE_LIMIT_DURATION / 1000 });
     } catch (error) {
-      console.error('ReplicateQueueService: Failed to initialize:', error);
+      logger.error('ReplicateQueueService: Failed to initialize', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -165,27 +160,27 @@ export class ReplicateQueueService {
     if (!this.worker || !this.queueEvents) return;
 
     this.worker.on('completed', job => {
-      console.log(`ReplicateQueue: Job ${job.id} completed (${job.data.type})`);
+      logger.info('ReplicateQueue: Job completed', { jobId: job.id, type: job.data.type });
     });
 
     this.worker.on('failed', (job, err) => {
-      console.error(`ReplicateQueue: Job ${job?.id} failed:`, err.message);
+      logger.error('ReplicateQueue: Job failed', err, { jobId: job?.id });
     });
 
     this.worker.on('error', err => {
-      console.error('ReplicateQueue: Worker error:', err);
+      logger.error('ReplicateQueue: Worker error', err instanceof Error ? err : new Error(String(err)));
     });
 
     this.queueEvents.on('waiting', ({ jobId }) => {
-      console.log(`ReplicateQueue: Job ${jobId} is waiting`);
+      logger.info('ReplicateQueue: Job is waiting', { jobId });
     });
 
     this.queueEvents.on('active', ({ jobId }) => {
-      console.log(`ReplicateQueue: Job ${jobId} is now active`);
+      logger.info('ReplicateQueue: Job is now active', { jobId });
     });
 
     this.queueEvents.on('stalled', ({ jobId }) => {
-      console.warn(`ReplicateQueue: Job ${jobId} has stalled`);
+      logger.warn('ReplicateQueue: Job has stalled', { jobId });
     });
   }
 
@@ -195,9 +190,7 @@ export class ReplicateQueueService {
   private async processJob(
     job: Job<ReplicateJobData, ReplicateJobResult>
   ): Promise<ReplicateJobResult> {
-    console.log(
-      `ReplicateQueue: Processing job ${job.id} (${job.data.type}) for user ${job.data.userId}`
-    );
+    logger.info('ReplicateQueue: Processing job', { jobId: job.id, type: job.data.type, userId: job.data.userId });
 
     // Circuit breaker: fail fast if Replicate API is down
     const breaker = createBreaker(
@@ -233,7 +226,7 @@ export class ReplicateQueueService {
               args.expandPixels
             );
           default:
-            throw new Error(`Unknown job type: ${(args as any).type}`);
+            throw new Error(`Unknown job type: ${(args as { type?: string }).type}`);
         }
       },
       { timeout: JOB_TIMEOUT }
@@ -245,7 +238,7 @@ export class ReplicateQueueService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(`ReplicateQueue: Job ${job.id} failed:`, errorMessage);
+      logger.error('ReplicateQueue: Job failed', error instanceof Error ? error : new Error(String(error)), { jobId: job.id });
       return { success: false, error: errorMessage };
     }
   }
@@ -279,9 +272,7 @@ export class ReplicateQueueService {
       priority,
     });
 
-    console.log(
-      `ReplicateQueue: Added job ${job.id} (${jobData.type}) for user ${jobData.userId}`
-    );
+    logger.info('ReplicateQueue: Added job', { jobId: job.id, type: jobData.type, userId: jobData.userId });
 
     // Wait for the job to complete
     const result = await job.waitUntilFinished(this.queueEvents!, JOB_TIMEOUT);
@@ -367,7 +358,7 @@ export class ReplicateQueueService {
    * Call this on application shutdown.
    */
   async shutdown(): Promise<void> {
-    console.log('ReplicateQueueService: Shutting down...');
+    logger.info('ReplicateQueueService: Shutting down...');
 
     if (this.worker) {
       await this.worker.close();
@@ -385,7 +376,7 @@ export class ReplicateQueueService {
     }
 
     this.isInitialized = false;
-    console.log('ReplicateQueueService: Shutdown complete');
+    logger.info('ReplicateQueueService: Shutdown complete');
   }
 
   /**

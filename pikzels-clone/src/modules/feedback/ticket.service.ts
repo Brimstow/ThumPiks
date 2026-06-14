@@ -10,7 +10,7 @@
  * - Service Factory: Registered as 'ticket' in factory
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 import { NotificationRouter } from '../../services/notification-router.service';
@@ -20,10 +20,16 @@ import type {
   TicketListQuery,
   PaginatedResponse,
   TicketRecord,
+  FeedbackRecord,
   CreateTicketReplyInput,
   UpdateTicketInput,
   TicketReplyRecord,
 } from './types';
+
+/** Local shape: ticket row with its linked feedback (used for status-change notifications) */
+interface TicketWithFeedback extends TicketRecord {
+  Feedback?: Pick<FeedbackRecord, 'subject' | 'userId'> | null;
+}
 
 export class TicketService {
   private prisma: PrismaClient;
@@ -57,11 +63,11 @@ export class TicketService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize || 20));
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const where: Prisma.TicketWhereInput = {};
     if (query.status) where.status = query.status;
     if (query.assignee) where.assignee = query.assignee;
 
-    const orderBy: any = {};
+    const orderBy: Prisma.TicketOrderByWithRelationInput = {};
     const sortBy = query.sortBy || 'createdAt';
     orderBy[sortBy] = query.sortOrder || 'desc';
 
@@ -92,7 +98,7 @@ export class TicketService {
     ticketId: string,
     input: UpdateTicketInput
   ): Promise<TicketRecord | null> {
-    const data: any = {};
+    const data: Prisma.TicketUncheckedUpdateInput = {};
 
     if (input.status !== undefined) {
       data.status = input.status;
@@ -116,7 +122,7 @@ export class TicketService {
 
     // Notify on status change
     if (input.status) {
-      this.notifyStatusChange(ticket as any).catch((error) => {
+      this.notifyStatusChange(ticket as unknown as TicketWithFeedback).catch((error) => {
         logger.error('Ticket status notification failed', error as Error, {
           ticketId,
         });
@@ -187,7 +193,7 @@ export class TicketService {
 
   // ---- Internal ----
 
-  private async notifyStatusChange(ticket: any): Promise<void> {
+  private async notifyStatusChange(ticket: TicketWithFeedback): Promise<void> {
     const feedback = ticket.Feedback;
     if (!feedback) return;
 
@@ -209,8 +215,8 @@ export class TicketService {
           ticketId: ticket.id,
           status: ticket.status,
           subject: feedback.subject || 'Support Ticket',
-          resolution: ticket.resolution || undefined,
-          assignee: ticket.assignee || undefined,
+          ...(ticket.resolution && { resolution: ticket.resolution }),
+          ...(ticket.assignee && { assignee: ticket.assignee }),
         }),
       },
     });

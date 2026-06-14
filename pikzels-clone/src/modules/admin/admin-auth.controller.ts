@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { adminAuthService, AdminRoles } from './admin-auth.service';
 import { isProductionLike } from '../../utils/env';
+import { logger } from '../../utils/logger';
 import rateLimit from 'express-rate-limit';
 
 // Rate limiting for admin auth endpoints
@@ -79,7 +80,7 @@ export class AdminAuthController {
         token,
       });
     } catch (error) {
-      console.error('Admin login error:', error);
+      logger.error('Admin login error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Authentication failed',
         code: 'ADMIN_LOGIN_ERROR',
@@ -114,7 +115,7 @@ export class AdminAuthController {
         message: 'Admin logged out successfully',
       });
     } catch (error) {
-      console.error('Admin logout error:', error);
+      logger.error('Admin logout error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Logout failed',
         code: 'ADMIN_LOGOUT_ERROR',
@@ -147,7 +148,7 @@ export class AdminAuthController {
         },
       });
     } catch (error) {
-      console.error('Get current admin error:', error);
+      logger.error('Get current admin error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to get admin info',
         code: 'ADMIN_INFO_ERROR',
@@ -214,7 +215,7 @@ export class AdminAuthController {
         message: 'Admin role assigned successfully',
       });
     } catch (error) {
-      console.error('Assign admin role error:', error);
+      logger.error('Assign admin role error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to assign admin role',
         code: 'ADMIN_ROLE_ASSIGNMENT_ERROR',
@@ -280,7 +281,7 @@ export class AdminAuthController {
         message: 'Admin role removed successfully',
       });
     } catch (error) {
-      console.error('Remove admin role error:', error);
+      logger.error('Remove admin role error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to remove admin role',
         code: 'ADMIN_ROLE_REMOVAL_ERROR',
@@ -320,7 +321,7 @@ export class AdminAuthController {
         },
       });
     } catch (error) {
-      console.error('Get admin activity logs error:', error);
+      logger.error('Get admin activity logs error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to fetch activity logs',
         code: 'ADMIN_LOGS_ERROR',

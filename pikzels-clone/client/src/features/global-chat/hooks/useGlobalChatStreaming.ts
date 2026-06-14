@@ -124,9 +124,9 @@ export function useGlobalChatStreaming() {
         }
 
         await pump();
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        callbacks.onError(err.message || 'Chat stream failed');
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        callbacks.onError((err instanceof Error ? err.message : undefined) || 'Chat stream failed');
       } finally {
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;

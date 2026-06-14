@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
 
@@ -12,7 +13,7 @@ export class AIService {
     this.apiUrl = 'https://api.openai.com/v1/images/generations';
 
     if (!this.apiKey) {
-      console.warn(
+      logger.warn(
         'OPENAI_API_KEY not found in environment variables. AI thumbnail generation will not work.'
       );
     }
@@ -96,7 +97,7 @@ export class AIService {
         let errorMessage = `OpenAI API error (${response.status}): `;
 
         try {
-          const errorData: any = await response.json();
+          const errorData: { error?: { message?: string } } = await response.json();
           errorMessage += errorData.error?.message || response.statusText;
 
           // Handle specific error cases
@@ -119,7 +120,7 @@ export class AIService {
         throw new Error(errorMessage);
       }
 
-      const data: any = await response.json();
+      const data: { data?: Array<{ url?: string }> } = await response.json();
 
       // Validate response structure
       if (!data?.data || !Array.isArray(data.data)) {
@@ -127,7 +128,7 @@ export class AIService {
       }
 
       // Extract image URLs from the response
-      return data.data.map((item: any) => {
+      return data.data.map((item) => {
         if (!item?.url) {
           throw new Error('Invalid image data in OpenAI API response');
         }

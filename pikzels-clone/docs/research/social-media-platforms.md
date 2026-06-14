@@ -1,6 +1,6 @@
 # Social Media Platforms Research for Integration
 
-This document summarizes the research on social media platforms for integration with the Pikzels Thumbnail Maker Studio.
+This document summarizes the research on social media platforms for integration with the ThumPiks Thumbnail Maker Studio.
 
 ## Platforms Selected for Integration
 
@@ -138,4 +138,4 @@ Each platform has different rate limits:
 6. Add analytics dashboard
 7. Create comprehensive documentation
 
-This research provides a solid foundation for implementing social sharing integration in the Pikzels Thumbnail Maker Studio.
+This research provides a solid foundation for implementing social sharing integration in the ThumPiks Thumbnail Maker Studio.

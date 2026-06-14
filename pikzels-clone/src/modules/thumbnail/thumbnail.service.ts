@@ -10,6 +10,7 @@ import {
   validateJsonColumn,
   safeParseJsonColumn,
 } from '../../utils/json-validation';
+import { logger } from '../../utils/logger';
 
 // Default instances for production use
 const defaultPrisma = getPrisma();
@@ -43,7 +44,7 @@ export class ThumbnailService {
     title: string;
     imageUrl: string;
     prompt: string;
-    parameters: any;
+    parameters: Record<string, unknown>;
     projectId: string;
     userId: string;
     storagePublicId?: string;
@@ -62,11 +63,12 @@ export class ThumbnailService {
       data: {
         id: uuidv4(),
         ...data,
+        parameters: data.parameters as never,
         storageProvider: data.storageProvider || 'cloudinary',
       },
     });
 
-    // 🚀 EVENT-DRIVEN: Emit thumbnail created event
+    // EVENT-DRIVEN: Emit thumbnail created event
     await this.emitThumbnailCreated(
       data.userId,
       thumbnail.id,
@@ -80,9 +82,7 @@ export class ThumbnailService {
     await this.invalidateUserThumbnailsCache(data.userId);
     await this.invalidateProjectCache(data.projectId);
 
-    console.log(
-      `🎨 Thumbnail created: ${thumbnail.id} for user ${data.userId}`
-    );
+    logger.info('Thumbnail created', { thumbnailId: thumbnail.id, userId: data.userId });
     return thumbnail;
   }
 
@@ -109,7 +109,7 @@ export class ThumbnailService {
       cacheKey,
       async () => {
         // Build where clause for filtering (exclude soft-deleted)
-        const where: any = { userId, deletedAt: null };
+        const where: Record<string, unknown> = { userId, deletedAt: null };
 
         // Apply project filter
         if (filters?.projectId) {
@@ -126,13 +126,14 @@ export class ThumbnailService {
 
         // Apply date range filter
         if (filters?.dateFrom || filters?.dateTo) {
-          where.createdAt = {};
+          const dateFilter: Record<string, unknown> = {};
           if (filters.dateFrom) {
-            where.createdAt.gte = filters.dateFrom;
+            dateFilter.gte = filters.dateFrom;
           }
           if (filters.dateTo) {
-            where.createdAt.lte = filters.dateTo;
+            dateFilter.lte = filters.dateTo;
           }
+          where.createdAt = dateFilter;
         }
 
         // Apply style filter (from parameters)
@@ -144,7 +145,7 @@ export class ThumbnailService {
         }
 
         // Build orderBy clause for sorting
-        let orderBy: any = { createdAt: 'desc' }; // default sort
+        let orderBy: Record<string, string> = { createdAt: 'desc' }; // default sort
         if (filters?.sortBy) {
           // Map allowed sort fields to prevent injection
           const allowedSortFields = ['createdAt', 'title', 'prompt'];
@@ -196,7 +197,7 @@ export class ThumbnailService {
       title: string;
       imageUrl: string;
       prompt: string;
-      parameters: any;
+      parameters: Record<string, unknown>;
       storagePublicId: string;
       storageProvider: string;
       projectId: string;
@@ -219,10 +220,10 @@ export class ThumbnailService {
 
     const thumbnail = await this.prisma.thumbnail.update({
       where: { id },
-      data,
+      data: data as never,
     });
 
-    // 🚀 EVENT-DRIVEN: Emit thumbnail updated event
+    // EVENT-DRIVEN: Emit thumbnail updated event
     if (existingThumbnail) {
       await this.eventEmitter.createAndEmit(
         'thumbnail.updated',
@@ -259,7 +260,7 @@ export class ThumbnailService {
       }
     }
 
-    console.log(`🔄 Thumbnail updated: ${id}`);
+    logger.info('Thumbnail updated', { thumbnailId: id });
     return thumbnail;
   }
 
@@ -280,7 +281,7 @@ export class ThumbnailService {
       data: { deletedAt: new Date() },
     });
 
-    // 🚀 EVENT-DRIVEN: Emit thumbnail deleted event
+    // EVENT-DRIVEN: Emit thumbnail deleted event
     if (existingThumbnail) {
       await this.eventEmitter.createAndEmit(
         'thumbnail.deleted',
@@ -312,7 +313,7 @@ export class ThumbnailService {
       await this.invalidateProjectCache(existingThumbnail.projectId);
     }
 
-    console.log(`🗑️ Thumbnail soft-deleted: ${id} (recoverable for 30 days)`);
+    logger.info('Thumbnail soft-deleted', { thumbnailId: id, recoverable: true });
     return thumbnail;
   }
 
@@ -327,7 +328,7 @@ export class ThumbnailService {
     await this.invalidateUserThumbnailsCache(thumbnail.userId);
     await this.invalidateProjectCache(thumbnail.projectId);
 
-    console.log(`♻️ Thumbnail restored: ${id}`);
+    logger.info('Thumbnail restored', { thumbnailId: id });
     return thumbnail;
   }
 
@@ -358,14 +359,9 @@ export class ThumbnailService {
       try {
         const { getStorageService } = await import('../storage');
         await getStorageService().delete(existingThumbnail.storagePublicId);
-        console.log(
-          `☁️ Storage asset deleted: ${existingThumbnail.storagePublicId}`
-        );
+        logger.info('Storage asset deleted', { storagePublicId: existingThumbnail.storagePublicId });
       } catch (storageError) {
-        console.warn(
-          'Storage deletion failed (asset may already be removed):',
-          storageError
-        );
+        logger.warn('Storage deletion failed (asset may already be removed)', { error: String(storageError) });
       }
     }
 
@@ -381,7 +377,7 @@ export class ThumbnailService {
       await this.invalidateProjectCache(existingThumbnail.projectId);
     }
 
-    console.log(`💀 Thumbnail permanently deleted: ${id}`);
+    logger.info('Thumbnail permanently deleted', { thumbnailId: id });
     return thumbnail;
   }
 
@@ -425,7 +421,7 @@ export class ThumbnailService {
     await this.cache.del(`thumbnail:${id}`);
     await this.invalidateUserThumbnailsCache(userId);
 
-    console.log(`🔀 Thumbnail recategorized: ${id} → ${platform}`);
+    logger.info('Thumbnail recategorized', { thumbnailId: id, platform });
     return updated;
   }
 
@@ -448,7 +444,7 @@ export class ThumbnailService {
       },
     });
 
-    // 🚀 EVENT-DRIVEN: Emit analytics event for featured thumbnail
+    // EVENT-DRIVEN: Emit analytics event for featured thumbnail
     await this.emitAnalyticsEvent(
       thumbnail.userId,
       'thumbnail_featured',
@@ -459,9 +455,7 @@ export class ThumbnailService {
       }
     );
 
-    console.log(
-      `⭐ Thumbnail set as featured: ${thumbnailId} in project ${projectId}`
-    );
+    logger.info('Thumbnail set as featured', { thumbnailId, projectId });
     return thumbnail;
   }
 
@@ -510,9 +504,7 @@ export class ThumbnailService {
       await this.cache.del(`thumbnail:${tid}`);
     }
 
-    console.log(
-      `📦 Bulk moved ${result.count} thumbnails to project ${targetProjectId}`
-    );
+    logger.info('Bulk moved thumbnails', { count: result.count, targetProjectId });
     return { count: result.count, movedIds: existingThumbnails.map(t => t.id) };
   }
 

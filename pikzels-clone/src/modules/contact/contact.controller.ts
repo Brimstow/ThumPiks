@@ -16,7 +16,8 @@ import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { ContactService } from './contact.service';
 import { logger } from '../../utils/logger';
-import type { ContactFormInput, ContactSubject, ContactListQuery } from './types';
+import { AuthRequest } from '../../types/auth';
+import type { ContactFormInput, ContactSubject, ContactListQuery, ContactSubmissionStatus } from './types';
 
 // ============================================
 // LAZY SERVICE INITIALIZATION
@@ -100,7 +101,7 @@ export const submitContactForm = async (
     const ipAddress = getClientIp(req);
 
     // Get user ID if authenticated (optional - contact form works without auth)
-    const userId = (req as any).user?.id;
+    const userId = (req as AuthRequest).user?.id;
 
     // Submit to service
     const result = await getContactService().submit(input, ipAddress, userId);
@@ -117,8 +118,8 @@ export const submitContactForm = async (
     // Return response
     const statusCode = result.success ? 201 : 400;
     res.status(statusCode).json(result);
-  } catch (error: any) {
-    logger.error('Contact form submission error', error, {
+  } catch (error: unknown) {
+    logger.error('Contact form submission error', error instanceof Error ? error : new Error(String(error)), {
       body: req.body,
     });
     res.status(500).json({
@@ -143,17 +144,17 @@ export const listContactSubmissions = async (
     const query: ContactListQuery = {
       page: parseInt(req.query.page as string) || 1,
       pageSize: parseInt(req.query.pageSize as string) || 20,
-      status: req.query.status as any,
-      subject: req.query.subject as ContactSubject,
-      sortBy: (req.query.sortBy as any) || 'createdAt',
-      sortOrder: (req.query.sortOrder as any) || 'desc',
-      search: req.query.search as string,
+      ...(req.query.status && { status: req.query.status as ContactSubmissionStatus }),
+      ...(req.query.subject && { subject: req.query.subject as ContactSubject }),
+      sortBy: (req.query.sortBy as ContactListQuery['sortBy']) || 'createdAt',
+      sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'desc',
+      ...(req.query.search && { search: req.query.search as string }),
     };
 
     const result = await getContactService().list(query);
     res.json(result);
-  } catch (error: any) {
-    logger.error('Failed to list contact submissions', error);
+  } catch (error: unknown) {
+    logger.error('Failed to list contact submissions', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to list contact submissions' });
   }
 };
@@ -175,8 +176,8 @@ export const getContactSubmission = async (
     }
 
     res.json(submission);
-  } catch (error: any) {
-    logger.error('Failed to get contact submission', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to get contact submission', error instanceof Error ? error : new Error(String(error)), {
       id: req.params.id,
     });
     res.status(500).json({ error: 'Failed to get contact submission' });
@@ -211,8 +212,8 @@ export const updateContactStatus = async (
     }
 
     res.json(submission);
-  } catch (error: any) {
-    logger.error('Failed to update contact submission status', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to update contact submission status', error instanceof Error ? error : new Error(String(error)), {
       id: req.params.id,
     });
     res.status(500).json({ error: 'Failed to update contact submission' });
@@ -229,8 +230,8 @@ export const getContactStats = async (
   try {
     const stats = await getContactService().getStats();
     res.json(stats);
-  } catch (error: any) {
-    logger.error('Failed to get contact submission stats', error);
+  } catch (error: unknown) {
+    logger.error('Failed to get contact submission stats', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to get contact stats' });
   }
 };

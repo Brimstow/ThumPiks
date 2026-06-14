@@ -38,9 +38,15 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, change, changeTyp
   );
 };
 
+interface AdminOverviewData {
+  overview?: { activeUsers: number; monthlyGrowth: number };
+  userMetrics?: { retentionRate: number; averageSessionTime: number; churnRate: number };
+  contentMetrics?: { totalThumbnails: number; newThumbnails: number };
+}
+
 const AdminDashboard: React.FC = () => {
   const { data } = useRealtimeData();
-  const [overview, setOverview] = useState<any>(null);
+  const [overview, setOverview] = useState<AdminOverviewData | null>(null);
 
   // Load analytics overview from service
   useEffect(() => {
@@ -48,7 +54,7 @@ const AdminDashboard: React.FC = () => {
       try {
         const result = await adminAnalyticsService.getOverview();
         if (result.success && result.data) {
-          setOverview(result.data);
+          setOverview(result.data as AdminOverviewData);
         }
       } catch (error) {
         console.error('Failed to load analytics overview:', error);

@@ -1,4 +1,4 @@
-import { PrismaClient, CompositionLayout } from '@prisma/client';
+import { PrismaClient, Prisma, CompositionLayout } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -23,8 +23,8 @@ export interface CreateCompositionLayoutInput {
   canvasWidth?: number;
   canvasHeight?: number;
   wireframeSvg: string;
-  slots: any[];
-  textSlots?: any[];
+  slots: unknown[];
+  textSlots?: unknown[];
   fallbackBackground?: string;
   previewUrl?: string;
   isPublic?: boolean;
@@ -48,7 +48,7 @@ export class CompositionLayoutService {
       limit = 50,
     } = filters;
 
-    const where: any = {};
+    const where: Prisma.CompositionLayoutWhereInput = {};
 
     if (isPublic !== undefined) where.isPublic = isPublic;
     if (builtIn !== undefined) where.builtIn = builtIn;
@@ -67,7 +67,7 @@ export class CompositionLayoutService {
       where.tags = { array_contains: tags };
     }
 
-    const orderBy: any = {};
+    const orderBy: Prisma.CompositionLayoutOrderByWithRelationInput = {};
     orderBy[sortBy] = sortOrder;
 
     return prisma.compositionLayout.findMany({
@@ -113,8 +113,8 @@ export class CompositionLayoutService {
         canvasWidth: input.canvasWidth || 1920,
         canvasHeight: input.canvasHeight || 1080,
         wireframeSvg: input.wireframeSvg,
-        slots: input.slots as any,
-        textSlots: (input.textSlots || []) as any,
+        slots: input.slots as unknown as Prisma.InputJsonValue,
+        textSlots: (input.textSlots || []) as unknown as Prisma.InputJsonValue,
         fallbackBackground: input.fallbackBackground || null,
         previewUrl: input.previewUrl || null,
         isPublic: input.isPublic ?? true,
@@ -143,14 +143,14 @@ export class CompositionLayoutService {
     // Only the creator can update their own layouts (built-in layouts are not editable via API)
     if (layout.builtIn || layout.creatorId !== creatorId) return null;
 
-    const data: any = {};
+    const data: Prisma.CompositionLayoutUncheckedUpdateInput = {};
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.description !== undefined) data.description = updates.description;
     if (updates.category !== undefined) data.category = updates.category;
     if (updates.tags !== undefined) data.tags = updates.tags;
     if (updates.wireframeSvg !== undefined) data.wireframeSvg = updates.wireframeSvg;
-    if (updates.slots !== undefined) data.slots = updates.slots;
-    if (updates.textSlots !== undefined) data.textSlots = updates.textSlots;
+    if (updates.slots !== undefined) data.slots = updates.slots as unknown as Prisma.InputJsonValue;
+    if (updates.textSlots !== undefined) data.textSlots = updates.textSlots as unknown as Prisma.InputJsonValue;
     if (updates.fallbackBackground !== undefined) data.fallbackBackground = updates.fallbackBackground;
     if (updates.previewUrl !== undefined) data.previewUrl = updates.previewUrl;
     if (updates.isPublic !== undefined) data.isPublic = updates.isPublic;
@@ -211,8 +211,8 @@ export class CompositionLayoutService {
     canvasWidth: number;
     canvasHeight: number;
     wireframeSvg: string;
-    slots: any[];
-    textSlots: any[];
+    slots: unknown[];
+    textSlots: unknown[];
     fallbackBackground?: string;
     popularity: number;
   }): Promise<CompositionLayout> {
@@ -226,8 +226,8 @@ export class CompositionLayoutService {
         canvasWidth: layout.canvasWidth,
         canvasHeight: layout.canvasHeight,
         wireframeSvg: layout.wireframeSvg,
-        slots: layout.slots as any,
-        textSlots: layout.textSlots as any,
+        slots: layout.slots as unknown as Prisma.InputJsonValue,
+        textSlots: layout.textSlots as unknown as Prisma.InputJsonValue,
         fallbackBackground: layout.fallbackBackground || null,
         popularity: layout.popularity,
       },
@@ -240,8 +240,8 @@ export class CompositionLayoutService {
         canvasWidth: layout.canvasWidth,
         canvasHeight: layout.canvasHeight,
         wireframeSvg: layout.wireframeSvg,
-        slots: layout.slots as any,
-        textSlots: layout.textSlots as any,
+        slots: layout.slots as unknown as Prisma.InputJsonValue,
+        textSlots: layout.textSlots as unknown as Prisma.InputJsonValue,
         fallbackBackground: layout.fallbackBackground || null,
         popularity: layout.popularity,
         builtIn: true,

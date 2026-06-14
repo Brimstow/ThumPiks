@@ -14,6 +14,10 @@ import { Request, Response } from 'express';
 import { getAdminNotificationService } from './admin-notification.service';
 import { logger } from '../../utils/logger';
 
+function isPrismaNotFound(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
+}
+
 /** GET /inbox — List admin notifications */
 export async function listNotifications(req: Request, res: Response): Promise<void> {
   try {
@@ -27,8 +31,8 @@ export async function listNotifications(req: Request, res: Response): Promise<vo
     };
     const result = await service.list(query);
     res.json(result);
-  } catch (err: any) {
-    logger.error('Failed to list admin notifications', err);
+  } catch (err: unknown) {
+    logger.error('Failed to list admin notifications', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to load notifications' });
   }
 }
@@ -39,8 +43,8 @@ export async function getUnreadCount(_req: Request, res: Response): Promise<void
     const service = getAdminNotificationService();
     const unreadCount = await service.countUnread();
     res.json({ unreadCount });
-  } catch (err: any) {
-    logger.error('Failed to get admin unread count', err);
+  } catch (err: unknown) {
+    logger.error('Failed to get admin unread count', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to get unread count' });
   }
 }
@@ -56,12 +60,12 @@ export async function markRead(req: Request, res: Response): Promise<void> {
     const service = getAdminNotificationService();
     await service.markRead(id);
     res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === 'P2025') {
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) {
       res.status(404).json({ error: 'Notification not found' });
       return;
     }
-    logger.error('Failed to mark admin notification read', err);
+    logger.error('Failed to mark admin notification read', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to mark notification read' });
   }
 }
@@ -72,8 +76,8 @@ export async function markAllRead(_req: Request, res: Response): Promise<void> {
     const service = getAdminNotificationService();
     const count = await service.markAllRead();
     res.json({ success: true, count });
-  } catch (err: any) {
-    logger.error('Failed to mark all admin notifications read', err);
+  } catch (err: unknown) {
+    logger.error('Failed to mark all admin notifications read', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to mark all read' });
   }
 }
@@ -89,12 +93,12 @@ export async function deleteNotification(req: Request, res: Response): Promise<v
     const service = getAdminNotificationService();
     await service.delete(id);
     res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === 'P2025') {
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) {
       res.status(404).json({ error: 'Notification not found' });
       return;
     }
-    logger.error('Failed to delete admin notification', err);
+    logger.error('Failed to delete admin notification', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 }
@@ -110,8 +114,8 @@ export async function bulkDeleteNotifications(req: Request, res: Response): Prom
     const service = getAdminNotificationService();
     const count = await service.bulkDelete(ids);
     res.json({ success: true, count });
-  } catch (err: any) {
-    logger.error('Failed to bulk delete admin notifications', err);
+  } catch (err: unknown) {
+    logger.error('Failed to bulk delete admin notifications', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to delete notifications' });
   }
 }

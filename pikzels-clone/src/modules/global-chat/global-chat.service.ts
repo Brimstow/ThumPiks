@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ChatSession, ChatMessage } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getFrontendUrl } from '../../utils/env';
 import type {
   GlobalChatScope,
   GlobalChatMessagePayload,
@@ -220,13 +221,13 @@ export class GlobalChatService {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.openrouterApiKey}`,
-          'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:8556',
+          'HTTP-Referer': getFrontendUrl(),
           'X-Title': 'ThumPiks Global Chat',
         },
         body: JSON.stringify(requestBody),
       });
-    } catch (err: any) {
-      logger.error(`Failed to connect to OpenRouter: ${err.message}`);
+    } catch (err: unknown) {
+      logger.error(`Failed to connect to OpenRouter: ${err instanceof Error ? err.message : String(err)}`);
       send('error', { message: 'Failed to connect to AI service' });
       return;
     }
@@ -308,8 +309,8 @@ export class GlobalChatService {
             feedbackId: result.feedbackId,
           });
         }
-      } catch (err: any) {
-        logger.error(`Escalation failed: ${err.message}`);
+      } catch (err: unknown) {
+        logger.error(`Escalation failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -408,10 +409,10 @@ export class GlobalChatService {
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
-  private formatSession(session: any): ChatSessionResponse {
+  private formatSession(session: ChatSession): ChatSessionResponse {
     return {
       id: session.id,
-      scope: session.scope,
+      scope: session.scope as GlobalChatScope,
       status: session.status,
       title: session.title,
       messageCount: session.messageCount,
@@ -420,7 +421,7 @@ export class GlobalChatService {
     };
   }
 
-  private formatMessage(msg: any): ChatMessageResponse {
+  private formatMessage(msg: ChatMessage): ChatMessageResponse {
     return {
       id: msg.id,
       role: msg.role,

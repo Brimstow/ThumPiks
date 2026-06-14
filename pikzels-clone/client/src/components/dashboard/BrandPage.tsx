@@ -406,6 +406,7 @@ const BrandPage: React.FC = () => {
                   onClick={() => setBannerDismissed(true)}
                   className="p-2 hover:bg-amber-500/20 rounded-lg transition-colors text-amber-400/70 hover:text-amber-300"
                   title="Dismiss"
+                  aria-label="Dismiss"
                 >
                   <X className="w-4 h-4" />
                 </button>

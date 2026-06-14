@@ -51,12 +51,12 @@ export function useChatActions({
             } else {
               updateActionResult(messageId, i, 'success');
             }
-          } catch (err: any) {
+          } catch (err: unknown) {
             updateActionResult(
               messageId,
               i,
               'error',
-              err.message || 'Action failed',
+              (err instanceof Error ? err.message : undefined) || 'Action failed',
             );
           }
         }

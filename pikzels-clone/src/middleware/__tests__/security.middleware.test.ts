@@ -84,7 +84,8 @@ describe('Security Middleware', () => {
         mockNext
       );
 
-      expect(mockReq.body.link).toBe('alert(1)');
+      // sanitize-html strips dangerous content entirely
+      expect(mockReq.body.link).not.toContain('javascript:');
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -100,9 +101,11 @@ describe('Security Middleware', () => {
         mockNext
       );
 
-      // Regex removes 'onerror=' and 'onclick=' but leaves quoted values
-      expect(mockReq.body.html).toBe('<img src="x" "alert(1)">');
-      expect(mockReq.body.div).toBe('<div "malicious()">Click</div>');
+      // sanitize-html strips all tags — no HTML remains
+      expect(mockReq.body.html).not.toContain('<img');
+      expect(mockReq.body.html).not.toContain('onerror');
+      expect(mockReq.body.div).not.toContain('<div');
+      expect(mockReq.body.div).not.toContain('onclick');
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -590,40 +593,18 @@ describe('Security Middleware', () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should add custom X-Powered-By header', () => {
+    it('should not set X-Powered-By header', () => {
       apiVersioning(
         mockReq as Request,
         mockRes as unknown as Response,
         mockNext
       );
 
-      expect(mockRes.set).toHaveBeenCalledWith(
+      expect(mockRes.set).not.toHaveBeenCalledWith(
         'X-Powered-By',
-        'Thumbnail Maker Studio'
+        expect.anything()
       );
-      expect(mockNext).toHaveBeenCalled();
-    });
-
-    it('should remove default X-Powered-By header for security', () => {
-      apiVersioning(
-        mockReq as Request,
-        mockRes as unknown as Response,
-        mockNext
-      );
-
-      expect(mockRes.removeHeader).toHaveBeenCalledWith('X-Powered-By');
-      expect(mockNext).toHaveBeenCalled();
-    });
-
-    it('should call all header operations in correct order', () => {
-      apiVersioning(
-        mockReq as Request,
-        mockRes as unknown as Response,
-        mockNext
-      );
-
-      expect(mockRes.set).toHaveBeenCalledTimes(2);
-      expect(mockRes.removeHeader).toHaveBeenCalledTimes(1);
+      expect(mockRes.set).toHaveBeenCalledTimes(1);
       expect(mockNext).toHaveBeenCalled();
     });
   });

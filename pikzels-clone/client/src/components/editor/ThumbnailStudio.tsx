@@ -41,7 +41,6 @@ import type {
   LayerType, 
   Layer,
   ImageLayer,
-  TextLayer,
   DrawingLayer,
   PlatformPreview,
   PlatformPreviewConfig,
@@ -52,158 +51,13 @@ import type {
 import type { ExtractedFrame } from '../../services/video';
 import { config } from '../../config/environment';
 import { authPost } from '../../utils/api';
-import { THUMBNAIL_FONTS, TEXT_COLOR_PRESETS, TEXT_STYLE_PRESETS } from '../../constants/text-styles';
-import { drawTiledWatermark } from '../../utils/drawWatermark';
+import PropertiesPanel from './panels/PropertiesPanel';
 import { useSubscription } from '../../hooks/useSubscription';
-import { safeCanvasToBlob, safeCanvasToDataURL } from '../../utils/browserCompat';
+import { safeCanvasToDataURL } from '../../utils/browserCompat';
+import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts';
+import { useEditorExport } from './hooks/useEditorExport';
+import Icons from './EditorIcons';
 import './ThumbnailStudio.css';
-
-// Icons
-const Icons = {
-  Layers: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  ),
-  Video: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
-      <rect x="2" y="6" width="14" height="12" rx="2" />
-    </svg>
-  ),
-  Sparkles: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-    </svg>
-  ),
-  Settings: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  ),
-  Undo: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 7v6h6" />
-      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
-    </svg>
-  ),
-  Redo: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 7v6h-6" />
-      <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" />
-    </svg>
-  ),
-  Download: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  ),
-  Save: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17 21 17 13 7 13 7 21" />
-      <polyline points="7 3 7 8 15 8" />
-    </svg>
-  ),
-  ChevronLeft: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="15 18 9 12 15 6" />
-    </svg>
-  ),
-  ChevronRight: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  ),
-  Maximize: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-    </svg>
-  ),
-  Minimize: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-    </svg>
-  ),
-  // Cutting-edge feature icons
-  Heatmap: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  ),
-  Platform: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  ),
-  Guides: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="12" y1="2" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <line x1="8" y1="2" x2="8" y2="22" strokeDasharray="2 2" />
-      <line x1="16" y1="2" x2="16" y2="22" strokeDasharray="2 2" />
-    </svg>
-  ),
-  YouTube: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-      <path d="M23.5 6.2c-.3-1-1.1-1.8-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6c-1 .3-1.8 1.1-2.1 2.1C0 8.1 0 12 0 12s0 3.9.5 5.8c.3 1 1.1 1.8 2.1 2.1 1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6c1-.3 1.8-1.1 2.1-2.1.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.5 15.5v-7l6.3 3.5-6.3 3.5z" />
-    </svg>
-  ),
-  Twitch: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-      <path d="M11.6 16.9v-5.6h1.9v5.6h-1.9zm5.2 0v-5.6h1.9v5.6h-1.9zM4.2 2L2.3 6.2v15h5.2v2.4h2.5l2.4-2.4h3.8l5.1-5.1V2H4.2zm15.8 12.7l-2.9 2.9h-4.7l-2.4 2.4v-2.4H5.7V3.8h14.3v10.9z" />
-    </svg>
-  ),
-  TikTok: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-      <path d="M19.3 5.4c-1.5-.9-2.5-2.4-2.6-4.2h-3.8v14.2c0 1.9-1.5 3.4-3.4 3.4s-3.4-1.5-3.4-3.4 1.5-3.4 3.4-3.4c.4 0 .7.1 1 .2V8.3c-.3 0-.7-.1-1-.1-4 0-7.2 3.2-7.2 7.2s3.2 7.2 7.2 7.2 7.2-3.2 7.2-7.2V9.1c1.4 1 3.1 1.6 4.9 1.6V7c-1-.1-1.9-.6-2.3-1.6z" />
-    </svg>
-  ),
-  Sliders: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="4" y1="21" x2="4" y2="14" />
-      <line x1="4" y1="10" x2="4" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12" y2="3" />
-      <line x1="20" y1="21" x2="20" y2="16" />
-      <line x1="20" y1="12" x2="20" y2="3" />
-      <line x1="1" y1="14" x2="7" y2="14" />
-      <line x1="9" y1="8" x2="15" y2="8" />
-      <line x1="17" y1="16" x2="23" y2="16" />
-    </svg>
-  ),
-  Layout: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
-    </svg>
-  ),
-  X: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  ),
-  FilePlus: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="12" y1="18" x2="12" y2="12" />
-      <line x1="9" y1="15" x2="15" y2="15" />
-    </svg>
-  ),
-};
 
 type PanelTab = 'layers' | 'video' | 'ai' | 'layouts' | 'adjust' | 'properties';
 
@@ -337,189 +191,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     }
   }, [thumbnailData, initialImage, addImageLayer, dispatch, updateAdjustments]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent shortcuts when typing in inputs
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      const isMod = e.ctrlKey || e.metaKey;
-
-      // Tool shortcuts
-      if (!isMod) {
-        const toolMap: Record<string, ToolType> = {
-          'v': 'select',
-          'w': 'smart-select',
-          'm': 'move',
-          'b': 'brush',
-          'e': 'eraser',
-          'p': 'pen',
-          'k': 'clone',
-          'j': 'gradient',
-          'r': 'rectangle',
-          'o': 'ellipse',
-          'g': 'polygon',
-          'l': 'line',
-          't': 'text',
-          'i': 'eyedropper',
-          'f': 'fill',
-          'c': 'crop',
-          'h': 'hand',
-          'z': 'zoom',
-        };
-
-        if (toolMap[e.key.toLowerCase()]) {
-          dispatch({ type: 'SET_TOOL', tool: toolMap[e.key.toLowerCase()] });
-          return;
-        }
-      }
-
-      // Modifier shortcuts
-      if (isMod) {
-        switch (e.key.toLowerCase()) {
-          case 'z':
-            e.preventDefault();
-            if (e.shiftKey) {
-              if (canRedo) dispatch({ type: 'REDO' });
-            } else {
-              if (canUndo) dispatch({ type: 'UNDO' });
-            }
-            break;
-          case 'y':
-            e.preventDefault();
-            if (canRedo) dispatch({ type: 'REDO' });
-            break;
-          case 's':
-            e.preventDefault();
-            handleSave();
-            break;
-          case 'n':
-            if (e.shiftKey) {
-              e.preventDefault();
-              handleClearCanvas();
-            }
-            break;
-          case 'g':
-            e.preventDefault();
-            if (state.selection.layerIds.length > 1) {
-              dispatch({ type: 'GROUP_LAYERS', layerIds: state.selection.layerIds });
-            }
-            break;
-          case 'd':
-            e.preventDefault();
-            // Duplicate selected layers
-            state.selection.layerIds.forEach(id => {
-              const layer = state.layers.find(l => l.id === id);
-              if (layer) {
-                dispatch({ type: 'DUPLICATE_LAYER', layerId: id });
-              }
-            });
-            break;
-          case 'a':
-            e.preventDefault();
-            if (e.shiftKey) {
-              // Ctrl+Shift+A: Deselect all
-              clearSelection();
-            } else {
-              // Ctrl+A: Select all layers
-              dispatch({ 
-                type: 'SET_SELECTION', 
-                selection: { layerIds: state.layers.map(l => l.id) } 
-              });
-            }
-            break;
-          case 'e':
-            e.preventDefault();
-            handleExport();
-            break;
-          case '[':
-            e.preventDefault();
-            // Send backward - reorder selected layers down in layerOrder
-            if (state.selection.layerIds.length > 0 && state.layerOrder.length > 1) {
-              const selectedId = state.selection.layerIds[0];
-              const currentIndex = state.layerOrder.indexOf(selectedId);
-              if (currentIndex < state.layerOrder.length - 1) {
-                const newOrder = [...state.layerOrder];
-                // Swap with layer below
-                [newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]];
-                dispatch({ type: 'REORDER_LAYERS', layerIds: newOrder });
-              }
-            }
-            break;
-          case ']':
-            e.preventDefault();
-            // Bring forward - reorder selected layers up in layerOrder
-            if (state.selection.layerIds.length > 0 && state.layerOrder.length > 1) {
-              const selectedId = state.selection.layerIds[0];
-              const currentIndex = state.layerOrder.indexOf(selectedId);
-              if (currentIndex > 0) {
-                const newOrder = [...state.layerOrder];
-                // Swap with layer above
-                [newOrder[currentIndex], newOrder[currentIndex - 1]] = [newOrder[currentIndex - 1], newOrder[currentIndex]];
-                dispatch({ type: 'REORDER_LAYERS', layerIds: newOrder });
-              }
-            }
-            break;
-        }
-      }
-
-      // Shift+modifier shortcuts
-      if (isMod && e.shiftKey) {
-        switch (e.key.toLowerCase()) {
-          case 'g':
-            e.preventDefault();
-            // Ungroup layers - find the group containing selected layer
-            if (state.selection.layerIds.length === 1) {
-              const selectedId = state.selection.layerIds[0];
-              const group = state.layers.find(l => l.type === 'group' && (l as any).children?.includes(selectedId));
-              if (group) {
-                dispatch({ type: 'UNGROUP_LAYER', groupId: group.id });
-              }
-            }
-            break;
-          case '[':
-            e.preventDefault();
-            // Send to back (move to bottom of layerOrder)
-            if (state.selection.layerIds.length > 0) {
-              const selectedIds = state.selection.layerIds.filter(id => state.layerOrder.includes(id));
-              const otherLayers = state.layerOrder.filter(id => !selectedIds.includes(id));
-              dispatch({ type: 'REORDER_LAYERS', layerIds: [...otherLayers, ...selectedIds] });
-            }
-            break;
-          case ']':
-            e.preventDefault();
-            // Bring to front (move to top of layerOrder)
-            if (state.selection.layerIds.length > 0) {
-              const selectedIds = state.selection.layerIds.filter(id => state.layerOrder.includes(id));
-              const otherLayers = state.layerOrder.filter(id => !selectedIds.includes(id));
-              dispatch({ type: 'REORDER_LAYERS', layerIds: [...selectedIds, ...otherLayers] });
-            }
-            break;
-        }
-      }
-
-      // Other shortcuts
-      if (e.key === 'Escape') {
-        clearSelection();
-      }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        state.selection.layerIds.forEach(id => {
-          dispatch({ type: 'REMOVE_LAYER', layerId: id });
-        });
-      }
-      if (e.key === 'F11' || (e.key === 'f' && !isMod)) {
-        if (e.key === 'F11') {
-          e.preventDefault();
-          setIsFullCanvas(prev => !prev);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, canUndo, canRedo, clearSelection, state.selection.layerIds, state.layers, state.layerOrder]);
+  // Keyboard shortcuts are registered via useEditorKeyboardShortcuts below (after handleSave/handleExport are defined)
 
   // Refs to access latest state without creating new callback references
   const layersRef = useRef(state.layers);
@@ -906,7 +578,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         markSaved(); // Reset dirty state after successful API save
       } catch (error) {
         console.error('Error saving adjustments:', error);
-        // TODO: Show error toast to user
+        alert('Failed to save adjustments. Please try again.');
         return; // Don't mark as saved if API call failed
       }
     } else {
@@ -920,184 +592,38 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     });
   }, [state.layers, state.adjustments, thumbnailId, onSave, markSaved]);
 
-  // YouTube thumbnail requirements:
-  // - Max 2MB file size
-  // - Recommended: 1280x720 (16:9)
-  // - Accepted formats: JPG, GIF, PNG (JPG recommended for size)
-  const YOUTUBE_MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
-
-  // Export state for format selection
-  // Default to JPG when YouTube platform preview is active
+  // Export state (extracted to hook)
   const isYouTubeMode = platformPreview.platform === 'youtube' || platformPreview.platform === 'youtube-shorts';
-  const [exportFormat, setExportFormat] = useState<'png' | 'jpg' | 'webp'>('png');
-  const [exportQuality, setExportQuality] = useState(85);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const {
+    exportFormat,
+    setExportFormat,
+    exportQuality,
+    setExportQuality,
+    isExporting,
+    exportError,
+    setExportError,
+    handleExport,
+  } = useEditorExport({
+    isYouTubeMode,
+    shouldWatermark,
+    watermarkFreeRemaining,
+    refreshSubscription,
+  });
 
-  // Auto-switch to JPG when YouTube mode is activated
-  useEffect(() => {
-    if (isYouTubeMode && exportFormat !== 'jpg') {
-      setExportFormat('jpg');
-      setExportQuality(90); // Start with high quality for YouTube
-    }
-  }, [isYouTubeMode]);
-
-  /**
-   * Convert canvas to blob with size enforcement for YouTube
-   * Uses progressive quality reduction to meet 2MB limit
-   */
-  const canvasToOptimizedBlob = useCallback(async (
-    canvas: HTMLCanvasElement,
-    format: 'png' | 'jpg' | 'webp',
-    initialQuality: number,
-    maxSizeBytes?: number
-  ): Promise<{ blob: Blob; finalQuality: number }> => {
-    const mimeType = format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
-    
-    // For PNG, no quality adjustment possible - just return as-is
-    if (format === 'png') {
-      const blob = await safeCanvasToBlob(canvas, mimeType);
-      if (blob) {
-        return { blob, finalQuality: 100 };
-      }
-      throw new Error('Failed to create PNG blob');
-    }
-
-    // For JPG/WebP, progressively reduce quality until under size limit
-    let quality = initialQuality / 100;
-    let blob: Blob | null = null;
-    let attempts = 0;
-    const maxAttempts = 10;
-    const qualityStep = 0.1; // Reduce by 10% each attempt
-
-    while (attempts < maxAttempts) {
-      blob = await safeCanvasToBlob(canvas, mimeType, quality);
-
-      if (!blob) {
-        throw new Error(`Failed to create ${format.toUpperCase()} blob`);
-      }
-
-      // If no size limit or under limit, we're done
-      if (!maxSizeBytes || blob.size <= maxSizeBytes) {
-        return { blob, finalQuality: Math.round(quality * 100) };
-      }
-
-      // Reduce quality and try again
-      quality = Math.max(0.1, quality - qualityStep);
-      attempts++;
-      
-      console.log(`[Export] Size ${(blob.size / 1024 / 1024).toFixed(2)}MB > ${(maxSizeBytes / 1024 / 1024).toFixed(2)}MB limit, reducing quality to ${Math.round(quality * 100)}%`);
-    }
-
-    // If we still can't get under the limit, warn but return the best we have
-    if (blob && maxSizeBytes && blob.size > maxSizeBytes) {
-      console.warn(`[Export] Could not reduce file size below ${(maxSizeBytes / 1024 / 1024).toFixed(2)}MB. Final size: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
-    }
-
-    return { blob: blob!, finalQuality: Math.round(quality * 100) };
-  }, []);
-
-  const handleExport = useCallback(async () => {
-    const canvas = document.querySelector('.canvas-wrapper canvas') as HTMLCanvasElement;
-    if (!canvas) return;
-
-    setIsExporting(true);
-    setExportError(null);
-
-    try {
-      let extension: string;
-      let maxSize: number | undefined;
-
-      switch (exportFormat) {
-        case 'jpg':
-          extension = 'jpg';
-          // Enforce 2MB limit for YouTube mode
-          maxSize = isYouTubeMode ? YOUTUBE_MAX_FILE_SIZE : undefined;
-          break;
-        case 'webp':
-          extension = 'webp';
-          break;
-        case 'png':
-        default:
-          extension = 'png';
-          break;
-      }
-
-      // For free-tier users, clone the canvas and draw watermark on the clone
-      // so the live editor canvas is never modified.
-      // If user has a watermark-free export available, consume it and skip watermark.
-      let exportCanvas = canvas;
-      let usedWatermarkFree = false;
-      if (shouldWatermark) {
-        if (watermarkFreeRemaining > 0) {
-          // Consume one watermark-free export
-          try {
-            const wmResponse = await authPost('/api/subscription/use-watermark-free-export', {});
-            if (wmResponse.ok) {
-              usedWatermarkFree = true;
-              // Skip watermark — export clean canvas
-            }
-          } catch {
-            // If quota consumption fails, fall through to watermarked export
-          }
-        }
-
-        if (!usedWatermarkFree) {
-          const clone = document.createElement('canvas');
-          clone.width = canvas.width;
-          clone.height = canvas.height;
-          const ctx = clone.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(canvas, 0, 0);
-            drawTiledWatermark(ctx, clone.width, clone.height);
-            exportCanvas = clone;
-          }
-        }
-      }
-
-      const { blob, finalQuality } = await canvasToOptimizedBlob(
-        exportCanvas,
-        exportFormat,
-        exportQuality,
-        maxSize
-      );
-
-      // Check final size for YouTube
-      if (isYouTubeMode && blob.size > YOUTUBE_MAX_FILE_SIZE) {
-        setExportError(`File size (${(blob.size / 1024 / 1024).toFixed(2)}MB) exceeds YouTube's 2MB limit. Try reducing canvas size or using simpler content.`);
-        return;
-      }
-
-      // Log helpful info for users
-      const fileSizeMB = (blob.size / 1024 / 1024).toFixed(2);
-      if (isYouTubeMode) {
-        console.log(`[YouTube Export] ✓ Size: ${fileSizeMB}MB (limit: 2MB), Quality: ${finalQuality}%`);
-      }
-
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `thumbnail-${Date.now()}${isYouTubeMode ? '-youtube' : ''}.${extension}`;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-
-      // Update quality state if it was auto-adjusted
-      if (finalQuality !== exportQuality) {
-        setExportQuality(finalQuality);
-      }
-
-      // Refresh subscription status if a watermark-free export was used
-      if (usedWatermarkFree) {
-        refreshSubscription();
-      }
-    } catch (error) {
-      console.error('[Export] Error:', error);
-      setExportError(error instanceof Error ? error.message : 'Export failed');
-    } finally {
-      setIsExporting(false);
-    }
-  }, [exportFormat, exportQuality, isYouTubeMode, canvasToOptimizedBlob, shouldWatermark, watermarkFreeRemaining, refreshSubscription]);
+  // Keyboard shortcuts (extracted to hook)
+  useEditorKeyboardShortcuts({
+    dispatch,
+    canUndo,
+    canRedo,
+    clearSelection,
+    selectionLayerIds: state.selection.layerIds,
+    layers: state.layers,
+    layerOrder: state.layerOrder,
+    handleSave,
+    handleExport,
+    handleClearCanvas,
+    setIsFullCanvas,
+  });
 
   // Video frame handler
   const handleVideoFrameSelect = useCallback((frame: ExtractedFrame) => {
@@ -1419,7 +945,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
       <header className="editor-toolbar">
         <div className="editor-toolbar__left">
           {onClose && (
-            <button className="editor-btn editor-btn--icon" onClick={onClose} title="Close">
+            <button className="editor-btn editor-btn--icon" onClick={onClose} title="Close" aria-label="Close">
               <Icons.X />
             </button>
           )}
@@ -1430,6 +956,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             onClick={() => dispatch({ type: 'UNDO' })}
             disabled={!canUndo}
             title="Undo (Ctrl+Z)"
+            aria-label="Undo (Ctrl+Z)"
           >
             <Icons.Undo />
           </button>
@@ -1438,6 +965,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             onClick={() => dispatch({ type: 'REDO' })}
             disabled={!canRedo}
             title="Redo (Ctrl+Y)"
+            aria-label="Redo (Ctrl+Y)"
           >
             <Icons.Redo />
           </button>
@@ -1447,6 +975,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             onClick={handleClearCanvas}
             disabled={state.layers.length === 0}
             title="New Canvas (Ctrl+Shift+N)"
+            aria-label="New Canvas (Ctrl+Shift+N)"
           >
             <Icons.FilePlus />
           </button>
@@ -1499,6 +1028,7 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
             className="editor-btn editor-btn--icon"
             onClick={() => setIsFullCanvas(prev => !prev)}
             title={isFullCanvas ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}
+            aria-label={isFullCanvas ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}
           >
             {isFullCanvas ? <Icons.Minimize /> : <Icons.Maximize />}
           </button>
@@ -1995,391 +1525,10 @@ const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                   )}
                   {activeTab === 'properties' && (
                     <div className="properties-panel">
-                      {selectedLayers.length === 0 ? (
-                        <div style={{
-                          padding: '24px',
-                          textAlign: 'center',
-                          color: 'var(--editor-text-muted)',
-                          fontSize: '12px',
-                        }}>
-                          Select a layer to view properties
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="properties-section">
-                            <h4 className="properties-section__title">Transform</h4>
-                            {selectedLayers.map(layer => (
-                              <div key={layer.id}>
-                                <div className="properties-row">
-                                  <span className="properties-label">X</span>
-                                  <input
-                                    type="number"
-                                    className="properties-input"
-                                    value={Math.round(layer.transform.x)}
-                                    onChange={(e) => handleLayerUpdate(layer.id, {
-                                      transform: { ...layer.transform, x: parseInt(e.target.value) || 0 }
-                                    })}
-                                  />
-                                </div>
-                                <div className="properties-row">
-                                  <span className="properties-label">Y</span>
-                                  <input
-                                    type="number"
-                                    className="properties-input"
-                                    value={Math.round(layer.transform.y)}
-                                    onChange={(e) => handleLayerUpdate(layer.id, {
-                                      transform: { ...layer.transform, y: parseInt(e.target.value) || 0 }
-                                    })}
-                                  />
-                                </div>
-                                <div className="properties-row">
-                                  <span className="properties-label">Width</span>
-                                  <input
-                                    type="number"
-                                    className="properties-input"
-                                    value={Math.round(layer.transform.width)}
-                                    onChange={(e) => handleLayerUpdate(layer.id, {
-                                      transform: { ...layer.transform, width: parseInt(e.target.value) || 1 }
-                                    })}
-                                  />
-                                </div>
-                                <div className="properties-row">
-                                  <span className="properties-label">Height</span>
-                                  <input
-                                    type="number"
-                                    className="properties-input"
-                                    value={Math.round(layer.transform.height)}
-                                    onChange={(e) => handleLayerUpdate(layer.id, {
-                                      transform: { ...layer.transform, height: parseInt(e.target.value) || 1 }
-                                    })}
-                                  />
-                                </div>
-                                <div className="properties-row">
-                                  <span className="properties-label">Rotation</span>
-                                  <input
-                                    type="number"
-                                    className="properties-input"
-                                    value={Math.round(layer.transform.rotation)}
-                                    onChange={(e) => handleUpdateLayer(layer.id, {
-                                      transform: { ...layer.transform, rotation: parseInt(e.target.value) || 0 }
-                                    })}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Per-layer filters - only for image layers */}
-                          {selectedLayers.length === 1 && selectedLayers[0].type === 'image' && (
-                            <div className="properties-section">
-                              <h4 className="properties-section__title">Filters</h4>
-                              {(() => {
-                                const imgLayer = selectedLayers[0] as ImageLayer;
-                                const filters = imgLayer.filters || { brightness: 100, contrast: 100, saturation: 100, hue: 0, blur: 0 };
-                                return (
-                                  <>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Brightness</span>
-                                      <input
-                                        type="range"
-                                        min="0"
-                                        max="200"
-                                        value={filters.brightness}
-                                        onChange={(e) => handleUpdateLayer(imgLayer.id, {
-                                          filters: { ...filters, brightness: parseInt(e.target.value) }
-                                        } as any)}
-                                        className="properties-slider"
-                                      />
-                                      <span className="properties-value">{filters.brightness}%</span>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Contrast</span>
-                                      <input
-                                        type="range"
-                                        min="0"
-                                        max="200"
-                                        value={filters.contrast}
-                                        onChange={(e) => handleUpdateLayer(imgLayer.id, {
-                                          filters: { ...filters, contrast: parseInt(e.target.value) }
-                                        } as any)}
-                                        className="properties-slider"
-                                      />
-                                      <span className="properties-value">{filters.contrast}%</span>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Saturation</span>
-                                      <input
-                                        type="range"
-                                        min="0"
-                                        max="200"
-                                        value={filters.saturation}
-                                        onChange={(e) => handleUpdateLayer(imgLayer.id, {
-                                          filters: { ...filters, saturation: parseInt(e.target.value) }
-                                        } as any)}
-                                        className="properties-slider"
-                                      />
-                                      <span className="properties-value">{filters.saturation}%</span>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Hue</span>
-                                      <input
-                                        type="range"
-                                        min="0"
-                                        max="360"
-                                        value={filters.hue}
-                                        onChange={(e) => handleUpdateLayer(imgLayer.id, {
-                                          filters: { ...filters, hue: parseInt(e.target.value) }
-                                        } as any)}
-                                        className="properties-slider"
-                                      />
-                                      <span className="properties-value">{filters.hue}°</span>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Blur</span>
-                                      <input
-                                        type="range"
-                                        min="0"
-                                        max="20"
-                                        value={filters.blur}
-                                        onChange={(e) => handleUpdateLayer(imgLayer.id, {
-                                          filters: { ...filters, blur: parseInt(e.target.value) }
-                                        } as any)}
-                                        className="properties-slider"
-                                      />
-                                      <span className="properties-value">{filters.blur}px</span>
-                                    </div>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-
-                          {/* Per-layer text properties - only for text layers */}
-                          {selectedLayers.length === 1 && selectedLayers[0].type === 'text' && (
-                            <div className="properties-section">
-                              <h4 className="properties-section__title">Text</h4>
-                              {(() => {
-                                const textLayer = selectedLayers[0] as TextLayer;
-                                return (
-                                  <>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Content</span>
-                                      <input
-                                        type="text"
-                                        className="properties-input"
-                                        value={textLayer.content}
-                                        onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                          content: e.target.value
-                                        } as any)}
-                                      />
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Font</span>
-                                      <select
-                                        className="properties-input"
-                                        value={textLayer.fontFamily}
-                                        onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                          fontFamily: e.target.value
-                                        } as any)}
-                                      >
-                                        {THUMBNAIL_FONTS.map(f => (
-                                          <option key={f.value} value={f.value}>{f.label}</option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Size</span>
-                                      <input
-                                        type="number"
-                                        className="properties-input"
-                                        value={textLayer.fontSize}
-                                        min="8"
-                                        max="200"
-                                        onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                          fontSize: parseInt(e.target.value) || 16
-                                        } as any)}
-                                      />
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Color</span>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                                        <input
-                                          type="color"
-                                          value={textLayer.fill}
-                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                            fill: e.target.value
-                                          } as any)}
-                                          className="properties-color"
-                                        />
-                                        <div className="properties-color-presets">
-                                          {TEXT_COLOR_PRESETS.map(c => (
-                                            <button
-                                              key={c}
-                                              className={`properties-color-swatch ${textLayer.fill === c ? 'properties-color-swatch--active' : ''}`}
-                                              style={{ background: c }}
-                                              onClick={() => handleUpdateLayer(textLayer.id, { fill: c } as any)}
-                                            />
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Align</span>
-                                      <div className="properties-buttons">
-                                        {(['left', 'center', 'right'] as const).map(align => (
-                                          <button
-                                            key={align}
-                                            className={`properties-btn ${textLayer.textAlign === align ? 'properties-btn--active' : ''}`}
-                                            onClick={() => handleUpdateLayer(textLayer.id, {
-                                              textAlign: align
-                                            } as any)}
-                                          >
-                                            {align[0].toUpperCase()}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div className="properties-row">
-                                      <span className="properties-label">Weight</span>
-                                      <select
-                                        className="properties-input"
-                                        value={textLayer.fontWeight}
-                                        onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                          fontWeight: parseInt(e.target.value)
-                                        } as any)}
-                                      >
-                                        <option value="300">Light</option>
-                                        <option value="400">Normal</option>
-                                        <option value="500">Medium</option>
-                                        <option value="600">Semi Bold</option>
-                                        <option value="700">Bold</option>
-                                        <option value="800">Extra Bold</option>
-                                        <option value="900">Black</option>
-                                      </select>
-                                    </div>
-
-                                    {/* Stroke controls */}
-                                    <div className="properties-row">
-                                      <span className="properties-label">Stroke</span>
-                                      <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
-                                        <input
-                                          type="color"
-                                          value={textLayer.stroke || '#000000'}
-                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                            stroke: e.target.value,
-                                            strokeWidth: textLayer.strokeWidth || 2
-                                          } as any)}
-                                          className="properties-color"
-                                          style={{ width: 28, height: 28 }}
-                                        />
-                                        <input
-                                          type="number"
-                                          className="properties-input"
-                                          value={textLayer.strokeWidth || 0}
-                                          min="0"
-                                          max="20"
-                                          step="1"
-                                          style={{ width: 60 }}
-                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                            strokeWidth: parseInt(e.target.value) || 0
-                                          } as any)}
-                                        />
-                                        <span style={{ fontSize: 10, color: '#9ca3af' }}>px</span>
-                                      </div>
-                                    </div>
-
-                                    {/* Shadow toggle */}
-                                    <div className="properties-row">
-                                      <span className="properties-label">Shadow</span>
-                                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={!!textLayer.textShadow}
-                                          onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                            textShadow: e.target.checked ? '3px 3px 6px rgba(0,0,0,0.8)' : ''
-                                          } as any)}
-                                        />
-                                        <span style={{ fontSize: 11, color: '#d1d5db' }}>
-                                          {textLayer.textShadow ? 'On' : 'Off'}
-                                        </span>
-                                      </label>
-                                    </div>
-
-                                    {/* Background banner toggle */}
-                                    <div className="properties-row">
-                                      <span className="properties-label">Banner</span>
-                                      <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                                          <input
-                                            type="checkbox"
-                                            checked={!!textLayer.backgroundColor}
-                                            onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                              backgroundColor: e.target.checked ? 'rgba(0,0,0,0.6)' : ''
-                                            } as any)}
-                                          />
-                                          <span style={{ fontSize: 11, color: '#d1d5db' }}>
-                                            {textLayer.backgroundColor ? 'On' : 'Off'}
-                                          </span>
-                                        </label>
-                                        {textLayer.backgroundColor && (
-                                          <input
-                                            type="color"
-                                            value={textLayer.backgroundColor.startsWith('rgba') ? '#000000' : textLayer.backgroundColor}
-                                            onChange={(e) => handleUpdateLayer(textLayer.id, {
-                                              backgroundColor: e.target.value
-                                            } as any)}
-                                            className="properties-color"
-                                            style={{ width: 24, height: 24 }}
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Style Presets */}
-                                    <div style={{ marginTop: 8 }}>
-                                      <span className="properties-label" style={{ display: 'block', marginBottom: 6 }}>Presets</span>
-                                      <div className="style-presets-grid">
-                                        {TEXT_STYLE_PRESETS.map(preset => (
-                                          <button
-                                            key={preset.id}
-                                            className="style-preset-card"
-                                            onClick={() => handleUpdateLayer(textLayer.id, {
-                                              fontFamily: preset.fontFamily,
-                                              fill: preset.fill,
-                                              stroke: preset.stroke,
-                                              strokeWidth: preset.strokeWidth,
-                                              textShadow: preset.textShadow,
-                                              backgroundColor: preset.backgroundColor,
-                                              fontWeight: 900,
-                                            } as any)}
-                                            title={preset.label}
-                                          >
-                                            <span
-                                              className="style-preset-preview"
-                                              style={{
-                                                fontFamily: preset.fontFamily,
-                                                color: preset.fill,
-                                                WebkitTextStroke: preset.strokeWidth ? `${Math.min(preset.strokeWidth, 2)}px ${preset.stroke}` : undefined,
-                                                textShadow: preset.textShadow || undefined,
-                                                backgroundColor: preset.backgroundColor || undefined,
-                                                padding: preset.backgroundColor ? '2px 6px' : undefined,
-                                                borderRadius: preset.backgroundColor ? 3 : undefined,
-                                              }}
-                                            >
-                                              Aa
-                                            </span>
-                                            <span className="style-preset-label">{preset.label}</span>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      <PropertiesPanel
+                        selectedLayers={selectedLayers}
+                        onUpdateLayer={handleUpdateLayer}
+                      />
                     </div>
                   )}
                 </div>

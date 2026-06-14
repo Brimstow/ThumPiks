@@ -7,6 +7,7 @@ import {
   ImageTransformation,
 } from './storage.types';
 import { CloudinaryProvider, getCloudinaryProvider } from './cloudinary.provider';
+import { logger } from '../../utils/logger';
 
 /**
  * Hybrid Storage Service
@@ -123,12 +124,12 @@ export class StorageService {
     source: string | Buffer,
     options: StorageUploadOptions
   ): Promise<StorageUploadResult> {
-    // Currently only Cloudinary is implemented
-    // TODO: Add Storacha as primary when credentials available
+    // Storacha will be added as primary storage when credentials are configured.
+    // Currently Cloudinary is the only storage provider.
     try {
       return await this.uploadToCloudinary(source, options);
     } catch (error) {
-      console.error('Primary upload failed, attempting fallback:', error);
+      logger.error('Primary upload failed, attempting fallback', error instanceof Error ? error : undefined);
       // For now, rethrow since Cloudinary is both primary and fallback
       throw error;
     }

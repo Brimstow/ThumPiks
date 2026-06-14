@@ -133,15 +133,15 @@ export const performanceMiddleware = () => {
     };
 
     // Attach timing to request for later use
-    (req as any).timing = timing;
+    (req as unknown as Record<string, unknown>).timing = timing;
 
     // Override res.end to capture response time
-    const originalEnd = res.end;
-    (res as any).end = function (...args: any[]) {
+    const originalEnd = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = function (...args: unknown[]) {
       const responseTime = Date.now() - startTime;
       logPerformanceMetrics(req, res, responseTime);
-      return (originalEnd as any).apply(this, args);
-    };
+      return originalEnd(...args);
+    } as typeof res.end;
 
     next();
   };
@@ -269,7 +269,7 @@ export async function getPerformanceMetrics(
       'performance:DELETE:*',
     ];
 
-    const allMetrics: any = {};
+    const allMetrics: Record<string, unknown> = {};
 
     for (const pattern of patterns) {
       // Note: In a real implementation, you'd need to implement key scanning

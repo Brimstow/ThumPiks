@@ -9,6 +9,21 @@ import { logger } from '../../utils/logger';
 
 dotenv.config();
 
+/** Typed shape of a Replicate prediction API response */
+interface ReplicatePrediction {
+  id?: string;
+  status?: string;
+  error?: string;
+  urls?: { get?: string };
+  output?: unknown;
+}
+
+interface ReplicateSamOutput {
+  combined_mask?: string;
+  individual_masks?: string[];
+  mask?: string;
+}
+
 // Timeout configuration
 const PREDICTION_TIMEOUT = 120000; // 2 minutes max for polling
 const POLL_INTERVAL = 1000; // 1 second between polls
@@ -140,7 +155,7 @@ export class ReplicateAIService {
     this.sleep = sleepFn ?? sleep;
 
     if (!this.apiKey) {
-      console.warn(
+      logger.warn(
         'REPLICATE_API_KEY not found in environment variables. Replicate AI features will not work.'
       );
     }
@@ -247,29 +262,27 @@ export class ReplicateAIService {
     let combinedMask: string | undefined;
 
     if (prediction.output) {
+      const output = prediction.output;
+      const samOutput = output as ReplicateSamOutput;
+
       // SAM 2 returns combined_mask and individual_masks
-      if (prediction.output.combined_mask) {
-        combinedMask = prediction.output.combined_mask;
+      if (samOutput.combined_mask) {
+        combinedMask = samOutput.combined_mask;
       }
 
       // Handle individual_masks array
-      if (
-        prediction.output.individual_masks &&
-        Array.isArray(prediction.output.individual_masks)
-      ) {
-        prediction.output.individual_masks.forEach(
-          (maskUrl: string, index: number) => {
-            masks.push({
-              url: maskUrl,
-              score: 1.0 - index * 0.01, // Slight score variation for ordering
-            });
-          }
-        );
+      if (samOutput.individual_masks && Array.isArray(samOutput.individual_masks)) {
+        samOutput.individual_masks.forEach((maskUrl: string, index: number) => {
+          masks.push({
+            url: maskUrl,
+            score: 1.0 - index * 0.01,
+          });
+        });
       }
 
       // Handle direct array output (older API format)
-      if (Array.isArray(prediction.output) && masks.length === 0) {
-        prediction.output.forEach((maskUrl: string, index: number) => {
+      if (Array.isArray(output) && masks.length === 0) {
+        (output as string[]).forEach((maskUrl: string, index: number) => {
           masks.push({
             url: maskUrl,
             score: 1.0 - index * 0.1,
@@ -355,14 +368,15 @@ export class ReplicateAIService {
     const masks: Array<{ url: string }> = [];
 
     if (prediction.output) {
-      if (Array.isArray(prediction.output)) {
-        prediction.output.forEach((maskUrl: string) => {
+      const output = prediction.output;
+      if (Array.isArray(output)) {
+        (output as unknown[]).forEach((maskUrl) => {
           if (typeof maskUrl === 'string') {
             masks.push({ url: maskUrl });
           }
         });
-      } else if (typeof prediction.output === 'string') {
-        masks.push({ url: prediction.output });
+      } else if (typeof output === 'string') {
+        masks.push({ url: output });
       }
     }
 
@@ -414,15 +428,13 @@ export class ReplicateAIService {
 
     // SAM 3 returns a single mask image URL
     let maskUrl: string;
-    if (typeof prediction.output === 'string') {
-      maskUrl = prediction.output;
-    } else if (
-      Array.isArray(prediction.output) &&
-      prediction.output.length > 0
-    ) {
-      maskUrl = prediction.output[0];
-    } else if (prediction.output?.mask) {
-      maskUrl = prediction.output.mask;
+    const output = prediction.output;
+    if (typeof output === 'string') {
+      maskUrl = output;
+    } else if (Array.isArray(output) && output.length > 0) {
+      maskUrl = output[0] as string;
+    } else if (output && typeof output === 'object' && (output as ReplicateSamOutput).mask) {
+      maskUrl = (output as ReplicateSamOutput).mask!;
     } else {
       throw new Error(
         `SAM 3 returned unexpected output format for prompt "${prompt}"`
@@ -461,9 +473,10 @@ export class ReplicateAIService {
     const prediction = await this.runPrediction(model, input);
 
     // Output is typically a single URL string
-    const output = Array.isArray(prediction.output)
-      ? prediction.output[0]
-      : prediction.output;
+    const rawOutput = prediction.output;
+    const output = Array.isArray(rawOutput)
+      ? (rawOutput as string[])[0]
+      : rawOutput;
 
     if (!output || typeof output !== 'string') {
       throw new Error('No output image from remove-background model');
@@ -504,9 +517,10 @@ export class ReplicateAIService {
 
     const prediction = await this.runPrediction(model, input);
 
-    const output = Array.isArray(prediction.output)
-      ? prediction.output[0]
-      : prediction.output;
+    const rawOutput = prediction.output;
+    const output = Array.isArray(rawOutput)
+      ? (rawOutput as string[])[0]
+      : rawOutput;
 
     if (!output || typeof output !== 'string') {
       throw new Error('No output image from upscale model');
@@ -559,9 +573,10 @@ export class ReplicateAIService {
 
     const prediction = await this.runPrediction(model, input);
 
-    const output = Array.isArray(prediction.output)
-      ? prediction.output[0]
-      : prediction.output;
+    const rawOutput = prediction.output;
+    const output = Array.isArray(rawOutput)
+      ? (rawOutput as string[])[0]
+      : rawOutput;
 
     if (!output || typeof output !== 'string') {
       throw new Error('No output image from expand model');
@@ -588,7 +603,7 @@ export class ReplicateAIService {
   private async runPrediction(
     model: string,
     input: Record<string, unknown>
-  ): Promise<any> {
+  ): Promise<ReplicatePrediction> {
     let lastError: Error | null = null;
     let lastRetryAfter: number | undefined;
 
@@ -596,74 +611,81 @@ export class ReplicateAIService {
       try {
         if (attempt > 0) {
           const delay = calculateBackoffDelay(attempt - 1, lastRetryAfter);
-          console.log(
-            `Replicate: Retry ${attempt}/${MAX_RETRIES} after ${Math.round(delay)}ms` +
-              (lastRetryAfter ? ` (server suggested ${lastRetryAfter}s)` : '')
-          );
+          logger.info('Replicate: Retry', {
+            attempt,
+            maxRetries: MAX_RETRIES,
+            delay: Math.round(delay),
+            ...(lastRetryAfter ? { retryAfter: lastRetryAfter } : {}),
+          });
           await this.sleep(delay);
         }
 
         return await this.executePrediction(model, input);
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
         // Extract retry-after from error metadata if available
-        if (error.retryAfter !== undefined) {
-          lastRetryAfter = error.retryAfter;
+        const enrichedError = error as { retryAfter?: number; statusCode?: number; isRetryable?: boolean };
+        if (enrichedError.retryAfter !== undefined) {
+          lastRetryAfter = enrichedError.retryAfter;
         } else {
           lastRetryAfter = undefined;
         }
 
         // Check if this is a non-retryable error
         if (
-          error.statusCode &&
-          NON_RETRYABLE_STATUS_CODES.has(error.statusCode)
+          enrichedError.statusCode &&
+          NON_RETRYABLE_STATUS_CODES.has(enrichedError.statusCode)
         ) {
-          console.error(
-            `Replicate: Non-retryable error (${error.statusCode}):`,
-            lastError.message
+          logger.error(
+            `Replicate: Non-retryable error (${enrichedError.statusCode})`,
+            lastError
           );
           throw lastError;
         }
 
         // Explicitly non-retryable (e.g., prediction failed/canceled terminal states)
-        if (error.isRetryable === false) {
-          console.error(
-            'Replicate: Terminal error (not retryable):',
-            lastError.message
+        if (enrichedError.isRetryable === false) {
+          logger.error(
+            'Replicate: Terminal error (not retryable)',
+            lastError
           );
           throw lastError;
         }
 
         // Check if this is a retryable error
         const isRetryable =
-          (error.statusCode && RETRYABLE_STATUS_CODES.has(error.statusCode)) ||
-          error.isRetryable === true;
+          (enrichedError.statusCode && RETRYABLE_STATUS_CODES.has(enrichedError.statusCode)) ||
+          enrichedError.isRetryable === true;
 
         if (!isRetryable && attempt === 0) {
           // First attempt failed with unknown error - try once more
-          console.warn(
-            `Replicate: Attempt ${attempt + 1} failed (will retry):`,
-            lastError.message
+          logger.warn(
+            'Replicate: Attempt failed, will retry',
+            { attempt: attempt + 1, error: lastError.message }
           );
         } else if (!isRetryable) {
           // Not a retryable error after first retry
-          console.error(
-            `Replicate: Non-retryable error after ${attempt + 1} attempts:`,
-            lastError.message
+          logger.error(
+            'Replicate: Non-retryable error after attempts',
+            lastError,
+            { attempts: attempt + 1 }
           );
           throw lastError;
         } else {
-          console.warn(
-            `Replicate: Attempt ${attempt + 1} failed with retryable error ` +
-              `(${error.statusCode || 'unknown'}):`,
-            lastError.message
+          logger.warn(
+            'Replicate: Attempt failed with retryable error',
+            { attempt: attempt + 1, statusCode: enrichedError.statusCode || 'unknown', error: lastError.message }
           );
         }
       }
     }
 
-    console.error(`Replicate: All ${MAX_RETRIES + 1} attempts failed`);
+    logger.error(
+      'Replicate: All attempts failed',
+      undefined,
+      { totalAttempts: MAX_RETRIES + 1 }
+    );
     throw lastError || new Error('Replicate prediction failed after retries');
   }
 
@@ -678,7 +700,7 @@ export class ReplicateAIService {
   private async executePrediction(
     model: string,
     input: Record<string, unknown>
-  ): Promise<any> {
+  ): Promise<ReplicatePrediction> {
     const hasVersion = model.includes(':');
     let endpoint: string;
     let requestBody: Record<string, unknown>;
@@ -709,13 +731,15 @@ export class ReplicateAIService {
     // resolve the model's latest version and retry via the versioned endpoint.
     // This handles community models configured without a version hash.
     if (!hasVersion && createResponse.status === 404) {
-      console.warn(
-        `Replicate: Official model endpoint 404 for "${model}", resolving latest version...`
+      logger.warn(
+        'Replicate: Official model endpoint 404, resolving latest version',
+        { model }
       );
       const latestVersion = await this.resolveLatestVersion(model);
       if (latestVersion) {
-        console.log(
-          `Replicate: Retrying with versioned endpoint (${latestVersion.substring(0, 12)}...)`
+        logger.info(
+          'Replicate: Retrying with versioned endpoint',
+          { version: latestVersion.substring(0, 12) }
         );
         const fallbackResponse = await fetch(`${this.baseUrl}/predictions`, {
           method: 'POST',
@@ -728,7 +752,7 @@ export class ReplicateAIService {
         });
 
         if (fallbackResponse.ok) {
-          return this.handlePredictionResponse(await fallbackResponse.json());
+          return this.handlePredictionResponse(await fallbackResponse.json() as ReplicatePrediction);
         }
 
         // Fallback also failed — fall through to normal error handling with its response
@@ -741,7 +765,7 @@ export class ReplicateAIService {
       return this.handleCreateError(createResponse);
     }
 
-    return this.handlePredictionResponse(await createResponse.json());
+    return this.handlePredictionResponse(await createResponse.json() as ReplicatePrediction);
   }
 
   /**
@@ -751,7 +775,7 @@ export class ReplicateAIService {
   private async handleCreateError(response: {
     status: number;
     text(): Promise<string>;
-    headers: any;
+    headers: { get(name: string): string | null };
   }): Promise<never> {
     const errorText = await response.text();
     const statusCode = response.status;
@@ -794,7 +818,7 @@ export class ReplicateAIService {
    * Handle a prediction response: return immediately if succeeded,
    * otherwise poll until completion.
    */
-  private async handlePredictionResponse(prediction: any): Promise<any> {
+  private async handlePredictionResponse(prediction: ReplicatePrediction): Promise<ReplicatePrediction> {
     if (prediction.status === 'succeeded') {
       return prediction;
     }
@@ -850,8 +874,9 @@ export class ReplicateAIService {
         }
         const retryAfter =
           parseRetryAfter(statusResponse as unknown as Response) || 5;
-        console.warn(
-          `Replicate: Rate limited during poll, waiting ${retryAfter}s (attempt ${pollRetries}/${MAX_POLL_RETRIES})`
+        logger.warn(
+          'Replicate: Rate limited during poll',
+          { retryAfter, attempt: pollRetries, maxRetries: MAX_POLL_RETRIES }
         );
         await this.sleep(retryAfter * 1000);
         continue;
@@ -860,8 +885,9 @@ export class ReplicateAIService {
       if (!statusResponse.ok) {
         if (statusResponse.status >= 500 && pollRetries < MAX_POLL_RETRIES) {
           pollRetries++;
-          console.warn(
-            `Replicate: Server error during poll (${statusResponse.status}), retrying...`
+          logger.warn(
+            'Replicate: Server error during poll, retrying',
+            { status: statusResponse.status }
           );
           await this.sleep(2000);
           continue;
@@ -872,7 +898,7 @@ export class ReplicateAIService {
       }
 
       pollRetries = 0;
-      prediction = await statusResponse.json();
+      prediction = await statusResponse.json() as ReplicatePrediction;
     }
 
     if (prediction.status === 'failed') {
@@ -903,7 +929,7 @@ export class ReplicateAIService {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
       if (!response.ok) return undefined;
-      const data: any = await response.json();
+      const data = await response.json() as { latest_version?: { id?: string } };
       return data.latest_version?.id;
     } catch {
       return undefined;
@@ -962,12 +988,6 @@ export class ReplicateAIService {
         }
         // hybridResult is null → detection returned 0 objects, fall through
       } catch (hybridError) {
-        console.warn(
-          '[Decompose] Hybrid pipeline failed, falling back to SAM 2:',
-          hybridError instanceof Error
-            ? hybridError.message
-            : String(hybridError)
-        );
         logger.warn(
           '[Decompose] Hybrid pipeline failed, falling back to SAM 2',
           {
@@ -1382,7 +1402,7 @@ export class ReplicateAIService {
     predictionId: string;
   }> {
     // Run SAM auto-segment with relaxed thresholds
-    console.log('[Decompose] Running SAM 2 auto-segmentation...');
+    logger.info('[Decompose] Running SAM 2 auto-segmentation');
     const segResult = await this.segment(imageBase64, {
       pointsPerSide: 32,
       predIouThresh: 0.8,
@@ -1393,9 +1413,7 @@ export class ReplicateAIService {
       throw new Error('SAM segmentation returned no masks');
     }
 
-    console.log(
-      `[Decompose] SAM 2 returned ${segResult.masks.length} masks total`
-    );
+    logger.info('[Decompose] SAM 2 returned masks', { count: segResult.masks.length });
 
     const originalBuffer = this.base64ToBuffer(imageBase64);
     const originalMeta = await sharp(originalBuffer).metadata();
@@ -1422,8 +1440,9 @@ export class ReplicateAIService {
       try {
         const maskResponse = await fetch(mask.url);
         if (!maskResponse.ok) {
-          console.warn(
-            `[Decompose] Failed to fetch mask ${i}: ${maskResponse.status}`
+          logger.warn(
+            '[Decompose] Failed to fetch mask',
+            { index: i, status: maskResponse.status }
           );
           continue;
         }
@@ -1442,13 +1461,16 @@ export class ReplicateAIService {
         }
 
         const coveragePercent = (opaquePixels / totalPixels) * 100;
-        console.log(
-          `[Decompose] Mask ${i}: ${opaquePixels} opaque px (${coveragePercent.toFixed(1)}% coverage)`
-        );
+        logger.info('[Decompose] Mask coverage', {
+          index: i,
+          opaquePixels,
+          coveragePercent: +coveragePercent.toFixed(1),
+        });
 
         if (coveragePercent < MIN_COVERAGE_PERCENT) {
-          console.log(
-            `[Decompose] Skipping mask ${i}: below ${MIN_COVERAGE_PERCENT}% coverage threshold`
+          logger.info(
+            '[Decompose] Skipping mask below coverage threshold',
+            { index: i, threshold: MIN_COVERAGE_PERCENT }
           );
           continue;
         }
@@ -1460,7 +1482,7 @@ export class ReplicateAIService {
           coveragePercent,
         });
       } catch (fetchError) {
-        console.warn(`[Decompose] Error fetching mask ${i}:`, fetchError);
+        logger.warn('[Decompose] Error fetching mask', { index: i, error: String(fetchError) });
       }
     }
 
@@ -1473,8 +1495,9 @@ export class ReplicateAIService {
     maskCandidates.sort((a, b) => b.opaquePixels - a.opaquePixels);
     const topMasks = maskCandidates.slice(0, maxLayers);
 
-    console.log(
-      `[Decompose] ${maskCandidates.length} masks passed filter, using top ${topMasks.length} by area`
+    logger.info(
+      '[Decompose] Masks passed filter',
+      { total: maskCandidates.length, selected: topMasks.length }
     );
 
     const layers: Array<{
@@ -1487,9 +1510,12 @@ export class ReplicateAIService {
     for (let li = 0; li < topMasks.length; li++) {
       const candidate = topMasks[li]!;
       try {
-        console.log(
-          `[Decompose] Building layer ${li + 1}/${topMasks.length} (mask ${candidate.index}, ${candidate.coveragePercent.toFixed(1)}% coverage)...`
-        );
+        logger.info('[Decompose] Building layer', {
+          layer: li + 1,
+          total: topMasks.length,
+          maskIndex: candidate.index,
+          coveragePercent: +candidate.coveragePercent.toFixed(1),
+        });
 
         const layerPixels = Buffer.alloc(totalPixels * 4);
         for (let px = 0; px < totalPixels; px++) {
@@ -1544,7 +1570,7 @@ export class ReplicateAIService {
           score: areaScore,
         });
       } catch (layerError) {
-        console.warn(`[Decompose] Error processing layer ${li}:`, layerError);
+        logger.warn('[Decompose] Error processing layer', { index: li, error: (layerError as Error).message });
       }
     }
 
@@ -1552,7 +1578,7 @@ export class ReplicateAIService {
       throw new Error('Decomposition produced no valid layers');
     }
 
-    console.log(`[Decompose] Successfully created ${layers.length} layers`);
+    logger.info('[Decompose] Successfully created layers', { count: layers.length });
 
     return {
       layers,

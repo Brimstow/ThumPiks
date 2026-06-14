@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { query } from 'express-validator';
 import {
   authenticateAdmin,
@@ -6,6 +6,7 @@ import {
   adminRateLimit
 } from './admin-auth.middleware';
 import { ADMIN_PERMISSIONS } from './admin-auth.service';
+import { logger } from '../../utils/logger';
 
 const router = Router();
 
@@ -14,17 +15,15 @@ const router = Router();
  */
 const sitemapController = {
   // Get sitemap entries with filtering and pagination
-  getSitemapEntries: async (req: any, res: any) => {
+  getSitemapEntries: async (req: Request, res: Response) => {
     try {
-      const {
-        page = 1,
-        limit = 50,
-        search = '',
-        type = 'all',
-        status = 'all',
-        sortField = 'lastModified',
-        sortDirection = 'desc'
-      } = req.query;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = (req.query.search as string) || '';
+      const type = (req.query.type as string) || 'all';
+      const status = (req.query.status as string) || 'all';
+      const sortField = (req.query.sortField as string) || 'lastModified';
+      const sortDirection = (req.query.sortDirection as string) || 'desc';
 
       // Mock sitemap data - replace with actual database queries
       const mockEntries = [
@@ -78,9 +77,9 @@ const sitemapController = {
       });
 
       // Apply sorting
-      filteredEntries.sort((a: any, b: any) => {
-        const aValue = a[sortField];
-        const bValue = b[sortField];
+      filteredEntries.sort((a, b) => {
+        const aValue = a[sortField as keyof typeof a];
+        const bValue = b[sortField as keyof typeof b];
         
         if (sortDirection === 'asc') {
           return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
@@ -99,7 +98,7 @@ const sitemapController = {
         data: {
           entries: paginatedEntries,
           pagination: {
-            currentPage: parseInt(page),
+            currentPage: page,
             totalPages: Math.ceil(filteredEntries.length / limit),
             totalEntries: filteredEntries.length,
             hasNext: endIndex < filteredEntries.length,
@@ -108,7 +107,7 @@ const sitemapController = {
         }
       });
     } catch (error) {
-      console.error('Error fetching sitemap entries:', error);
+      logger.error('Error fetching sitemap entries', error instanceof Error ? error : undefined);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch sitemap entries'
@@ -117,7 +116,7 @@ const sitemapController = {
   },
 
   // Get sitemap statistics
-  getSitemapStats: async (_req: any, res: any) => {
+  getSitemapStats: async (_req: Request, res: Response) => {
     try {
       // Mock stats - replace with actual database queries
       const stats = {
@@ -135,7 +134,7 @@ const sitemapController = {
         data: stats
       });
     } catch (error) {
-      console.error('Error fetching sitemap stats:', error);
+      logger.error('Error fetching sitemap stats', error instanceof Error ? error : undefined);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch sitemap statistics'
@@ -144,10 +143,10 @@ const sitemapController = {
   },
 
   // Generate new sitemap
-  generateSitemap: async (_req: any, res: any) => {
+  generateSitemap: async (_req: Request, res: Response) => {
     try {
       // Mock sitemap generation - replace with actual implementation
-      console.log('Generating sitemap...');
+      logger.info('Generating sitemap...');
       
       // Simulate processing time
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -162,7 +161,7 @@ const sitemapController = {
         }
       });
     } catch (error) {
-      console.error('Error generating sitemap:', error);
+      logger.error('Error generating sitemap', error instanceof Error ? error : undefined);
       res.status(500).json({
         success: false,
         message: 'Failed to generate sitemap'
@@ -171,7 +170,7 @@ const sitemapController = {
   },
 
   // Export sitemap XML
-  exportSitemap: async (_req: any, res: any) => {
+  exportSitemap: async (_req: Request, res: Response) => {
     try {
       // Mock XML generation - replace with actual sitemap XML generation
       const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -194,7 +193,7 @@ const sitemapController = {
       res.setHeader('Content-Disposition', 'attachment; filename="sitemap.xml"');
       res.send(sitemapXml);
     } catch (error) {
-      console.error('Error exporting sitemap:', error);
+      logger.error('Error exporting sitemap', error instanceof Error ? error : undefined);
       res.status(500).json({
         success: false,
         message: 'Failed to export sitemap'

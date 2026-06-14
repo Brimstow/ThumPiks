@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query, validationResult } from 'express-validator';
 import { systemMonitoringService } from './system-monitoring.service';
+import { logger } from '../../utils/logger';
 
 export class SystemMonitoringController {
 
@@ -17,7 +18,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Get system health error:', error);
+      logger.error('Get system health error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve system health',
         code: 'SYSTEM_HEALTH_ERROR'
@@ -38,7 +39,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Get performance metrics error:', error);
+      logger.error('Get performance metrics error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve performance metrics',
         code: 'PERFORMANCE_METRICS_ERROR'
@@ -70,7 +71,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Get system alerts error:', error);
+      logger.error('Get system alerts error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve system alerts',
         code: 'SYSTEM_ALERTS_ERROR'
@@ -111,7 +112,7 @@ export class SystemMonitoringController {
       }
 
     } catch (error) {
-      console.error('Acknowledge alert error:', error);
+      logger.error('Acknowledge alert error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to acknowledge alert',
         code: 'ACKNOWLEDGE_ALERT_ERROR'
@@ -150,7 +151,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Get error logs error:', error);
+      logger.error('Get error logs error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve error logs',
         code: 'ERROR_LOGS_ERROR'
@@ -183,7 +184,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Log system error error:', error);
+      logger.error('Log system error error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to log system error',
         code: 'LOG_ERROR_ERROR'
@@ -204,7 +205,7 @@ export class SystemMonitoringController {
       });
 
     } catch (error) {
-      console.error('Cleanup old data error:', error);
+      logger.error('Cleanup old data error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to cleanup old data',
         code: 'CLEANUP_ERROR'

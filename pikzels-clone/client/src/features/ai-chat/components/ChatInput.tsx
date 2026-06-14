@@ -111,6 +111,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 type="button"
                 title="Upload image"
+                aria-label="Upload image"
                 disabled={isStreaming}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
@@ -127,6 +128,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onClick={onStop}
               type="button"
               title="Stop generating"
+              aria-label="Stop generating"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -139,6 +141,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               disabled={!text.trim()}
               type="button"
               title="Send message"
+              aria-label="Send message"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <line x1="22" y1="2" x2="11" y2="13" />

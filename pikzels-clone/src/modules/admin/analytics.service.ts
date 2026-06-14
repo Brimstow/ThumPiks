@@ -1,4 +1,5 @@
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
 
@@ -110,7 +111,7 @@ export class AnalyticsService {
         lastUpdated: new Date(),
       };
     } catch (error) {
-      console.error('Error getting analytics overview:', error);
+      logger.error('Error getting analytics overview', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -171,7 +172,7 @@ export class AnalyticsService {
         topUsers,
       };
     } catch (error) {
-      console.error('Error getting user metrics:', error);
+      logger.error('Error getting user metrics', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -249,7 +250,7 @@ export class AnalyticsService {
         categoryDistribution,
       };
     } catch (error) {
-      console.error('Error getting content metrics:', error);
+      logger.error('Error getting content metrics', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -296,7 +297,7 @@ export class AnalyticsService {
         churnRate: 5.2, // Mock churn rate
       };
     } catch (error) {
-      console.error('Error getting revenue metrics:', error);
+      logger.error('Error getting revenue metrics', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -351,7 +352,7 @@ export class AnalyticsService {
         },
       };
     } catch (error) {
-      console.error('Error getting system metrics:', error);
+      logger.error('Error getting system metrics', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -363,7 +364,7 @@ export class AnalyticsService {
     metricType: string,
     value: number,
     date: Date = new Date(),
-    additionalData?: any
+    additionalData?: unknown
   ): Promise<void> {
     try {
       await prisma.systemMetrics.upsert({
@@ -375,7 +376,7 @@ export class AnalyticsService {
         },
         update: {
           metricValue: value,
-          ...(additionalData && {
+          ...(additionalData !== undefined && {
             additionalData: JSON.stringify(additionalData),
           }),
         },
@@ -383,13 +384,13 @@ export class AnalyticsService {
           metricType,
           metricValue: value,
           metricDate: date,
-          ...(additionalData && {
+          ...(additionalData !== undefined && {
             additionalData: JSON.stringify(additionalData),
           }),
         },
       });
     } catch (error) {
-      console.error('Error storing system metric:', error);
+      logger.error('Error storing system metric', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -404,7 +405,7 @@ export class AnalyticsService {
     dateRange?: DateRange
   ) {
     try {
-      const where: any = {
+      const where: Record<string, unknown> = {
         userId: { not: null },
       };
 
@@ -433,7 +434,7 @@ export class AnalyticsService {
 
       return logs;
     } catch (error) {
-      console.error('Error getting user activity logs:', error);
+      logger.error('Error getting user activity logs', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -447,7 +448,7 @@ export class AnalyticsService {
     sections: string[] = ['users', 'content', 'revenue', 'system']
   ): Promise<string> {
     try {
-      const data: any = {};
+      const data: Record<string, unknown> = {};
 
       if (sections.includes('users')) {
         data.users = await this.getUserMetrics(dateRange);
@@ -472,7 +473,7 @@ export class AnalyticsService {
         return this.convertToCSV(data);
       }
     } catch (error) {
-      console.error('Error exporting analytics data:', error);
+      logger.error('Error exporting analytics data', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -629,7 +630,7 @@ export class AnalyticsService {
     return points;
   }
 
-  private calculateSubscriptionBreakdown(subscriptions: any[]): Array<{
+  private calculateSubscriptionBreakdown(subscriptions: { planType: string; creditsBalance: number }[]): Array<{
     planType: string;
     count: number;
     revenue: number;
@@ -659,7 +660,7 @@ export class AnalyticsService {
   }
 
   private processSystemHealthMetrics(
-    healthData: any[],
+    healthData: { checkedAt: Date; response?: number | null; errorRate?: number | null }[],
     metricType: string
   ): MetricPoint[] {
     // Group by date and calculate averages
@@ -670,7 +671,7 @@ export class AnalyticsService {
       const value =
         metricType === 'response' ? health.response : health.errorRate;
 
-      if (value !== null) {
+      if (value !== null && value !== undefined && date !== undefined) {
         if (!dailyMetrics.has(date)) {
           dailyMetrics.set(date, []);
         }
@@ -684,13 +685,13 @@ export class AnalyticsService {
     }));
   }
 
-  private convertToCSV(data: any): string {
+  private convertToCSV(data: Record<string, unknown>): string {
     // Simplified CSV conversion
     let csv = 'Type,Metric,Value,Date\n';
 
-    Object.entries(data).forEach(([section, metrics]: [string, any]) => {
+    Object.entries(data).forEach(([section, metrics]) => {
       if (metrics && typeof metrics === 'object') {
-        Object.entries(metrics).forEach(([key, value]) => {
+        Object.entries(metrics as Record<string, unknown>).forEach(([key, value]) => {
           if (typeof value === 'number') {
             csv += `${section},${key},${value},${new Date().toISOString()}\n`;
           }

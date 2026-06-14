@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import type { EditorState, Layer, LayerTransform, LayerEffect, GroupLayer, TextLayer } from '../types/editor.types';
+import type { EditorState, Layer, LayerTransform, LayerEffect, GroupLayer, TextLayer, ImageLayer, ShapeLayer, DrawingLayer, DrawingPath } from '../types/editor.types';
 import { parseTextShadow } from '../../../constants/text-styles';
 import { INLINE_EDIT_STYLES } from '../../../hooks/useInlineTextEdit';
 import { UploadZoneOverlay } from './UploadZoneOverlay';
@@ -11,7 +11,7 @@ interface CanvasEngineProps {
   onZoomChange: (zoom: number) => void;
   onPanChange: (panX: number, panY: number) => void;
   onLayerSelect: (layerId: string | null) => void;
-  onDrawingUpdate?: (paths: any[]) => void;
+  onDrawingUpdate?: (paths: DrawingPath[]) => void;
   onShapeCreate?: (shapeType: 'rectangle' | 'ellipse' | 'line' | 'polygon', x: number, y: number, width: number, height: number, points?: { x: number; y: number }[]) => void;
   onTextCreate?: (x: number, y: number) => void;
   onColorPick?: (color: string) => void;
@@ -170,7 +170,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
   // Preload images when layers change
   useEffect(() => {
-    const imageLayers = layers.filter(l => l.type === 'image') as any[];
+    const imageLayers = layers.filter(l => l.type === 'image') as ImageLayer[];
     
     imageLayers.forEach(layer => {
       const src = layer.src;
@@ -288,7 +288,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
       // Skip rendering group layer itself - children are rendered separately
       if (layer.type === 'group') {
-        renderGroupLayer(ctx, layer as any, layers, layerOrder);
+        renderGroupLayer(ctx, layer as GroupLayer, layers, layerOrder);
         return;
       }
 
@@ -317,7 +317,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.translate(-width / 2, -height / 2);
 
       // Apply layer effects (pre-draw: shadow, glow, blur, bevel)
-      const layerEffects: LayerEffect[] = (layer as any).effects || [];
+      const layerEffects: LayerEffect[] = layer.effects || [];
       const enabledPreEffects = layerEffects.filter(
         e => e.enabled && e.type !== 'stroke'
       );
@@ -328,19 +328,19 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       // Render based on layer type
       switch (layer.type) {
         case 'image':
-          renderImageLayer(ctx, layer as any);
+          renderImageLayer(ctx, layer as ImageLayer);
           break;
         case 'text':
           // Skip canvas rendering when inline textarea is visible (prevents ghost/double text)
           if (editingTextLayerId !== layer.id) {
-            renderTextLayer(ctx, layer as any);
+            renderTextLayer(ctx, layer as TextLayer);
           }
           break;
         case 'shape':
-          renderShapeLayer(ctx, layer as any);
+          renderShapeLayer(ctx, layer as ShapeLayer);
           break;
         case 'drawing':
-          renderDrawingLayer(ctx, layer as any);
+          renderDrawingLayer(ctx, layer as DrawingLayer);
           break;
       }
 
@@ -413,18 +413,18 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       
       switch (childLayer.type) {
         case 'image':
-          renderImageLayer(ctx, childLayer as any);
+          renderImageLayer(ctx, childLayer as ImageLayer);
           break;
         case 'text':
           if (editingTextLayerId !== childLayer.id) {
-            renderTextLayer(ctx, childLayer as any);
+            renderTextLayer(ctx, childLayer as TextLayer);
           }
           break;
         case 'shape':
-          renderShapeLayer(ctx, childLayer as any);
+          renderShapeLayer(ctx, childLayer as ShapeLayer);
           break;
         case 'drawing':
-          renderDrawingLayer(ctx, childLayer as any);
+          renderDrawingLayer(ctx, childLayer as DrawingLayer);
           break;
       }
       
@@ -434,7 +434,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.restore();
   };
 
-  const renderImageLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderImageLayer = (ctx: CanvasRenderingContext2D, layer: ImageLayer) => {
     // Get cached image
     const img = imageCache.current.get(layer.src);
     if (!img) {
@@ -463,10 +463,10 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.filter = 'none';
   };
 
-  const renderTextLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderTextLayer = (ctx: CanvasRenderingContext2D, layer: TextLayer) => {
     ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
     ctx.fillStyle = layer.fill;
-    ctx.textAlign = layer.textAlign;
+    ctx.textAlign = layer.textAlign === 'justify' ? 'left' : layer.textAlign;
     ctx.textBaseline = 'top';
 
     const lines = layer.content.split('\n');
@@ -510,7 +510,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     }
 
     // Apply shadow from CSS textShadow string (skip if new-style effects already set shadow)
-    const hasEffectShadow = ((layer as any).effects || []).some(
+    const hasEffectShadow = (layer.effects || []).some(
       (e: LayerEffect) => e.enabled && (e.type === 'shadow' || e.type === 'glow')
     );
     const shadow = (!hasEffectShadow && layer.textShadow) ? parseTextShadow(layer.textShadow) : null;
@@ -550,7 +550,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     }
   };
 
-  const renderShapeLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderShapeLayer = (ctx: CanvasRenderingContext2D, layer: ShapeLayer) => {
     const { width, height } = layer.transform;
 
     ctx.fillStyle = layer.fill;
@@ -604,8 +604,8 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.stroke();
   };
 
-  const renderDrawingLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
-    layer.paths.forEach((path: any) => {
+  const renderDrawingLayer = (ctx: CanvasRenderingContext2D, layer: DrawingLayer) => {
+    layer.paths.forEach((path: DrawingPath) => {
       if (path.points.length < 2) return;
 
       ctx.beginPath();
@@ -616,7 +616,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.globalAlpha = path.opacity / 100;
 
       ctx.moveTo(path.points[0].x, path.points[0].y);
-      path.points.slice(1).forEach((point: any) => {
+      path.points.slice(1).forEach((point: { x: number; y: number; pressure?: number }) => {
         ctx.lineTo(point.x, point.y);
       });
       ctx.stroke();
@@ -1512,7 +1512,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
                       fontSize: editLayer.fontSize,
                       fontWeight: editLayer.fontWeight,
                       fontStyle: editLayer.fontStyle,
-                      textAlign: editLayer.textAlign as any,
+                      textAlign: editLayer.textAlign as CanvasTextAlign,
                       lineHeight: editLayer.lineHeight,
                       caretColor: '#a855f7',
                       cursor: 'text',
@@ -1528,19 +1528,19 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       {/* Zoom controls */}
       <div className="canvas-controls">
         <div className="zoom-control">
-          <button onClick={zoomOut} title="Zoom out">
+          <button onClick={zoomOut} title="Zoom out" aria-label="Zoom out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
           <span className="zoom-control__value">{Math.round(canvas.zoom * 100)}%</span>
-          <button onClick={zoomIn} title="Zoom in">
+          <button onClick={zoomIn} title="Zoom in" aria-label="Zoom in">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-          <button onClick={zoomFit} title="Fit to view" style={{ marginLeft: 8, width: 'auto', padding: '0 8px' }}>
+          <button onClick={zoomFit} title="Fit to view" aria-label="Fit to view" style={{ marginLeft: 8, width: 'auto', padding: '0 8px' }}>
             Fit
           </button>
         </div>

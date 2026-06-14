@@ -108,7 +108,7 @@ describe('AIPriorityQueueService', () => {
         id: 'test-job-1',
         waitUntilFinished: jest.fn().mockResolvedValue({ images: ['url'] }),
       };
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.add.mockResolvedValue(mockJob);
 
       const directExecutor = jest.fn();
@@ -134,7 +134,7 @@ describe('AIPriorityQueueService', () => {
         id: 'test-job-2',
         waitUntilFinished: jest.fn().mockResolvedValue({ images: ['url'] }),
       };
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.add.mockResolvedValue(mockJob);
 
       const freeParams = { ...baseJobParams, planType: 'free' };
@@ -153,7 +153,7 @@ describe('AIPriorityQueueService', () => {
     it('returns 503-like error when queue is full', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(500);
 
       const directExecutor = jest.fn();
@@ -165,7 +165,7 @@ describe('AIPriorityQueueService', () => {
     it('falls back to directExecutor when queue.add throws', async () => {
       await service.initialize();
 
-      const mockQueue = (Queue as jest.Mock).mock.results[0].value;
+      const mockQueue = (Queue as unknown as jest.Mock).mock.results[0]!.value;
       mockQueue.getWaitingCount.mockResolvedValue(0);
       mockQueue.add.mockRejectedValue(new Error('Redis connection lost'));
 

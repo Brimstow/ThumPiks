@@ -132,14 +132,14 @@ export class QdrantService {
       );
     }
 
-    const data: any = await response.json();
-    return (data.result || []).map((point: any) => ({
+    const data: { result?: Array<{ id?: unknown; score?: number; payload?: Record<string, unknown> }> } = await response.json();
+    return (data.result || []).map((point) => ({
       id: String(point.id),
-      score: point.score,
-      thumbnailId: point.payload?.thumbnailId || '',
-      imageUrl: point.payload?.imageUrl || '',
-      title: point.payload?.title || '',
-      userId: point.payload?.userId || '',
+      score: point.score ?? 0,
+      thumbnailId: (point.payload?.thumbnailId as string) || '',
+      imageUrl: (point.payload?.imageUrl as string) || '',
+      title: (point.payload?.title as string) || '',
+      userId: (point.payload?.userId as string) || '',
     }));
   }
 

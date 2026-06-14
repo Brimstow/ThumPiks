@@ -231,6 +231,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
               className="layers-panel__action"
               onClick={() => setShowAddMenu(!showAddMenu)}
               title="Add layer"
+              aria-label="Add layer"
             >
               <Icons.Plus />
             </button>
@@ -283,6 +284,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
             onClick={onGroupLayers}
             disabled={selection.layerIds.length < 2}
             title="Group layers"
+            aria-label="Group layers"
           >
             <Icons.Group />
           </button>
@@ -291,6 +293,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
             onClick={onMergeLayers}
             disabled={selection.layerIds.length < 2}
             title="Merge layers"
+            aria-label="Merge layers"
           >
             <Icons.Merge />
           </button>

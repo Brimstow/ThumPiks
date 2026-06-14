@@ -13,6 +13,7 @@
 
 import { getService, cleanupAllServices } from './service-factory';
 import { disconnectPrisma } from './prisma-factory';
+import { logger } from './logger';
 
 // Global registry to track services needing cleanup
 interface CleanupableService {
@@ -62,7 +63,7 @@ class ServiceCleanupRegistry {
         }
       } catch (error) {
         errors.push(error as Error);
-        console.error('⚠️  Cleanup error for service:', error);
+        logger.error('Cleanup error for service', error instanceof Error ? error : undefined);
       }
     }
 
@@ -71,9 +72,7 @@ class ServiceCleanupRegistry {
 
     // Report errors but don't fail tests
     if (errors.length > 0) {
-      console.warn(
-        `⚠️  ${errors.length} service cleanup errors occurred (non-fatal)`
-      );
+      logger.warn('Service cleanup errors occurred (non-fatal)', { count: errors.length });
     }
   }
 
@@ -105,7 +104,7 @@ export function getServiceWithAutoCleanup<T extends 'cache'>(
  * Add this to jest.config.js: globalTeardown
  */
 export async function jestGlobalTeardown(): Promise<void> {
-  console.log('🧹 Auto-cleanup: Starting global teardown...');
+  logger.info('Auto-cleanup: Starting global teardown');
 
   try {
     // Cleanup via factory (handles known services)
@@ -117,9 +116,9 @@ export async function jestGlobalTeardown(): Promise<void> {
     // Cleanup Prisma connection
     await disconnectPrisma();
 
-    console.log('✅ Auto-cleanup: All services cleaned up');
+    logger.info('Auto-cleanup: All services cleaned up');
   } catch (error) {
-    console.error('❌ Auto-cleanup: Global teardown error:', error);
+    logger.error('Auto-cleanup: Global teardown error', error instanceof Error ? error : undefined);
     // Don't throw - allow tests to complete
   }
 }

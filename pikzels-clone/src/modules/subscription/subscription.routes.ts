@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import {
   createCheckout,
   getCurrent,
@@ -53,7 +53,7 @@ router.post(
       },
     ],
   }),
-  createCheckout
+  createCheckout as unknown as RequestHandler
 );
 
 /**
@@ -61,14 +61,14 @@ router.post(
  * Get current user's subscription details
  * Requires authentication
  */
-router.get('/current', authenticate, getCurrent);
+router.get('/current', authenticate, getCurrent as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/cancel
  * Cancel current subscription (at period end)
  * Requires authentication
  */
-router.post('/cancel', authenticate, cancel);
+router.post('/cancel', authenticate, cancel as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/deduct-credits
@@ -93,7 +93,7 @@ router.post(
       },
     ],
   }),
-  deduct
+  deduct as unknown as RequestHandler
 );
 
 /**
@@ -101,7 +101,7 @@ router.post(
  * Consume one watermark-free export for the current month
  * Requires authentication
  */
-router.post('/use-watermark-free-export', authenticate, useWatermarkFreeExport);
+router.post('/use-watermark-free-export', authenticate, useWatermarkFreeExport as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/webhook
@@ -138,7 +138,7 @@ router.post(
       },
     ],
   }),
-  demoComplete
+  demoComplete as unknown as RequestHandler
 );
 
 export default router;

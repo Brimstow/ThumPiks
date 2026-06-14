@@ -7,13 +7,13 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import type { WorkerMessage, WorkerTaskType } from '../workers/ai-worker-types';
 
 interface PendingTask {
-  resolve: (value: any) => void;
-  reject: (error: any) => void;
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
 }
 
 interface UseAIWorkerReturn {
-  execute: <T = any>(taskType: WorkerTaskType, data: any) => Promise<T>;
+  execute: <T = unknown>(taskType: WorkerTaskType, data: unknown) => Promise<T>;
   isReady: boolean;
   isProcessing: boolean;
 }
@@ -117,7 +117,7 @@ export function useAIWorker(): UseAIWorkerReturn {
     };
   }, []);
   
-  const execute = useCallback(<T = any>(taskType: WorkerTaskType, data: any): Promise<T> => {
+  const execute = useCallback(<T = unknown>(taskType: WorkerTaskType, data: unknown): Promise<T> => {
     return new Promise((resolve, reject) => {
       if (!workerRef.current) {
         reject(new Error('Worker not initialized'));
@@ -146,7 +146,7 @@ export function useAIWorker(): UseAIWorkerReturn {
       }, 30000);
       
       // Store pending task
-      pendingTasks.current.set(id, { resolve, reject, timeout });
+      pendingTasks.current.set(id, { resolve: resolve as (value: unknown) => void, reject: reject as (error: Error) => void, timeout });
       
       // Update processing state
       setIsProcessing(true);

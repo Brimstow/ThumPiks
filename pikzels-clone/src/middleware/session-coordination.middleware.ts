@@ -10,7 +10,9 @@ import * as jwt from 'jsonwebtoken';
 import * as redis from 'ioredis';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { getJWTSecret } from '../services/jwt.service';
+import { EnhancedJWTService } from '../services/jwt.enhanced.service';
+import { logger } from '../utils/logger';
+import { AuthRequest } from '../types/auth';
 
 interface SessionData {
   userId: string;
@@ -48,9 +50,9 @@ export class SessionCoordinator {
       // Try to connect to Redis first
       if (process.env.REDIS_URL) {
         this.redisClient = new redis.Redis(process.env.REDIS_URL);
-        console.log('✅ Session coordinator using Redis storage');
+        logger.info('Session coordinator using Redis storage');
       } else {
-        console.log('⚠️ No Redis URL found, using file-based session storage');
+        logger.info('No Redis URL found, using file-based session storage');
       }
 
       // Ensure fallback directory exists
@@ -64,7 +66,7 @@ export class SessionCoordinator {
         frontendHealth: true,
       });
     } catch (error) {
-      console.error('❌ Session coordinator initialization error:', error);
+      logger.error('Session coordinator initialization error', error instanceof Error ? error : undefined);
       // Fallback to file storage
       this.redisClient = null;
     }
@@ -90,7 +92,7 @@ export class SessionCoordinator {
         await fs.writeFile(filePath, data, 'utf8');
       }
     } catch (error) {
-      console.error('❌ Error storing session:', error);
+      logger.error('Error storing session', error instanceof Error ? error : undefined);
     }
   }
 
@@ -111,7 +113,7 @@ export class SessionCoordinator {
         try {
           data = await fs.readFile(filePath, 'utf8');
         } catch (error) {
-          if ((error as any).code !== 'ENOENT') {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
             throw error;
           }
         }
@@ -119,7 +121,7 @@ export class SessionCoordinator {
 
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error('❌ Error retrieving session:', error);
+      logger.error('Error retrieving session', error instanceof Error ? error : undefined);
       return null;
     }
   }
@@ -139,7 +141,7 @@ export class SessionCoordinator {
         await fs.unlink(filePath).catch(() => {}); // Ignore if file doesn't exist
       }
     } catch (error) {
-      console.error('❌ Error removing session:', error);
+      logger.error('Error removing session', error instanceof Error ? error : undefined);
     }
   }
 
@@ -170,7 +172,7 @@ export class SessionCoordinator {
         JSON.stringify(newState, null, 2)
       );
     } catch (error) {
-      console.error('❌ Error updating server state:', error);
+      logger.error('Error updating server state', error instanceof Error ? error : undefined);
     }
   }
 
@@ -220,7 +222,7 @@ export class SessionCoordinator {
         }
       }
     } catch (error) {
-      console.error('❌ Error cleaning up expired sessions:', error);
+      logger.error('Error cleaning up expired sessions', error instanceof Error ? error : undefined);
     }
   }
 
@@ -258,7 +260,7 @@ export const sessionCoordinationMiddleware = async (
     if (token) {
       try {
         // Verify JWT token
-        const decoded = jwt.verify(token, getJWTSecret()) as any;
+        const decoded = jwt.verify(token, EnhancedJWTService.getSecret()) as { sessionId?: string };
         const sessionId =
           decoded.sessionId || sessionCoordinator.generateSessionId();
 
@@ -273,22 +275,25 @@ export const sessionCoordinationMiddleware = async (
           await sessionCoordinator.storeSession(sessionId, sessionData);
 
           // Attach session data to request
-          (req as any).sessionData = sessionData;
-          (req as any).user = {
+          (req as AuthRequest & { sessionData: SessionData }).sessionData = sessionData;
+          (req as AuthRequest).user = {
             id: sessionData.userId,
-            type: sessionData.userType,
-            permissions: sessionData.permissions,
+            role: sessionData.userType,
+            permissions: sessionData.permissions as never,
+            email: '',
+            sessionId: sessionData.sessionId,
+            lastActivity: new Date(sessionData.lastActivity),
           };
         }
       } catch (jwtError) {
         // Invalid token, continue without session
-        console.warn('⚠️ Invalid session token:', jwtError);
+        logger.warn('Invalid session token', { error: jwtError instanceof Error ? jwtError.message : 'unknown' });
       }
     }
 
     next();
   } catch (error) {
-    console.error('❌ Session coordination middleware error:', error);
+    logger.error('Session coordination middleware error', error instanceof Error ? error : undefined);
     next(); // Continue even if session coordination fails
   }
 };
@@ -322,7 +327,7 @@ export const createPersistentSession = async (
       sessionId,
       exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
     },
-    getJWTSecret()
+    EnhancedJWTService.getSecret()
   );
 
   return { token, sessionId };
@@ -355,7 +360,7 @@ export const notifyServerRestart = async (
  */
 export const runSessionCleanup = async (): Promise<void> => {
   await sessionCoordinator.cleanupExpiredSessions();
-  console.log('🧹 Session cleanup completed');
+  logger.info('Session cleanup completed');
 };
 
 // Export the coordinator instance for direct use

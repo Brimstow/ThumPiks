@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { getEditorCommandService } from './editor-command.service';
+import { logger } from '../../utils/logger';
 
 /**
  * POST /api/editor-command
@@ -28,9 +30,8 @@ import { getEditorCommandService } from './editor-command.service';
  */
 export const parseEditorCommand = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { prompt, canvasContext, canvasScreenshot } = req.body;
 
@@ -57,24 +58,25 @@ export const parseEditorCommand = async (req: AuthRequest, res: Response) => {
       prompt.trim(),
       ctx,
       canvasScreenshot,
-      req.user.id
+      user.id
     );
 
     return res.status(200).json({
       success: true,
       ...result,
     });
-  } catch (error: any) {
-    if (error.message === 'Insufficient credits for AI commands') {
-      return res.status(402).json({ error: error.message });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg === 'Insufficient credits for AI commands') {
+      return res.status(402).json({ error: msg });
     }
-    if (error.message?.includes('API key not configured')) {
-      console.error('Editor command config error:', error.message);
+    if (msg?.includes('API key not configured')) {
+      logger.error('Editor command config error', error instanceof Error ? error : undefined);
       return res.status(503).json({ error: 'AI service not configured' });
     }
-    console.error('Error in editor command:', error.message || error);
+    logger.error('Error in editor command', error instanceof Error ? error : undefined);
     return res.status(500).json({
-      error: error.message || 'Failed to parse command',
+      error: msg || 'Failed to parse command',
     });
   }
 };

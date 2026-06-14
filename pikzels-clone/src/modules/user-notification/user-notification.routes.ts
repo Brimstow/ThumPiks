@@ -5,7 +5,7 @@
  * Protected by user auth middleware.
  */
 
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import {
   listNotifications,
@@ -28,11 +28,11 @@ router.use(authenticateToken);
 // POST   /bulk-delete      — Delete multiple notifications
 // DELETE /:id              — Delete single notification
 
-router.get('/', listNotifications);
-router.get('/unread-count', getUnreadCount);
-router.patch('/:id/read', markRead);
-router.post('/mark-all-read', markAllRead);
-router.post('/bulk-delete', bulkDeleteNotifications);
-router.delete('/:id', deleteNotification);
+router.get('/', listNotifications as unknown as RequestHandler);
+router.get('/unread-count', getUnreadCount as unknown as RequestHandler);
+router.patch('/:id/read', markRead as unknown as RequestHandler);
+router.post('/mark-all-read', markAllRead as unknown as RequestHandler);
+router.post('/bulk-delete', bulkDeleteNotifications as unknown as RequestHandler);
+router.delete('/:id', deleteNotification as unknown as RequestHandler);
 
 export default router;

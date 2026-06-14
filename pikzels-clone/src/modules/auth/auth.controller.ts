@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../../types/auth';
 import { AuthService } from './auth.service';
 import { passwordResetService } from './password-reset.service';
 import { logger } from '../../utils/logger';
@@ -58,8 +59,8 @@ export const register = async (req: Request, res: Response) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, refreshToken, ...userResponse } = result;
     return res.status(201).json(userResponse);
-  } catch (error: any) {
-    logger.error('Registration failed', error, {
+  } catch (error: unknown) {
+    logger.error('Registration failed', error instanceof Error ? error : new Error(String(error)), {
       username: req.body.username,
       email: req.body.email,
       userAgent: req.get('User-Agent'),
@@ -139,20 +140,21 @@ export const login = async (req: Request, res: Response) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { accessToken, refreshToken, ...userResponse } = result;
     return res.status(200).json(userResponse);
-  } catch (error: any) {
-    logger.error('Login failed', error, {
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    const errName = error instanceof Error ? error.name : undefined;
+
+    logger.error('Login failed', error instanceof Error ? error : new Error(String(error)), {
       identifier: req.body.identifier || req.body.email,
       userAgent: req.get('User-Agent'),
-      errorMessage: error?.message,
-      errorStack: error?.stack,
-      errorName: error?.name,
+      errorMessage: errMessage,
+      errorStack: errStack,
+      errorName: errName,
     });
 
-    // Log to console for Railway logs
-    console.error('🔴 LOGIN ERROR DETAILS:', {
-      message: error?.message,
-      stack: error?.stack,
-      name: error?.name,
+    // Log to structured logger for Railway logs
+    logger.error('Login error', error instanceof Error ? error : undefined, {
       identifier: req.body.identifier || req.body.email,
     });
 
@@ -166,7 +168,7 @@ export const login = async (req: Request, res: Response) => {
     // Generic error for unexpected failures - include error message in development
     return res.status(500).json({
       error: 'Login failed. Please try again.',
-      debug: isDevelopmentEnv() ? error?.message : undefined,
+      debug: isDevelopmentEnv() ? errMessage : undefined,
     });
   }
 };
@@ -175,10 +177,10 @@ export const login = async (req: Request, res: Response) => {
  * Logout user by clearing authentication cookies
  * POST /api/auth/logout
  */
-export const logout = async (req: Request, res: Response) => {
+export const logout = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const sessionId = (req as any).cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
+    const userId = req.user?.id;
+    const sessionId = req.cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
 
     // Call service to terminate session if user is authenticated
     if (userId && sessionId) {
@@ -201,8 +203,8 @@ export const logout = async (req: Request, res: Response) => {
       success: true,
       message: 'Logged out successfully',
     });
-  } catch (error: any) {
-    logger.error('Logout failed', error);
+  } catch (error: unknown) {
+    logger.error('Logout failed', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({
       success: false,
       error: 'Logout failed. Please try again.',
@@ -227,17 +229,18 @@ export const verifyEmail = async (req: Request, res: Response) => {
     const result = await authService.verifyEmail(token);
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Email verification failed', error, {
+  } catch (error: unknown) {
+    logger.error('Email verification failed', error instanceof Error ? error : new Error(String(error)), {
       token: req.params.token,
     });
 
+    const message = error instanceof Error ? error.message : String(error);
     if (
-      error.message.includes('Invalid') ||
-      error.message.includes('expired')
+      message.includes('Invalid') ||
+      message.includes('expired')
     ) {
       return res.status(400).json({
-        error: error.message,
+        error: message,
       });
     }
 
@@ -265,14 +268,15 @@ export const resendVerification = async (req: Request, res: Response) => {
     const result = await authService.resendVerification(email);
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Resend verification failed', error, {
+  } catch (error: unknown) {
+    logger.error('Resend verification failed', error instanceof Error ? error : new Error(String(error)), {
       email: req.body.email,
     });
 
-    if (error.message === 'Email is already verified') {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === 'Email is already verified') {
       return res.status(400).json({
-        error: error.message,
+        error: message,
       });
     }
 
@@ -314,8 +318,8 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Password reset request failed', error, {
+  } catch (error: unknown) {
+    logger.error('Password reset request failed', error instanceof Error ? error : new Error(String(error)), {
       email: req.body.email,
     });
 
@@ -360,12 +364,13 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Password reset failed', error);
+  } catch (error: unknown) {
+    logger.error('Password reset failed', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message.includes('Password')) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Password')) {
       return res.status(400).json({
-        error: error.message,
+        error: message,
       });
     }
 
@@ -380,10 +385,10 @@ export const resetPassword = async (req: Request, res: Response) => {
  * POST /api/auth/refresh-token
  * Body: { refreshToken }
  */
-export const refreshToken = async (req: Request, res: Response) => {
+export const refreshToken = async (req: AuthRequest, res: Response) => {
   try {
     // Try to get refresh token from cookie first, then fallback to request body
-    let refreshToken = (req as any).cookies?.refreshToken;
+    let refreshToken = req.cookies?.refreshToken;
 
     // Fallback to request body for backwards compatibility
     if (!refreshToken) {
@@ -418,8 +423,8 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Token refresh failed', error);
+  } catch (error: unknown) {
+    logger.error('Token refresh failed', error instanceof Error ? error : new Error(String(error)));
 
     return res.status(401).json({
       error: 'Invalid refresh token',
@@ -448,8 +453,8 @@ export const suggestUsernames = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Username suggestion generation failed', error);
+  } catch (error: unknown) {
+    logger.error('Username suggestion generation failed', error instanceof Error ? error : new Error(String(error)));
 
     return res.status(500).json({
       error: 'Failed to generate username suggestions',
@@ -474,8 +479,8 @@ export const checkUsername = async (req: Request, res: Response) => {
     const result = await authService.checkUsernameAvailability(username);
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Username availability check failed', error);
+  } catch (error: unknown) {
+    logger.error('Username availability check failed', error instanceof Error ? error : new Error(String(error)));
 
     return res.status(500).json({
       error: 'Failed to check username availability',
@@ -489,10 +494,10 @@ export const checkUsername = async (req: Request, res: Response) => {
  * Body: { preference } where preference is 'name' or 'username'
  * Requires authentication
  */
-export const updateDisplayPreference = async (req: Request, res: Response) => {
+export const updateDisplayPreference = async (req: AuthRequest, res: Response) => {
   try {
     const { preference } = req.body;
-    const userId = (req as any).user?.id; // Assumes auth middleware sets req.user
+    const userId = req.user?.id; // Auth middleware sets req.user via AuthRequest
 
     if (!userId) {
       return res.status(401).json({
@@ -512,8 +517,8 @@ export const updateDisplayPreference = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json(result);
-  } catch (error: any) {
-    logger.error('Display preference update failed', error);
+  } catch (error: unknown) {
+    logger.error('Display preference update failed', error instanceof Error ? error : new Error(String(error)));
 
     return res.status(500).json({
       error: 'Failed to update display preference',

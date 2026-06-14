@@ -13,7 +13,7 @@ export interface WorkerMessage {
   id: string;
   type: 'task' | 'success' | 'error' | 'progress';
   taskType?: WorkerTaskType;
-  data?: any;
+  data?: unknown;
   error?: string;
   progress?: number;
 }

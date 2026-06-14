@@ -129,12 +129,12 @@ export function MobileEditor({
   // Handle crop preset selection
   const handleCropPresetSelect = useCallback((preset: CropPreset) => {
     setCropPreset(preset.id);
-    // TODO: Apply crop aspect ratio to canvas
+    // Stub: crop aspect ratio application pending canvas integration
   }, []);
 
   // Handle rotate 90
   const handleRotate90 = useCallback(() => {
-    // TODO: Rotate canvas/layer 90 degrees
+    // Stub: canvas/layer rotation pending canvas integration
   }, []);
 
   // Handle AI tool selection
@@ -153,7 +153,7 @@ export function MobileEditor({
         setProcessingState(prev => ({ ...prev, progress: i }));
       }
 
-      // TODO: Call actual AI service
+      // Stub: AI service call pending integration
       // await aiService[tool](selectedLayerId);
 
       setProcessingState({
@@ -193,13 +193,13 @@ export function MobileEditor({
   const handleExport = useCallback(async (platform: ExportPlatformConfig, quality: number) => {
     setIsExporting(true);
     try {
-      // TODO: Generate canvas to blob
+      // Stub: canvas-to-blob generation pending canvas integration
       // const blob = await canvasToBlob(platform.dimensions, quality);
       
       // For now, call onSave with current state
       onSave({
         layers,
-        preview: '', // TODO: Generate preview image
+        preview: '', // Stub: preview generation pending canvas integration
       });
 
       // Close sheet after export
@@ -215,7 +215,7 @@ export function MobileEditor({
   const handleSave = useCallback(() => {
     onSave({
       layers,
-      preview: '', // TODO: Generate preview
+      preview: '', // Stub: preview generation pending canvas integration
     });
   }, [layers, onSave]);
 
@@ -223,7 +223,7 @@ export function MobileEditor({
   const handleAskAISubmit = useCallback(async (prompt: string) => {
     setIsAIProcessing(true);
     try {
-      // TODO: Connect to actual AI command parser
+      // Stub: AI command parser pending integration
       // For now, simulate processing
       console.log('Ask AI prompt:', prompt);
       await new Promise(resolve => setTimeout(resolve, 2000));

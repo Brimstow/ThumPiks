@@ -31,7 +31,7 @@ jest.mock('../../utils/logger', () => ({
 // Mock DOMPurify
 jest.mock('isomorphic-dompurify', () => ({
   sanitize: jest.fn((input, options) => {
-    if (options && options.ALLOWED_TAGS && options.ALLOWED_TAGS.length === 0) {
+    if (options?.ALLOWED_TAGS?.length === 0) {
       // Strip all HTML tags when no tags are allowed
       return input.replace(/<[^>]*>/g, '');
     }

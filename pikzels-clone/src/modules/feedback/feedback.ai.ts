@@ -13,6 +13,7 @@
 
 import fetch from 'node-fetch';
 import { logger } from '../../utils/logger';
+import { getFrontendUrl } from '../../utils/env';
 import type { FeedbackAIAnalysis, FeedbackType } from './types';
 
 const OPENROUTER_API_URL =
@@ -44,7 +45,7 @@ export async function analyzeFeedback(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || 'http://localhost:8556',
+        'HTTP-Referer': getFrontendUrl(),
         'X-Title': 'Thumbnail Maker Feedback Analysis',
       },
       body: JSON.stringify({
@@ -70,7 +71,7 @@ export async function analyzeFeedback(
       return defaultAnalysis();
     }
 
-    const data = (await response.json()) as any;
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = data.choices?.[0]?.message?.content?.trim();
 
     if (!content) {

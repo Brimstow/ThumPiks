@@ -8,7 +8,7 @@ import React, { useCallback, useState } from 'react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { isSortable, type SortableDraggable } from '@dnd-kit/dom/sortable';
 import { buildLayerAnnouncement } from '../accessibility';
-import type { LayerSortableListProps } from '../types';
+import type { LayerSortableListProps, DndEvent } from '../types';
 
 /**
  * Context for passing drag state to children
@@ -43,8 +43,7 @@ export const LayerSortableList: React.FC<LayerSortableListProps> = ({
   const [isDraggingId, setIsDraggingId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string>('');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragStart = useCallback((event: any) => {
+  const handleDragStart = useCallback((event: DndEvent) => {
     const source = event.operation?.source;
     if (!source) return;
     
@@ -59,8 +58,7 @@ export const LayerSortableList: React.FC<LayerSortableListProps> = ({
     }
   }, [layerOrder]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragEnd = useCallback((event: DndEvent) => {
     setIsDraggingId(null);
 
     if (event.canceled) {
@@ -71,7 +69,7 @@ export const LayerSortableList: React.FC<LayerSortableListProps> = ({
     const source = event.operation?.source;
     if (!source) return;
 
-    if (isSortable(source)) {
+    if (isSortable(source as unknown as Parameters<typeof isSortable>[0])) {
       // Source is the draggable, which has initialIndex
       // Cast to SortableDraggable since drag source is always the draggable
       const sortableSource = source as SortableDraggable<Record<string, unknown>>;

@@ -1,31 +1,31 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { getUserAssetService } from './user-asset.service';
+import { logger } from '../../utils/logger';
 
 export const getAssets = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { type } = req.query;
     const assets = await getUserAssetService().getAssetsByUser(
-      req.user.id,
+      user.id,
       type ? String(type) : undefined
     );
 
     return res.status(200).json({ assets });
   } catch (error) {
-    console.error('Error fetching user assets:', error);
+    logger.error('Error fetching user assets', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to fetch assets' });
   }
 };
 
 export const uploadAsset = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { type, name, imageData, imageUrl } = req.body;
 
@@ -43,7 +43,7 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
     if (imageUrl) {
       // Upload from URL (e.g., frame extraction result)
       asset = await getUserAssetService().uploadAssetFromUrl({
-        userId: req.user.id,
+        userId: user.id,
         type,
         url: imageUrl,
         name: name || undefined,
@@ -70,7 +70,7 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
       }
 
       asset = await getUserAssetService().uploadAsset({
-        userId: req.user.id,
+        userId: user.id,
         type,
         buffer,
         name: name || undefined,
@@ -84,42 +84,40 @@ export const uploadAsset = async (req: AuthRequest, res: Response) => {
 
     return res.status(201).json({ asset });
   } catch (error) {
-    console.error('Error uploading user asset:', error);
+    logger.error('Error uploading user asset', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to upload asset' });
   }
 };
 
 export const deleteAsset = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { id } = req.params;
     if (!id) {
       return res.status(400).json({ error: 'Asset ID is required' });
     }
 
-    await getUserAssetService().deleteAsset(String(id), req.user.id);
+    await getUserAssetService().deleteAsset(String(id), user.id);
 
     return res.status(200).json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'Asset not found') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Asset not found') {
       return res.status(404).json({ error: 'Asset not found' });
     }
-    if (error.message === 'Forbidden') {
+    if (error instanceof Error && error.message === 'Forbidden') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    console.error('Error deleting user asset:', error);
+    logger.error('Error deleting user asset', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to delete asset' });
   }
 };
 
 export const recategorizeAsset = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { id } = req.params;
     if (!id) {
@@ -139,34 +137,33 @@ export const recategorizeAsset = async (req: AuthRequest, res: Response) => {
     const asset = await getUserAssetService().recategorizeAsset(
       String(id),
       type,
-      req.user.id
+      user.id
     );
 
     return res.status(200).json({ asset });
-  } catch (error: any) {
-    if (error.message === 'Asset not found') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Asset not found') {
       return res.status(404).json({ error: 'Asset not found' });
     }
-    if (error.message === 'Forbidden') {
+    if (error instanceof Error && error.message === 'Forbidden') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    console.error('Error recategorizing user asset:', error);
+    logger.error('Error recategorizing user asset', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to recategorize asset' });
   }
 };
 
 export const getStorageUsage = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
-    const usage = await getUserAssetService().getStorageUsage(req.user.id);
-    const counts = await getUserAssetService().getAssetCountByType(req.user.id);
+    const usage = await getUserAssetService().getStorageUsage(user.id);
+    const counts = await getUserAssetService().getAssetCountByType(user.id);
 
     return res.status(200).json({ usage, counts });
   } catch (error) {
-    console.error('Error fetching storage usage:', error);
+    logger.error('Error fetching storage usage', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to fetch storage usage' });
   }
 };

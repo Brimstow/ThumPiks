@@ -695,6 +695,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   }}
                   className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-slate-400 hover:text-slate-100 hover:bg-black/80 transition-colors"
                   title="Change video"
+                  aria-label="Change video"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -788,6 +789,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => stepFrame(-1)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Previous Frame (←)"
+                  aria-label="Previous Frame (←)"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -797,6 +799,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => seek(currentTime - 5)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Skip Back 5s"
+                  aria-label="Skip Back 5s"
                 >
                   <SkipBack className="w-5 h-5" />
                 </button>
@@ -806,6 +809,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => setSpeed(0.25)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Slow Motion (J)"
+                  aria-label="Slow Motion (J)"
                 >
                   <Rewind className="w-5 h-5" />
                 </button>
@@ -815,6 +819,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={togglePlayPause}
                   className="p-3 rounded-xl bg-blue-500 hover:bg-blue-600 transition-colors"
                   title="Play/Pause (Space)"
+                  aria-label="Play/Pause (Space)"
                 >
                   {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
                 </button>
@@ -824,6 +829,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => setSpeed(2)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Fast Forward (L)"
+                  aria-label="Fast Forward (L)"
                 >
                   <FastForward className="w-5 h-5" />
                 </button>
@@ -833,6 +839,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => seek(currentTime + 5)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Skip Forward 5s"
+                  aria-label="Skip Forward 5s"
                 >
                   <SkipForward className="w-5 h-5" />
                 </button>
@@ -842,6 +849,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => stepFrame(1)}
                   className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
                   title="Next Frame (→)"
+                  aria-label="Next Frame (→)"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -853,6 +861,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => addMarker('in')}
                   className="px-3 py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors text-sm font-medium"
                   title="Mark In Point (I)"
+                  aria-label="Mark In Point (I)"
                 >
                   Mark In
                 </button>
@@ -862,6 +871,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={() => addMarker('out')}
                   className="px-3 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm font-medium"
                   title="Mark Out Point (O)"
+                  aria-label="Mark Out Point (O)"
                 >
                   Mark Out
                 </button>
@@ -873,6 +883,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   onClick={extractCurrentFrame}
                   className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors text-sm font-semibold flex items-center gap-2"
                   title="Capture Frame (C)"
+                  aria-label="Capture Frame (C)"
                 >
                   <Camera className="w-4 h-4" />
                   Capture
@@ -884,6 +895,7 @@ export const VideoThumbnailEditor: React.FC<VideoThumbnailEditorProps> = ({
                   disabled={autoAnalyzeMode}
                   className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors text-sm font-semibold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Auto-analyze video for best frames"
+                  aria-label="Auto-analyze video for best frames"
                 >
                   <Zap className="w-4 h-4" />
                   {autoAnalyzeMode ? 'Analyzing...' : 'Auto Analyze'}

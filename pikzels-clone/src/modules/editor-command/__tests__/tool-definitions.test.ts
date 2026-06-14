@@ -2,9 +2,9 @@ import { EDITOR_TOOLS, buildToolsSystemPrompt } from '../tool-definitions';
 
 describe('tool-definitions', () => {
   describe('EDITOR_TOOLS', () => {
-    it('exports an array of 27 tool definitions', () => {
+    it('exports an array of 29 tool definitions', () => {
       expect(Array.isArray(EDITOR_TOOLS)).toBe(true);
-      expect(EDITOR_TOOLS).toHaveLength(27);
+      expect(EDITOR_TOOLS).toHaveLength(29);
     });
 
     it('every tool has type "function"', () => {

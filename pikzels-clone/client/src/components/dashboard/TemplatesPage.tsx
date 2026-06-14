@@ -62,8 +62,7 @@ const TemplatesPage: React.FC = () => {
 
   const handleLayoutClick = (layout: LayoutPreset) => {
     selectLayout(layout.id);
-    // TODO: Navigate to editor with selected layout or open layout detail
-    console.log('Layout selected:', layout.name);
+    // Layout selection handled by state; navigation to editor is via separate action
   };
 
   // Mock data for carousel
@@ -136,9 +135,9 @@ const TemplatesPage: React.FC = () => {
       // Check if there are more templates to load
       setHasMore(data.length === 6);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching templates:', err);
-      setError(err.message || 'Failed to load templates');
+      setError((err instanceof Error ? err.message : undefined) || 'Failed to load templates');
     } finally {
       setLoading(false);
     }
@@ -161,9 +160,8 @@ const TemplatesPage: React.FC = () => {
   };
 
   const handleTemplateClick = (template: Template) => {
-    // TODO: Navigate to template detail or apply template
-    console.log('Template clicked:', template);
-    alert(`Template "${template.name}" clicked! Implementation coming soon.`);
+    // Template detail view not yet implemented — show coming soon message
+    alert(`Template "${template.name}" — coming soon!`);
   };
 
   // Map template data to display format

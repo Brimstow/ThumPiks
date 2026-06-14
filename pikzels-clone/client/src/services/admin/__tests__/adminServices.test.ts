@@ -365,8 +365,8 @@ describe('Admin Services (proxy factory delegation)', () => {
       });
 
       it('saveSettings sends PUT to /settings', async () => {
-        await adminSettingsService.saveSettings({ siteName: 'Pikzels' });
-        expect(mockAdminApi.put).toHaveBeenCalledWith('/settings', { siteName: 'Pikzels' });
+        await adminSettingsService.saveSettings({ siteName: 'ThumPiks' });
+        expect(mockAdminApi.put).toHaveBeenCalledWith('/settings', { siteName: 'ThumPiks' });
       });
     });
   });

@@ -433,7 +433,11 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onClick }) => {
   const badge = ASSET_TYPE_BADGE[asset.type] || ASSET_TYPE_BADGE.other;
 
   return (
-    <div className="group relative cursor-pointer" onClick={onClick}>
+    <button
+      type="button"
+      className="group relative cursor-pointer w-full text-left bg-transparent border-0 p-0"
+      onClick={onClick}
+    >
       <div className="absolute top-2 right-2 z-10">
         <span className={`text-xs font-medium px-2 py-1 rounded ${badge.className}`}>
           {badge.label}
@@ -456,7 +460,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onClick }) => {
           {formatRelativeTime(asset.createdAt)}
         </p>
       </div>
-    </div>
+    </button>
   );
 };
 

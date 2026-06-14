@@ -140,6 +140,10 @@ model Subscription {
   polarSubscriptionId  String?  @unique
   polarProductId       String?
   billingProvider      String   @default("stripe")
+  addonCreditsBalance    Int      @default(0)
+  addonCreditsUsed       Int      @default(0)
+  watermarkFreeUsed      Int      @default(0)
+  watermarkFreeResetDate DateTime @default(now())
   User                 User     @relation(fields: [userId], references: [id])
 
   @@index([status])
@@ -154,6 +158,8 @@ model CreditTransaction {
   userId          String
   type            String
   amount          Int
+  balanceBefore   Int?
+  balanceAfter    Int?
   description     String
   stripePaymentId String?
   polarOrderId    String?
@@ -275,6 +281,7 @@ model Thumbnail {
   editCount                                      Int             @default(0)
   storagePublicId                                String?
   storageProvider                                String?         @default("cloudinary")
+  originalPublicId                               String?
   deletedAt                                      DateTime?
   ABTestVariant                                  ABTestVariant[]
   Project_Project_featuredThumbnailIdToThumbnail Project?        @relation("Project_featuredThumbnailIdToThumbnail")
@@ -356,6 +363,7 @@ model User {
   EmailLog                                      EmailLog[]
   // Review relations
   Review                                        Review?
+  UserNotification                              UserNotification[]
 }
 
 model VisionAnalysis {
@@ -892,4 +900,24 @@ model Review {
   @@index([isFeatured])
   @@index([rating])
   @@index([createdAt])
+}
+
+model UserNotification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  priority  String    @default("normal")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  User      User      @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type])
 }

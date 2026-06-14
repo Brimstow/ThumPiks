@@ -7,6 +7,7 @@
 
 import { getPrisma } from '../../../utils/prisma-factory';
 import { logger } from '../../../utils/logger';
+import { getClientUrl } from '../../../utils/env';
 import type {
   BillingProvider,
   BillingProviderName,
@@ -53,7 +54,7 @@ export class DemoBillingProvider implements BillingProvider {
       billingCycle,
     });
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
+    const clientUrl = getClientUrl();
     const demoUrl = `${clientUrl}/demo-checkout?session=${demoSessionId}&user=${userId}&plan=${planId}&cycle=${billingCycle}`;
 
     return {
@@ -67,10 +68,7 @@ export class DemoBillingProvider implements BillingProvider {
   ): Promise<string> {
     const { userId, packId } = params;
 
-    const clientUrl =
-      process.env.CLIENT_URL ||
-      process.env.VITE_BASE_URL ||
-      'http://localhost:8556';
+    const clientUrl = getClientUrl();
     const demoUrl =
       `${clientUrl}/demo-checkout?` +
       `userId=${userId}&` +

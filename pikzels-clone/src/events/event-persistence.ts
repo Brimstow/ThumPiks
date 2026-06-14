@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { AppEvent } from './event-types';
+import { logger } from '../utils/logger';
 
 /**
  * Simple Event Persistence System
@@ -15,9 +16,6 @@ import { AppEvent } from './event-types';
 export class EventPersistence {
   private eventsDir: string;
   private maxFileSize = 10 * 1024 * 1024; // 10MB
-  
-  // TODO: Restore when implementing automatic file cleanup functionality
-  // private maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
 
   private currentFile: string;
   private currentFileSize = 0;
@@ -35,7 +33,7 @@ export class EventPersistence {
     const { userId, type } = event;
 
     if (!userId || !type) {
-      console.warn('Missing required fields for event persistence');
+      logger.warn('Missing required fields for event persistence');
       return;
     }
 
@@ -72,7 +70,7 @@ export class EventPersistence {
 
             events.push(event);
           } catch (parseError) {
-            console.warn('⚠️  Skipping invalid event line:', line);
+            logger.warn('Skipping invalid event line', { line });
           }
         }
       }
@@ -81,7 +79,7 @@ export class EventPersistence {
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
     } catch (error) {
-      console.error('❌ Error replaying events:', error);
+      logger.error('Error replaying events', error instanceof Error ? error : undefined);
       return [];
     }
   }
@@ -96,7 +94,7 @@ export class EventPersistence {
         .filter(event => event.userId === userId)
         .slice(-limit);
     } catch (error) {
-      console.error('❌ Error getting events by user:', error);
+      logger.error('Error getting events by user', error instanceof Error ? error : undefined);
       return [];
     }
   }
@@ -109,7 +107,7 @@ export class EventPersistence {
       const allEvents = await this.replayEvents(undefined, undefined, [eventType]);
       return allEvents.slice(-limit);
     } catch (error) {
-      console.error('❌ Error getting events by type:', error);
+      logger.error('Error getting events by type', error instanceof Error ? error : undefined);
       return [];
     }
   }
@@ -174,7 +172,7 @@ export class EventPersistence {
         newestEvent
       };
     } catch (error) {
-      console.error('❌ Error getting storage stats:', error);
+      logger.error('Error getting storage stats', error instanceof Error ? error : undefined);
       return {
         totalFiles: 0,
         totalSize: 0,
@@ -204,9 +202,9 @@ export class EventPersistence {
       };
 
       await fs.writeFile(outputPath, JSON.stringify(exportData, null, 2));
-      console.log(`📦 Exported ${events.length} events to ${outputPath}`);
+      logger.info('Exported events', { count: events.length, outputPath });
     } catch (error) {
-      console.error('❌ Error exporting events:', error);
+      logger.error('Error exporting events', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -227,10 +225,10 @@ export class EventPersistence {
         await this.persistEvent(event);
       }
 
-      console.log(`📥 Imported ${importData.events.length} events from ${inputPath}`);
+      logger.info('Imported events', { count: importData.events.length, inputPath });
       return importData.events.length;
     } catch (error) {
-      console.error('❌ Error importing events:', error);
+      logger.error('Error importing events', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -251,9 +249,9 @@ export class EventPersistence {
       this.currentFile = this.generateFileName();
       this.currentFileSize = 0;
       
-      console.log('🧹 All events cleared');
+      logger.info('All events cleared');
     } catch (error) {
-      console.error('❌ Error clearing events:', error);
+      logger.error('Error clearing events', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -274,7 +272,7 @@ export class EventPersistence {
     try {
       await fs.mkdir(this.eventsDir, { recursive: true });
     } catch (error) {
-      console.error('❌ Error creating events directory:', error);
+      logger.error('Error creating events directory', error instanceof Error ? error : undefined);
     }
   }
 
@@ -287,7 +285,7 @@ export class EventPersistence {
   private async rotateFile(): Promise<void> {
     this.currentFile = this.generateFileName();
     this.currentFileSize = 0;
-    console.log(`📄 Rotated to new event file: ${this.currentFile}`);
+    logger.debug('Rotated to new event file', { file: this.currentFile });
   }
 
   private async getEventFiles(): Promise<string[]> {
@@ -297,33 +295,13 @@ export class EventPersistence {
         .filter(file => file.endsWith('.jsonl'))
         .sort();
     } catch (error) {
-      console.error('❌ Error reading event files:', error);
+      logger.error('Error reading event files', error instanceof Error ? error : undefined);
       return [];
     }
   }
 
 
 }
-
-// TODO: Restore when implementing automatic cleanup functionality
-// private async cleanupOldFiles(): Promise<void> {
-//   try {
-//     const files = await this.getEventFiles();
-//     const cutoffDate = new Date(Date.now() - this.maxAge);
-//
-//     for (const file of files) {
-//       const filePath = path.join(this.eventsDir, file);
-//       const stats = await fs.stat(filePath);
-//       
-//       if (stats.mtime < cutoffDate) {
-//         await fs.unlink(filePath);
-//         console.log(`🧹 Cleaned up old event file: ${file}`);
-//       }
-//     }
-//   } catch (error) {
-//     console.error('❌ Error cleaning up old files:', error);
-//   }
-// }
 
 // Export singleton
 export const eventPersistence = new EventPersistence();

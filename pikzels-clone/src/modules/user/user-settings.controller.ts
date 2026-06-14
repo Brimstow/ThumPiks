@@ -1,14 +1,15 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import * as userSettingsService from './user-settings.service';
 import * as profileService from './profile.service';
 import { logger } from '../../utils/logger';
+import { AuthRequest } from '../../types/auth';
 
 /**
  * Get user settings (email preferences, etc.)
  */
-export async function getSettings(req: Request, res: Response): Promise<void> {
+export async function getSettings(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -26,11 +27,11 @@ export async function getSettings(req: Request, res: Response): Promise<void> {
  * Update email preferences
  */
 export async function updateEmailPreferences(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -56,9 +57,9 @@ export async function updateEmailPreferences(
 /**
  * Get user storage information
  */
-export async function getStorage(req: Request, res: Response): Promise<void> {
+export async function getStorage(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -76,11 +77,11 @@ export async function getStorage(req: Request, res: Response): Promise<void> {
  * Update auto-save setting
  */
 export async function updateAutoSave(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -105,11 +106,11 @@ export async function updateAutoSave(
  * Update auto-import setting
  */
 export async function updateAutoImport(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -133,9 +134,9 @@ export async function updateAutoImport(
 /**
  * Change user password
  */
-export async function changePassword(req: Request, res: Response): Promise<void> {
+export async function changePassword(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -165,9 +166,9 @@ export async function changePassword(req: Request, res: Response): Promise<void>
 /**
  * Delete user account
  */
-export async function deleteAccount(req: Request, res: Response): Promise<void> {
+export async function deleteAccount(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

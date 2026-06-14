@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../../types/auth';
 import { CollaborationService } from './collaboration.service';
-// import { authenticateToken } from '../../middleware/auth.middleware'; // TODO: Use for auth validation
+import { logger } from '../../utils/logger';
 
 const collaborationService = new CollaborationService();
 
@@ -20,7 +21,7 @@ export const createTeam = async (req: Request, res: Response) => {
     
     return res.status(201).json({ team });
   } catch (error) {
-    console.error('Error creating team:', error);
+    logger.error('Error creating team', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -28,16 +29,17 @@ export const createTeam = async (req: Request, res: Response) => {
 /**
  * Get teams for the current user
  */
-export const getUserTeams = async (req: Request, res: Response) => {
+export const getUserTeams = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
     const teams = await collaborationService.getUserTeams(userId);
 
     res.status(200).json(teams);
-  } catch (error: any) {
-    console.error('Error fetching user teams:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch teams' });
+  } catch (error: unknown) {
+    logger.error('Error fetching user teams', error instanceof Error ? error : new Error(String(error)));
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch teams' });
   }
 };
 
@@ -58,7 +60,7 @@ export const getTeamById = async (req: Request, res: Response) => {
 
     return res.status(200).json({ team });
   } catch (error) {
-    console.error('Error getting team:', error);
+    logger.error('Error getting team', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -80,7 +82,7 @@ export const updateTeam = async (req: Request, res: Response) => {
     
     return res.status(200).json({ team });
   } catch (error) {
-    console.error('Error updating team:', error);
+    logger.error('Error updating team', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -99,7 +101,7 @@ export const deleteTeam = async (req: Request, res: Response) => {
     
     return res.status(204).send();
   } catch (error) {
-    console.error('Error deleting team:', error);
+    logger.error('Error deleting team', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -124,7 +126,7 @@ export const inviteUserToTeam = async (req: Request, res: Response) => {
     
     return res.status(201).json({ invitation });
   } catch (error) {
-    console.error('Error inviting user:', error);
+    logger.error('Error inviting user', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -132,32 +134,32 @@ export const inviteUserToTeam = async (req: Request, res: Response) => {
 /**
  * Get pending invitations for the current user
  */
-export const getUserInvitations = async (req: Request, res: Response) => {
+export const getUserInvitations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
 
     const invitations = await collaborationService.getUserInvitations(userId);
 
     res.status(200).json(invitations);
-  } catch (error: any) {
-    console.error('Error fetching user invitations:', error);
-    res
-      .status(500)
-      .json({ error: error.message || 'Failed to fetch invitations' });
+  } catch (error: unknown) {
+    logger.error('Error fetching user invitations', error instanceof Error ? error : new Error(String(error)));
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch invitations' });
   }
 };
 
 /**
  * Respond to a team invitation
  */
-export const respondToInvitation = async (req: Request, res: Response) => {
+export const respondToInvitation = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ error: 'Invitation ID is required' });
     }
     const { accept } = req.body;
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     // Validate required fields
     if (accept === undefined) {
@@ -171,41 +173,38 @@ export const respondToInvitation = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json(invitation);
-  } catch (error: any) {
-    console.error('Error responding to invitation:', error);
-    return res
-      .status(500)
-      .json({ error: error.message || 'Failed to respond to invitation' });
+  } catch (error: unknown) {
+    logger.error('Error responding to invitation', error instanceof Error ? error : new Error(String(error)));
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to respond to invitation' });
   }
 };
 
 /**
  * Remove a member from a team
  */
-export const removeTeamMember = async (req: Request, res: Response) => {
+export const removeTeamMember = async (req: AuthRequest, res: Response) => {
   try {
     const teamId = req.params.teamId as string;
     const memberId = req.params.memberId as string;
     if (!teamId || !memberId) {
       return res.status(400).json({ error: 'Team ID and Member ID are required' });
     }
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     await collaborationService.removeTeamMember(teamId, memberId, userId);
 
     return res.status(204).send();
-  } catch (error: any) {
-    console.error('Error removing team member:', error);
-    return res
-      .status(500)
-      .json({ error: error.message || 'Failed to remove team member' });
+  } catch (error: unknown) {
+    logger.error('Error removing team member', error instanceof Error ? error : new Error(String(error)));
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to remove team member' });
   }
 };
 
 /**
  * Update member role in a team
  */
-export const updateMemberRole = async (req: Request, res: Response) => {
+export const updateMemberRole = async (req: AuthRequest, res: Response) => {
   try {
     const teamId = req.params.teamId as string;
     const memberId = req.params.memberId as string;
@@ -213,7 +212,8 @@ export const updateMemberRole = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Team ID and Member ID are required' });
     }
     const { role } = req.body;
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     // Validate required fields
     if (!role) {
@@ -228,11 +228,9 @@ export const updateMemberRole = async (req: Request, res: Response) => {
     );
 
     return res.status(200).json(updatedMember);
-  } catch (error: any) {
-    console.error('Error updating member role:', error);
-    return res
-      .status(500)
-      .json({ error: error.message || 'Failed to update member role' });
+  } catch (error: unknown) {
+    logger.error('Error updating member role', error instanceof Error ? error : new Error(String(error)));
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update member role' });
   }
 };
 
@@ -249,7 +247,7 @@ export const getTeamProjects = async (req: Request, res: Response) => {
     const projects = await collaborationService.getTeamProjects(teamId);
     return res.status(200).json({ projects });
   } catch (error) {
-    console.error('Error getting team projects:', error);
+    logger.error('Error getting team projects', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

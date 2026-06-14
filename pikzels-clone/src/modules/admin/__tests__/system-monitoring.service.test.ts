@@ -88,6 +88,12 @@ jest.mock('os', () => ({
   totalmem: jest.fn(() => 16 * 1024 * 1024 * 1024), // 16 GB
   freemem: jest.fn(() => 8 * 1024 * 1024 * 1024),   // 8 GB free
   loadavg: jest.fn(() => [1.5, 2.0, 1.8]),
+  hostname: jest.fn(() => 'test-host'),
+  platform: jest.fn(() => 'linux'),
+  release: jest.fn(() => '5.15.0-test'),
+  type: jest.fn(() => 'Linux'),
+  arch: jest.fn(() => 'x64'),
+  uptime: jest.fn(() => 3600),
 }));
 
 import { SystemMonitoringService } from '../system-monitoring.service';

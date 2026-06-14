@@ -446,7 +446,7 @@ async function seedTestNotifications() {
       userId: user.id,
       type: 'subscription_activated',
       title: 'Subscription Activated',
-      message: 'Your Free plan has been activated. Welcome to Pikzels!',
+      message: 'Your Free plan has been activated. Welcome to ThumPiks!',
       priority: 'normal',
       isRead: true,
       readAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),

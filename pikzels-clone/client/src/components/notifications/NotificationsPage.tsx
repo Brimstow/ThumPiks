@@ -428,6 +428,7 @@ const NotificationsPage: React.FC = () => {
                           }}
                           className="p-1.5 hover:bg-slate-700 rounded-md transition-colors"
                           title="Delete"
+                          aria-label="Delete"
                         >
                           <X className="w-3.5 h-3.5 text-slate-500" />
                         </button>

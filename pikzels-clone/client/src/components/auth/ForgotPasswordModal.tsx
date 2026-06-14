@@ -72,6 +72,9 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forgot-password-modal-title"
             className="w-full h-full md:h-auto md:max-w-md relative z-10"
           >
             <div className="bg-gray-900 border-0 md:border md:border-gray-800 rounded-none md:rounded-2xl p-6 md:p-8 shadow-2xl h-full md:h-auto overflow-y-auto">
@@ -82,7 +85,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                     <Mail className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">
+                    <h2 id="forgot-password-modal-title" className="text-xl font-bold text-white">
                       Reset Password
                     </h2>
                     <p className="text-sm text-gray-400">

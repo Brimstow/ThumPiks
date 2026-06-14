@@ -480,28 +480,7 @@ const DashboardHome: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Edit banner animations */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
-        }
-        @keyframes nudge-right {
-          0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(4px); }
-        }
-        .qe-banner:hover .qe-anim {
-          animation-play-state: paused !important;
-        }
-      `}</style>
+
 
       {/* Generate Thumbnail Box */}
       <div className="mb-8">

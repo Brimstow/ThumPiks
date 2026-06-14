@@ -13,6 +13,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware';
 import { authenticateAdmin, requireAdmin } from '../admin/admin-auth.middleware';
+import { AuthRequest } from '../../types/auth';
 import { getService } from '../../utils/service-factory';
 
 const router = Router();
@@ -23,7 +24,7 @@ const router = Router();
  * Client connects with native EventSource({ withCredentials: true }).
  */
 router.get('/stream', authenticateToken, (req: Request, res: Response): void => {
-  const userId = (req as any).user?.id;
+  const userId = (req as AuthRequest).user?.id;
   if (!userId) {
     res.status(401).json({ error: 'User ID not found' });
     return;

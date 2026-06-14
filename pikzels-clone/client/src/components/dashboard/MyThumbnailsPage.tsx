@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw, Sparkles } from 'lucide-react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { useDraggable, useDroppable } from '@dnd-kit/react';
+import type { DndEvent } from '../../features/drag-drop/types';
 import { IS_DEVELOPMENT, API_BASE_URL } from '../../config/environment';
 import { authGet } from '../../utils/api';
 import { formatRelativeTime } from '../../lib/formatters';
@@ -319,14 +320,13 @@ const MyThumbnailsPage: React.FC = () => {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragEnd = useCallback((event: DndEvent) => {
     const source = event.operation?.source;
     const target = event.operation?.target;
     if (!source || !target) return;
 
-    const thumbnailId = source.data?.thumbnailId as string | undefined;
-    const platform = target.data?.platform as string | undefined;
+    const thumbnailId = (source.data as Record<string, unknown>)?.thumbnailId as string | undefined;
+    const platform = (target.data as Record<string, unknown>)?.platform as string | undefined;
     if (thumbnailId && platform && platform !== 'all') {
       handleRecategorizeThumbnail(thumbnailId, platform as ThumbnailPlatform);
     }

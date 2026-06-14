@@ -55,8 +55,8 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({
 
       onTemplateCreated();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create template');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || 'Failed to create template');
     } finally {
       setLoading(false);
     }
@@ -64,9 +64,14 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-template-modal-title"
+        className="bg-white rounded-lg shadow-xl w-full max-w-md"
+      >
         <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-bold text-gray-800">Create Template</h2>
+          <h2 id="create-template-modal-title" className="text-xl font-bold text-gray-800">Create Template</h2>
         </div>
 
         <form onSubmit={handleSubmit}>

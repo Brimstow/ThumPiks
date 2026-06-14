@@ -1251,7 +1251,7 @@ export const ThumPiksLanding = (_props: ThumPiksLandingProps) => {
               <div className="text-sm text-gray-500">
                 Web Design/Development Crafted by Augment Required
               </div>
-              <div className="text-sm text-gray-500">contact@thumPiks.com</div>
+              <div className="text-sm text-gray-500">contact@thumpiks.com</div>
               <div className="flex items-center gap-4">
                 <a
                   href="#"

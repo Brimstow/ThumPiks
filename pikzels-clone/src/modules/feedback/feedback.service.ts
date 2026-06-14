@@ -11,7 +11,7 @@
  * - Service Factory: Instantiated via factory, injected Prisma for testability
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 import { analyzeFeedback } from './feedback.ai';
@@ -22,6 +22,7 @@ import {
 import type {
   CreateFeedbackInput,
   FeedbackRecord,
+  FeedbackType,
   FeedbackWithTicket,
   FeedbackListQuery,
   PaginatedResponse,
@@ -74,7 +75,7 @@ export class FeedbackService {
     feedbackId: string,
     userId?: string
   ): Promise<FeedbackWithTicket | null> {
-    const where: any = { id: feedbackId };
+    const where: Prisma.FeedbackWhereInput = { id: feedbackId };
     if (userId) where.userId = userId;
 
     const result = await this.prisma.feedback.findFirst({
@@ -97,14 +98,14 @@ export class FeedbackService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize || 20));
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    const where: Prisma.FeedbackWhereInput = {};
     if (userId) where.userId = userId;
     if (query.type) where.type = query.type;
     if (query.priority) where.priority = query.priority;
     if (query.sentiment) where.sentiment = query.sentiment;
     if (query.category) where.category = query.category;
 
-    const orderBy: any = {};
+    const orderBy: Prisma.FeedbackOrderByWithRelationInput = {};
     const sortBy = query.sortBy || 'createdAt';
     orderBy[sortBy] = query.sortOrder || 'desc';
 
@@ -147,7 +148,7 @@ export class FeedbackService {
   private async enrichAndNotify(feedback: FeedbackRecord): Promise<void> {
     // AI Analysis
     const analysis = await analyzeFeedback(
-      feedback.type as any,
+      feedback.type as FeedbackType,
       feedback.subject,
       feedback.message
     );

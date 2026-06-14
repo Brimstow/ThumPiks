@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { AppEvent, EventHandler, EventSubscription } from './event-types';
 import { v4 as uuidv4 } from 'uuid';
 import { eventPersistence } from './event-persistence';
+import { logger } from '../utils/logger';
 
 /**
  * Enhanced Event Emitter for Thumbnail Maker
@@ -80,7 +81,7 @@ export class ThumbnailMakerEventEmitter extends EventEmitter {
 
       // Persist event for reliability (async, non-blocking)
       eventPersistence.persistEvent(event).catch(error => {
-        console.error('❌ Error persisting event:', error);
+        logger.error('Error persisting event', error as Error);
       });
 
       // Emit the event
@@ -89,9 +90,9 @@ export class ThumbnailMakerEventEmitter extends EventEmitter {
       // Update statistics
       this.updateStats(startTime);
       
-      console.log(`📡 Event emitted: ${event.type} [${event.id}] for user ${event.userId}`);
+      logger.info('Event emitted', { type: event.type, id: event.id, userId: event.userId });
     } catch (error) {
-      console.error(`❌ Error emitting event ${event.type}:`, error);
+      logger.error(`Error emitting event ${event.type}`, error as Error);
       throw error;
     } finally {
       this.processingStats.eventsInQueue--;
@@ -105,7 +106,7 @@ export class ThumbnailMakerEventEmitter extends EventEmitter {
     eventType: T['type'],
     userId: string,
     data: T['data'],
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<string> {
     const eventId = uuidv4();
     
@@ -169,24 +170,24 @@ export class ThumbnailMakerEventEmitter extends EventEmitter {
     eventTypes?: string[]
   ): Promise<void> {
     try {
-      console.log('🔄 Starting event replay...');
+      logger.info('Starting event replay');
       
       const events = await eventPersistence.replayEvents(fromDate, toDate, eventTypes);
-      console.log(`📀 Found ${events.length} events to replay`);
+      logger.info('Events found for replay', { count: events.length });
       
       for (const event of events) {
         try {
           // Re-emit the event (but don't persist again)
           this.emit(event.type, event);
-          console.log(`♾️ Replayed: ${event.type} [${event.id}]`);
+          logger.info('Event replayed', { type: event.type, id: event.id });
         } catch (error) {
-          console.error(`❌ Error replaying event ${event.type}:`, error);
+          logger.error(`Error replaying event ${event.type}`, error as Error);
         }
       }
       
-      console.log(`✅ Event replay completed: ${events.length} events processed`);
+      logger.info('Event replay completed', { count: events.length });
     } catch (error) {
-      console.error('❌ Error during event replay:', error);
+      logger.error('Error during event replay', error as Error);
     }
   }
 
@@ -235,7 +236,7 @@ export const emitThumbnailCreated = (
   thumbnailId: string,
   projectId: string | undefined,
   filePath: string,
-  parameters: Record<string, any>,
+  parameters: Record<string, unknown>,
   size: number
 ) => {
   return eventEmitter.createAndEmit(
@@ -250,7 +251,7 @@ export const emitAnalyticsEvent = (
   action: string,
   resource: string,
   resourceId: string,
-  properties?: Record<string, any>
+  properties?: Record<string, unknown>
 ) => {
   return eventEmitter.createAndEmit(
     'analytics.track',

@@ -168,12 +168,12 @@ export function useChatStreaming() {
         }
 
         await pump();
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           // User cancelled — not an error
           return;
         }
-        callbacks.onError(err.message || 'Chat stream failed');
+        callbacks.onError((err instanceof Error ? err.message : undefined) || 'Chat stream failed');
       } finally {
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;

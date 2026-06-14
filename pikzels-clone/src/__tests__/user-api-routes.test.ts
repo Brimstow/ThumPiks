@@ -46,6 +46,7 @@ jest.mock('../services/cache.service', () => ({
     thumbnail: (thumbnailId: string) => `thumbnail:${thumbnailId}`,
     analytics: (userId: string, period: string) =>
       `analytics:${userId}:${period}`,
+    socialShares: (thumbnailId: string) => `social:${thumbnailId}`,
     rateLimit: (userId: string, action: string) =>
       `ratelimit:${userId}:${action}`,
   },

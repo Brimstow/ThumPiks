@@ -209,7 +209,8 @@ export class VideoProxyController {
       }
 
       // Ensure Content-Type is video
-      if (!upstream.headers['content-type']?.startsWith('video/')) {
+      const contentType = upstream.headers['content-type'];
+      if (!contentType || !String(contentType).startsWith('video/')) {
         res.setHeader('Content-Type', 'video/mp4');
       }
 

@@ -18,9 +18,25 @@ import type {
 } from './types';
 import { isIOS, isSafari, isCanvasSizeSafe, safeCanvasToDataURL } from '@/utils/browserCompat';
 
+/** Minimal interface for the @tensorflow-models/body-segmentation module */
+interface BodySegModule {
+  createSegmenter(
+    model: string,
+    config: Record<string, unknown>
+  ): Promise<BodySegModel>;
+  SupportedModels: { MediaPipeSelfieSegmentation: string };
+}
+
+/** Minimal interface for a body segmentation model instance */
+interface BodySegModel {
+  segmentPeople(
+    input: HTMLImageElement,
+    config: Record<string, unknown>
+  ): Promise<Array<{ mask: { toCanvasImageSource(): Promise<CanvasImageSource>; toImageData(): Promise<ImageData> } }>>;
+}
+
 // Dynamic imports for TensorFlow models
-let bodySegmentation: any = null;
-let cocoSsd: any = null;
+let bodySegmentation: BodySegModule | null = null;
 
 export class TensorFlowProvider extends BaseAIProvider {
   readonly name = 'TensorFlow.js';
@@ -33,8 +49,7 @@ export class TensorFlowProvider extends BaseAIProvider {
   ];
   
   private config: TensorFlowConfig;
-  private segmentationModel: any = null;
-  private detectionModel: any = null;
+  private segmentationModel: BodySegModel | null = null;
   
   constructor(config: TensorFlowConfig = {}) {
     super();
@@ -65,12 +80,12 @@ export class TensorFlowProvider extends BaseAIProvider {
       // Import modules
       if (!bodySegmentation) {
         const bodySegModule = await import('@tensorflow-models/body-segmentation');
-        bodySegmentation = bodySegModule;
+        bodySegmentation = bodySegModule as unknown as BodySegModule;
       }
       
       // Load model with timeout (longer on iOS/Safari due to CPU fallback)
       const timeout = isIOS || isSafari ? 30000 : 15000;
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Model load timeout')), timeout)
       );
       
@@ -135,7 +150,7 @@ export class TensorFlowProvider extends BaseAIProvider {
       }
       
       // Run segmentation
-      const segmentation = await this.segmentationModel.segmentPeople(img, {
+      const segmentation = await this.segmentationModel!.segmentPeople(img, {
         flipHorizontal: false,
         multiSegmentation: false,
         segmentBodyParts: false,
@@ -233,14 +248,14 @@ export class TensorFlowProvider extends BaseAIProvider {
       const img = await this.loadImage(request.image);
       
       // Run segmentation
-      const segmentation = await this.segmentationModel.segmentPeople(img, {
+      const segmentation = await this.segmentationModel!.segmentPeople(img, {
         flipHorizontal: false,
         multiSegmentation: true,
         segmentBodyParts: true,
       });
       
       const masks = await Promise.all(
-        segmentation.map(async (seg: any, index: number) => {
+        segmentation.map(async (seg, index: number) => {
           const mask = seg.mask;
           const maskCanvas = document.createElement('canvas');
           const maskData = await mask.toImageData();

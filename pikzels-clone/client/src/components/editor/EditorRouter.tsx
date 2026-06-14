@@ -51,11 +51,14 @@ export function EditorRouter({
   const shouldUseMobile = useShouldUseMobileEditor();
 
   if (shouldUseMobile) {
+    // MobileEditor has stub implementations — fall back to ThumbnailStudio
+    // until mobile editor is fully functional.
     return (
-      <MobileEditor
+      <ThumbnailStudio
         thumbnailId={thumbnailId}
         thumbnailData={thumbnailData}
         initialImage={initialImage}
+        platformPreset={platformPreset}
         onSave={onSave}
         onClose={onClose}
       />

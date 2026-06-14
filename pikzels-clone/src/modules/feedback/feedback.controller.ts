@@ -12,6 +12,7 @@
 
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { FeedbackService } from './feedback.service';
@@ -20,8 +21,11 @@ import { logger } from '../../utils/logger';
 import type {
   CreateFeedbackInput,
   FeedbackType,
+  FeedbackPriority,
+  FeedbackSentiment,
   FeedbackListQuery,
   TicketListQuery,
+  TicketStatus,
   UpdateTicketInput,
   CreateTicketReplyInput,
 } from './types';
@@ -67,11 +71,10 @@ const MAX_MESSAGE_LENGTH = 5000;
 export const submitFeedback = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { type, subject, message, screenshotUrl, screenshotPublicId } =
       req.body;
@@ -109,11 +112,11 @@ export const submitFeedback = async (
       screenshotPublicId: screenshotPublicId || undefined,
     };
 
-    const feedback = await getFeedbackService().create(req.user.id, input);
+    const feedback = await getFeedbackService().create(user.id, input);
 
     return res.status(201).json(feedback);
-  } catch (error: any) {
-    logger.error('Failed to submit feedback', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to submit feedback', error instanceof Error ? error : new Error(String(error)), {
       userId: req.user?.id || '',
     });
     return res.status(500).json({ error: 'Failed to submit feedback' });
@@ -126,28 +129,27 @@ export const submitFeedback = async (
 export const listFeedback = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
-    const query: FeedbackListQuery = {
+    const query = {
       page: parseInt(req.query.page as string) || 1,
       pageSize: parseInt(req.query.pageSize as string) || 20,
-      type: req.query.type as any,
-      priority: req.query.priority as any,
-      sentiment: req.query.sentiment as any,
-      category: req.query.category as string,
-      sortBy: (req.query.sortBy as any) || 'createdAt',
-      sortOrder: (req.query.sortOrder as any) || 'desc',
-    };
+      ...(req.query.type && { type: req.query.type as FeedbackType }),
+      ...(req.query.priority && { priority: req.query.priority as FeedbackPriority }),
+      ...(req.query.sentiment && { sentiment: req.query.sentiment as FeedbackSentiment }),
+      ...(req.query.category && { category: req.query.category as string }),
+      sortBy: ((req.query.sortBy as string) || 'createdAt') as FeedbackListQuery['sortBy'],
+      sortOrder: ((req.query.sortOrder as string) || 'desc') as 'asc' | 'desc',
+    } as FeedbackListQuery;
 
-    const result = await getFeedbackService().list(query, req.user.id);
+    const result = await getFeedbackService().list(query, user.id);
 
     return res.json(result);
-  } catch (error: any) {
-    logger.error('Failed to list feedback', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to list feedback', error instanceof Error ? error : new Error(String(error)), {
       userId: req.user?.id || '',
     });
     return res.status(500).json({ error: 'Failed to list feedback' });
@@ -160,23 +162,22 @@ export const listFeedback = async (
 export const getFeedback = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
 
-    const feedback = await getFeedbackService().getById(id, req.user.id);
+    const feedback = await getFeedbackService().getById(id, user.id);
 
     if (!feedback) {
       return res.status(404).json({ error: 'Feedback not found' });
     }
 
     return res.json(feedback);
-  } catch (error: any) {
-    logger.error('Failed to get feedback', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to get feedback', error instanceof Error ? error : new Error(String(error)), {
       feedbackId: String(req.params.id),
     });
     return res.status(500).json({ error: 'Failed to get feedback' });
@@ -189,23 +190,22 @@ export const getFeedback = async (
 export const deleteFeedback = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
 
-    const deleted = await getFeedbackService().delete(id, req.user.id);
+    const deleted = await getFeedbackService().delete(id, user.id);
 
     if (!deleted) {
       return res.status(404).json({ error: 'Feedback not found' });
     }
 
     return res.status(204).send();
-  } catch (error: any) {
-    logger.error('Failed to delete feedback', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to delete feedback', error instanceof Error ? error : new Error(String(error)), {
       feedbackId: String(req.params.id),
     });
     return res.status(500).json({ error: 'Failed to delete feedback' });
@@ -222,22 +222,22 @@ export const deleteFeedback = async (
 export const listTickets = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    const query: TicketListQuery = {
+    const query = {
       page: parseInt(req.query.page as string) || 1,
       pageSize: parseInt(req.query.pageSize as string) || 20,
-      status: req.query.status as any,
-      assignee: req.query.assignee as string,
-      sortBy: (req.query.sortBy as any) || 'createdAt',
-      sortOrder: (req.query.sortOrder as any) || 'desc',
-    };
+      ...(req.query.status && { status: req.query.status as TicketStatus }),
+      ...(req.query.assignee && { assignee: req.query.assignee as string }),
+      sortBy: ((req.query.sortBy as string) || 'createdAt') as TicketListQuery['sortBy'],
+      sortOrder: ((req.query.sortOrder as string) || 'desc') as 'asc' | 'desc',
+    } as TicketListQuery;
 
     const result = await getTicketService().list(query);
 
     return res.json(result);
-  } catch (error: any) {
-    logger.error('Failed to list tickets', error);
+  } catch (error: unknown) {
+    logger.error('Failed to list tickets', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to list tickets' });
   }
 };
@@ -248,7 +248,7 @@ export const listTickets = async (
 export const getTicket = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const id = req.params.id as string;
     const ticket = await getTicketService().getById(id);
@@ -258,8 +258,8 @@ export const getTicket = async (
     }
 
     return res.json(ticket);
-  } catch (error: any) {
-    logger.error('Failed to get ticket', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to get ticket', error instanceof Error ? error : new Error(String(error)), {
       ticketId: String(req.params.id),
     });
     return res.status(500).json({ error: 'Failed to get ticket' });
@@ -272,7 +272,7 @@ export const getTicket = async (
 export const updateTicket = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const id = req.params.id as string;
     const { status, assignee, resolution, internalNotes } = req.body;
@@ -290,8 +290,8 @@ export const updateTicket = async (
     }
 
     return res.json(ticket);
-  } catch (error: any) {
-    logger.error('Failed to update ticket', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to update ticket', error instanceof Error ? error : new Error(String(error)), {
       ticketId: String(req.params.id),
     });
     return res.status(500).json({ error: 'Failed to update ticket' });
@@ -304,11 +304,10 @@ export const updateTicket = async (
 export const addTicketReply = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     const { message, isInternal } = req.body;
@@ -325,14 +324,14 @@ export const addTicketReply = async (
     const reply = await getTicketService().addReply(
       id,
       'ADMIN',
-      req.user.id,
-      req.user.name || req.user.email,
+      user.id,
+      user.name || user.email,
       input
     );
 
     return res.status(201).json(reply);
-  } catch (error: any) {
-    logger.error('Failed to add ticket reply', error, {
+  } catch (error: unknown) {
+    logger.error('Failed to add ticket reply', error instanceof Error ? error : new Error(String(error)), {
       ticketId: String(req.params.id),
     });
     return res.status(500).json({ error: 'Failed to add ticket reply' });
@@ -345,15 +344,15 @@ export const addTicketReply = async (
 export const createManualTicket = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const { feedbackId } = req.body;
 
     const ticket = await getTicketService().createManual(feedbackId);
 
     return res.status(201).json(ticket);
-  } catch (error: any) {
-    logger.error('Failed to create manual ticket', error);
+  } catch (error: unknown) {
+    logger.error('Failed to create manual ticket', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to create ticket' });
   }
 };
@@ -364,25 +363,25 @@ export const createManualTicket = async (
 export const listAllFeedback = async (
   req: AuthRequest,
   res: Response
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
-    const query: FeedbackListQuery = {
+    const query = {
       page: parseInt(req.query.page as string) || 1,
       pageSize: parseInt(req.query.pageSize as string) || 20,
-      type: req.query.type as any,
-      priority: req.query.priority as any,
-      sentiment: req.query.sentiment as any,
-      category: req.query.category as string,
-      sortBy: (req.query.sortBy as any) || 'createdAt',
-      sortOrder: (req.query.sortOrder as any) || 'desc',
-    };
+      ...(req.query.type && { type: req.query.type as FeedbackType }),
+      ...(req.query.priority && { priority: req.query.priority as FeedbackPriority }),
+      ...(req.query.sentiment && { sentiment: req.query.sentiment as FeedbackSentiment }),
+      ...(req.query.category && { category: req.query.category as string }),
+      sortBy: ((req.query.sortBy as string) || 'createdAt') as FeedbackListQuery['sortBy'],
+      sortOrder: ((req.query.sortOrder as string) || 'desc') as 'asc' | 'desc',
+    } as FeedbackListQuery;
 
     // No userId = admin sees all
     const result = await getFeedbackService().list(query);
 
     return res.json(result);
-  } catch (error: any) {
-    logger.error('Failed to list all feedback', error);
+  } catch (error: unknown) {
+    logger.error('Failed to list all feedback', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Failed to list feedback' });
   }
 };

@@ -7,7 +7,7 @@
  */
 import { useState, useCallback } from 'react';
 import type { LayoutPreset, CompositionState } from '../../composition-templates/types';
-import type { TemplateDragItem } from '../types';
+import type { TemplateDragItem, DndEvent } from '../types';
 import { isTemplateDragItem } from '../types';
 
 /**
@@ -40,11 +40,11 @@ export interface UseTemplateDragDropReturn {
   /** Current screen reader announcement */
   announcement: string;
   /** Handler for drag start event */
-  handleDragStart: (event: unknown) => void;
+  handleDragStart: (event: DndEvent) => void;
   /** Handler for drag over canvas event */
   handleDragOverCanvas: (isOver: boolean) => void;
   /** Handler for drag end event */
-  handleDragEnd: (event: unknown, canvasRect?: DOMRect | null, dropClientPosition?: { x: number; y: number } | null) => void;
+  handleDragEnd: (event: DndEvent, canvasRect?: DOMRect | null, dropClientPosition?: { x: number; y: number } | null) => void;
 }
 
 /**
@@ -77,11 +77,9 @@ export function useTemplateDragDrop(config: UseTemplateDragDropConfig): UseTempl
   /**
    * Handle drag start - called when a template begins dragging
    */
-  const handleDragStart = useCallback((event: unknown) => {
+  const handleDragStart = useCallback((event: DndEvent) => {
     // Extract template data from event
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dndEvent = event as any;
-    const source = dndEvent?.operation?.source;
+    const source = event?.operation?.source;
     
     if (!source) return;
 
@@ -108,14 +106,12 @@ export function useTemplateDragDrop(config: UseTemplateDragDropConfig): UseTempl
    * Handle drag end - finalize drop or cancel
    */
   const handleDragEnd = useCallback((
-    event: unknown,
+    event: DndEvent,
     canvasRect?: DOMRect | null,
     dropClientPosition?: { x: number; y: number } | null
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dndEvent = event as any;
-    const source = dndEvent?.operation?.source;
-    const canceled = dndEvent?.canceled;
+    const source = event?.operation?.source;
+    const canceled = event?.canceled;
 
     if (canceled) {
       setAnnouncement('Drag cancelled.');

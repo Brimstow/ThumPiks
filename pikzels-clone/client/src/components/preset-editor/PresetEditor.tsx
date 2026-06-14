@@ -461,7 +461,7 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
       {/* ---- Top Bar ---- */}
       <header className="preset-editor__topbar">
         <div className="preset-editor__topbar-left">
-          <button className="pe-btn pe-btn--icon" onClick={onClose} title="Back to Create">
+          <button className="pe-btn pe-btn--icon" onClick={onClose} title="Back to Create" aria-label="Back to Create">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
@@ -471,18 +471,18 @@ const PresetEditor: React.FC<PresetEditorProps> = ({ preset, onClose, onOpenFull
             <span className="preset-editor__badge-size">{preset.width} x {preset.height}</span>
           </div>
           <div className="pe-divider" />
-          <button className="pe-btn pe-btn--icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo">
+          <button className="pe-btn pe-btn--icon" onClick={() => dispatch({ type: 'UNDO' })} disabled={!canUndo} title="Undo" aria-label="Undo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
               <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
             </svg>
           </button>
-          <button className="pe-btn pe-btn--icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo} title="Redo">
+          <button className="pe-btn pe-btn--icon" onClick={() => dispatch({ type: 'REDO' })} disabled={!canRedo} title="Redo" aria-label="Redo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
               <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
             </svg>
           </button>
           <div className="pe-divider" />
-          <button className="pe-btn pe-btn--icon" onClick={handleClearCanvas} disabled={state.layers.length === 0} title="Clear Canvas (Ctrl+Shift+N)">
+          <button className="pe-btn pe-btn--icon" onClick={handleClearCanvas} disabled={state.layers.length === 0} title="Clear Canvas (Ctrl+Shift+N)" aria-label="Clear Canvas (Ctrl+Shift+N)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />

@@ -1,15 +1,27 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { VisualSearchService } from './visual-search.service';
+import { VisualSearchServiceDependencies } from './types';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 import fetch from 'node-fetch';
+
+interface TikTokOEmbedResponse {
+  thumbnail_url?: string;
+  title?: string;
+  author_name?: string;
+}
 
 let sharedService: VisualSearchService;
 
-export const initializeServices = (prismaClient?: any, cacheService?: any) => {
+export const initializeServices = (
+  prismaClient?: VisualSearchServiceDependencies['prisma'],
+  cacheService?: VisualSearchServiceDependencies['cache']
+) => {
   sharedService = new VisualSearchService({
     prisma: prismaClient || getPrisma(),
-    cache: cacheService,
+    ...(cacheService && { cache: cacheService }),
   });
 };
 
@@ -30,9 +42,8 @@ const getService = () => {
  */
 export const searchByImage = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { imageUrl } = req.body;
     if (!imageUrl || typeof imageUrl !== 'string') {
@@ -53,8 +64,8 @@ export const searchByImage = async (req: AuthRequest, res: Response) => {
     );
 
     return res.status(200).json(results);
-  } catch (error: any) {
-    console.error('Error in visual search by image:', error);
+  } catch (error: unknown) {
+    logger.error('Error in visual search by image', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -65,9 +76,8 @@ export const searchByImage = async (req: AuthRequest, res: Response) => {
  */
 export const searchByText = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { text } = req.body;
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
@@ -84,9 +94,10 @@ export const searchByText = async (req: AuthRequest, res: Response) => {
     );
 
     return res.status(200).json(results);
-  } catch (error: any) {
-    console.error('Error in visual search by text:', error.message, error.stack);
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    logger.error('Error in visual search by text', error instanceof Error ? error : new Error(errMsg), { message: errMsg });
+    return res.status(500).json({ error: 'Internal server error', details: errMsg });
   }
 };
 
@@ -96,9 +107,8 @@ export const searchByText = async (req: AuthRequest, res: Response) => {
  */
 export const indexThumbnail = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const thumbnailId = Array.isArray(req.params.thumbnailId) ? req.params.thumbnailId[0] : req.params.thumbnailId;
     if (!thumbnailId) {
@@ -108,11 +118,11 @@ export const indexThumbnail = async (req: AuthRequest, res: Response) => {
     await getService().indexThumbnail(thumbnailId);
 
     return res.status(200).json({ success: true, thumbnailId });
-  } catch (error: any) {
-    if (error.message?.includes('not found')) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message?.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
-    console.error('Error indexing thumbnail:', error);
+    logger.error('Error indexing thumbnail', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -123,19 +133,18 @@ export const indexThumbnail = async (req: AuthRequest, res: Response) => {
  */
 export const indexBatch = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const batchSize = parseInt(req.body.batchSize as string) || 50;
     const result = await getService().indexBatch(
-      req.user.id,
+      user.id,
       Math.min(batchSize, 200)
     );
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error('Error in batch indexing:', error);
+    logger.error('Error in batch indexing', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -146,14 +155,13 @@ export const indexBatch = async (req: AuthRequest, res: Response) => {
  */
 export const healthCheck = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const health = await getService().healthCheck();
     return res.status(200).json(health);
   } catch (error) {
-    console.error('Error in visual search health check:', error);
+    logger.error('Error in visual search health check', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -165,9 +173,8 @@ export const healthCheck = async (req: AuthRequest, res: Response) => {
  */
 export const resolveUrl = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { url } = req.body;
     if (!url || typeof url !== 'string') {
@@ -200,7 +207,7 @@ export const resolveUrl = async (req: AuthRequest, res: Response) => {
           return res.status(404).json({ error: 'Could not resolve TikTok URL' });
         }
 
-        const data: any = await response.json();
+        const data = await response.json() as TikTokOEmbedResponse;
         if (data.thumbnail_url) {
           return res.status(200).json({
             imageUrl: data.thumbnail_url,
@@ -212,7 +219,7 @@ export const resolveUrl = async (req: AuthRequest, res: Response) => {
           return res.status(404).json({ error: 'No thumbnail found for TikTok video' });
         }
       } catch (error) {
-        console.error('TikTok oEmbed error:', error);
+        logger.error('TikTok oEmbed error', error instanceof Error ? error : new Error(String(error)));
         return res.status(500).json({ error: 'Failed to resolve TikTok URL' });
       }
     }
@@ -222,7 +229,7 @@ export const resolveUrl = async (req: AuthRequest, res: Response) => {
       error: 'Unsupported platform. Currently only TikTok URLs are supported for server-side resolution.' 
     });
   } catch (error) {
-    console.error('Error in URL resolution:', error);
+    logger.error('Error in URL resolution', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

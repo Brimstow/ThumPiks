@@ -1,6 +1,7 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { getRedisConfig } from './redis-config';
 import { SUBSCRIPTION_PLANS } from '../subscription/subscription.config';
+import { logger } from '../../utils/logger';
 
 // Queue configuration
 const QUEUE_NAME = 'ai-operations';
@@ -90,7 +91,7 @@ export class AIPriorityQueueService {
     );
 
     this.worker.on('error', (err) => {
-      console.error('AIPriorityQueue: Worker error:', err.message);
+      logger.error('AIPriorityQueue: Worker error', err instanceof Error ? err : new Error(String(err)));
     });
 
     this.queueEvents = new QueueEvents(QUEUE_NAME, {
@@ -122,12 +123,12 @@ export class AIPriorityQueueService {
     try {
       const waitingCount = await this.queue.getWaitingCount();
       if (waitingCount >= MAX_QUEUE_SIZE) {
-        const err = new Error('Queue is full. Please retry later.');
-        (err as any).statusCode = 503;
+        const err = new Error('Queue is full. Please retry later.') as Error & { statusCode: number };
+        err.statusCode = 503;
         throw err;
       }
-    } catch (err: any) {
-      if (err.statusCode === 503) throw err;
+    } catch (err: unknown) {
+      if ((err as Error & { statusCode?: number }).statusCode === 503) throw err;
       // Redis error checking capacity — fall back
       return directExecutor(params.payload);
     }
@@ -150,9 +151,10 @@ export class AIPriorityQueueService {
       // Wait for the worker to process and return the result
       const result = await job.waitUntilFinished(this.queueEvents, params.toolTimeout + 15000);
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // If queue dispatch fails, fall back to direct execution
-      if (err.message === 'Redis connection lost' || err.code === 'ECONNREFUSED') {
+      const e = err as Error & { code?: string };
+      if (e.message === 'Redis connection lost' || e.code === 'ECONNREFUSED') {
         return directExecutor(params.payload);
       }
       throw err;

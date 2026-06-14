@@ -6,6 +6,7 @@
  */
 
 import fetch from 'node-fetch';
+import { logger } from '../../utils/logger';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -245,7 +246,7 @@ async function callOpenRouter(prompt: string): Promise<string> {
     throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
   }
 
-  const data: any = await response.json();
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   return data.choices?.[0]?.message?.content || '';
 }
 
@@ -391,23 +392,19 @@ function generateFonts(
 export async function generateBrandSuggestions(
   input: BrandGeneratorInput
 ): Promise<BrandGeneratorResult> {
-  console.log('[AI Brand Generator] Starting generation for:', input.brandName);
+  logger.info('[AI Brand Generator] Starting generation', { brandName: input.brandName });
 
   try {
     // Build and send prompt to OpenRouter
     const prompt = buildBrandGenerationPrompt(input);
-    console.log('[AI Brand Generator] Calling OpenRouter...');
+    logger.info('[AI Brand Generator] Calling OpenRouter...');
 
     const aiResponse = await callOpenRouter(prompt);
-    console.log('[AI Brand Generator] Received response from OpenRouter');
+    logger.info('[AI Brand Generator] Received response from OpenRouter');
 
     // Parse AI suggestions
     const aiSuggestions = parseAIResponse(aiResponse);
-    console.log(
-      '[AI Brand Generator] Parsed',
-      aiSuggestions.length,
-      'suggestions'
-    );
+    logger.info('[AI Brand Generator] Parsed suggestions', { count: aiSuggestions.length });
 
     // Build full suggestions with colors and fonts
     const suggestions: GeneratedBrandSuggestion[] = aiSuggestions.map(
@@ -434,10 +431,10 @@ export async function generateBrandSuggestions(
       generatedAt: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('[AI Brand Generator] Error:', error);
+    logger.error('[AI Brand Generator] Error', error instanceof Error ? error : new Error(String(error)));
 
     // Fallback: generate suggestions without AI
-    console.log('[AI Brand Generator] Using fallback generation');
+    logger.info('[AI Brand Generator] Using fallback generation');
     return generateFallbackSuggestions(input);
   }
 }

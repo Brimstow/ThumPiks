@@ -1,7 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { deductCredits } from '../credit/credit.service';
 import { getEditorChatService } from './editor-chat.service';
+import { logger } from '../../utils/logger';
 import type { ChatStreamRequest } from './types';
 
 /**
@@ -16,9 +18,8 @@ export const streamEditorChat = async (
   res: Response
 ): Promise<Response | void> => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { messages, canvasContext, canvasScreenshot, platformPreset } =
       req.body as ChatStreamRequest;
@@ -54,7 +55,7 @@ export const streamEditorChat = async (
 
     // Deduct 1 credit for chat turn
     const creditDeducted = await deductCredits(
-      req.user.id,
+      user.id,
       1,
       'AI editor chat turn'
     );
@@ -94,31 +95,32 @@ export const streamEditorChat = async (
     if (!res.writableEnded) {
       res.end();
     }
-  } catch (error: any) {
-    if (error.message === 'Insufficient credits') {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg === 'Insufficient credits') {
       if (!res.headersSent) {
-        return res.status(402).json({ error: error.message });
+        return res.status(402).json({ error: msg });
       }
     }
     if (
-      error.message?.includes('API key not configured') ||
-      error.message?.includes('not configured')
+      msg?.includes('API key not configured') ||
+      msg?.includes('not configured')
     ) {
       if (!res.headersSent) {
         return res.status(503).json({ error: 'AI service not configured' });
       }
     }
 
-    console.error('Error in editor chat stream:', error.message || error);
+    logger.error('Error in editor chat stream', error instanceof Error ? error : undefined);
 
     // If headers already sent (SSE started), send error as event
     if (res.headersSent && !res.writableEnded) {
       res.write(
-        `event: error\ndata: ${JSON.stringify({ message: error.message || 'Chat failed' })}\n\n`
+        `event: error\ndata: ${JSON.stringify({ message: msg || 'Chat failed' })}\n\n`
       );
       res.end();
     } else if (!res.headersSent) {
-      return res.status(500).json({ error: error.message || 'Chat failed' });
+      return res.status(500).json({ error: msg || 'Chat failed' });
     }
   }
 };

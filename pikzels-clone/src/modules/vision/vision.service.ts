@@ -3,13 +3,67 @@ import { v4 as uuidv4 } from 'uuid';
 import fetch from 'node-fetch';
 import { getPrisma } from '../../utils/prisma-factory';
 import { CacheService } from '../../services/cache.service';
+import { getFrontendUrl } from '../../utils/env';
 import { deductCredits } from '../credit/credit.service';
+import { logger } from '../../utils/logger';
 import {
   VisionElements,
   VisionAnalysisResult,
   BingImageResult,
   VisionServiceDependencies,
 } from './types';
+
+/** Minimal shape of an OpenRouter chat-completion response */
+interface OpenRouterResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
+/** Minimal shape of a SearXNG image search result item */
+interface SearXNGImageResult {
+  img_src?: string;
+  title?: string;
+  url?: string;
+  thumbnail_src?: string;
+  resolution?: string;
+}
+
+/** Minimal shape of a SearXNG search response */
+interface SearXNGResponse {
+  results?: SearXNGImageResult[];
+}
+
+/** Minimal shape of a SerpAPI image result item */
+interface SerpApiImageResult {
+  original?: string;
+  link?: string;
+  title?: string;
+  source?: string;
+  original_width?: number;
+  original_height?: number;
+  width?: number;
+  height?: number;
+  thumbnail?: string;
+}
+
+/** Minimal shape of a SerpAPI image search response */
+interface SerpApiResponse {
+  images_results?: SerpApiImageResult[];
+}
+
+/** Minimal shape of a Bing image result item */
+interface BingImageItem {
+  contentUrl?: string;
+  name?: string;
+  hostPageUrl?: string;
+  width?: number;
+  height?: number;
+  thumbnailUrl?: string;
+}
+
+/** Minimal shape of a Bing image search response */
+interface BingApiResponse {
+  value?: BingImageItem[];
+}
 
 const VISION_SYSTEM_PROMPT = `You are a thumbnail design analyst and CTR prediction expert. Analyze the provided image and return a JSON response with these exact fields:
 
@@ -116,8 +170,8 @@ export class VisionService {
           const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
           resolvedImageUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
         }
-      } catch (err: any) {
-        console.warn('Failed to convert localhost image to base64:', err.message);
+      } catch (err: unknown) {
+        logger.warn('Failed to convert localhost image to base64', { error: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -150,8 +204,8 @@ export class VisionService {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.openrouterApiKey}`,
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:8556',
-        'X-Title': 'Pikzels Vision Analysis',
+        'HTTP-Referer': getFrontendUrl(),
+        'X-Title': 'ThumPiks Vision Analysis',
       },
       body: JSON.stringify(requestBody),
     });
@@ -163,7 +217,7 @@ export class VisionService {
       );
     }
 
-    const data: any = await response.json();
+    const data = await response.json() as OpenRouterResponse;
     const rawContent =
       data.choices?.[0]?.message?.content || '';
 
@@ -181,7 +235,7 @@ export class VisionService {
         imageUrl,
         description: parsed.description,
         suggestedPrompt,
-        elements: parsed.elements as any,
+        elements: parsed.elements as unknown as import('@prisma/client').Prisma.InputJsonValue,
         sourceType: imageUrl.startsWith('data:') ? 'upload' : 'url',
       },
     });
@@ -240,29 +294,30 @@ export class VisionService {
         throw new Error(`SearXNG failed (${response.status})`);
       }
 
-      const data: any = await response.json();
+      const data = await response.json() as SearXNGResponse;
       const results: BingImageResult[] = (data.results || [])
         .slice(0, count)
-        .filter((img: any) => img.img_src)
-        .map((img: any) => ({
-          url: img.img_src,
+        .filter((img: SearXNGImageResult) => img.img_src)
+        .map((img: SearXNGImageResult) => ({
+          url: img.img_src!,
           title: img.title || '',
-          sourceUrl: img.url || img.img_src,
-          width: img.resolution?.split('x')[0] ? parseInt(img.resolution.split('x')[0]) : 0,
-          height: img.resolution?.split('x')[1] ? parseInt(img.resolution.split('x')[1]) : 0,
-          thumbnailUrl: img.thumbnail_src || img.img_src,
+          sourceUrl: img.url || img.img_src!,
+          width: img.resolution?.split('x')[0] ? parseInt(img.resolution.split('x')[0]!) : 0,
+          height: img.resolution?.split('x')[1] ? parseInt(img.resolution.split('x')[1]!) : 0,
+          thumbnailUrl: img.thumbnail_src || img.img_src!,
         }));
 
       await this.cache.set(cacheKey, results, 1800);
       return results;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       // Fallback to SerpAPI or Bing if SearXNG fails
       if (this.serpApiKey) {
-        console.warn(`SearXNG failed, falling back to SerpAPI: ${error.message}`);
+        logger.warn('SearXNG failed, falling back to SerpAPI', { error: message });
         return this.searchWithSerpApi(query, count);
       }
       if (this.bingApiKey) {
-        console.warn(`SearXNG failed, falling back to Bing: ${error.message}`);
+        logger.warn('SearXNG failed, falling back to Bing', { error: message });
         return this.searchWithBing(query, count);
       }
       throw error;
@@ -295,23 +350,23 @@ export class VisionService {
       const errorText = await response.text();
       // If SerpAPI fails and Bing is available, try Bing
       if (this.bingApiKey) {
-        console.warn(`SerpAPI failed, falling back to Bing: ${errorText}`);
+        logger.warn('SerpAPI failed, falling back to Bing', { error: errorText });
         return this.searchWithBing(query, count);
       }
       throw new Error(`SerpAPI Image Search failed (${response.status}): ${errorText}`);
     }
 
-    const data: any = await response.json();
+    const data = await response.json() as SerpApiResponse;
     const results: BingImageResult[] = (data.images_results || [])
       .slice(0, count)
-      .filter((img: any) => img.original_width >= 800 || img.width >= 800)
-      .map((img: any) => ({
-        url: img.original || img.link,
+      .filter((img: SerpApiImageResult) => (img.original_width ?? 0) >= 800 || (img.width ?? 0) >= 800)
+      .map((img: SerpApiImageResult) => ({
+        url: img.original || img.link || '',
         title: img.title || '',
-        sourceUrl: img.source || img.link,
+        sourceUrl: img.source || img.link || '',
         width: img.original_width || img.width || 0,
         height: img.original_height || img.height || 0,
-        thumbnailUrl: img.thumbnail,
+        thumbnailUrl: img.thumbnail || '',
       }));
 
     await this.cache.set(cacheKey, results, 1800);
@@ -350,16 +405,16 @@ export class VisionService {
       );
     }
 
-    const data: any = await response.json();
+    const data = await response.json() as BingApiResponse;
     const results: BingImageResult[] = (data.value || [])
-      .filter((img: any) => img.width >= 800)
-      .map((img: any) => ({
-        url: img.contentUrl,
-        title: img.name,
-        sourceUrl: img.hostPageUrl,
-        width: img.width,
-        height: img.height,
-        thumbnailUrl: img.thumbnailUrl,
+      .filter((img: BingImageItem) => (img.width ?? 0) >= 800)
+      .map((img: BingImageItem) => ({
+        url: img.contentUrl || '',
+        title: img.name || '',
+        sourceUrl: img.hostPageUrl || '',
+        width: img.width ?? 0,
+        height: img.height ?? 0,
+        thumbnailUrl: img.thumbnailUrl || '',
       }));
 
     await this.cache.set(cacheKey, results, 1800);

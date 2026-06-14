@@ -144,3 +144,24 @@ export interface DragHandleProps {
   /** Optional aria-label override */
   ariaLabel?: string;
 }
+
+/**
+ * Minimal type for @dnd-kit drag events.
+ * Uses structural compatibility to accept DragStartEvent/DragEndEvent/DragMoveEvent.
+ */
+export interface DndEvent {
+  operation: {
+    source: {
+      id: string | number;
+      data: unknown;
+    } | null;
+    target?: {
+      id: string | number;
+      data: unknown;
+    } | null;
+    position?: {
+      current?: { x: number; y: number };
+    };
+  };
+  canceled?: boolean;
+}

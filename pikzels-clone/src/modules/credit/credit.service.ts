@@ -7,6 +7,7 @@
 import { getBillingProvider } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getClientUrl } from '../../utils/env';
 import { CREDIT_PACKS, type CreditPack } from '../subscription/subscription.config';
 import { getService } from '../../utils/service-factory';
 
@@ -68,10 +69,7 @@ export async function createCreditPackCheckout(
   }
 
   const provider = getBillingProvider();
-  const clientUrl =
-    process.env.CLIENT_URL ||
-    process.env.VITE_BASE_URL ||
-    'http://localhost:8556';
+  const clientUrl = getClientUrl();
 
   try {
     const url = await provider.createCreditPackCheckout({
@@ -209,8 +207,8 @@ export async function deductCredits(
 
     // Determine how much to deduct from each pool
     // Priority: Plan credits first (they expire), then add-on credits
-    let planCreditsToDeduct = Math.min(planCreditsAvailable, amount);
-    let addonCreditsToDeduct = amount - planCreditsToDeduct;
+    const planCreditsToDeduct = Math.min(planCreditsAvailable, amount);
+    const addonCreditsToDeduct = amount - planCreditsToDeduct;
 
     // Update subscription with deductions
     await prisma.subscription.update({

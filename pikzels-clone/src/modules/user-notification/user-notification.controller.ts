@@ -10,14 +10,19 @@
  * - Thin controllers: validation + delegation only
  */
 
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../../types/auth';
 import { getUserNotificationService } from './user-notification.service';
 import { logger } from '../../utils/logger';
 
+function isPrismaNotFound(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025';
+}
+
 /** GET / — List user's notifications */
-export async function listNotifications(req: Request, res: Response): Promise<void> {
+export async function listNotifications(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -32,16 +37,16 @@ export async function listNotifications(req: Request, res: Response): Promise<vo
     };
     const result = await service.listForUser(userId, query);
     res.json(result);
-  } catch (err: any) {
-    logger.error('Failed to list user notifications', err);
+  } catch (err: unknown) {
+    logger.error('Failed to list user notifications', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to load notifications' });
   }
 }
 
 /** GET /unread-count — Get unread count for badge */
-export async function getUnreadCount(req: Request, res: Response): Promise<void> {
+export async function getUnreadCount(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -50,16 +55,16 @@ export async function getUnreadCount(req: Request, res: Response): Promise<void>
     const service = getUserNotificationService();
     const unreadCount = await service.countUnread(userId);
     res.json({ unreadCount });
-  } catch (err: any) {
-    logger.error('Failed to get user unread count', err);
+  } catch (err: unknown) {
+    logger.error('Failed to get user unread count', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to get unread count' });
   }
 }
 
 /** PATCH /:id/read — Mark a notification as read */
-export async function markRead(req: Request, res: Response): Promise<void> {
+export async function markRead(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -74,20 +79,20 @@ export async function markRead(req: Request, res: Response): Promise<void> {
     const service = getUserNotificationService();
     await service.markRead(userId, id);
     res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === 'P2025') {
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) {
       res.status(404).json({ error: 'Notification not found' });
       return;
     }
-    logger.error('Failed to mark user notification read', err);
+    logger.error('Failed to mark user notification read', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to mark notification read' });
   }
 }
 
 /** POST /mark-all-read — Mark all notifications as read */
-export async function markAllRead(req: Request, res: Response): Promise<void> {
+export async function markAllRead(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -96,16 +101,16 @@ export async function markAllRead(req: Request, res: Response): Promise<void> {
     const service = getUserNotificationService();
     const count = await service.markAllRead(userId);
     res.json({ success: true, count });
-  } catch (err: any) {
-    logger.error('Failed to mark all user notifications read', err);
+  } catch (err: unknown) {
+    logger.error('Failed to mark all user notifications read', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to mark all read' });
   }
 }
 
 /** DELETE /:id — Delete a notification */
-export async function deleteNotification(req: Request, res: Response): Promise<void> {
+export async function deleteNotification(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -120,20 +125,20 @@ export async function deleteNotification(req: Request, res: Response): Promise<v
     const service = getUserNotificationService();
     await service.delete(userId, id);
     res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === 'P2025') {
+  } catch (err: unknown) {
+    if (isPrismaNotFound(err)) {
       res.status(404).json({ error: 'Notification not found' });
       return;
     }
-    logger.error('Failed to delete user notification', err);
+    logger.error('Failed to delete user notification', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 }
 
 /** POST /bulk-delete — Delete multiple notifications at once */
-export async function bulkDeleteNotifications(req: Request, res: Response): Promise<void> {
+export async function bulkDeleteNotifications(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -152,8 +157,8 @@ export async function bulkDeleteNotifications(req: Request, res: Response): Prom
     const service = getUserNotificationService();
     const count = await service.bulkDelete(userId, ids);
     res.json({ success: true, count });
-  } catch (err: any) {
-    logger.error('Failed to bulk-delete user notifications', err);
+  } catch (err: unknown) {
+    logger.error('Failed to bulk-delete user notifications', err instanceof Error ? err : new Error(String(err)));
     res.status(500).json({ error: 'Failed to bulk-delete notifications' });
   }
 }
