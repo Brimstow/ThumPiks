@@ -1,10 +1,10 @@
-# Thumpiks
+# ThumPiks
 
 AI-powered YouTube thumbnail studio. Design high-converting thumbnails in a browser-based canvas editor, generate and edit imagery with AI, manage brand kits, run A/B tests, and track performance, all backed by a full-stack TypeScript application.
 
 ## Overview
 
-Thumpiks is a full-stack web application for creating, editing, and optimizing video thumbnails. It combines a canvas-based editor with AI image generation and vision analysis, a credit-based billing system, and an analytics suite, wrapped in a modular, security-conscious architecture.
+ThumPiks is a full-stack web application for creating, editing, and optimizing video thumbnails. It combines a canvas-based editor with AI image generation and vision analysis, a credit-based billing system, and an analytics suite, wrapped in a modular, security-conscious architecture.
 
 ## Features
 
@@ -33,7 +33,7 @@ Thumpiks is a full-stack web application for creating, editing, and optimizing v
 The codebase follows a modular, feature-oriented layout:
 
 ```
-Thumpiks/
+ThumPiks/
 ├── src/                # Express backend
 │   ├── modules/        # Feature modules (auth, thumbnail, billing, ai, admin, ...)
 │   ├── middleware/     # Security, auth, error handling
