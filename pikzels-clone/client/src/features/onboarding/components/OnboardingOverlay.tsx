@@ -31,12 +31,6 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onDismiss 
   const navigate = useNavigate();
   const { shouldShowQuickEditOverlay, dismissOverlay } = useOnboarding();
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [isVisible, setIsVisible] = useState(shouldShowQuickEditOverlay);
-
-  // Update visibility when preference changes
-  useEffect(() => {
-    setIsVisible(shouldShowQuickEditOverlay);
-  }, [shouldShowQuickEditOverlay]);
 
   // Handle escape key
   useEffect(() => {
@@ -46,26 +40,19 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onDismiss 
       }
     };
 
-    if (isVisible) {
+    if (shouldShowQuickEditOverlay) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isVisible]);
+  }, [shouldShowQuickEditOverlay]);
 
   const handleDismiss = useCallback(() => {
-    setIsVisible(false);
-    // If "Don't show again" is checked, dismiss permanently via localStorage
-    // Otherwise, dismiss for this session only via sessionStorage
     dismissOverlay(dontShowAgain);
     onDismiss?.();
   }, [dontShowAgain, dismissOverlay, onDismiss]);
 
   const handleOptionClick = useCallback((flow: QuickEditFlow) => {
-    setIsVisible(false);
-    // If "Don't show again" is checked, dismiss permanently via localStorage
-    // Otherwise, dismiss for this session only via sessionStorage
     dismissOverlay(dontShowAgain);
-    // Navigate to quick edit with the selected flow
     navigate(`/dashboard/quick-edit?flow=${flow}`);
   }, [dontShowAgain, dismissOverlay, navigate]);
 
@@ -75,91 +62,91 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onDismiss 
     }
   }, [handleDismiss]);
 
-  if (!isVisible) return null;
-
   return (
     <AnimatePresence>
-      <motion.div
-        className="onboarding-overlay"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={handleBackdropClick}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="onboarding-title"
-      >
+      {shouldShowQuickEditOverlay && (
         <motion.div
-          className="onboarding-overlay__card"
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
-          transition={{ duration: 0.25, delay: 0.05 }}
+          className="onboarding-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={handleBackdropClick}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="onboarding-title"
         >
-          {/* Close button */}
-          <button
-            className="onboarding-overlay__close"
-            onClick={handleDismiss}
-            aria-label="Close"
+          <motion.div
+            className="onboarding-overlay__card"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.25, delay: 0.05 }}
           >
-            <X size={20} />
-          </button>
-
-          {/* Header */}
-          <div className="onboarding-overlay__header">
-            <h2 id="onboarding-title" className="onboarding-overlay__title">
-              Quick Edit
-            </h2>
-            <p className="onboarding-overlay__subtitle">
-              Choose how you'd like to create your thumbnail
-            </p>
-          </div>
-
-          {/* Options grid */}
-          <div className="onboarding-overlay__options">
-            <QuickEditOptionCard
-              icon={<Link2 />}
-              title="Paste URL"
-              subtitle="Extract frames from a YouTube video"
-              accentColor="purple"
-              onClick={() => handleOptionClick('url-input')}
-            />
-            <QuickEditOptionCard
-              icon={<Sparkles />}
-              title="AI Generate"
-              subtitle="Create a thumbnail with AI assistance"
-              accentColor="amber"
-              onClick={() => handleOptionClick('ai-generate')}
-            />
-            <QuickEditOptionCard
-              icon={<Upload />}
-              title="Upload Image"
-              subtitle="Start with your own image"
-              accentColor="emerald"
-              onClick={() => handleOptionClick('upload')}
-            />
-          </div>
-
-          {/* Footer */}
-          <div className="onboarding-overlay__footer">
-            <label className="onboarding-overlay__checkbox">
-              <input
-                type="checkbox"
-                checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-              />
-              <span>Don't show this again</span>
-            </label>
+            {/* Close button */}
             <button
-              className="onboarding-overlay__skip"
+              className="onboarding-overlay__close"
               onClick={handleDismiss}
+              aria-label="Close"
             >
-              Skip to dashboard
+              <X size={20} />
             </button>
-          </div>
+
+            {/* Header */}
+            <div className="onboarding-overlay__header">
+              <h2 id="onboarding-title" className="onboarding-overlay__title">
+                Quick Edit
+              </h2>
+              <p className="onboarding-overlay__subtitle">
+                Choose how you'd like to create your thumbnail
+              </p>
+            </div>
+
+            {/* Options grid */}
+            <div className="onboarding-overlay__options">
+              <QuickEditOptionCard
+                icon={<Link2 />}
+                title="Paste URL"
+                subtitle="Extract frames from a YouTube video"
+                accentColor="purple"
+                onClick={() => handleOptionClick('url-input')}
+              />
+              <QuickEditOptionCard
+                icon={<Sparkles />}
+                title="AI Generate"
+                subtitle="Create a thumbnail with AI assistance"
+                accentColor="amber"
+                onClick={() => handleOptionClick('ai-generate')}
+              />
+              <QuickEditOptionCard
+                icon={<Upload />}
+                title="Upload Image"
+                subtitle="Start with your own image"
+                accentColor="emerald"
+                onClick={() => handleOptionClick('upload')}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="onboarding-overlay__footer">
+              <label className="onboarding-overlay__checkbox">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                />
+                <span>Don't show this again</span>
+              </label>
+              <button
+                className="onboarding-overlay__skip"
+                onClick={handleDismiss}
+              >
+                Skip to dashboard
+              </button>
+            </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </AnimatePresence>
   );
 };

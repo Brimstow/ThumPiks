@@ -59,8 +59,7 @@ export function useCredits() {
   return useQuery({
     queryKey: ['credits'],
     queryFn: fetchCreditsData,
-    refetchInterval: 2000, // Poll every 2 seconds for faster sync
-    staleTime: 2000,
+    staleTime: 30000, // Match global default
     refetchOnWindowFocus: true,
   });
 }
