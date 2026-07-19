@@ -84,4 +84,10 @@ The project uses Jest for unit/integration tests and Playwright for end-to-end t
 
 ## License
 
-This project is a portfolio project. All rights reserved unless otherwise noted.
+Copyright (c) 2025-2026 Brimstow. All rights reserved.
+
+This project is a portfolio demonstration. The source code is provided for
+technical evaluation by potential employers and collaborators. No part of
+this software may be copied, modified, distributed, or used for commercial
+purposes without written permission. See the [LICENSE](LICENSE) file for
+details.
