@@ -440,3 +440,6 @@ pikzels-clone/docs/agents/behavior-harness.md
 pikzels-clone/docs/agents/cipher-integration.md
 pikzels-clone/docs/agents/codewords.md
 
+# Secret-scanning ignore file (not used by any tool in this repo; keep local)
+.secretignore
+
