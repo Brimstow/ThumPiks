@@ -6,7 +6,7 @@ This document describes the implementation of the detailed analytics and reporti
 ## Backend Implementation
 
 ### Analytics Service
-The [AnalyticsService](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/analytics/analytics.service.ts#L5-L406) class in `src/modules/analytics/analytics.service.ts` provides methods to collect and process user analytics data:
+The [AnalyticsService](file:///b:/Thumbnail_maker/thumpiks/src/modules/analytics/analytics.service.ts#L5-L406) class in `src/modules/analytics/analytics.service.ts` provides methods to collect and process user analytics data:
 
 1. **getUserAnalytics(userId)** - Collects comprehensive user statistics:
    - Total thumbnails and projects created
@@ -38,7 +38,7 @@ The [AnalyticsService](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/anal
    - Trend indicators
 
 ### Analytics Controller
-The [AnalyticsController](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/analytics/analytics.controller.ts#L7-L122) class in `src/modules/analytics/analytics.controller.ts` handles HTTP requests for analytics data:
+The [AnalyticsController](file:///b:/Thumbnail_maker/thumpiks/src/modules/analytics/analytics.controller.ts#L7-L122) class in `src/modules/analytics/analytics.controller.ts` handles HTTP requests for analytics data:
 
 1. **getDashboardData** - Returns all analytics data for the dashboard
 2. **getThumbnailTrends** - Returns thumbnail creation trends
@@ -64,7 +64,7 @@ All routes require authentication via JWT tokens.
 ## Frontend Implementation
 
 ### AnalyticsDashboard Component
-The [AnalyticsDashboard](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/AnalyticsDashboard.tsx#L37-L529) component in `client/src/components/AnalyticsDashboard.tsx` provides the user interface for the analytics dashboard:
+The [AnalyticsDashboard](file:///b:/Thumbnail_maker/thumpiks/client/src/components/AnalyticsDashboard.tsx#L37-L529) component in `client/src/components/AnalyticsDashboard.tsx` provides the user interface for the analytics dashboard:
 
 1. **Data Fetching** - Uses useEffect to fetch analytics data from the backend API
 2. **Loading States** - Shows loading spinner while fetching data
@@ -77,7 +77,7 @@ The [AnalyticsDashboard](file:///b:/Thumbnail_maker/pikzels-clone/client/src/com
 5. **Advanced Analytics Link** - Provides navigation to the Advanced Analytics Dashboard
 
 ### AdvancedAnalyticsDashboard Component
-The [AdvancedAnalyticsDashboard](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/AdvancedAnalyticsDashboard.tsx#L35-L436) component in `client/src/components/AdvancedAnalyticsDashboard.tsx` provides enhanced analytics capabilities:
+The [AdvancedAnalyticsDashboard](file:///b:/Thumbnail_maker/thumpiks/client/src/components/AdvancedAnalyticsDashboard.tsx#L35-L436) component in `client/src/components/AdvancedAnalyticsDashboard.tsx` provides enhanced analytics capabilities:
 
 1. **Timeframe Filtering** - Daily, weekly, and monthly views
 2. **Comparative Metrics** - Current vs previous period analysis
@@ -85,7 +85,7 @@ The [AdvancedAnalyticsDashboard](file:///b:/Thumbnail_maker/pikzels-clone/client
 4. **Interactive Controls** - Dynamic data filtering
 
 ### Dashboard Integration
-The [Dashboard](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/Dashboard.tsx#L35-L802) component in `client/src/components/Dashboard.tsx` integrates the analytics dashboard:
+The [Dashboard](file:///b:/Thumbnail_maker/thumpiks/client/src/components/Dashboard.tsx#L35-L802) component in `client/src/components/Dashboard.tsx` integrates the analytics dashboard:
 
 1. **Navigation** - Added "Analytics" tab to the main navigation
 2. **State Management** - Extended activeTab state to include 'analytics'

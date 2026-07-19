@@ -42,7 +42,7 @@ Use when: Quick ad-hoc verification, debugging UI issues, one-time flow validati
 
 Use when: Building permanent test coverage, CI pipeline, regression protection.
 
-- Location: `pikzels-clone/tests/e2e/`
+- Location: `thumpiks/tests/e2e/`
 - Run: `npx playwright test`
 - Structure: Page Object Model for maintainability
 

@@ -1,7 +1,7 @@
 # Root-level Netlify config for the colocated repo.
 # Netlify reads this file from the repo root, so it must be self-contained.
 [build]
-  base = "pikzels-clone/client"
+  base = "thumpiks/client"
   publish = "dist"
   command = "chmod +x scripts/netlify-build.sh && ./scripts/netlify-build.sh"
 

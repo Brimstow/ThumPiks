@@ -201,8 +201,8 @@ Thumbnail Maker enforces quality gates via pre-push hooks:
 
 | Scope | Command | Location |
 |---|---|---|
-| Frontend tests | `npm test` | `pikzels-clone/client/` |
-| Backend tests | `npm run test:backend` | `pikzels-clone/` |
-| E2E tests | Playwright MCP or `npx playwright test` | `pikzels-clone/tests/e2e/` |
+| Frontend tests | `npm test` | `thumpiks/client/` |
+| Backend tests | `npm run test:backend` | `thumpiks/` |
+| E2E tests | Playwright MCP or `npx playwright test` | `thumpiks/tests/e2e/` |
 | Coverage report | `coverage/lcov-report/index.html` | Generated after test run |
 | Pre-push config | `.husky/pre-push` | Workspace root |

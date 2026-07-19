@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "cd pikzels-clone && npm test",
-    "test:ci": "cd pikzels-clone && npm run test:ci",
-    "lint": "cd pikzels-clone && npm run lint",
-    "format": "cd pikzels-clone && npm run format"
+    "test": "cd thumpiks && npm test",
+    "test:ci": "cd thumpiks && npm run test:ci",
+    "lint": "cd thumpiks && npm run lint",
+    "format": "cd thumpiks && npm run format"
   },
   "devDependencies": {
     "@prisma/client": "^6.18.0",

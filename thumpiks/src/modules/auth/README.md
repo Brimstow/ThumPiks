@@ -14,19 +14,19 @@ This module handles user authentication and profile management, including the ne
 
 ### Controllers
 
-- [AuthController](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/auth.controller.ts#L11-L57) - Handles registration, login, and password recovery
-- [ProfileController](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/profile.controller.ts#L13-L106) - Handles profile and settings management
+- [AuthController](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/auth.controller.ts#L11-L57) - Handles registration, login, and password recovery
+- [ProfileController](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/profile.controller.ts#L13-L106) - Handles profile and settings management
 
 ### Routes
 
-- [auth.routes.ts](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/auth.routes.ts#L1-L16) - Registration, login, and password recovery endpoints
-- [profile.routes.ts](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/profile.routes.ts#L1-L14) - Profile and settings endpoints
+- [auth.routes.ts](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/auth.routes.ts#L1-L16) - Registration, login, and password recovery endpoints
+- [profile.routes.ts](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/profile.routes.ts#L1-L14) - Profile and settings endpoints
 
 ### Services
 
-- [AuthService](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/auth.service.ts#L8-L76) - Authentication business logic
-- [EmailService](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/email.service.ts#L5-L57) - Email sending simulation
-- [ProfileService](file:///b:/Thumbnail_maker/pikzels-clone/src/modules/auth/profile.service.ts#L5-L38) - Profile management business logic
+- [AuthService](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/auth.service.ts#L8-L76) - Authentication business logic
+- [EmailService](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/email.service.ts#L5-L57) - Email sending simulation
+- [ProfileService](file:///b:/Thumbnail_maker/thumpiks/src/modules/auth/profile.service.ts#L5-L38) - Profile management business logic
 
 ## Password Recovery
 

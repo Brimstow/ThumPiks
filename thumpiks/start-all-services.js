@@ -68,7 +68,7 @@ const CONFIG = {
   BACKEND: {
     name: 'Backend API',
     port: 8550,
-    cwd: 'B:\\Thumbnail_maker\\pikzels-clone',
+    cwd: 'B:\\Thumbnail_maker\\thumpiks',
     command: 'npx',
     args: ['ts-node-dev', '--respawn', '--transpile-only', 'src/server.ts'],
     healthCheck: async () => {
@@ -86,7 +86,7 @@ const CONFIG = {
   FRONTEND: {
     name: 'Frontend',
     port: 8556,
-    cwd: 'B:\\Thumbnail_maker\\pikzels-clone\\client',
+    cwd: 'B:\\Thumbnail_maker\\thumpiks\\client',
     command: 'npm',
     args: ['run', 'dev'],
     healthCheck: async () => {

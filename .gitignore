@@ -113,7 +113,7 @@ events-store/
 uploads/
 generated/
 /thumbnails/
-pikzels-clone/thumbnails/
+thumpiks/thumbnails/
 
 # Scratch directories for ad-hoc debug/test scripts
 **/scratch/
@@ -158,7 +158,7 @@ $RECYCLE.BIN/
 thumbnail-maker-studio/
 
 # Exclude embedded git repos
-pikzels-clone/mobile/
+thumpiks/mobile/
 
 # Development scripts and utilities
 *.bat
@@ -199,7 +199,7 @@ Common*.md
 DEVELOPMENT_*.md
 PERFORMANCE.md
 SECURITY_*.md
-!pikzels-clone/docs/quests/SECURITY_AUDIT_QUEST.md
+!thumpiks/docs/quests/SECURITY_AUDIT_QUEST.md
 CONTRIBUTING.md
 *.summary.md
 *.verification.md
@@ -258,11 +258,11 @@ temp_*.txt
 
 # Generated documentation reports (keep manually written docs)
 # These are auto-generated and can be regenerated
-pikzels-clone/API_SECURITY_TEST_REPORT.md
-pikzels-clone/COMPONENT_STATE_ANALYSIS.md
-pikzels-clone/COMPREHENSIVE_AUDIT_REPORT.md
-pikzels-clone/E2E_AND_AUTH_TESTING_REPORT.md
-pikzels-clone/XSS_VULNERABILITY_FIX_REPORT.md
+thumpiks/API_SECURITY_TEST_REPORT.md
+thumpiks/COMPONENT_STATE_ANALYSIS.md
+thumpiks/COMPREHENSIVE_AUDIT_REPORT.md
+thumpiks/E2E_AND_AUTH_TESTING_REPORT.md
+thumpiks/XSS_VULNERABILITY_FIX_REPORT.md
 
 # Personal IDE/Cipher setup docs (machine-specific)
 CIPHER_IDE_INTEGRATION.md
@@ -292,20 +292,20 @@ ai-panel-screenshot.png
 *.screenshot.png
 
 # Pikzels-clone additional docs to ignore
-pikzels-clone/DASHBOARD_PROGRESS_KOMBAI.md
-pikzels-clone/DESIGN_SYSTEMS_KOMBAI.md
-pikzels-clone/E2E_THUMBNAIL_TEST_GUIDE.md
-pikzels-clone/LANDING_PAGE_FIX_SUMMARY.md
-pikzels-clone/MODAL_AUTH_BEST_PRACTICES.md
-pikzels-clone/PRODUCTION_SCALING_GUIDE.md
-pikzels-clone/PROFESSIONAL_ERROR_HANDLING_IMPLEMENTATION.md
-pikzels-clone/WORKFLOW_GUIDE_KOMBAI.md
+thumpiks/DASHBOARD_PROGRESS_KOMBAI.md
+thumpiks/DESIGN_SYSTEMS_KOMBAI.md
+thumpiks/E2E_THUMBNAIL_TEST_GUIDE.md
+thumpiks/LANDING_PAGE_FIX_SUMMARY.md
+thumpiks/MODAL_AUTH_BEST_PRACTICES.md
+thumpiks/PRODUCTION_SCALING_GUIDE.md
+thumpiks/PROFESSIONAL_ERROR_HANDLING_IMPLEMENTATION.md
+thumpiks/WORKFLOW_GUIDE_KOMBAI.md
 
 # Utility scripts (one-off)
-pikzels-clone/list-openrouter-models.ts
-pikzels-clone/scripts/manual-auth-api-test.sh
-pikzels-clone/scripts/playwright-auth-flows-test.js
-pikzels-clone/scripts/playwright-landing-test.js
+thumpiks/list-openrouter-models.ts
+thumpiks/scripts/manual-auth-api-test.sh
+thumpiks/scripts/playwright-auth-flows-test.js
+thumpiks/scripts/playwright-landing-test.js
 
 # Site files (separate project)
 thumpiks-site-files/
@@ -343,9 +343,9 @@ agentsmesh.local.yaml
 test-results-full/
 test-results-new/
 test-results-run2/
-pikzels-clone/test-results-full/
-pikzels-clone/test-results-new/
-pikzels-clone/test-results-run2/
+thumpiks/test-results-full/
+thumpiks/test-results-new/
+thumpiks/test-results-run2/
 
 # Gate-keeper state files
 .gate-keeperplaybook-state.json
@@ -394,18 +394,18 @@ SESSION_SUMMARY_GROUP_B.md
 /.hook-test/
 /.voidrules
 
-# pikzels-clone internal docs & scratch text (keep local, not in repo)
-pikzels-clone/*.md
-pikzels-clone/*.txt
+# thumpiks internal docs & scratch text (keep local, not in repo)
+thumpiks/*.md
+thumpiks/*.txt
 
 # Sensitive (must never be in repo; rotate if these held real values)
-pikzels-clone/cookies.txt
-pikzels-clone/TEST_CREDENTIALS.md
-pikzels-clone/TEST_USERS_SECURITY.md
+thumpiks/cookies.txt
+thumpiks/TEST_CREDENTIALS.md
+thumpiks/TEST_USERS_SECURITY.md
 
 # Obsolete/orphaned test scratch (stale PikzelsLanding refs; keep local)
 /test-drop-link.html
-pikzels-clone/client/run-landing-tests.mjs
+thumpiks/client/run-landing-tests.mjs
 
 # Browser/session artifacts (Playwright MCP output; keep local)
 /.playwright-mcp/
@@ -413,9 +413,9 @@ pikzels-clone/client/run-landing-tests.mjs
 # Debug/temp scratch + duplicated agent instructions (keep local, not in repo)
 /debug-faceswap.mjs
 /.github/copilot-instructions.md
-pikzels-clone/audit-tmp.json
-pikzels-clone/scripts/admin-dashboard-debug.js
-pikzels-clone/scripts/admin-screenshots/debug-report.json
+thumpiks/audit-tmp.json
+thumpiks/scripts/admin-dashboard-debug.js
+thumpiks/scripts/admin-screenshots/debug-report.json
 
 # ============================================================
 # Portfolio cleanup (2026-07 pass 2): AI-harness/tooling (keep local, exclude from repo)
@@ -436,7 +436,7 @@ pikzels-clone/scripts/admin-screenshots/debug-report.json
 /.qoderignore
 
 # Agent-harness/manipulation docs (behavior gaming, cipher memory, codewords)
-pikzels-clone/docs/agents/behavior-harness.md
-pikzels-clone/docs/agents/cipher-integration.md
-pikzels-clone/docs/agents/codewords.md
+thumpiks/docs/agents/behavior-harness.md
+thumpiks/docs/agents/cipher-integration.md
+thumpiks/docs/agents/codewords.md
 

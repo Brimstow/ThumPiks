@@ -2,7 +2,7 @@
 
 **Load this file when:** Testing the app (E2E, manual, Playwright, API), logging into staging/local, or any task requiring authentication against a running server.
 
-**Canonical source:** `pikzels-clone/prisma/seed.ts` — if this file disagrees with seed.ts, seed.ts wins.
+**Canonical source:** `thumpiks/prisma/seed.ts` — if this file disagrees with seed.ts, seed.ts wins.
 
 ---
 
