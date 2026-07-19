@@ -38,12 +38,14 @@ interface CanvasContextGetter {
 
 interface UseChatConversationOptions {
   getCanvasContext: CanvasContextGetter;
+  getCanvasScreenshot?: () => string | null;
   platformPreset?: PlatformPresetContext;
   onActions?: (actions: EditorAction[], messageId: string) => void;
 }
 
 export function useChatConversation({
   getCanvasContext,
+  getCanvasScreenshot,
   platformPreset,
   onActions,
 }: UseChatConversationOptions) {
@@ -101,10 +103,12 @@ export function useChatConversation({
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
       const canvasContext = getCanvasContext();
+      const canvasScreenshot = getCanvasScreenshot?.() ?? undefined;
 
       await streamChat(
         conversationPayload,
         canvasContext,
+        canvasScreenshot,
         platformPreset,
         {
           onToken: (content) => {
@@ -120,6 +124,7 @@ export function useChatConversation({
           },
 
           onActions: (actions, summary, needsAutoTarget, autoTargetQuery) => {
+            const previewEnabled = localStorage.getItem('ai-chat-preview-actions') === 'true';
             const actionResults: ActionResult[] = actions.map((a) => ({
               action: a.action,
               description: a.description,
@@ -129,13 +134,15 @@ export function useChatConversation({
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
-                  ? { ...m, actions, actionResults }
+                  ? { ...m, actions, actionResults, awaitingConfirmation: previewEnabled }
                   : m,
               ),
             );
 
-            // Notify parent to execute actions
-            onActions?.(actions, assistantId);
+            // If preview mode is off, execute immediately
+            if (!previewEnabled) {
+              onActions?.(actions, assistantId);
+            }
           },
 
           onDone: () => {
@@ -168,18 +175,52 @@ export function useChatConversation({
         },
       );
     },
-    [messages, isStreaming, getCanvasContext, platformPreset, streamChat, onActions],
+    [messages, isStreaming, getCanvasContext, getCanvasScreenshot, platformPreset, streamChat, onActions],
   );
 
   /** Update the status of an action result within a message */
   const updateActionResult = useCallback(
-    (messageId: string, actionIndex: number, status: ActionResult['status'], error?: string) => {
+    (messageId: string, actionIndex: number, status: ActionResult['status'], error?: string, resultText?: string) => {
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== messageId || !m.actionResults) return m;
           const updated = [...m.actionResults];
-          updated[actionIndex] = { ...updated[actionIndex], status, error };
+          updated[actionIndex] = { ...updated[actionIndex], status, error, resultText };
           return { ...m, actionResults: updated };
+        }),
+      );
+    },
+    [],
+  );
+
+  /** Confirm and execute actions that were awaiting user approval */
+  const confirmActions = useCallback(
+    (messageId: string) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, awaitingConfirmation: false } : m,
+        ),
+      );
+      // Find the message to get its actions
+      const msg = messages.find((m) => m.id === messageId);
+      if (msg?.actions) {
+        onActions?.(msg.actions, messageId);
+      }
+    },
+    [messages, onActions],
+  );
+
+  /** Dismiss pending actions without executing */
+  const dismissActions = useCallback(
+    (messageId: string) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          // Mark all pending actions as dismissed (error state)
+          const updatedResults = m.actionResults?.map((r) =>
+            r.status === 'pending' ? { ...r, status: 'error' as const, error: 'Dismissed by user' } : r,
+          );
+          return { ...m, awaitingConfirmation: false, actionResults: updatedResults };
         }),
       );
     },
@@ -225,5 +266,7 @@ export function useChatConversation({
     stopStreaming,
     clearMessages,
     updateActionResult,
+    confirmActions,
+    dismissActions,
   };
 }

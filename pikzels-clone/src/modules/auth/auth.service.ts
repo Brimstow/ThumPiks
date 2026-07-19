@@ -1,7 +1,7 @@
 import { getPrisma } from '../../utils/prisma-factory';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { EmailService } from './email.service';
+import { EmailService } from '../email/email.service';
 import { EnhancedJWTService } from '../../services/jwt.enhanced.service';
 import { logger } from '../../utils/logger';
 import { PasswordUtils } from '../../utils/password.utils';
@@ -96,7 +96,22 @@ export class AuthService {
         },
       });
 
-      logger.info('User registered successfully', {
+      // Create free subscription for new user
+      await prisma.subscription.create({
+        data: {
+          id: uuidv4(),
+          userId: user.id,
+          planType: 'free',
+          status: 'active',
+          creditsBalance: 150, // Free plan credits
+          creditsUsed: 0,
+          periodStart: new Date(),
+          periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          billingProvider: 'none',
+        },
+      });
+
+      logger.info('User registered successfully with free subscription', {
         userId: user.id,
         email: user.email,
         username: user.username,
@@ -107,7 +122,8 @@ export class AuthService {
         await EmailService.sendVerificationEmail(
           email,
           name,
-          verificationToken
+          verificationToken,
+          user.id
         );
       } catch (emailError) {
         logger.warn('Failed to send verification email', {
@@ -133,8 +149,8 @@ export class AuthService {
         message:
           'Registration successful. Please verify your email to unlock all features.',
       };
-    } catch (error: any) {
-      logger.error('Registration failed', error, { email, username });
+    } catch (error: unknown) {
+      logger.error('Registration failed', error instanceof Error ? error : new Error(String(error)), { email, username });
       throw error;
     }
   }
@@ -142,7 +158,12 @@ export class AuthService {
   /**
    * Login with username OR email
    */
-  async login(identifier: string, password: string) {
+  async login(
+    identifier: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     try {
       // DEMO MODE: Test credential bypass for demos and staging environments
       // Set DEMO_MODE=true in your environment to enable test accounts
@@ -248,6 +269,8 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         username: user.username,
+        ipAddress,
+        userAgent,
       });
 
       // Generate token pair
@@ -265,8 +288,24 @@ export class AuthService {
         ...tokens,
         requiresVerification: !user.isVerified,
       };
-    } catch (error: any) {
-      logger.error('Login failed', error, { identifier });
+    } catch (error: unknown) {
+      logger.error('Login failed', error instanceof Error ? error : new Error(String(error)), { identifier });
+      throw error;
+    }
+  }
+
+  /**
+   * Logout user and terminate session
+   */
+  async logout(userId: string, sessionId: string) {
+    try {
+      logger.info('User logged out successfully', {
+        userId,
+        sessionId: sessionId ? `${sessionId.substring(0, 8)}...` : undefined,
+      });
+      return { success: true };
+    } catch (error: unknown) {
+      logger.error('Logout failed in service', error instanceof Error ? error : new Error(String(error)), { userId });
       throw error;
     }
   }
@@ -316,8 +355,8 @@ export class AuthService {
           isVerified: true,
         },
       };
-    } catch (error: any) {
-      logger.error('Email verification failed', error, { token });
+    } catch (error: unknown) {
+      logger.error('Email verification failed', error instanceof Error ? error : new Error(String(error)), { token });
       throw error;
     }
   }
@@ -362,7 +401,8 @@ export class AuthService {
         await EmailService.sendVerificationEmail(
           email,
           user.name,
-          verificationToken
+          verificationToken,
+          user.id
         );
       } catch (emailError) {
         logger.error(
@@ -385,8 +425,8 @@ export class AuthService {
       return {
         message: 'Verification email sent successfully',
       };
-    } catch (error: any) {
-      logger.error('Resend verification failed', error, { email });
+    } catch (error: unknown) {
+      logger.error('Resend verification failed', error instanceof Error ? error : new Error(String(error)), { email });
       throw error;
     }
   }
@@ -424,7 +464,7 @@ export class AuthService {
 
       // Send password reset email
       try {
-        await EmailService.sendPasswordResetEmail(user.email, resetToken);
+        await EmailService.sendPasswordResetEmail(user.email, resetToken, user.id);
       } catch (emailError) {
         logger.error(
           'Failed to send password reset email',
@@ -442,8 +482,8 @@ export class AuthService {
         message:
           'If your email is registered, you will receive a password reset link.',
       };
-    } catch (error: any) {
-      logger.error('Password reset request failed', error, { email });
+    } catch (error: unknown) {
+      logger.error('Password reset request failed', error instanceof Error ? error : new Error(String(error)), { email });
       throw new Error('Password reset request failed');
     }
   }
@@ -481,9 +521,10 @@ export class AuthService {
       });
 
       return { message: 'Password successfully reset' };
-    } catch (error: any) {
-      logger.error('Password reset failed', error);
-      if (error.message.includes('Password must be')) {
+    } catch (error: unknown) {
+      logger.error('Password reset failed', error instanceof Error ? error : new Error(String(error)));
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Password must be')) {
         throw error; // Re-throw validation errors
       }
       throw new Error('Invalid or expired reset token');
@@ -541,8 +582,8 @@ export class AuthService {
         },
         ...newTokens,
       };
-    } catch (error: any) {
-      logger.error('Token refresh failed', error);
+    } catch (error: unknown) {
+      logger.error('Token refresh failed', error instanceof Error ? error : new Error(String(error)));
       throw new Error('Invalid refresh token');
     }
   }
@@ -560,8 +601,8 @@ export class AuthService {
       return {
         suggestions,
       };
-    } catch (error: any) {
-      logger.error('Username suggestion generation failed', error);
+    } catch (error: unknown) {
+      logger.error('Username suggestion generation failed', error instanceof Error ? error : new Error(String(error)));
       throw new Error('Failed to generate username suggestions');
     }
   }
@@ -577,8 +618,8 @@ export class AuthService {
         available: validation.valid,
         error: validation.error,
       };
-    } catch (error: any) {
-      logger.error('Username availability check failed', error);
+    } catch (error: unknown) {
+      logger.error('Username availability check failed', error instanceof Error ? error : new Error(String(error)));
       throw new Error('Failed to check username availability');
     }
   }
@@ -605,8 +646,8 @@ export class AuthService {
         message: 'Display preference updated successfully',
         displayPreference: preference,
       };
-    } catch (error: any) {
-      logger.error('Display preference update failed', error, { userId });
+    } catch (error: unknown) {
+      logger.error('Display preference update failed', error instanceof Error ? error : new Error(String(error)), { userId });
       throw new Error('Failed to update display preference');
     }
   }

@@ -6,6 +6,7 @@ import {
   getThumbnailById,
   updateThumbnail,
   deleteThumbnail,
+  bulkMoveThumbnails,
   generateThumbnail,
   downloadThumbnail,
   applyEdits,
@@ -33,8 +34,10 @@ import {
   getDeletedThumbnails,
   restoreThumbnail,
   hardDeleteThumbnail,
+  cleanupExpiredOriginalsHandler,
 } from './thumbnail.controller';
 import { authenticateToken } from '../../middleware/auth.middleware';
+import { authenticateAdmin } from '../admin/admin-auth.middleware';
 import {
   cacheMiddleware,
   invalidateCacheMiddleware,
@@ -42,8 +45,10 @@ import {
 import {
   userApiRateLimit,
   userAiRateLimit,
+  creditGenerationRateLimit,
 } from '../../middleware/security.middleware';
 import { CacheKeys } from '../../services/cache.service';
+import { getReplicateQueue } from './replicate-queue.service';
 
 const router = Router();
 
@@ -64,6 +69,8 @@ router.post(
 
 router.post(
   '/generate',
+  creditGenerationRateLimit, // Strict per-user limit: 10/min (credit-deducting endpoint)
+  userAiRateLimit,           // Broader AI limit: 30/15min per user
   invalidateCacheMiddleware([
     `api:*:/thumbnails:*`,
     CacheKeys.userThumbnails('*'),
@@ -74,6 +81,23 @@ router.post(
 router.get('/', cacheMiddleware({ ttl: 300 }), (req, res) =>
   getThumbnails(req as AuthRequest, res)
 );
+
+// Bulk move thumbnails between projects
+router.post(
+  '/bulk-move',
+  invalidateCacheMiddleware([
+    `api:*:/thumbnails:*`,
+    `thumbnail:*`,
+    CacheKeys.userThumbnails('*'),
+  ]),
+  (req, res) => bulkMoveThumbnails(req as AuthRequest, res)
+);
+
+// Trash / Restore routes — MUST be registered before /:id to avoid parameter capture
+router.get('/trash', (req, res) =>
+  getDeletedThumbnails(req as unknown as AuthRequest, res)
+);
+
 router.get('/:id', cacheMiddleware({ ttl: 600 }), (req, res) =>
   getThumbnailById(req as AuthRequest, res)
 );
@@ -105,10 +129,6 @@ router.get('/:id/download', (req, res) =>
   downloadThumbnail(req as unknown as AuthRequest, res)
 );
 
-// Trash / Restore routes
-router.get('/trash', (req, res) =>
-  getDeletedThumbnails(req as unknown as AuthRequest, res)
-);
 router.post(
   '/:id/restore',
   invalidateCacheMiddleware([
@@ -279,5 +299,32 @@ router.post(
   invalidateCacheMiddleware([`api:*:/thumbnails:*`, `thumbnail:*`]),
   (req, res) => aiExpand(req as AuthRequest, res)
 );
+
+// =============================================================================
+// JOB STATUS POLLING — enables async AI operations without blocking HTTP
+// Frontend submits job via POST, then polls GET /ai/job/:jobId for result.
+// =============================================================================
+router.get('/ai/job/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const queue = getReplicateQueue();
+
+    if (!queue.isReady()) {
+      return res.status(503).json({ error: 'Queue service not available' });
+    }
+
+    const status = await queue.getJobStatus(jobId);
+    if (!status) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    return res.json(status);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to get job status' });
+  }
+});
+
+// Admin: cleanup expired clean originals (45-day TTL)
+router.post('/cleanup-expired-originals', authenticateAdmin, cleanupExpiredOriginalsHandler);
 
 export default router;

@@ -203,7 +203,7 @@ const AICommandBar: React.FC<AICommandBarProps> = ({
             ref={inputRef}
             type="text"
             className="ai-command-input"
-            placeholder="Ask AI: add text, remove background, enhance, adjust..."
+            placeholder="Quick command: add text, remove bg, expand... (Ctrl+K)"
             value={prompt}
             onChange={(e) => {
               setPrompt(e.target.value);

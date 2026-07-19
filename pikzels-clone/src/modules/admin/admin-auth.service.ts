@@ -1,6 +1,23 @@
 import { sign, verify, SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
+
+/** Shape of a row from prisma.adminRole queries */
+interface AdminRoleRow {
+  role: string;
+  expiresAt?: Date | null;
+  isActive: boolean;
+}
+
+/** Payload stored inside admin JWTs */
+interface AdminTokenPayload {
+  userId: string;
+  email: string;
+  roles: AdminRoles[];
+  permissions: string[];
+  type: string;
+}
 
 const prisma = getPrisma();
 
@@ -35,6 +52,10 @@ export const ADMIN_PERMISSIONS = {
   ANALYTICS_VIEW: 'analytics.view',
   ANALYTICS_EXPORT: 'analytics.export',
 
+  // Support / Feedback
+  SUPPORT_VIEW: 'support.view',
+  SUPPORT_MANAGE: 'support.manage',
+
   // Admin Management
   ADMIN_ROLES: 'admin.roles',
   ADMIN_PERMISSIONS: 'admin.permissions',
@@ -52,12 +73,15 @@ export const ROLE_PERMISSIONS = {
     ADMIN_PERMISSIONS.CONTENT_DELETE,
     ADMIN_PERMISSIONS.ANALYTICS_VIEW,
     ADMIN_PERMISSIONS.SYSTEM_HEALTH,
+    ADMIN_PERMISSIONS.SUPPORT_VIEW,
+    ADMIN_PERMISSIONS.SUPPORT_MANAGE,
   ],
   [AdminRoles.MODERATOR]: [
     ADMIN_PERMISSIONS.USERS_VIEW,
     ADMIN_PERMISSIONS.CONTENT_VIEW,
     ADMIN_PERMISSIONS.CONTENT_MODERATE,
     ADMIN_PERMISSIONS.ANALYTICS_VIEW,
+    ADMIN_PERMISSIONS.SUPPORT_VIEW,
   ],
   [AdminRoles.ANALYST]: [
     ADMIN_PERMISSIONS.ANALYTICS_VIEW,
@@ -120,8 +144,8 @@ export class AdminAuthService {
 
       // Get active roles and permissions
       const roles = user.AdminRole.filter(
-        (role: any) => !role.expiresAt || role.expiresAt > new Date()
-      ).map((role: any) => role.role as AdminRoles);
+        (role: AdminRoleRow) => !role.expiresAt || role.expiresAt > new Date()
+      ).map((role: AdminRoleRow) => role.role as AdminRoles);
 
       const permissions = this.getPermissionsForRoles(roles);
 
@@ -167,7 +191,7 @@ export class AdminAuthService {
 
       return { user: adminUser, token };
     } catch (error) {
-      console.error('Admin authentication error:', error);
+      logger.error('Admin authentication error', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -177,7 +201,7 @@ export class AdminAuthService {
    */
   async verifyAdminToken(token: string): Promise<AdminUser | null> {
     try {
-      const decoded = verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = verify(token, process.env.JWT_SECRET!) as AdminTokenPayload;
 
       if (decoded.type !== 'admin') {
         return null;
@@ -200,8 +224,8 @@ export class AdminAuthService {
 
       // Check if roles have been updated since token was issued
       const currentRoles = user.AdminRole.filter(
-        (role: any) => !role.expiresAt || role.expiresAt > new Date()
-      ).map((role: any) => role.role as AdminRoles);
+        (role: AdminRoleRow) => !role.expiresAt || role.expiresAt > new Date()
+      ).map((role: AdminRoleRow) => role.role as AdminRoles);
 
       const currentPermissions = this.getPermissionsForRoles(currentRoles);
 
@@ -245,7 +269,15 @@ export class AdminAuthService {
     try {
       const permissions = customPermissions || ROLE_PERMISSIONS[role] || [];
 
-      const createData: any = {
+      const createData: {
+        id: string;
+        userId: string;
+        role: string;
+        permissions: string;
+        assignedBy: string;
+        isActive: boolean;
+        expiresAt?: Date;
+      } = {
         id: `admin-role-${userId}-${role}-${Date.now()}`,
         userId,
         role,
@@ -277,7 +309,7 @@ export class AdminAuthService {
 
       return true;
     } catch (error) {
-      console.error('Error assigning admin role:', error);
+      logger.error('Error assigning admin role', error instanceof Error ? error : undefined);
       return false;
     }
   }
@@ -309,7 +341,7 @@ export class AdminAuthService {
 
       return true;
     } catch (error) {
-      console.error('Error removing admin role:', error);
+      logger.error('Error removing admin role', error instanceof Error ? error : undefined);
       return false;
     }
   }
@@ -336,11 +368,20 @@ export class AdminAuthService {
     action: string,
     resource: string,
     resourceId: string | null,
-    details?: any,
+    details?: unknown,
     severity: 'info' | 'warning' | 'error' | 'critical' = 'info'
   ): Promise<void> {
     try {
-      const logData: any = {
+      const logData: {
+        id: string;
+        adminId: string | null;
+        action: string;
+        resource: string;
+        resourceId: string | null;
+        severity: string;
+        timestamp: Date;
+        details?: string;
+      } = {
         id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         adminId,
         action,
@@ -358,7 +399,7 @@ export class AdminAuthService {
         data: logData,
       });
     } catch (error) {
-      console.error('Error logging admin action:', error);
+      logger.error('Error logging admin action', error instanceof Error ? error : undefined);
     }
   }
 
@@ -373,7 +414,12 @@ export class AdminAuthService {
     resource?: string,
     severity?: string
   ) {
-    const where: any = {};
+    const where: {
+      adminId?: string;
+      action?: string;
+      resource?: string;
+      severity?: string;
+    } = {};
 
     if (adminId) where.adminId = adminId;
     if (action) where.action = action;

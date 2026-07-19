@@ -7,6 +7,7 @@
 
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import bcrypt from 'bcryptjs';
 
 const prisma = getPrisma();
 
@@ -243,5 +244,67 @@ export async function updateUserProfile(
   } catch (error) {
     logger.error('Failed to update user profile', error as Error, { userId });
     throw new Error('Failed to update profile');
+  }
+}
+
+/**
+ * Change user password
+ * Verifies current password before updating
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  try {
+    // Fetch user with password hash
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Hash new password with high cost factor
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashedPassword },
+    });
+
+    logger.info('User password changed', { userId });
+  } catch (error) {
+    logger.error('Failed to change password', error as Error, { userId });
+    throw error;
+  }
+}
+
+/**
+ * Delete user account
+ * Performs soft delete by setting isActive = false
+ * This preserves data for potential recovery
+ */
+export async function deleteUserAccount(userId: string): Promise<void> {
+  try {
+    // Soft delete user account
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+
+    logger.info('User account deleted (soft delete)', { userId });
+  } catch (error) {
+    logger.error('Failed to delete user account', error as Error, { userId });
+    throw new Error('Failed to delete account');
   }
 }

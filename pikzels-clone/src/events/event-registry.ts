@@ -1,30 +1,30 @@
 import { eventEmitter } from './event-emitter';
-import { AppEvent } from './event-types';
+import { AppEvent, ThumbnailCreatedEvent, ThumbnailDeletedEvent, ProjectCreatedEvent, AnalyticsTrackingEvent } from './event-types';
 import { analyticsHandlers } from './analytics-handlers';
-import { socialShareHandlers } from './social-share-handlers';
+import { logger } from '../utils/logger';
 
 /**
  * Event Handler Registry
  * Manages registration and initialization of all event handlers
  */
 export class EventHandlerRegistry {
-  private handlers: Map<string, Function[]> = new Map();
+  private handlers: Map<string, ((...args: unknown[]) => unknown)[]> = new Map();
   private initialized = false;
 
   /**
    * Register an event handler
    */
-  register(eventType: string, handler: Function, priority = 0): void {
+  register(eventType: string, handler: (event: AppEvent) => Promise<void> | void, priority = 0): void {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, []);
     }
 
-    this.handlers.get(eventType)!.push(handler);
+    this.handlers.get(eventType)!.push(handler as (...args: unknown[]) => unknown);
     
     // Subscribe to the event emitter
-    eventEmitter.subscribe(eventType, handler as any, priority);
+    eventEmitter.subscribe(eventType, handler as (event: AppEvent) => Promise<void> | void, priority);
     
-    console.log(`📝 Registered handler for ${eventType} (priority: ${priority})`);
+    logger.info('Registered event handler', { eventType, priority });
   }
 
   /**
@@ -32,27 +32,24 @@ export class EventHandlerRegistry {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('⚠️  Event handlers already initialized');
+      logger.warn('Event handlers already initialized');
       return;
     }
 
-    console.log('🚀 Initializing event handlers...');
+    logger.info('Initializing event handlers');
 
     // Register analytics handlers
     this.registerAnalyticsHandlers();
-    
-    // Register social sharing handlers
-    this.registerSocialSharingHandlers();
     
     // Register cleanup handlers
     this.registerCleanupHandlers();
 
     this.initialized = true;
-    console.log('✅ Event handlers initialized successfully');
+    logger.info('Event handlers initialized successfully');
   }
 
   /**
-   * Get enhanced stats including analytics and social share handlers
+   * Get enhanced stats including analytics handlers
    */
   getStats() {
     const stats = { totalHandlers: 0, eventTypes: 0 };
@@ -62,7 +59,7 @@ export class EventHandlerRegistry {
       stats.eventTypes++;
       // Use eventType for logging during development
       if (process.env.NODE_ENV === 'development') {
-        console.debug(`Event type: ${eventType} has ${handlers.length} handlers`);
+        logger.debug('Event type handler count', { eventType, handlerCount: handlers.length });
       }
     }
 
@@ -73,11 +70,6 @@ export class EventHandlerRegistry {
       analyticsHandlers: {
         initialized: true,
         batchProcessing: true
-      },
-      socialShareHandlers: {
-        initialized: true,
-        retryLogic: true,
-        platforms: ['twitter', 'facebook', 'linkedin', 'pinterest']
       }
     };
   }
@@ -90,103 +82,59 @@ export class EventHandlerRegistry {
   }
 
   /**
-   * Get social share status
-   */
-  async getShareStatus(userId: string, shareId: string) {
-    return await socialShareHandlers.getShareStatus(userId, shareId);
-  }
-
-  /**
-   * Get platform statistics
-   */
-  async getPlatformStats(userId: string) {
-    return await socialShareHandlers.getPlatformStats(userId);
-  }
-
-  /**
    * Cleanup method for graceful shutdown
    */
   async cleanup(): Promise<void> {
     await analyticsHandlers.cleanup();
-    await socialShareHandlers.cleanup();
-    console.log('🧼 Event registry cleaned up');
+    logger.info('Event registry cleaned up');
   }
 
   private registerAnalyticsHandlers(): void {
     // Handle thumbnail creation analytics
     this.register('thumbnail.created', async (event: AppEvent) => {
-      console.log(`📊 Analytics: Thumbnail created - ${(event as any).data.thumbnailId}`);
-      
-      // Use enhanced analytics handler
-      await analyticsHandlers.handleThumbnailCreated(event as any);
+      const e = event as ThumbnailCreatedEvent;
+      logger.info('Analytics: Thumbnail created', { thumbnailId: e.data.thumbnailId });
+      await analyticsHandlers.handleThumbnailCreated(e);
     }, 10);
 
     // Handle project creation analytics
     this.register('project.created', async (event: AppEvent) => {
-      console.log(`📊 Analytics: Project created - ${(event as any).data.projectId}`);
-      
+      const e = event as ProjectCreatedEvent;
+      logger.info('Analytics: Project created', { projectId: e.data.projectId });
       await eventEmitter.createAndEmit(
         'analytics.track',
         event.userId,
         {
           action: 'project_created',
           resource: 'project',
-          resourceId: (event as any).data.projectId,
+          resourceId: e.data.projectId,
           properties: {
-            hasDescription: !!(event as any).data.description
+            hasDescription: !!(e.data as unknown as { description?: string }).description
           }
         }
       );
     }, 10);
 
-    // Handle social sharing analytics with enhanced handlers
-    this.register('social.share.completed', async (event: AppEvent) => {
-      const shareEvent = event as any;
-      console.log(`📊 Analytics: Social share ${shareEvent.data.success ? 'completed' : 'failed'} - ${shareEvent.data.platform}`);
-      
-      // Use enhanced analytics handler
-      await analyticsHandlers.handleSocialShareCompleted(shareEvent);
-    }, 10);
-
     // Handle general analytics tracking events
     this.register('analytics.track', async (event: AppEvent) => {
-      const analyticsEvent = event as any;
-      
-      // Process with enhanced analytics handler
+      const analyticsEvent = event as AnalyticsTrackingEvent;
       await analyticsHandlers.handleAnalyticsEvent(analyticsEvent);
-      
-      console.log(`📈 Enhanced analytics processed: ${analyticsEvent.data.action} on ${analyticsEvent.data.resource}`);
+      logger.info('Enhanced analytics processed', { action: analyticsEvent.data.action, resource: analyticsEvent.data.resource });
     }, 1);
-  }
-
-  private registerSocialSharingHandlers(): void {
-    // Handle social share requests with enhanced processing
-    this.register('social.share.requested', async (event: AppEvent) => {
-      const shareEvent = event as any;
-      console.log(`📤 Processing enhanced social share request: ${shareEvent.data.shareId}`);
-      
-      // Use enhanced social share handler
-      await socialShareHandlers.handleSocialShareRequest(shareEvent);
-    }, 5);
   }
 
   private registerCleanupHandlers(): void {
     // Handle thumbnail deletion cleanup
     this.register('thumbnail.deleted', async (event: AppEvent) => {
-      const deleteEvent = event as any;
-      console.log(`🧹 Cleanup: Thumbnail deleted - ${deleteEvent.data.thumbnailId}`);
-      
-      // This is where file system cleanup, cache invalidation, etc. would happen
-      // For now, just log
-      console.log(`🗑️  Would cleanup file: ${deleteEvent.data.filePath}`);
+      const deleteEvent = event as ThumbnailDeletedEvent;
+      logger.info('Cleanup: Thumbnail deleted', { thumbnailId: deleteEvent.data.thumbnailId });
+      logger.debug('Would cleanup file', { filePath: deleteEvent.data.filePath });
     }, 1);
 
     // Handle analytics cleanup/aggregation
     this.register('analytics.track', async (event: AppEvent) => {
-      const analyticsEvent = event as any;
-      
-      // This would typically batch analytics events for efficient processing
-      console.log(`📈 Analytics tracked: ${analyticsEvent.data.action} on ${analyticsEvent.data.resource}`);
+      const analyticsEvent = event as AnalyticsTrackingEvent;
+      logger.info('Analytics tracked', { action: analyticsEvent.data.action, resource: analyticsEvent.data.resource });
     }, 1);
   }
 }

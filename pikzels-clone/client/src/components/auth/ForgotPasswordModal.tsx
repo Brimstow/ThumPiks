@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   onClose,
 }) => {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -32,28 +34,16 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       return;
     }
 
-    try {
-      const response = await fetch('/api/auth/request-password-reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(data.message || 'Password reset email sent successfully!');
-        setEmail(''); // Clear form on success
-      } else {
-        setError(data.error || 'Failed to send password reset email');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    const result = await auth.forgotPassword(email);
+    
+    if (result.success) {
+      setMessage(result.message || 'Password reset email sent successfully!');
+      setEmail(''); // Clear form on success
+    } else {
+      setError(result.error || 'Failed to send password reset email');
     }
+    
+    setLoading(false);
   };
 
   const handleGoToPage = () => {
@@ -82,6 +72,9 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="forgot-password-modal-title"
             className="w-full h-full md:h-auto md:max-w-md relative z-10"
           >
             <div className="bg-gray-900 border-0 md:border md:border-gray-800 rounded-none md:rounded-2xl p-6 md:p-8 shadow-2xl h-full md:h-auto overflow-y-auto">
@@ -92,7 +85,7 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                     <Mail className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">
+                    <h2 id="forgot-password-modal-title" className="text-xl font-bold text-white">
                       Reset Password
                     </h2>
                     <p className="text-sm text-gray-400">

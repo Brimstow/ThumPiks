@@ -22,7 +22,12 @@
 
 export type ModelTierId = 'flash' | 'standard' | 'pro';
 
-export type TieredToolId = 'generate' | 'inpaint' | 'face-swap' | 'upscale';
+export type TieredToolId =
+  | 'generate'
+  | 'generate-text'
+  | 'inpaint'
+  | 'face-swap'
+  | 'upscale';
 
 /**
  * A single tier definition with all UI metadata.
@@ -49,6 +54,13 @@ export interface TierDefinition {
   isDefault?: boolean;
   /** Optional badge text (e.g. "Most Popular") */
   badge?: string;
+  /** Optional capability metadata (e.g. { maxScale: '4x' } for upscale) */
+  capabilities?: Record<string, unknown>;
+  /** Vision-capable model ID for multimodal requests (image + text). When set,
+   *  the controller auto-selects this model if the request includes an image. */
+  visionModelId?: string;
+  /** Human-readable label for the vision model (e.g. "Qwen 3.5 Flash VL") */
+  visionModelLabel?: string;
 }
 
 /**
@@ -129,18 +141,42 @@ const PROVIDER_MODEL_LABELS: Record<AIProvider, Record<ModelTierId, string>> = {
 
 /**
  * Global tier-to-provider mapping (SINGLE SOURCE OF TRUTH)
- * 
+ *
  * Change ONE line here to switch ALL tools using that tier to a different provider.
- * 
+ *
  * Example: To switch all Flash tiers from Comet to ZenMux:
  *   flash: 'comet' → flash: 'zenmux'
- * 
+ *
  * This will automatically update generate, inpaint, face-swap, and upscale Flash tiers.
  */
 const TIER_PROVIDER_MAP: Record<ModelTierId, AIProvider> = {
-  flash: 'comet',      // Fast, cost-effective - uses Comet FLUX Schnell
+  flash: 'comet', // Fast, cost-effective - uses Comet FLUX Schnell
   standard: 'openrouter', // Balanced - uses OpenRouter Gemini 2.5
-  pro: 'openrouter',   // Best quality - uses OpenRouter Gemini 3 Pro
+  pro: 'openrouter', // Best quality - uses OpenRouter Gemini 3 Pro
+};
+
+// ============================================
+// VISION TEXT MODELS (for generate-text with image input)
+// ============================================
+
+/**
+ * Vision-capable models for text generation when an image is provided.
+ * These models can analyze images and generate text suggestions in a single call.
+ *
+ * Flash    → Qwen 3.5 Flash: cheapest VL model, native vision-language (Chinese)
+ * Standard → Gemini 2.5 Flash: proven, already used in vision service
+ * Pro      → Grok 4.1 Fast: excellent quality, 2M context, very capable
+ */
+const VISION_TEXT_MODELS: Record<ModelTierId, string> = {
+  flash: 'qwen/qwen3.5-flash',
+  standard: 'google/gemini-2.5-flash',
+  pro: 'x-ai/grok-4.1-fast',
+};
+
+const VISION_TEXT_MODEL_LABELS: Record<ModelTierId, string> = {
+  flash: 'Qwen 3.5 Flash VL',
+  standard: 'Gemini 2.5 Flash',
+  pro: 'Grok 4.1 Fast',
 };
 
 /**
@@ -204,7 +240,7 @@ const TIER_BASE: Record<
  * Flash    → FLUX Schnell (Comet): fastest, cheapest, good for quick iterations
  * Standard → Gemini 2.5 Flash Image (OpenRouter): balanced quality and speed (default)
  * Pro      → Gemini 3 Pro Image (OpenRouter): highest quality, 2K/4K support, slower
- * 
+ *
  * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP. To change providers,
  * update TIER_PROVIDER_MAP at the top of this file.
  */
@@ -248,7 +284,7 @@ const generateTiers: ToolTierConfig = {
  * Flash    → FLUX Schnell (Comet): fast, decent contextual edits
  * Standard → Gemini 3 Pro Image (OpenRouter): strong context understanding (default)
  * Pro      → GPT-5 Image (OpenRouter): premium editing precision
- * 
+ *
  * NOTE: Model IDs are resolved via TIER_PROVIDER_MAP.
  */
 const inpaintTiers: ToolTierConfig = {
@@ -288,11 +324,12 @@ const inpaintTiers: ToolTierConfig = {
 /**
  * Face swap tiers.
  *
- * Flash    → FLUX Schnell (Comet): fast, acceptable face quality
- * Standard → Seedream 4.5 (OpenRouter): portrait-optimized, natural results (default)
- * Pro      → Gemini 3 Pro Image (OpenRouter): highest fidelity face reconstruction
- * 
- * NOTE: Standard tier uses Seedream 4.5 (special case for face-optimized model).
+ * Flash    → InsightFace inswapper (Replicate): fast landmark-based swap, ~3s
+ * Standard → InsightFace inswapper (Replicate): same model, standard billing tier (default)
+ * Pro      → InsightFace inswapper + Reve Remix polish (Replicate): cinematic output, ~13s
+ *
+ * All tiers route through ReplicateFaceSwapService (replicate-face-swap.service.ts).
+ * The controller passes `tier` to the service; `pro` triggers the Reve Remix step.
  */
 const faceSwapTiers: ToolTierConfig = {
   toolId: 'face-swap',
@@ -300,29 +337,29 @@ const faceSwapTiers: ToolTierConfig = {
   tiers: [
     {
       ...TIER_BASE.flash,
-      tagline: 'Quick swaps, good enough for drafts',
-      modelId: getModelForTier('flash'),
-      modelLabel: getModelLabelForTier('flash'),
+      tagline: 'Fast landmark-based face swap',
+      modelId: 'mertguvencli/face-swap-with-indexes',
+      modelLabel: 'InsightFace inswapper',
       credits: 1,
-      estimatedTime: '~4s',
+      estimatedTime: '~3s',
     },
     {
       ...TIER_BASE.standard,
-      tagline: 'Portrait-optimized, natural results',
-      modelId: 'bytedance-seed/seedream-4.5', // Special case: Seedream optimized for faces
-      modelLabel: 'Seedream 4.5',
+      tagline: 'Precise face swap with index targeting',
+      modelId: 'mertguvencli/face-swap-with-indexes',
+      modelLabel: 'InsightFace inswapper',
       credits: 2,
-      estimatedTime: '~8s',
+      estimatedTime: '~3s',
       isDefault: true,
       badge: 'Best for Faces',
     },
     {
       ...TIER_BASE.pro,
-      tagline: 'Highest fidelity face reconstruction',
-      modelId: getModelForTier('pro'),
-      modelLabel: getModelLabelForTier('pro'),
+      tagline: 'Face swap + cinematic Reve polish',
+      modelId: 'mertguvencli/face-swap-with-indexes+reve/remix',
+      modelLabel: 'InsightFace + Reve Remix',
       credits: 5,
-      estimatedTime: '~14s',
+      estimatedTime: '~13s',
       badge: 'Most Realistic',
     },
   ],
@@ -333,7 +370,7 @@ const faceSwapTiers: ToolTierConfig = {
  *
  * Standard → Gemini 2.5 Flash Image (OpenRouter): fast, good detail preservation (default)
  * Pro      → Gemini 3 Pro Image (OpenRouter): native 2K/4K, maximum detail
- * 
+ *
  * NOTE: Upscale does not have a Flash tier. Only Standard and Pro.
  */
 const upscaleTiers: ToolTierConfig = {
@@ -348,6 +385,7 @@ const upscaleTiers: ToolTierConfig = {
       credits: 1,
       estimatedTime: '~5s',
       isDefault: true,
+      capabilities: { maxScale: '2x' },
     },
     {
       ...TIER_BASE.pro,
@@ -357,6 +395,67 @@ const upscaleTiers: ToolTierConfig = {
       credits: 4,
       estimatedTime: '~12s',
       badge: 'Sharpest',
+      capabilities: { maxScale: '4x' },
+    },
+  ],
+};
+
+/**
+ * AI text generation tiers (chat completions).
+ *
+ * Text-only models (default):
+ *   Flash    → GPT-4.1 Nano: fastest, cheapest, excellent JSON compliance
+ *   Standard → GPT-4.1 Mini: best quality-per-dollar, mature structured output
+ *   Pro      → GPT-4.1: premium quality, highest accuracy, native structured output
+ *
+ * Vision models (auto-selected when image is provided):
+ *   Flash    → Qwen 3.5 Flash VL: cheapest multimodal, native vision-language
+ *   Standard → Gemini 2.5 Flash: proven quality, excellent image understanding
+ *   Pro      → Grok 4.1 Fast: 2M context, exceptional quality
+ *
+ * NOTE: Text-only model IDs are defined directly (not via TIER_PROVIDER_MAP)
+ * since the image provider map doesn't apply to text generation.
+ * Vision model IDs come from the VISION_TEXT_MODELS catalog above.
+ */
+const generateTextTiers: ToolTierConfig = {
+  toolId: 'generate-text',
+  defaultTierId: 'flash',
+  tiers: [
+    {
+      ...TIER_BASE.flash,
+      tagline: 'Quick text ideas',
+      modelId: 'openai/gpt-4.1-nano',
+      modelLabel: 'GPT-4.1 Nano',
+      credits: 1,
+      estimatedTime: '~2s',
+      isDefault: true,
+      visionModelId: VISION_TEXT_MODELS.flash,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.flash,
+      capabilities: { supportsVision: true },
+    },
+    {
+      ...TIER_BASE.standard,
+      tagline: 'Smarter, more creative suggestions',
+      modelId: 'openai/gpt-4.1-mini',
+      modelLabel: 'GPT-4.1 Mini',
+      credits: 2,
+      estimatedTime: '~5s',
+      badge: 'More Creative',
+      visionModelId: VISION_TEXT_MODELS.standard,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.standard,
+      capabilities: { supportsVision: true },
+    },
+    {
+      ...TIER_BASE.pro,
+      tagline: 'Premium AI, best text quality',
+      modelId: 'openai/gpt-4.1',
+      modelLabel: 'GPT-4.1',
+      credits: 3,
+      estimatedTime: '~4s',
+      badge: 'Best Quality',
+      visionModelId: VISION_TEXT_MODELS.pro,
+      visionModelLabel: VISION_TEXT_MODEL_LABELS.pro,
+      capabilities: { supportsVision: true },
     },
   ],
 };
@@ -373,6 +472,7 @@ const upscaleTiers: ToolTierConfig = {
  */
 export const TOOL_TIER_CONFIG: Record<TieredToolId, ToolTierConfig> = {
   generate: generateTiers,
+  'generate-text': generateTextTiers,
   inpaint: inpaintTiers,
   'face-swap': faceSwapTiers,
   upscale: upscaleTiers,
@@ -384,6 +484,7 @@ export const TOOL_TIER_CONFIG: Record<TieredToolId, ToolTierConfig> = {
  */
 export const TIERED_TOOL_IDS: TieredToolId[] = [
   'generate',
+  'generate-text',
   'inpaint',
   'face-swap',
   'upscale',
@@ -408,6 +509,26 @@ export function resolveModelFromTier(
 
   const tierDef = config.tiers.find(t => t.id === tier);
   return tierDef?.modelId ?? undefined;
+}
+
+/**
+ * Resolve a quality tier to a vision-capable model ID for a given tool.
+ * Returns undefined if tier is missing/invalid or the tier has no vision model.
+ */
+export function resolveVisionModelFromTier(
+  tier: string | undefined,
+  tool: TieredToolId
+): string | undefined {
+  if (!tier) {
+    const defaultTier = getDefaultTier(tool);
+    return defaultTier?.visionModelId ?? undefined;
+  }
+
+  const config = TOOL_TIER_CONFIG[tool];
+  if (!config) return undefined;
+
+  const tierDef = config.tiers.find(t => t.id === tier);
+  return tierDef?.visionModelId ?? undefined;
 }
 
 /**
@@ -437,6 +558,25 @@ export function getCreditCostForTier(
   if (!config) return 1;
   const tierDef = config.tiers.find(t => t.id === tier);
   return tierDef?.credits ?? 1;
+}
+
+/**
+ * Read a capability value from a tier definition.
+ * Used for backend validation (e.g. maxScale for upscale).
+ */
+export function getTierCapability(
+  tier: string | undefined,
+  tool: TieredToolId,
+  key: string
+): unknown {
+  if (!tier) {
+    const defaultTier = getDefaultTier(tool);
+    return defaultTier?.capabilities?.[key];
+  }
+  const config = TOOL_TIER_CONFIG[tool];
+  if (!config) return undefined;
+  const tierDef = config.tiers.find(t => t.id === tier);
+  return tierDef?.capabilities?.[key];
 }
 
 /**

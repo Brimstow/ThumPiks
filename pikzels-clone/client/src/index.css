@@ -15,6 +15,8 @@ body {
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pinch-zoom; /* prevent horizontal swipe nav on iOS Safari */
 }
 
 @theme inline {
@@ -142,4 +144,122 @@ body {
     padding: 0;
     overscroll-behavior-x: none;
   }
+}
+
+/* Smart Text Edit Popover - Slide-in Animation */
+.smart-text-edit-popover {
+  animation: slideDown 200ms ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Edge */
+}
+
+/* Radix Popover arrow fill for dark theme */
+.smart-text-edit-popover [data-radix-popover-arrow],
+.smart-text-edit-popover .fill-gray-800 {
+  fill: oklch(0.205 0 0);
+}
+
+/* ============================================================
+   LIGHT MODE OVERRIDES
+   The dashboard uses hardcoded dark Tailwind classes with no dark: prefix.
+   These overrides remap colors when .dark is absent from <html>.
+   ============================================================ */
+
+html:not(.dark) {
+  --lm-bg-page:        #f1f5f9;
+  --lm-bg-surface:     #ffffff;
+  --lm-bg-raised:      #f8fafc;
+  --lm-bg-overlay:     #e2e8f0;
+  --lm-border:         #cbd5e1;
+  --lm-text-primary:   #0f172a;
+  --lm-text-secondary: #475569;
+  --lm-text-muted:     #94a3b8;
+}
+
+html:not(.dark) body,
+html:not(.dark) #root {
+  background-color: var(--lm-bg-page);
+  color: var(--lm-text-primary);
+}
+
+/* Use a CSS filter inversion on the main app shell — fastest approach
+   that covers ALL hardcoded dark backgrounds without touching every component.
+   Hue-rotate 180deg + invert flips dark → light while keeping hues correct.
+   Blue accents (hue ~220) stay recognizable. Images are re-inverted. */
+html:not(.dark) #root > div {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Re-invert images, videos, canvas, and colored icons so they stay natural */
+html:not(.dark) #root > div img,
+html:not(.dark) #root > div video,
+html:not(.dark) #root > div canvas,
+html:not(.dark) #root > div svg image,
+html:not(.dark) #root > div [data-no-invert] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* ============================================================
+   AUTOFILL FIX
+   Browser autofill applies an OS-level yellow/blue background that
+   cannot be overridden with background-color alone.
+   Use inset box-shadow to paint over it with the correct dark color.
+   ============================================================ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ============================================================
+   CSP-COMPLIANT KEYFRAMES
+   Moved from inline <style> tags in React components to this
+   CSS file to eliminate the need for 'unsafe-inline' in CSP
+   style-src-elem directive (Security Audit Finding 2, Phase B).
+   ============================================================ */
+
+/* DashboardHome — Quick Edit banner animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+@keyframes nudge-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.qe-banner:hover .qe-anim {
+  animation-play-state: paused !important;
 }

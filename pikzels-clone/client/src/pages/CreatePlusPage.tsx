@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Video, Layers, Wand2, FileText, Link2, UploadCloud, MonitorPlay, Smartphone, Instagram, Maximize2, Plus, Trash2, Save } from 'lucide-react';
 import CreateThumbnail from '../components/CreateThumbnail';
-import { authPost } from '../utils/api';
+import { authPost, createAIToolAbortController } from '../utils/api';
 
 interface AspectRatioPreset {
   id: string;
@@ -152,7 +152,10 @@ const CreatePlusPage: React.FC = () => {
     setShowAiPromptModal(false);
     setIsGenerating(true);
     try {
-      const response = await authPost('/api/thumbnails/ai/generate', { prompt, style, tier: 'standard' });
+      // JJ: Per-tool AbortController with timeout (55s for generate)
+      const { controller, timeoutId } = createAIToolAbortController('generate');
+      const response = await authPost('/api/thumbnails/ai/generate', { prompt, style, tier: 'standard' }, { signal: controller.signal });
+      clearTimeout(timeoutId);
 
       if (response.status === 402) {
         const data = await response.json().catch(() => ({}));

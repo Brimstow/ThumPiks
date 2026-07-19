@@ -6,10 +6,11 @@ import {
   StorageDeleteResult,
   ImageTransformation,
 } from './storage.types';
+import { logger } from '../../utils/logger';
 
 /**
  * Cloudinary Storage Provider
- * 
+ *
  * Handles image uploads to Cloudinary CDN with support for:
  * - Permanent thumbnail storage
  * - Temporary visual search uploads (with TTL)
@@ -17,7 +18,7 @@ import {
  * - CDN delivery
  */
 export class CloudinaryProvider implements StorageProvider {
-  name: 'cloudinary' = 'cloudinary';
+  name = 'cloudinary' as const;
   private configured = false;
 
   constructor() {
@@ -26,12 +27,12 @@ export class CloudinaryProvider implements StorageProvider {
 
   private configure(): void {
     const cloudinaryUrl = process.env.CLOUDINARY_URL;
-    
+
     if (cloudinaryUrl) {
       // CLOUDINARY_URL format: cloudinary://api_key:api_secret@cloud_name
       // Parse and configure explicitly for reliability
       const match = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
-      if (match && match[1] && match[2] && match[3]) {
+      if (match?.[1] && match[2] && match[3]) {
         cloudinary.config({
           api_key: match[1],
           api_secret: match[2],
@@ -58,13 +59,13 @@ export class CloudinaryProvider implements StorageProvider {
     }
 
     if (this.configured) {
-      console.log('☁️ Cloudinary provider configured');
+      logger.info('Cloudinary provider configured');
     }
   }
 
   async isAvailable(): Promise<boolean> {
     if (!this.configured) return false;
-    
+
     try {
       await cloudinary.api.ping();
       return true;
@@ -142,7 +143,7 @@ export class CloudinaryProvider implements StorageProvider {
         provider: 'cloudinary',
       };
     } catch (error) {
-      console.error('Cloudinary delete error:', error);
+      logger.error('Cloudinary delete error', error instanceof Error ? error : undefined);
       return {
         success: false,
         publicId,
@@ -151,15 +152,21 @@ export class CloudinaryProvider implements StorageProvider {
     }
   }
 
-  getTransformedUrl(publicId: string, transformation: ImageTransformation): string {
-    const transformOptions: any = {};
+  getTransformedUrl(
+    publicId: string,
+    transformation: ImageTransformation
+  ): string {
+    const transformOptions: Record<string, unknown> = {};
 
     if (transformation.width) transformOptions.width = transformation.width;
     if (transformation.height) transformOptions.height = transformation.height;
     if (transformation.crop) transformOptions.crop = transformation.crop;
-    if (transformation.quality) transformOptions.quality = transformation.quality;
-    if (transformation.format) transformOptions.fetch_format = transformation.format;
-    if (transformation.gravity) transformOptions.gravity = transformation.gravity;
+    if (transformation.quality)
+      transformOptions.quality = transformation.quality;
+    if (transformation.format)
+      transformOptions.fetch_format = transformation.format;
+    if (transformation.gravity)
+      transformOptions.gravity = transformation.gravity;
 
     return cloudinary.url(publicId, {
       secure: true,
@@ -167,7 +174,11 @@ export class CloudinaryProvider implements StorageProvider {
     });
   }
 
-  async healthCheck(): Promise<{ healthy: boolean; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    healthy: boolean;
+    latency?: number;
+    error?: string;
+  }> {
     if (!this.configured) {
       return { healthy: false, error: 'Not configured' };
     }
@@ -179,17 +190,17 @@ export class CloudinaryProvider implements StorageProvider {
         healthy: true,
         latency: Date.now() - start,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         healthy: false,
         latency: Date.now() - start,
-        error: error.message || 'Ping failed',
+        error: error instanceof Error ? error.message : 'Ping failed',
       };
     }
   }
 
-  private buildUploadOptions(options: StorageUploadOptions): any {
-    const uploadOptions: any = {
+  private buildUploadOptions(options: StorageUploadOptions): Record<string, unknown> {
+    const uploadOptions: Record<string, unknown> = {
       resource_type: options.resourceType || 'image',
       unique_filename: true,
       overwrite: false,
@@ -223,8 +234,8 @@ export class CloudinaryProvider implements StorageProvider {
     return uploadOptions;
   }
 
-  private buildTransformation(t: ImageTransformation): any {
-    const transform: any = {};
+  private buildTransformation(t: ImageTransformation): Record<string, unknown> {
+    const transform: Record<string, unknown> = {};
     if (t.width) transform.width = t.width;
     if (t.height) transform.height = t.height;
     if (t.crop) transform.crop = t.crop;

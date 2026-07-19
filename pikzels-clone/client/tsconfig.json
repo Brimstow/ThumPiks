@@ -18,10 +18,20 @@
     "types": ["vite/client", "node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@shared/*": ["../src/config/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__/**"],
+  "include": ["src", "../src/config/watermark.config.ts"],
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.e2e.test.ts",
+    "src/setupTests.ts",
+    "src/test-utils/**",
+    "node_modules",
+    "dist"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

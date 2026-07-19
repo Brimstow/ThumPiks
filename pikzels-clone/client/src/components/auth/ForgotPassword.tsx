@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -7,6 +8,7 @@ const ForgotPassword: React.FC = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const auth = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -14,27 +16,15 @@ const ForgotPassword: React.FC = () => {
     setMessage('');
     setError('');
 
-    try {
-      const response = await fetch('/api/auth/request-password-reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+    const result = await auth.forgotPassword(email);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(data.message);
-      } else {
-        setError(data.error || 'Failed to send password reset email');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    if (result.success) {
+      setMessage(result.message || 'Password reset email sent successfully!');
+    } else {
+      setError(result.error || 'Failed to send password reset email');
     }
+    
+    setLoading(false);
   };
 
   return (

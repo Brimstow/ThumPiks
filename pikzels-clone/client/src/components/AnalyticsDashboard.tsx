@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import SocialShareAnalytics from './SocialShareAnalytics';
 import { useNavigate } from 'react-router-dom';
 import { authGet } from '../utils/api';
 
@@ -797,15 +796,6 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Social Share Analytics Section */}
-      <div className="mt-8">
-        <h3
-          className={`text-lg font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4`}
-        >
-          Social Share Analytics
-        </h3>
-        <SocialShareAnalytics theme={theme} />
-      </div>
 
       <div className="mt-6">
         <div

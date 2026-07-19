@@ -185,11 +185,10 @@ const BrandKitSetupWizard: React.FC<BrandKitSetupWizardProps> = ({
   };
 
   const handleImportExtractedBrand = () => {
-    // TODO: Import the extracted brand assets into the user's brand kit
-    // For now, just close and let user manually add
+    // Partial implementation: clears sample data and closes wizard.
+    // Full import via API will be added when brand-kit import endpoint is ready.
     onClearSampleData();
     handleClose();
-    // Future: Call API to import all extracted assets
   };
 
   // AI Brand Generator handlers
@@ -213,10 +212,10 @@ const BrandKitSetupWizard: React.FC<BrandKitSetupWizardProps> = ({
   };
 
   const handleImportSuggestion = () => {
-    // TODO: Import the selected suggestion into the user's brand kit
+    // Partial implementation: clears sample data and closes wizard.
+    // Full import via API will be added when brand-kit import endpoint is ready.
     onClearSampleData();
     handleClose();
-    // Future: Call API to import selected brand suggestion
   };
 
   if (!isOpen) return null;

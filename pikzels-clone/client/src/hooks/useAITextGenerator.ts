@@ -5,13 +5,15 @@
  * Supports two modes:
  *   1. Manual prompt  — generateTitles({ prompt, ... })
  *   2. Image-aware    — generateFromImage({ imageUrl, ... })
- *      Calls vision API first, then builds a prompt from the image description.
+ *      Sends the image directly to the backend which uses a vision model
+ *      to analyze the image and generate text in a single API call.
  *
- * Uses OpenRouter chat completion (text-only, no image generation).
+ * Uses OpenRouter chat completion. When an image is provided, the backend
+ * auto-selects a multimodal vision model for direct image analysis.
  * Follows the same pattern as useBackendAI for credit billing.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { authPost } from '../utils/api';
 import { useAIToolsStore } from '../stores/aiToolsStore';
 import type { VisionAnalysisResult } from '../types/vision.types';
@@ -37,6 +39,12 @@ export interface GenerateTextOptions {
   count?: number;
   maxLength?: number;
   existingText?: string;
+  /** Quality tier for model selection (flash/standard/pro) */
+  tier?: string;
+  /** Optional image URL for vision-aware generation */
+  imageUrl?: string;
+  /** Optional base64-encoded image for vision-aware generation */
+  imageBase64?: string;
 }
 
 export interface GenerateFromImageOptions {
@@ -49,21 +57,24 @@ export interface GenerateFromImageOptions {
   tone?: TextTone;
   count?: number;
   maxLength?: number;
+  /** Quality tier for model selection (flash/standard/pro) */
+  tier?: string;
 }
 
 export interface UseAITextGeneratorReturn {
   suggestions: AITextSuggestion[];
   isGenerating: boolean;
   error: string | null;
-  /** Progress step label (e.g. 'Analyzing image...', 'Generating text ideas...') */
+  /** Progress step label (e.g. 'Generating text from image...') */
   generationStep: string;
-  /** Cached vision analysis from the last generateFromImage call */
+  /** @deprecated Vision analysis is now handled server-side. Always null. */
   visionAnalysis: VisionAnalysisResult | null;
   generateTitles: (options: GenerateTextOptions) => Promise<AITextSuggestion[]>;
-  /** Vision-aware: analyze image first, then generate text based on what the image shows */
+  /** Vision-aware: sends image directly to the backend for analysis + text generation in one call */
   generateFromImage: (options: GenerateFromImageOptions) => Promise<AITextSuggestion[]>;
   rewriteText: (text: string, tone?: TextTone) => Promise<AITextSuggestion[]>;
   clearSuggestions: () => void;
+  /** @deprecated No-op. Vision analysis is now handled server-side. */
   clearVisionAnalysis: () => void;
   markApplied: (id: string) => void;
 }
@@ -75,12 +86,6 @@ export interface UseAITextGeneratorReturn {
 export function useAITextGenerator(): UseAITextGeneratorReturn {
   const [error, setError] = useState<string | null>(null);
   const [generationStep, setGenerationStep] = useState<string>('');
-  const [visionAnalysis, setVisionAnalysis] = useState<VisionAnalysisResult | null>(null);
-
-  // Ref keeps the latest visionAnalysis accessible inside async callbacks
-  // without depending on React re-render timing.
-  const visionRef = useRef<VisionAnalysisResult | null>(null);
-  visionRef.current = visionAnalysis;
 
   const {
     textSuggestions: suggestions,
@@ -93,10 +98,10 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
   } = useAIToolsStore();
 
   const generateTitles = useCallback(async (options: GenerateTextOptions): Promise<AITextSuggestion[]> => {
-    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60 } = options;
+    const { prompt, context, tone = 'clickbait', count = 5, maxLength = 60, tier, imageUrl, imageBase64 } = options;
 
-    if (!prompt.trim()) {
-      setError('Prompt is required');
+    if (!prompt.trim() && !imageUrl && !imageBase64) {
+      setError('Prompt or image is required');
       return [];
     }
 
@@ -104,13 +109,20 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
     setTextGenerating(true);
 
     try {
-      const response = await authPost('/api/thumbnails/ai/generate-text', {
+      const body: Record<string, unknown> = {
         prompt,
         context,
         tone,
         count,
         maxLength,
-      });
+        tier,
+      };
+
+      // Include image data if provided — backend will auto-select a vision model
+      if (imageUrl) body.imageUrl = imageUrl;
+      if (imageBase64) body.imageBase64 = imageBase64;
+
+      const response = await authPost('/api/thumbnails/ai/generate-text', body);
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -154,7 +166,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
   }, [generateTitles]);
 
   // ============================================
-  // Vision-aware generation
+  // Vision-aware generation (single API call)
   // ============================================
 
   const generateFromImage = useCallback(async (options: GenerateFromImageOptions): Promise<AITextSuggestion[]> => {
@@ -165,6 +177,7 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
       tone = 'clickbait',
       count = 4,
       maxLength = 30,
+      tier,
     } = options;
 
     if (!imageUrl && !imageBase64) {
@@ -174,63 +187,24 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
 
     setError(null);
     setTextGenerating(true);
+    setGenerationStep('Generating text from image...');
 
-    // 1. Vision analysis (use cached if available)
-    let analysis: VisionAnalysisResult | null = visionRef.current;
     try {
-      setGenerationStep('Analyzing your thumbnail...');
-      if (!analysis) {
-        const visionBody = imageBase64
-          ? { imageBase64 }
-          : { image: imageUrl };
-        const vRes = await authPost('/api/vision/describe', visionBody);
-        if (vRes.ok) {
-          analysis = await vRes.json() as VisionAnalysisResult;
-          setVisionAnalysis(analysis);
-          visionRef.current = analysis;
-        }
-      }
-    } catch {
-      // Vision failed — continue with fallback prompt
-    }
-
-    // 2. Build prompt from image description (or fall back to supplied prompt)
-    let textPrompt: string;
-    let textContext: string;
-
-    if (analysis?.description) {
-      textPrompt = `YouTube thumbnail showing: ${analysis.description}`;
-      textContext = [
-        analysis.elements.mood ? `Mood: ${analysis.elements.mood}` : '',
-        analysis.elements.style ? `Style: ${analysis.elements.style}` : '',
-        analysis.elements.mainSubject ? `Subject: ${analysis.elements.mainSubject}` : '',
-        fallbackPrompt ? `Original video title (for reference only): ${fallbackPrompt}` : '',
-      ].filter(Boolean).join('. ');
-    } else {
-      textPrompt = fallbackPrompt || 'YouTube thumbnail text';
-      textContext = 'YouTube thumbnail';
-    }
-
-    // 3. Generate text suggestions via shared generateTitles
-    setGenerationStep('Generating text ideas...');
-    try {
+      // Single API call — the backend vision model sees the image directly
       const result = await generateTitles({
-        prompt: textPrompt,
-        context: textContext,
+        prompt: fallbackPrompt || '',
+        imageUrl,
+        imageBase64,
         tone,
         count,
         maxLength,
+        tier,
       });
       return result;
     } finally {
       setGenerationStep('');
     }
   }, [generateTitles, setTextGenerating]);
-
-  const clearVisionAnalysis = useCallback(() => {
-    setVisionAnalysis(null);
-    visionRef.current = null;
-  }, []);
 
   const markApplied = useCallback((id: string) => {
     markTextApplied(id);
@@ -241,12 +215,12 @@ export function useAITextGenerator(): UseAITextGeneratorReturn {
     isGenerating,
     error,
     generationStep,
-    visionAnalysis,
+    visionAnalysis: null, // Deprecated: vision analysis now handled server-side
     generateTitles,
     generateFromImage,
     rewriteText,
     clearSuggestions: clearTextSuggestions,
-    clearVisionAnalysis,
+    clearVisionAnalysis: () => {}, // No-op: vision analysis now handled server-side
     markApplied,
   };
 }

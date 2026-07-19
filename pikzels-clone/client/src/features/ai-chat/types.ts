@@ -21,6 +21,8 @@ export interface ActionResult {
   description: string;
   status: ActionStatus;
   error?: string;
+  /** Text result from read-only analysis actions (analyzeImage, vision) */
+  resultText?: string;
 }
 
 /** A single message in the chat conversation */
@@ -35,6 +37,8 @@ export interface ChatMessage {
   actionResults?: ActionResult[];
   /** Whether this message is currently being streamed */
   isStreaming?: boolean;
+  /** Whether actions are awaiting user confirmation before execution */
+  awaitingConfirmation?: boolean;
 }
 
 /** SSE event types received from the backend */

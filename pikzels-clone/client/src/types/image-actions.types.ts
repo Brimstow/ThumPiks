@@ -108,6 +108,22 @@ export interface SaveMetadata {
   platform?: 'youtube' | 'tiktok' | 'instagram' | 'twitter';
   videoId?: string;
   sourceUrl?: string;
+  /** Source context for auto-filling prompt (not shown to user) */
+  source?: 'quick-edit' | 'canvas-editor' | 'preset-editor' | 'vision-tool' | 'recreate-better' | 'ai-generate' | 'ai-tools' | 'image-action-bar' | 'landing-page-generation';
+  /** AI prompt if available (e.g. from AI generate flow) */
+  prompt?: string;
+  /** Project ID if already known (skips project picker) */
+  projectId?: string;
+  /** Clean original image URL (before watermark) for watermark-free export */
+  originalImageUrl?: string;
+  /** Cloudinary public ID of the clean original */
+  originalPublicId?: string;
+}
+
+export interface SaveModalResult {
+  title: string;
+  projectId: string;
+  prompt: string;
 }
 
 export interface EditorNavigationState {

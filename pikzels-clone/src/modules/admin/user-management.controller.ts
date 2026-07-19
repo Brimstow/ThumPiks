@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { body, query, param, validationResult } from 'express-validator';
 import { userManagementService, UserFilters, UserSortOptions, PaginationOptions } from './user-management.service';
 import { AdminRoles } from './admin-auth.service';
+import { logger } from '../../utils/logger';
 
 export class UserManagementController {
 
@@ -49,7 +50,7 @@ export class UserManagementController {
 
       // Build sort options
       const sort: UserSortOptions = {
-        field: sortField as any,
+        field: sortField as 'createdAt' | 'lastLoginAt' | 'email' | 'name',
         direction: sortDirection as 'asc' | 'desc'
       };
 
@@ -67,7 +68,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Get users error:', error);
+      logger.error('Get users error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve users',
         code: 'GET_USERS_ERROR'
@@ -115,7 +116,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Get user by ID error:', error);
+      logger.error('Get user by ID error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve user',
         code: 'GET_USER_ERROR'
@@ -150,7 +151,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Create user error:', error);
+      logger.error('Create user error', error instanceof Error ? error : undefined);
       
       if (error instanceof Error && error.message.includes('already exists')) {
         res.status(409).json({
@@ -194,7 +195,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Update user error:', error);
+      logger.error('Update user error', error instanceof Error ? error : undefined);
       
       if (error instanceof Error) {
         if (error.message.includes('not found')) {
@@ -256,7 +257,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Delete user error:', error);
+      logger.error('Delete user error', error instanceof Error ? error : undefined);
       
       if (error instanceof Error) {
         if (error.message.includes('not found')) {
@@ -318,7 +319,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Reset password error:', error);
+      logger.error('Reset password error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to reset password',
         code: 'RESET_PASSWORD_ERROR'
@@ -382,7 +383,7 @@ export class UserManagementController {
       }
 
     } catch (error) {
-      console.error('Assign admin role error:', error);
+      logger.error('Assign admin role error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to assign admin role',
         code: 'ASSIGN_ROLE_ERROR'
@@ -450,7 +451,7 @@ export class UserManagementController {
       }
 
     } catch (error) {
-      console.error('Remove admin role error:', error);
+      logger.error('Remove admin role error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to remove admin role',
         code: 'REMOVE_ROLE_ERROR'
@@ -471,7 +472,7 @@ export class UserManagementController {
       });
 
     } catch (error) {
-      console.error('Get user stats error:', error);
+      logger.error('Get user stats error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Failed to retrieve user statistics',
         code: 'GET_STATS_ERROR'

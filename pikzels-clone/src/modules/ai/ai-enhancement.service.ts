@@ -2,8 +2,10 @@ import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
 import axios from 'axios';
+import { logger } from '../../utils/logger';
 
 // Define type for TensorFlow.js
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TensorFlow = any;
 
 // Try to import TensorFlow.js, but handle if it fails
@@ -11,22 +13,25 @@ let tf: TensorFlow | null = null;
 try {
   tf = require('@tensorflow/tfjs-node');
 } catch (error) {
-  console.warn(
-    'TensorFlow.js not available, AI features will be limited:',
-    error
-  );
+  logger.warn('TensorFlow.js not available, AI features will be limited', { error: String(error) });
 }
 
 // Define tensor types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tensor3D = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tensor4D = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tensor2D = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tensor = any;
 
 // Ensure the processed images directory exists
 const processedImagesDir = path.join(__dirname, '../../../processed-images');
 if (typeof fs !== 'undefined' && fs.mkdir) {
-  fs.mkdir(processedImagesDir, { recursive: true }).catch(console.error);
+  fs.mkdir(processedImagesDir, { recursive: true }).catch((err) => {
+    logger.error('Failed to create processed images directory', err instanceof Error ? err : new Error(String(err)));
+  });
 }
 
 export class AIEnhancementService {
@@ -47,11 +52,11 @@ export class AIEnhancementService {
       // Warm up TensorFlow.js
       if (tf?.ready) {
         await tf.ready();
-        console.log('TensorFlow.js initialized successfully');
+        logger.info('TensorFlow.js initialized successfully');
         this.initialized = true;
       }
     } catch (error) {
-      console.error('Failed to initialize TensorFlow.js:', error);
+      logger.error('Failed to initialize TensorFlow.js', error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -119,7 +124,7 @@ export class AIEnhancementService {
 
       return outputPath;
     } catch (error) {
-      console.error('Error applying style transfer:', error);
+      logger.error('Error applying style transfer', error instanceof Error ? error : new Error(String(error)));
       throw new Error(
         `Failed to apply style transfer: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -175,7 +180,7 @@ export class AIEnhancementService {
 
       return outputPath;
     } catch (error) {
-      console.error('Error applying simple style transfer:', error);
+      logger.error('Error applying simple style transfer', error instanceof Error ? error : new Error(String(error)));
       throw new Error(
         `Failed to apply simple style transfer: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -231,7 +236,7 @@ export class AIEnhancementService {
 
       return outputPath;
     } catch (error) {
-      console.error('Error enhancing image:', error);
+      logger.error('Error enhancing image', error instanceof Error ? error : new Error(String(error)));
       throw new Error(
         `Failed to enhance image: ${error instanceof Error ? error.message : String(error)}`
       );

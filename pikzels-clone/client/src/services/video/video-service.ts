@@ -19,6 +19,7 @@ import type {
   VideoProcessingState,
 } from './types';
 import { platformRegistry } from './platforms';
+import { isCrossOriginIsolated, isSafari, safeCanvasToBlob, safeCanvasToDataURL } from '@/utils/browserCompat';
 
 // ============================================
 // API CONFIGURATION
@@ -75,32 +76,61 @@ export class VideoService implements IVideoService {
       progress: 0,
     });
 
+    // Set up progress logging
+    this.ffmpeg.on('log', ({ message }) => {
+      console.log('[FFmpeg]', message);
+    });
+
+    this.ffmpeg.on('progress', ({ progress }) => {
+      this.updateProgress({
+        isLoading: true,
+        progress: Math.round(progress * 100),
+        stage: 'extracting',
+        message: `Processing... ${Math.round(progress * 100)}%`,
+      });
+    });
+
+    // @ffmpeg/core@0.12.6 is the single-threaded build (no SharedArrayBuffer needed).
+    // The classWorkerURL runs FFmpeg in a Web Worker so the main thread stays responsive.
+    // On Safari (no crossOriginIsolated support with credentialless COEP), the worker
+    // may fail if it attempts SharedArrayBuffer internally — we catch and retry without it.
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+
     try {
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-      
-      // Use local worker.js from public/ffmpeg for same-origin requirement
-      // This enables SharedArrayBuffer support with COOP/COEP headers
-      const workerURL = new URL('/ffmpeg/worker.js', window.location.origin).href;
+      const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+      const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
 
-      // Set up progress logging
-      this.ffmpeg.on('log', ({ message }) => {
-        console.log('[FFmpeg]', message);
-      });
-
-      this.ffmpeg.on('progress', ({ progress }) => {
-        this.updateProgress({
-          isLoading: true,
-          progress: Math.round(progress * 100),
-          stage: 'extracting',
-          message: `Processing... ${Math.round(progress * 100)}%`,
-        });
-      });
-
-      await this.ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-        classWorkerURL: workerURL,
-      });
+      if (isCrossOriginIsolated) {
+        // Chrome/Firefox with COOP+COEP: full worker support with SharedArrayBuffer
+        const workerURL = new URL('/ffmpeg/worker.js', window.location.origin).href;
+        console.log('[FFmpeg] Cross-origin isolated — loading with worker (multi-thread capable)');
+        await this.ffmpeg.load({ coreURL, wasmURL, classWorkerURL: workerURL });
+      } else if (isSafari) {
+        // Safari: credentialless COEP not supported, crossOriginIsolated is false.
+        // Load without classWorkerURL to avoid SharedArrayBuffer issues.
+        console.log('[FFmpeg] Safari detected — loading without worker (single-thread)');
+        await this.ffmpeg.load({ coreURL, wasmURL });
+      } else {
+        // Other browsers without cross-origin isolation: try with worker, fallback without
+        console.log('[FFmpeg] Not cross-origin isolated — trying with worker...');
+        try {
+          const workerURL = new URL('/ffmpeg/worker.js', window.location.origin).href;
+          await this.ffmpeg.load({ coreURL, wasmURL, classWorkerURL: workerURL });
+        } catch (workerError) {
+          console.warn('[FFmpeg] Worker load failed, retrying without worker:', workerError);
+          this.ffmpeg = new FFmpeg(); // Reset instance after failed load
+          this.ffmpeg.on('log', ({ message }) => console.log('[FFmpeg]', message));
+          this.ffmpeg.on('progress', ({ progress }) => {
+            this.updateProgress({
+              isLoading: true,
+              progress: Math.round(progress * 100),
+              stage: 'extracting',
+              message: `Processing... ${Math.round(progress * 100)}%`,
+            });
+          });
+          await this.ffmpeg.load({ coreURL, wasmURL });
+        }
+      }
 
       this.ready = true;
       this.updateProgress({
@@ -210,7 +240,7 @@ export class VideoService implements IVideoService {
     await this.ffmpeg.writeFile('input.mp4', this.currentVideo);
 
     // Use HTML5 video element for metadata extraction (faster than FFmpeg)
-    const blob = new Blob([this.currentVideo], { type: 'video/mp4' });
+    const blob = new Blob([this.currentVideo as BlobPart], { type: 'video/mp4' });
     const videoUrl = URL.createObjectURL(blob);
 
     return new Promise((resolve, reject) => {
@@ -395,7 +425,7 @@ export class VideoService implements IVideoService {
 
       // Read the extracted frame
       const frameData = await this.ffmpeg.readFile(outputFile);
-      const blob = new Blob([frameData], { type: `image/${format}` });
+      const blob = new Blob([frameData as BlobPart], { type: `image/${format}` });
       const dataUrl = await this.blobToDataUrl(blob);
 
       frames.push({
@@ -503,22 +533,18 @@ export class VideoService implements IVideoService {
 
     bitmap?.close();
 
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Failed to create blob'));
-          return;
-        }
-        const dataUrl = canvas.toDataURL('image/png');
-        resolve({
-          timestamp,
-          dataUrl,
-          blob,
-          width: w,
-          height: h,
-        });
-      }, 'image/png');
-    });
+    const blob = await safeCanvasToBlob(canvas, 'image/png');
+    if (!blob) {
+      throw new Error('Failed to create blob');
+    }
+    const dataUrl = safeCanvasToDataURL(canvas, 'image/png');
+    return {
+      timestamp,
+      dataUrl,
+      blob,
+      width: w,
+      height: h,
+    };
   }
 
   // ============================================
@@ -650,7 +676,7 @@ export class VideoService implements IVideoService {
     const clipData = await this.ffmpeg.readFile(outputFile);
     const mimeType = outputFormat === 'webm' ? 'video/webm' : 
                      outputFormat === 'gif' ? 'image/gif' : 'video/mp4';
-    const blob = new Blob([clipData], { type: mimeType });
+    const blob = new Blob([clipData as BlobPart], { type: mimeType });
 
     await this.ffmpeg.deleteFile(outputFile);
 
@@ -726,7 +752,7 @@ export class VideoService implements IVideoService {
         }
 
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        resolve(safeCanvasToDataURL(canvas, 'image/jpeg', 0.8));
       };
       img.onerror = reject;
       img.src = dataUrl;

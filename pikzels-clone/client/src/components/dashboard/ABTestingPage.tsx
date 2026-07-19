@@ -183,12 +183,12 @@ const ABTestingPage: React.FC = () => {
     <div className="min-h-screen bg-[#020817] text-slate-100 pb-12">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-3 bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
               A/B Testing
             </h1>
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-sm sm:text-lg">
               Test thumbnail variants and find the highest-performing design
             </p>
           </div>
@@ -215,9 +215,9 @@ const ABTestingPage: React.FC = () => {
 
       {/* Create Form */}
       {showCreate && (
-        <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+        <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-base sm:text-lg font-semibold text-white">
               Create New A/B Test
             </h3>
             <button
@@ -270,7 +270,7 @@ const ABTestingPage: React.FC = () => {
               </div>
               <div className="space-y-2">
                 {newVariants.map((variant, idx) => (
-                  <div key={idx} className="flex gap-2">
+                  <div key={idx} className="flex flex-wrap sm:flex-nowrap gap-2">
                     <input
                       type="text"
                       value={variant.name}
@@ -279,7 +279,7 @@ const ABTestingPage: React.FC = () => {
                         updated[idx].name = e.target.value;
                         setNewVariants(updated);
                       }}
-                      className="w-40 bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                      className="w-full sm:w-40 bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-amber-500"
                     />
                     <input
                       type="text"
@@ -337,10 +337,10 @@ const ABTestingPage: React.FC = () => {
 
       {/* Test Detail View */}
       {selectedTest && (
-        <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold text-white">
+        <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-2 mb-6">
+            <div className="min-w-0">
+              <h3 className="text-lg sm:text-xl font-semibold text-white truncate">
                 {selectedTest.name}
               </h3>
               {selectedTest.description && (
@@ -365,7 +365,7 @@ const ABTestingPage: React.FC = () => {
           </div>
 
           {/* Summary stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
             <div className="bg-slate-800/50 rounded-xl p-4 text-center">
               <Eye className="w-5 h-5 text-slate-400 mx-auto mb-1" />
               <div className="text-2xl font-bold text-white">
@@ -403,14 +403,14 @@ const ABTestingPage: React.FC = () => {
               return (
                 <div
                   key={variant.id}
-                  className={`flex items-center gap-4 p-4 rounded-xl border ${
+                  className={`flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border ${
                     isWinner
                       ? 'bg-amber-500/10 border-amber-500/30'
                       : 'bg-slate-800/50 border-slate-700'
                   }`}
                 >
                   {/* Thumbnail preview */}
-                  <div className="w-24 h-14 bg-slate-800 rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="w-16 sm:w-24 h-10 sm:h-14 bg-slate-800 rounded-lg overflow-hidden flex-shrink-0">
                     {variant.thumbnailUrl && (
                       <img
                         src={variant.thumbnailUrl}
@@ -444,7 +444,7 @@ const ABTestingPage: React.FC = () => {
                   </div>
 
                   {/* CTR bar */}
-                  <div className="w-32">
+                  <div className="w-full sm:w-32">
                     <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${
@@ -464,7 +464,7 @@ const ABTestingPage: React.FC = () => {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 mt-6">
+          <div className="flex flex-wrap gap-2 mt-6">
             {selectedTest.status === 'draft' && (
               <button
                 onClick={() => handleAction(selectedTest.id, 'start')}

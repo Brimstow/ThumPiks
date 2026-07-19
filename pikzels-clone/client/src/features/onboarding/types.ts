@@ -10,10 +10,12 @@ export type QuickEditFlow = 'url-input' | 'ai-generate' | 'upload';
 
 /** Onboarding preferences stored in localStorage */
 export interface OnboardingPrefs {
-  /** Whether the Quick Edit overlay has been seen */
+  /** Whether the Quick Edit overlay has been seen this session */
   quickEditOverlaySeen: boolean;
-  /** Whether user permanently dismissed the overlay */
+  /** Whether user permanently dismissed the overlay via "Don't show again" */
   quickEditOverlayDismissed: boolean;
+  /** Whether to show Quick Edit overlay on startup (user preference) */
+  quickEditOverlayEnabled: boolean;
   /** Whether dashboard tour has been completed */
   dashboardTourSeen: boolean;
   /** Whether editor tour has been completed */
@@ -28,6 +30,7 @@ export interface OnboardingPrefs {
 export const DEFAULT_ONBOARDING_PREFS: OnboardingPrefs = {
   quickEditOverlaySeen: false,
   quickEditOverlayDismissed: false,
+  quickEditOverlayEnabled: true,
   dashboardTourSeen: false,
   editorTourSeen: false,
   tipsEnabled: true,
@@ -70,6 +73,10 @@ export interface UseOnboardingReturn {
   incrementSpotlightSeen: (id: string) => void;
   /** Dismiss spotlight permanently */
   dismissSpotlight: (id: string) => void;
+  /** Enable/disable Quick Edit overlay on startup */
+  setQuickEditOverlayEnabled: (enabled: boolean) => void;
+  /** Reset all onboarding state (for testing or re-onboarding) */
+  resetOnboarding: () => void;
 }
 
 /** Props for QuickEditOptionCard */

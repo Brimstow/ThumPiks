@@ -1,35 +1,35 @@
 import { Response } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
+import { logger } from '../../utils/logger';
 
 const analyticsService = new AnalyticsService();
 
 export class AnalyticsController {
   async getUserStats(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get user stats summary
       const stats = await analyticsService.getUserStats(userId);
 
       return res.status(200).json(stats);
     } catch (error) {
-      console.error('Error fetching user stats:', error);
+      logger.error('Error fetching user stats', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getDashboardData(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get user analytics data
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
@@ -47,18 +47,17 @@ export class AnalyticsController {
         advancedAnalytics,
       });
     } catch (error) {
-      console.error('Error fetching analytics data:', error);
+      logger.error('Error fetching analytics data', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getThumbnailTrends(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get user analytics data (which includes trends)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
@@ -67,18 +66,17 @@ export class AnalyticsController {
         trends: userAnalytics.trends,
       });
     } catch (error) {
-      console.error('Error fetching thumbnail trends:', error);
+      logger.error('Error fetching thumbnail trends', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getStyleDistribution(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get user analytics data (which includes style distribution)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
@@ -87,18 +85,17 @@ export class AnalyticsController {
         styles: userAnalytics.styles,
       });
     } catch (error) {
-      console.error('Error fetching style distribution:', error);
+      logger.error('Error fetching style distribution', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getProjectUsage(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get user analytics data (which includes project usage)
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
@@ -107,18 +104,17 @@ export class AnalyticsController {
         projects: userAnalytics.projects,
       });
     } catch (error) {
-      console.error('Error fetching project usage:', error);
+      logger.error('Error fetching project usage', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getAdvancedAnalytics(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get advanced analytics data
       const advancedAnalytics =
@@ -128,7 +124,7 @@ export class AnalyticsController {
         advancedAnalytics,
       });
     } catch (error) {
-      console.error('Error fetching advanced analytics data:', error);
+      logger.error('Error fetching advanced analytics data', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -136,11 +132,10 @@ export class AnalyticsController {
   // New endpoint for detailed advanced analytics with timeframe filtering
   async getDetailedAdvancedAnalytics(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
       const timeframe =
         (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'daily';
 
@@ -161,7 +156,7 @@ export class AnalyticsController {
         detailedAdvancedAnalytics,
       });
     } catch (error) {
-      console.error('Error fetching detailed advanced analytics data:', error);
+      logger.error('Error fetching detailed advanced analytics data', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -169,11 +164,10 @@ export class AnalyticsController {
   // New endpoint for comparative analytics (current vs previous period)
   async getComparativeAnalytics(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
       const timeframe =
         (req.query.timeframe as 'daily' | 'weekly' | 'monthly') || 'weekly';
 
@@ -194,7 +188,7 @@ export class AnalyticsController {
         comparativeAnalytics,
       });
     } catch (error) {
-      console.error('Error fetching comparative analytics data:', error);
+      logger.error('Error fetching comparative analytics data', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -202,11 +196,10 @@ export class AnalyticsController {
   // Get top performing thumbnails with performance scores
   async getTopPerformers(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
       const limit = parseInt(req.query.limit as string) || 10;
 
       // Validate limit parameter
@@ -225,7 +218,7 @@ export class AnalyticsController {
         topPerformers,
       });
     } catch (error) {
-      console.error('Error fetching top performers:', error);
+      logger.error('Error fetching top performers', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -233,11 +226,10 @@ export class AnalyticsController {
   // Export analytics data as CSV
   async exportCSV(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      const userId = req.user.id;
+      const userId = user.id;
 
       // Get all analytics data
       const userAnalytics = await analyticsService.getUserAnalytics(userId);
@@ -276,7 +268,7 @@ export class AnalyticsController {
 
       return res.status(200).send(csvContent);
     } catch (error) {
-      console.error('Error exporting CSV:', error);
+      logger.error('Error exporting CSV', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

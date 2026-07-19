@@ -75,6 +75,9 @@ export const Breadcrumbs: React.FC = () => {
         case 'batch-edit':
           breadcrumbs.push({ label: 'Batch Edit', path: currentPath });
           break;
+        case 'help':
+          breadcrumbs.push({ label: 'Help', path: currentPath });
+          break;
         default:
           breadcrumbs.push({ 
             label: segment.charAt(0).toUpperCase() + segment.slice(1), 

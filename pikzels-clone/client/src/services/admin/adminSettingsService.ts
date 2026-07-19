@@ -1,22 +1,31 @@
 /**
  * Admin Settings Service
  *
- * Environment-aware settings data:
+ * Environment-aware settings data via proxy factory:
  * - Development: mock data
  * - Production: /api/admin/settings/* endpoints
  */
 
-import { adminApi, shouldUseMockData } from './adminApiClient';
+import { adminApi } from './adminApiClient';
 import { mockGetSettings, mockSaveSettings } from './adminMockData';
+import { createAdminService } from './createAdminService';
 
-export const adminSettingsService = {
+const realImpl = {
   async getSettings() {
-    if (shouldUseMockData()) return mockGetSettings();
     return adminApi.get('/settings');
   },
-
   async saveSettings(changes: Record<string, unknown>) {
-    if (shouldUseMockData()) return mockSaveSettings(changes);
     return adminApi.put('/settings', changes);
   },
 };
+
+const mockImpl = {
+  async getSettings() {
+    return mockGetSettings();
+  },
+  async saveSettings(changes: Record<string, unknown>) {
+    return mockSaveSettings(changes);
+  },
+};
+
+export const adminSettingsService = createAdminService(realImpl, mockImpl);

@@ -31,6 +31,14 @@ interface CanvasContextPayload {
     visible: boolean;
     locked: boolean;
     selected: boolean;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    rotation?: number;
+    opacity?: number;
+    blendMode?: string;
+    zIndex?: number;
     text?: string;
     font?: string;
     fontSize?: number;
@@ -54,6 +62,7 @@ export function useChatStreaming() {
     async (
       messages: ChatMessagePayload[],
       canvasContext: CanvasContextPayload,
+      canvasScreenshot: string | undefined,
       platformPreset: PlatformPresetContext | undefined,
       callbacks: StreamCallbacks,
     ): Promise<void> => {
@@ -71,6 +80,7 @@ export function useChatStreaming() {
           body: JSON.stringify({
             messages,
             canvasContext,
+            canvasScreenshot,
             platformPreset,
           }),
           signal: controller.signal,
@@ -158,12 +168,12 @@ export function useChatStreaming() {
         }
 
         await pump();
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
           // User cancelled — not an error
           return;
         }
-        callbacks.onError(err.message || 'Chat stream failed');
+        callbacks.onError((err instanceof Error ? err.message : undefined) || 'Chat stream failed');
       } finally {
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;

@@ -137,10 +137,19 @@ model Subscription {
   status               String   @default("active")
   stripePriceId        String?
   stripeSubscriptionId String?  @unique
+  polarSubscriptionId  String?  @unique
+  polarProductId       String?
+  billingProvider      String   @default("stripe")
+  addonCreditsBalance    Int      @default(0)
+  addonCreditsUsed       Int      @default(0)
+  watermarkFreeUsed      Int      @default(0)
+  watermarkFreeResetDate DateTime @default(now())
   User                 User     @relation(fields: [userId], references: [id])
 
   @@index([status])
   @@index([stripeSubscriptionId])
+  @@index([polarSubscriptionId])
+  @@index([billingProvider])
   @@index([userId])
 }
 
@@ -149,8 +158,11 @@ model CreditTransaction {
   userId          String
   type            String
   amount          Int
+  balanceBefore   Int?
+  balanceAfter    Int?
   description     String
   stripePaymentId String?
+  polarOrderId    String?
   metadata        Json?
   createdAt       DateTime @default(now())
   User            User     @relation(fields: [userId], references: [id])
@@ -259,7 +271,7 @@ model Thumbnail {
   title                                          String
   imageUrl                                       String
   originalImageUrl                               String?
-  prompt                                         String
+  prompt                                         String          @default("")
   parameters                                     Json
   projectId                                      String
   userId                                         String
@@ -269,6 +281,7 @@ model Thumbnail {
   editCount                                      Int             @default(0)
   storagePublicId                                String?
   storageProvider                                String?         @default("cloudinary")
+  originalPublicId                               String?
   deletedAt                                      DateTime?
   ABTestVariant                                  ABTestVariant[]
   Project_Project_featuredThumbnailIdToThumbnail Project?        @relation("Project_featuredThumbnailIdToThumbnail")
@@ -299,6 +312,11 @@ model User {
   isActive                                      Boolean             @default(true)
   stripeCustomerId                              String?             @unique
   stripeSubscriptionId                          String?
+  polarCustomerId                               String?             @unique
+  youtubeAccessToken                            String?
+  youtubeRefreshToken                           String?
+  youtubeChannelId                              String?
+  youtubeConnectedAt                            DateTime?
   emailUnsubscribedAt                           DateTime?
   emailVerified                                 Boolean             @default(false)
   marketingEmails                               Boolean             @default(true)
@@ -334,6 +352,18 @@ model User {
   BrandIcon                                     BrandIcon[]
   BrandStylePreset                              BrandStylePreset[]
   BrandCustomCategory                           BrandCustomCategory[]
+  // Feedback & Contact relations
+  Feedback                                      Feedback[]
+  ContactSubmission                             ContactSubmission[]  @relation("contactSubmissions")
+  // Global Chat relations
+  ChatSession                                   ChatSession[]
+  // Password Reset relations
+  PasswordResetToken                            PasswordResetToken[]
+  // Email relations
+  EmailLog                                      EmailLog[]
+  // Review relations
+  Review                                        Review?
+  UserNotification                              UserNotification[]
 }
 
 model VisionAnalysis {
@@ -432,6 +462,7 @@ model UserUrlHistory {
   platform           String?
   thumbnailUrl       String?
   selectedFrameTime  Float?
+  pinned             Boolean  @default(false)
   createdAt          DateTime @default(now())
   User               User     @relation(fields: [userId], references: [id])
 
@@ -485,6 +516,29 @@ model UserSession {
   @@index([lastActivity])
   @@index([sessionId])
   @@index([userId])
+}
+
+// ============================================
+// PASSWORD RESET MODELS
+// ============================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  isUsed    Boolean  @default(false)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isUsed])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -638,4 +692,232 @@ model BrandCustomCategory {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ============================================
+// FEEDBACK & TICKETING MODELS
+// ============================================
+
+model Feedback {
+  id                 String    @id @default(uuid())
+  userId             String
+  type               String    // "BUG" | "FEATURE_REQUEST" | "GENERAL"
+  subject            String
+  message            String    @db.Text
+  screenshotUrl      String?
+  screenshotPublicId String?
+  sentiment          String?   // "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "MIXED"
+  sentimentScore     Float?    // 0.0 - 1.0
+  category           String?   // AI-detected: "ui", "performance", "billing", etc.
+  tags               Json      @default("[]")
+  aiSummary          String?
+  priority           String    @default("MEDIUM")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  User               User      @relation(fields: [userId], references: [id])
+  Ticket             Ticket?
+
+  @@index([userId])
+  @@index([type])
+  @@index([priority])
+  @@index([sentiment])
+  @@index([createdAt])
+  @@index([category])
+}
+
+model Ticket {
+  id                String              @id @default(uuid())
+  feedbackId        String?             @unique
+  status            String              @default("OPEN") // "OPEN" | "IN_PROGRESS" | "WAITING" | "RESOLVED" | "CLOSED"
+  assignee          String?
+  resolution        String?             @db.Text
+  internalNotes     String?             @db.Text
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  Feedback          Feedback?           @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  Replies           TicketReply[]
+  ContactSubmission ContactSubmission?
+  ChatSession       ChatSession?
+
+  @@index([status])
+  @@index([assignee])
+  @@index([createdAt])
+}
+
+model TicketReply {
+  id         String   @id @default(uuid())
+  ticketId   String
+  authorType String   // "ADMIN" | "USER"
+  authorId   String
+  authorName String
+  message    String   @db.Text
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  Ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model NotificationConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g., "feedback.submitted", "ticket.updated", "digest.daily"
+  channels  Json     // ["admin_panel", "email"]
+  emails    Json     // ["dev@example.com"]
+  enabled   Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// CONTACT SUBMISSION MODELS
+// ============================================
+
+model ContactSubmission {
+  id                 String    @id @default(uuid())
+  name               String
+  email              String
+  subject            String    // "general" | "support" | "billing" | "feature" | "bug"
+  message            String    @db.Text
+  screenshotUrl      String?
+  screenshotPublicId String?
+  status             String    @default("PENDING") // "PENDING" | "TRIAGED" | "AUTO_RESOLVED" | "TICKET_CREATED" | "DISMISSED"
+  triageResult       Json?
+  aiResponseSent     Boolean   @default(false)
+  ticketId           String?   @unique
+  userId             String?
+  ipAddress          String?
+  createdAt          DateTime  @default(now())
+  resolvedAt         DateTime?
+  User               User?     @relation("contactSubmissions", fields: [userId], references: [id])
+  Ticket             Ticket?   @relation(fields: [ticketId], references: [id])
+
+  @@index([status])
+  @@index([subject])
+  @@index([createdAt])
+  @@index([email])
+}
+
+// ============================================
+// GLOBAL CHAT MODELS
+// ============================================
+
+model ChatSession {
+  id                  String        @id @default(uuid())
+  userId              String
+  title               String?
+  scope               String        @default("general") // "product" | "billing" | "feedback" | "general"
+  status              String        @default("active")   // "active" | "archived" | "escalated"
+  escalatedToTicketId String?       @unique
+  metadata            Json?
+  messageCount        Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  lastMessageAt       DateTime?
+  User                User          @relation(fields: [userId], references: [id])
+  Ticket              Ticket?       @relation(fields: [escalatedToTicketId], references: [id])
+  messages            ChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id            String      @id @default(uuid())
+  sessionId     String
+  role          String      // "user" | "assistant" | "system"
+  content       String      @db.Text
+  imageUrl      String?
+  imagePublicId String?
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  ChatSession   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id                String    @id @default(uuid())
+  userId            String?
+  emailType         String    // "password_reset", "welcome", "verification"
+  recipientEmail    String
+  fromEmail         String
+  subject           String
+  status            String    // "pending", "sent", "delivered", "bounced", "failed"
+  providerMessageId String?   // Resend's message ID
+  errorMessage      String?
+  errorCode         String?
+  bounceReason      String?
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  User              User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([recipientEmail])
+  @@index([status])
+  @@index([emailType])
+  @@index([createdAt])
+  @@index([providerMessageId])
+}
+
+// ============================================
+// REVIEW / TESTIMONIAL MODELS
+// ============================================
+
+model Review {
+  id          String    @id @default(uuid())
+  userId      String
+  rating      Int       // 1-5 stars
+  title       String?   // Optional short headline
+  body        String    @db.Text // Review text
+  channelName String?   // e.g. "@TechExplained"
+  channelUrl  String?   // YouTube channel URL
+  subscribers String?   // e.g. "245K"
+  niche       String?   // e.g. "Gaming", "Cooking", "Tech"
+  improvement String?   // e.g. "+175% CTR", "5 hrs/week saved"
+  status      String    @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
+  isFeatured  Boolean   @default(false) // Featured on landing page
+  adminNote   String?   // Internal note from admin
+  reviewedAt  DateTime? // When admin reviewed
+  reviewedBy  String?   // Admin user ID
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  User        User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId]) // One review per user
+  @@index([status])
+  @@index([isFeatured])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+model UserNotification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  priority  String    @default("normal")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  actionUrl String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  User      User      @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type])
 }

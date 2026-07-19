@@ -12,6 +12,7 @@ import type {
   SlotFill,
   CompositionState,
 } from './types';
+import { safeCanvasToDataURL } from '../../utils/browserCompat';
 
 // ============================================
 // TYPES
@@ -177,7 +178,7 @@ export class CompositionEngine {
       }
     }
 
-    return canvas.toDataURL(format, quality);
+    return safeCanvasToDataURL(canvas, format, quality);
   }
 
   // ============================================

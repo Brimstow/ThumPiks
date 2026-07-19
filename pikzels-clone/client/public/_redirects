@@ -1,9 +1,7 @@
-# Netlify SPA routing configuration
-# This tells Netlify to serve index.html for all routes (client-side routing)
-# Except for files that actually exist (images, CSS, JS, etc.)
+# Netlify SPA routing fallback
+# NOTE: In deployed builds, this file is overwritten by scripts/netlify-build.sh
+# which generates the API proxy rule from API_PROXY_TARGET env var.
+# This file is only used as a fallback if the build script doesn't run.
 
-# API calls should proxy to Railway backend
-/api/*  https://thumbnail-maker-studio-production.up.railway.app/api/:splat  200
-
-# All other routes should serve index.html (SPA)
+# All routes should serve index.html (SPA)
 /*  /index.html  200

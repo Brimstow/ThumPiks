@@ -25,13 +25,35 @@ const TEST_USER = {
   password: 'Test123!',
 };
 
+// Onboarding localStorage key (from client/src/features/onboarding/hooks/useOnboarding.ts)
+const ONBOARDING_STORAGE_KEY = 'thumpiks_onboarding_prefs';
+const ONBOARDING_DISMISSED = JSON.stringify({
+  quickEditOverlayEnabled: false,
+  quickEditOverlayDismissed: true,
+  quickEditOverlaySeen: true,
+  dashboardTourSeen: true,
+  editorTourSeen: true,
+  tipsEnabled: false,
+  spotlights: {},
+});
+
+/**
+ * Pre-seed localStorage to skip onboarding overlay.
+ * Must be called BEFORE navigation to dashboard pages.
+ */
+async function seedOnboardingDismissed(page: Page) {
+  await page.addInitScript((args) => {
+    localStorage.setItem(args.key, args.value);
+  }, { key: ONBOARDING_STORAGE_KEY, value: ONBOARDING_DISMISSED });
+}
+
 // Helper functions
 async function loginUser(page: Page, credentials = TEST_USER) {
   console.log('🔐 Logging in as:', credentials.username);
   
   // Navigate to the correct login page
   await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   
   // Wait for the login form to be visible
   await page.waitForSelector('h2:has-text("Sign in to your account")', { timeout: 10000 });
@@ -48,8 +70,8 @@ async function loginUser(page: Page, credentials = TEST_USER) {
   await page.screenshot({ path: 'test-screenshots/0-login-form-filled.png', fullPage: true });
   console.log('  📸 Screenshot saved: 0-login-form-filled.png');
   
-  // Click the Sign In button
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  // Click the Sign In button (scoped to <form> to avoid "Sign in with Google" button)
+  await page.locator('form').getByRole('button', { name: 'Sign In', exact: true }).click();
   console.log('  ✓ Sign In button clicked');
   
   // Wait for redirect to dashboard/home/thumbnails
@@ -72,7 +94,7 @@ async function navigateToThumbnails(page: Page) {
   for (const navigate of navigationPatterns) {
     try {
       await navigate();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       break;
     } catch (e) {
       continue;
@@ -104,6 +126,9 @@ test.describe('Thumbnail Operations E2E Flow', () => {
     page = testPage;
     // Set viewport for better visibility
     await page.setViewportSize({ width: 1920, height: 1080 });
+    
+    // Pre-seed onboarding dismissal to prevent overlay from blocking interactions
+    await seedOnboardingDismissed(page);
     
     // Login before each test
     await loginUser(page);
@@ -241,7 +266,7 @@ test.describe('Thumbnail Operations E2E Flow', () => {
       
       // Find and click on the created thumbnail
       await page.click('text="E2E Test Thumbnail"');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       console.log('  ✓ Opened thumbnail details');
       
       // Click edit button
@@ -317,7 +342,7 @@ test.describe('Thumbnail Operations E2E Flow', () => {
         }
       }
       
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(2000);
       
       // Verify changes were saved
@@ -340,7 +365,7 @@ test.describe('Thumbnail Operations E2E Flow', () => {
       if (!onListPage) {
         await navigateToThumbnails(page);
         await page.click('text="E2E Test Thumbnail (Edited)"');
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
       }
       
       // Click delete button
@@ -397,7 +422,7 @@ test.describe('Thumbnail Operations E2E Flow', () => {
         }
       }
       
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(2000);
       
       // Verify thumbnail is deleted (should not appear in list)

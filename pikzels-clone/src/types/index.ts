@@ -51,6 +51,6 @@ export interface AnalyticsEvent {
   type: string;
   userId?: string;
   sessionId?: string;
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
   timestamp: Date;
 }

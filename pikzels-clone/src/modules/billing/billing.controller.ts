@@ -1,16 +1,17 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import * as billingService from './billing.service';
 import { logger } from '../../utils/logger';
+import { AuthRequest } from '../../types/auth';
 
 /**
  * Get payment methods for authenticated user
  */
 export async function getPaymentMethods(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -28,11 +29,11 @@ export async function getPaymentMethods(
  * Get billing history (invoices + credit purchases)
  */
 export async function getBillingHistory(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -50,11 +51,11 @@ export async function getBillingHistory(
  * Create Stripe Billing Portal session
  */
 export async function createBillingPortal(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video } from 'lucide-react';
+import { Sparkles, UploadCloud, Link2, Image, UserPlus, AlertCircle, Loader2, CheckCircle, X, Upload, ChevronLeft, ChevronRight, PenTool, Video, Star } from 'lucide-react';
 import { API_BASE_URL, IS_DEVELOPMENT } from '../../config/environment';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProjectsAndUploadsWidget, RecentThumbnailsWidget, StatsWidget, StorageIndicator } from './widgets';
 import { authPost } from '../../utils/api';
 import { formatFileSize } from '../../lib/formatters';
 import { uploadAsset } from '../../services/quickEditService';
 import ThumbnailActionBar from '../ui/ThumbnailActionBar';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
+import ThumbnailResultModal from '../ui/ThumbnailResultModal';
+import { getPendingThumbnail, clearPendingThumbnail } from '../../utils/pendingThumbnail';
+import Tooltip from '../ui/Tooltip';
 // CollapsibleSection utilities available if needed
 // import { getDisclosurePref, setDisclosurePref } from '../ui/CollapsibleSection';
 
@@ -52,10 +55,26 @@ const exampleThumbnails = [
 
 const DashboardHome: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faceFileInputRef = useRef<HTMLInputElement>(null);
   
+  // Subscription success banner
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('subscription') === 'success') {
+      setShowSubscriptionSuccess(true);
+      // Clean up the URL without triggering a re-render/navigation
+      searchParams.delete('subscription');
+      setSearchParams(searchParams, { replace: true });
+      // Auto-dismiss after 8 seconds
+      const timer = setTimeout(() => setShowSubscriptionSuccess(false), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // State management
   const [videoLink, setVideoLink] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -66,6 +85,13 @@ const DashboardHome: React.FC = () => {
   // Modal states
   const [showFaceModal, setShowFaceModal] = useState(false);
   const [showExampleModal, setShowExampleModal] = useState(false);
+  const [showPendingThumbnailModal, setShowPendingThumbnailModal] = useState(false);
+  const [pendingThumbnailData, setPendingThumbnailData] = useState<{
+    thumbnailUrl: string;
+    thumbnailId?: string;
+    videoTitle?: string;
+    creditCost: number;
+  } | null>(null);
   
   // Face inclusion states
   const [faceImage, setFaceImage] = useState<string | null>(null);
@@ -88,11 +114,30 @@ const DashboardHome: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
+  const [reviewPromptVisible, setReviewPromptVisible] = useState(
+    () => !sessionStorage.getItem('reviewPromptDismissed')
+  );
   
   const currentPlatform = platforms[currentPlatformIndex];
 
-  // Check for pending video link from landing page
+  // Check for pending video link and pending thumbnails from landing page
   useEffect(() => {
+    // Check for pending thumbnail first (higher priority)
+    const pendingThumbnail = getPendingThumbnail();
+    if (pendingThumbnail) {
+      console.log('Found pending thumbnail in DashboardHome:', pendingThumbnail);
+      setPendingThumbnailData({
+        thumbnailUrl: pendingThumbnail.thumbnailUrl,
+        thumbnailId: pendingThumbnail.thumbnailId,
+        videoTitle: pendingThumbnail.videoTitle,
+        creditCost: pendingThumbnail.creditCost,
+      });
+      setShowPendingThumbnailModal(true);
+      // Don't clear yet - wait for user to close modal
+      return;
+    }
+    
+    // Check for pending video link
     const pendingVideoLink = localStorage.getItem('pendingVideoLink');
     if (pendingVideoLink) {
       console.log('Found pending video link in DashboardHome:', pendingVideoLink);
@@ -337,6 +382,30 @@ const DashboardHome: React.FC = () => {
 
   return (
     <>
+      {/* Subscription Success Banner */}
+      {showSubscriptionSuccess && (
+        <div className="mx-auto max-w-4xl mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-teal-500/10 p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20">
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-white">Payment Successful!</h3>
+                <p className="mt-1 text-sm text-slate-300">
+                  Your subscription has been activated. Your credits have been loaded and you're ready to create amazing thumbnails.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSubscriptionSuccess(false)}
+                className="flex-shrink-0 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -411,28 +480,7 @@ const DashboardHome: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Edit banner animations */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
-        }
-        @keyframes nudge-right {
-          0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(4px); }
-        }
-        .qe-banner:hover .qe-anim {
-          animation-play-state: paused !important;
-        }
-      `}</style>
+
 
       {/* Generate Thumbnail Box */}
       <div className="mb-8">
@@ -440,7 +488,7 @@ const DashboardHome: React.FC = () => {
           <div className="absolute inset-0 -top-8 mx-auto h-56 max-w-5xl rounded-[28px] bg-gradient-to-r from-blue-500/15 via-sky-500/10 to-indigo-500/15 blur-3xl"></div>
 
           <div 
-            className={`sm:p-8 shadow-black/40 bg-[#020818] border-slate-800 border ring-slate-900/80 ring-1 rounded-2xl p-6 relative shadow-xl backdrop-blur transition-all duration-300 ${mainDragActive ? 'border-blue-500 ring-blue-500/50 bg-blue-500/5' : ''}`}
+            className={`sm:p-8 shadow-black/40 bg-[#020818] border-slate-800 border ring-slate-900/80 ring-1 rounded-2xl p-4 relative shadow-xl backdrop-blur transition-all duration-300 ${mainDragActive ? 'border-blue-500 ring-blue-500/50 bg-blue-500/5' : ''}`}
             onDragOver={(e) => handleDragOver(e, setMainDragActive)}
             onDragLeave={(e) => handleDragLeave(e, setMainDragActive)}
             onDrop={handleMainDrop}
@@ -486,12 +534,14 @@ const DashboardHome: React.FC = () => {
                   <p className="text-sm font-medium text-slate-200">{uploadedFile.name}</p>
                   <p className="text-xs text-slate-400">{formatFileSize(uploadedFile.size)}</p>
                 </div>
+                <Tooltip content="Remove file">
                 <button
                   onClick={() => setUploadedFile(null)}
                   className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4 text-slate-400" />
                 </button>
+                </Tooltip>
               </div>
             )}
 
@@ -529,7 +579,7 @@ const DashboardHome: React.FC = () => {
               {/* Center: Upload */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 group"
+                className="w-full sm:w-auto px-6 py-4 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 text-sm font-medium text-slate-100 hover:from-slate-800 hover:to-slate-700 hover:border-slate-500 shadow-lg shadow-black/40 transition-all flex items-center justify-center gap-2 group"
               >
                 <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 Upload
@@ -624,10 +674,51 @@ const DashboardHome: React.FC = () => {
         </button>
       </div>
 
+      {/* Review Prompt Card — dismissible per session */}
+      {reviewPromptVisible && (
+        <div className="mb-6 relative overflow-hidden rounded-xl border border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 via-transparent to-yellow-500/5 p-3 sm:p-4">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-200">Enjoying ThumPiks?</p>
+              <p className="text-xs text-slate-400 mt-0.5">Your honest review helps other creators discover us</p>
+              <div className="flex items-center gap-2 mt-2 sm:hidden">
+                <button
+                  onClick={() => navigate('/reviews')}
+                  className="px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
+                >
+                  Leave a Review
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/reviews')}
+              className="hidden sm:block flex-shrink-0 px-4 py-2 rounded-lg bg-yellow-500/15 text-yellow-400 text-sm font-medium hover:bg-yellow-500/25 transition-colors"
+            >
+              Leave a Review
+            </button>
+            <Tooltip content="Dismiss">
+            <button
+              onClick={() => {
+                sessionStorage.setItem('reviewPromptDismissed', 'true');
+                setReviewPromptVisible(false);
+              }}
+              className="flex-shrink-0 p-1 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+              aria-label="Dismiss review prompt"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            </Tooltip>
+          </div>
+        </div>
+      )}
+
       {/* Face Inclusion Modal */}
       {showFaceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-slate-50">Include Face in Thumbnail</h3>
               <button
@@ -692,7 +783,7 @@ const DashboardHome: React.FC = () => {
       {/* See Example Modal - YouTube Thumbnail Size (1280x720) */}
       {showExampleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-6 max-w-4xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-6 max-w-4xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-semibold text-slate-50">Thumbnail Examples</h3>
@@ -765,7 +856,7 @@ const DashboardHome: React.FC = () => {
       {/* Success Modal */}
       {successData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-8 max-w-2xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300 relative">
+          <div className="bg-[#020818] border border-slate-700 rounded-2xl p-4 sm:p-8 max-w-2xl w-full shadow-2xl shadow-black/80 animate-in zoom-in-95 duration-300 relative">
             <button
               onClick={() => {
                 if (navigationTimeoutRef.current) {
@@ -853,6 +944,27 @@ const DashboardHome: React.FC = () => {
 
       {/* Recreate Better Modal */}
       <RecreateBetterModal />
+
+      {/* Pending Thumbnail Result Modal */}
+      <ThumbnailResultModal
+        isOpen={showPendingThumbnailModal}
+        onClose={() => {
+          setShowPendingThumbnailModal(false);
+          clearPendingThumbnail(); // Clear from localStorage when closed
+          setPendingThumbnailData(null);
+        }}
+        thumbnailUrl={pendingThumbnailData?.thumbnailUrl || ''}
+        thumbnailId={pendingThumbnailData?.thumbnailId}
+        videoTitle={pendingThumbnailData?.videoTitle}
+        creditCost={pendingThumbnailData?.creditCost || 1}
+        onGenerateAnother={() => {
+          setShowPendingThumbnailModal(false);
+          clearPendingThumbnail();
+          setPendingThumbnailData(null);
+          // Scroll to the generate section
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
 
       {/* Dashboard Widgets Section */}
       <div className="mt-16 space-y-6">

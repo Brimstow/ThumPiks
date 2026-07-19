@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, Loader2, AlertCircle, Upload } from 'lucide-react';
+import { FolderOpen, Folder, Image as ImageIcon, Loader2, AlertCircle, Upload } from 'lucide-react';
 import { authGet } from '../../../utils/api';
 import { getUserAssets, UserAsset } from '../../../services/quickEditService';
 import { formatRelativeTime } from '../../../lib/formatters';
@@ -13,6 +13,12 @@ interface Project {
   featuredThumbnail?: {
     imageUrl: string;
   } | null;
+  previewThumbnails?: Array<{
+    id?: string;
+    imageUrl: string;
+    title?: string;
+  }>;
+  thumbnailCount?: number;
   folderType: 'project' | 'folder';
   createdAt: string;
 }
@@ -117,13 +123,13 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
   const projectCount = projects.length;
 
   return (
-    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-6 ${className}`}>
+    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6 ${className}`}>
       {/* Header with tabs */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto min-w-0">
           <button
             onClick={() => setViewMode('all')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'all'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'
@@ -133,7 +139,7 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
           </button>
           <button
             onClick={() => setViewMode('saved')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'saved'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'
@@ -143,7 +149,7 @@ export const ProjectsAndUploadsWidget: React.FC<ProjectsAndUploadsWidgetProps> =
           </button>
           <button
             onClick={() => setViewMode('uploads')}
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors whitespace-nowrap ${
               viewMode === 'uploads'
                 ? 'text-white border-b-2 border-blue-500 pb-1'
                 : 'text-slate-400 hover:text-slate-300'
@@ -289,43 +295,130 @@ interface ProjectCardProps {
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onNavigate }) => {
+  const isFolder = project.folderType === 'folder';
+  const Icon = isFolder ? Folder : FolderOpen;
+  const iconColor = isFolder ? 'text-yellow-500' : 'text-slate-400';
+
   return (
     <div
       className="group relative cursor-pointer"
       onClick={() => onNavigate(project.id)}
     >
-      {project.description?.includes('Demo') && (
-        <div className="absolute top-2 right-2 z-10">
-          <span className="bg-slate-700 text-white text-xs font-medium px-2 py-1 rounded">
-            Demo
-          </span>
-        </div>
-      )}
-
-      <div className="aspect-video bg-slate-900 rounded-xl border border-slate-800/80 overflow-hidden relative mb-3 shadow-lg transition-all duration-300 group-hover:border-slate-600 group-hover:shadow-xl">
-        {project.featuredThumbnail?.imageUrl ? (
-          <img
-            src={project.featuredThumbnail.imageUrl}
-            alt={project.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      {/* Tab + Body shape — identical to ProjectsPage */}
+      <div className="mb-3" style={{ width: '100%' }}>
+        {/* === TAB === */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', height: '20px' }}>
+          <div
+            className="bg-slate-800 border-t border-l border-r border-slate-800/80"
+            style={{
+              width: '45%',
+              height: '20px',
+              borderBottom: 'none',
+              borderRadius: '12px 12px 0 0',
+            }}
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-black">
-            <FolderOpen className="w-16 h-16 text-slate-600 opacity-50" />
+        </div>
+
+        {/* === BODY === */}
+        <div
+          className="relative w-full overflow-hidden border border-slate-800/80 shadow-lg transition-all duration-300 group-hover:border-slate-600 group-hover:shadow-xl"
+          style={{
+            paddingBottom: '62.5%',
+            borderRadius: '0 12px 12px 12px',
+          }}
+        >
+          <div className="absolute inset-0">
+            {project.previewThumbnails && project.previewThumbnails.length > 0 ? (
+              /* Gradient background with seamless thumbnail grid */
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #000000 100%)',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateRows: '1fr 1fr',
+                    gap: 0,
+                  }}
+                >
+                  {project.previewThumbnails.slice(0, 4).map((thumb, idx) => (
+                    <div
+                      key={thumb.id || idx}
+                      style={{ overflow: 'hidden', backgroundColor: 'transparent' }}
+                    >
+                      <img
+                        src={thumb.imageUrl}
+                        alt={thumb.title || `Thumbnail ${idx + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                  {Array.from({ length: Math.max(0, 4 - project.previewThumbnails.length) }).map((_, idx) => (
+                    <div key={`empty-${idx}`} style={{ backgroundColor: 'transparent' }} />
+                  ))}
+                </div>
+              </div>
+            ) : project.featuredThumbnail?.imageUrl ? (
+              <img
+                src={project.featuredThumbnail.imageUrl}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
+                alt={project.name}
+              />
+            ) : (
+              /* Empty state */
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-black flex items-center justify-center w-full h-full">
+                <Icon className={`w-16 h-16 ${iconColor} opacity-50`} />
+              </div>
+            )}
+
+            {/* Folder badge */}
+            {isFolder && (
+              <div className="absolute top-2 left-2 bg-yellow-500/20 border border-yellow-500/50 px-2 py-1 rounded-lg">
+                <span className="text-yellow-400 text-[10px] font-bold uppercase">Folder</span>
+              </div>
+            )}
+
+            {/* Thumbnail count badge */}
+            {project.thumbnailCount !== undefined && project.thumbnailCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '6px',
+                  right: '6px',
+                  backgroundColor: 'rgba(0,0,0,0.65)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  zIndex: 10,
+                }}
+              >
+                <ImageIcon style={{ width: '10px', height: '10px', color: '#cbd5e1' }} />
+                <span style={{ fontSize: '10px', fontWeight: 500, color: '#e2e8f0' }}>{project.thumbnailCount}</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors truncate">
-          {project.name}
-        </h3>
-        {project.description && (
-          <p className="text-xs text-slate-500 line-clamp-1">
-            {project.description}
-          </p>
-        )}
-      </div>
+      <h3 className="text-sm font-semibold text-slate-200 mb-1 group-hover:text-blue-400 transition-colors truncate">
+        {project.name}
+      </h3>
+      {project.description && (
+        <p className="text-xs text-slate-500 line-clamp-1">
+          {project.description}
+        </p>
+      )}
     </div>
   );
 };
@@ -340,7 +433,11 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onClick }) => {
   const badge = ASSET_TYPE_BADGE[asset.type] || ASSET_TYPE_BADGE.other;
 
   return (
-    <div className="group relative cursor-pointer" onClick={onClick}>
+    <button
+      type="button"
+      className="group relative cursor-pointer w-full text-left bg-transparent border-0 p-0"
+      onClick={onClick}
+    >
       <div className="absolute top-2 right-2 z-10">
         <span className={`text-xs font-medium px-2 py-1 rounded ${badge.className}`}>
           {badge.label}
@@ -363,7 +460,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, onClick }) => {
           {formatRelativeTime(asset.createdAt)}
         </p>
       </div>
-    </div>
+    </button>
   );
 };
 

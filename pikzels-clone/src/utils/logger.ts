@@ -9,25 +9,19 @@ interface LogContext {
   requestId?: string;
   url?: string;
   method?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
+
+const isTestEnv = (): boolean =>
+  process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
 
 // Create logs directory path
 const logsDir = path.join(process.cwd(), 'logs');
 
-// Winston logger setup for production
-const winstonLogger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: {
-    service: 'thumbnail-maker-studio',
-    environment: process.env.NODE_ENV || 'development',
-  },
-  transports: [
+const transports: winston.transport[] = [];
+
+if (!isTestEnv()) {
+  transports.push(
     // Application logs
     new DailyRotateFile({
       filename: path.join(logsDir, 'app-%DATE%.log'),
@@ -53,12 +47,27 @@ const winstonLogger = winston.createLogger({
       maxSize: '20m',
       maxFiles: '90d',
       level: 'warn',
-    }),
-  ],
+    })
+  );
+}
+
+// Winston logger setup for production
+const winstonLogger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: 'thumbnail-maker-studio',
+    environment: process.env.NODE_ENV || 'development',
+  },
+  transports,
 });
 
 // Add console transport for development
-if (isDevelopmentEnv()) {
+if (!isTestEnv() && isDevelopmentEnv()) {
   winstonLogger.add(
     new winston.transports.Console({
       format: winston.format.combine(
@@ -70,7 +79,7 @@ if (isDevelopmentEnv()) {
 }
 
 // Production-like: JSON console transport for Railway stdout capture
-if (isProductionLike()) {
+if (!isTestEnv() && isProductionLike()) {
   winstonLogger.add(
     new winston.transports.Console({
       format: winston.format.combine(
@@ -82,10 +91,9 @@ if (isProductionLike()) {
 }
 
 // Axiom: centralized log aggregation (when configured)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let axiomTransport: any = null;
+let axiomTransport: winston.transport | null = null;
 
-if (process.env.AXIOM_TOKEN) {
+if (!isTestEnv() && process.env.AXIOM_TOKEN) {
   try {
     // Dynamic require for graceful degradation if package is not installed
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -97,9 +105,9 @@ if (process.env.AXIOM_TOKEN) {
       onError: (err: Error) =>
         console.warn('Axiom transport error:', err.message),
     });
-    winstonLogger.add(axiomTransport);
-    winstonLogger.exceptions.handle(axiomTransport);
-    winstonLogger.rejections.handle(axiomTransport);
+    winstonLogger.add(axiomTransport!);
+    winstonLogger.exceptions.handle(axiomTransport!);
+    winstonLogger.rejections.handle(axiomTransport!);
   } catch (err) {
     console.warn(
       'Axiom transport failed to initialize:',
@@ -155,9 +163,23 @@ class Logger {
     this.logToWinston('info', message, enriched);
   }
 
-  warn(message: string, context?: LogContext): void {
-    const enriched = this.enrichContext(context);
-    console.warn(this.formatMessage('warn', message, enriched));
+  warn(
+    message: string,
+    errorOrContext?: Error | LogContext,
+    context?: LogContext
+  ): void {
+    const isErrorObj = errorOrContext instanceof Error;
+    const enriched = this.enrichContext(
+      isErrorObj ? context : (errorOrContext as LogContext | undefined)
+    );
+    const warnInfo = isErrorObj
+      ? {
+          message: (errorOrContext as Error).message,
+          stack: (errorOrContext as Error).stack,
+          ...enriched,
+        }
+      : enriched;
+    console.warn(this.formatMessage('warn', message, warnInfo));
     this.logToWinston('warn', message, enriched);
   }
 
@@ -237,9 +259,17 @@ export type { LogContext };
 /** Flush all Winston transports (call before process exit). */
 export async function flushLogger(): Promise<void> {
   // Explicitly flush Axiom's internal batch buffer (it doesn't implement Winston's close hook)
-  if (axiomTransport && typeof axiomTransport.flush === 'function') {
+  if (
+    axiomTransport &&
+    typeof (axiomTransport as unknown as { flush?: unknown }).flush ===
+      'function'
+  ) {
     await new Promise<void>(resolve => {
-      axiomTransport.flush((err: Error | null) => {
+      (
+        axiomTransport as unknown as {
+          flush: (cb: (err: Error | null) => void) => void;
+        }
+      ).flush((err: Error | null) => {
         if (err) console.warn('Axiom flush error:', err.message);
         resolve();
       });

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { adminAuthService, AdminRoles } from './admin-auth.service';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
 
@@ -29,7 +30,7 @@ export interface UserDetailsResponse {
   avatarUrl: string | null;
   isVerified: boolean;
   isActive: boolean;
-  settings: any;
+  settings: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date | null;
@@ -74,7 +75,7 @@ export interface UpdateUserRequest {
   isVerified?: boolean;
   isActive?: boolean;
   avatarUrl?: string;
-  settings?: any;
+  settings?: Record<string, unknown>;
 }
 
 export interface UserFilters {
@@ -122,7 +123,7 @@ export class UserManagementService {
       const skip = (page - 1) * limit;
 
       // Build where clause
-      const where: any = {};
+      const where: Record<string, unknown> = {};
 
       if (filters.search) {
         where.OR = [
@@ -148,29 +149,29 @@ export class UserManagementService {
       }
 
       if (filters.createdAfter) {
-        where.createdAt = { ...where.createdAt, gte: filters.createdAfter };
+        where.createdAt = { ...(where.createdAt as Record<string, unknown>), gte: filters.createdAfter };
       }
 
       if (filters.createdBefore) {
-        where.createdAt = { ...where.createdAt, lte: filters.createdBefore };
+        where.createdAt = { ...(where.createdAt as Record<string, unknown>), lte: filters.createdBefore };
       }
 
       if (filters.lastLoginAfter) {
         where.lastLoginAt = {
-          ...where.lastLoginAt,
+          ...(where.lastLoginAt as Record<string, unknown>),
           gte: filters.lastLoginAfter,
         };
       }
 
       if (filters.lastLoginBefore) {
         where.lastLoginAt = {
-          ...where.lastLoginAt,
+          ...(where.lastLoginAt as Record<string, unknown>),
           lte: filters.lastLoginBefore,
         };
       }
 
       // Build order by clause
-      const orderBy: any = {};
+      const orderBy: Record<string, string> = {};
       orderBy[sort.field] = sort.direction;
 
       // Get total count
@@ -206,7 +207,7 @@ export class UserManagementService {
         },
       };
     } catch (error) {
-      console.error('Error getting users:', error);
+      logger.error('Error getting users', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -241,7 +242,7 @@ export class UserManagementService {
 
       return user as unknown as UserDetailsResponse;
     } catch (error) {
-      console.error('Error getting user by ID:', error);
+      logger.error('Error getting user by ID', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -296,7 +297,7 @@ export class UserManagementService {
 
       return newUser.id;
     } catch (error) {
-      console.error('Error creating user:', error);
+      logger.error('Error creating user', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -330,7 +331,7 @@ export class UserManagementService {
       }
 
       // Prepare update data
-      const dataToUpdate: any = {
+      const dataToUpdate: Record<string, unknown> = {
         updatedAt: new Date(),
       };
 
@@ -370,7 +371,7 @@ export class UserManagementService {
 
       return true;
     } catch (error) {
-      console.error('Error updating user:', error);
+      logger.error('Error updating user', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -450,7 +451,7 @@ export class UserManagementService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting user:', error);
+      logger.error('Error deleting user', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -485,7 +486,7 @@ export class UserManagementService {
 
       return true;
     } catch (error) {
-      console.error('Error resetting user password:', error);
+      logger.error('Error resetting user password', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -524,7 +525,7 @@ export class UserManagementService {
 
       return success;
     } catch (error) {
-      console.error('Error assigning admin role:', error);
+      logger.error('Error assigning admin role', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -561,7 +562,7 @@ export class UserManagementService {
 
       return success;
     } catch (error) {
-      console.error('Error removing admin role:', error);
+      logger.error('Error removing admin role', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -605,7 +606,7 @@ export class UserManagementService {
         newThisWeek,
       };
     } catch (error) {
-      console.error('Error getting user stats:', error);
+      logger.error('Error getting user stats', error instanceof Error ? error : undefined);
       throw error;
     }
   }

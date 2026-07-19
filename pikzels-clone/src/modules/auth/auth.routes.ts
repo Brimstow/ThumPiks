@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, RequestHandler, Response, NextFunction } from 'express';
+import passport from 'passport';
 import {
   register,
   login,
@@ -17,6 +18,11 @@ import {
   commonValidations,
 } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
+import { AuthRequest } from '../../types/auth';
+import { OAuthService } from './oauth.service';
+import { isProductionLike, getClientUrl } from '../../utils/env';
+import { logger } from '../../utils/logger';
+import { EmailService } from '../email/email.service';
 
 const router = Router();
 
@@ -43,10 +49,10 @@ router.post(
         minLength: 1,
         maxLength: 100,
         sanitize: true,
-        custom: (value: string) => {
+        custom: (value: unknown) => {
           // Reject if contains HTML tags after sanitization check
           const htmlPattern = /<[^>]*>/g;
-          if (htmlPattern.test(value)) {
+          if (typeof value === 'string' && htmlPattern.test(value)) {
             return 'Name cannot contain HTML tags or scripts';
           }
           return true;
@@ -78,7 +84,7 @@ router.post(
  * POST /api/auth/logout
  * Logout user by clearing cookies
  */
-router.post('/logout', logout);
+router.post('/logout', logout as unknown as RequestHandler);
 
 /**
  * GET /api/auth/verify-email/:token
@@ -136,7 +142,7 @@ router.post(
       { field: 'refreshToken', required: false, type: 'string', minLength: 1 },
     ],
   }),
-  refreshToken
+  refreshToken as unknown as RequestHandler
 );
 
 /**
@@ -154,9 +160,9 @@ router.post(
         minLength: 1,
         maxLength: 100,
         sanitize: true,
-        custom: (value: string) => {
+        custom: (value: unknown) => {
           const htmlPattern = /<[^>]*>/g;
-          if (htmlPattern.test(value)) {
+          if (typeof value === 'string' && htmlPattern.test(value)) {
             return 'Name cannot contain HTML tags or scripts';
           }
           return true;
@@ -191,7 +197,146 @@ router.put(
       },
     ],
   }),
-  updateDisplayPreference
+  updateDisplayPreference as unknown as RequestHandler
 );
+
+// =============================================================================
+// OAUTH ROUTES
+// =============================================================================
+
+/**
+ * GET /api/auth/google
+ * Initiate Google OAuth login
+ */
+router.get(
+  '/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false,
+  })
+);
+
+/**
+ * Shared OAuth callback handler — eliminates duplication between providers.
+ */
+function oauthCallbackHandler(provider: string) {
+  return async (req: AuthRequest, res: Response, _next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return res.redirect(`${getClientUrl()}/login?error=oauth_no_user`);
+      }
+
+      const result = await OAuthService.generateTokensForOAuthUser(
+        req.user as unknown as Parameters<
+          typeof OAuthService.generateTokensForOAuthUser
+        >[0]
+      );
+
+      const isProduction = isProductionLike();
+      const cookieOptions = {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax' as const,
+      };
+
+      res.cookie('token', result.accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60 * 1000,
+      });
+
+      if (result.refreshToken) {
+        res.cookie('refreshToken', result.refreshToken, {
+          ...cookieOptions,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      logger.info('OAuth login successful', {
+        userId: result.user.id,
+        provider,
+        email: result.user.email,
+      });
+
+      res.redirect(`${getClientUrl()}/dashboard`);
+    } catch (error) {
+      logger.error('OAuth callback error', error as Error);
+      res.redirect(`${getClientUrl()}/login?error=oauth_callback_error`);
+    }
+  };
+}
+
+/**
+ * GET /api/auth/google/callback
+ * Google OAuth callback - handles success/failure and sets cookies
+ */
+router.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: `${getClientUrl()}/login?error=oauth_failed`,
+  }),
+  oauthCallbackHandler('google') as RequestHandler
+);
+
+/**
+ * GET /api/auth/github
+ * Initiate GitHub OAuth login
+ */
+router.get(
+  '/github',
+  passport.authenticate('github', {
+    scope: ['user:email'],
+    session: false,
+  })
+);
+
+/**
+ * GET /api/auth/github/callback
+ * GitHub OAuth callback - handles success/failure and sets cookies
+ */
+router.get(
+  '/github/callback',
+  passport.authenticate('github', {
+    session: false,
+    failureRedirect: `${getClientUrl()}/login?error=oauth_failed`,
+  }),
+  oauthCallbackHandler('github') as RequestHandler
+);
+
+/**
+ * POST /api/auth/webhooks/resend
+ * Handle Resend webhook events (bounces, deliveries, complaints)
+ */
+router.post('/webhooks/resend', async (req, res) => {
+  try {
+    // Resend webhook payload structure: { type, created_at, data: { email_id, to, from, ... } }
+    const { type, data } = req.body;
+    const messageId = data?.email_id;
+    const email = Array.isArray(data?.to) ? data.to[0] : data?.to;
+    const reason = data?.reason;
+    const bounceType = data?.bounce_type;
+
+    logger.info('Received Resend webhook', {
+      type,
+      email,
+      messageId,
+    });
+
+    await EmailService.handleWebhook({
+      type,
+      email,
+      messageId,
+      reason,
+      bounceType,
+    });
+
+    // Always return 200 to acknowledge receipt
+    res.status(200).json({ received: true });
+  } catch (error) {
+    logger.error('Error processing Resend webhook', error as Error);
+    // Still return 200 to prevent Resend from retrying
+    res.status(200).json({ received: true });
+  }
+});
 
 export default router;

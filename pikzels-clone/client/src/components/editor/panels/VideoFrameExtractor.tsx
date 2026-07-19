@@ -549,13 +549,18 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
             )}
             
             {/* Play/Pause Overlay */}
-            <div className="vfe-video-overlay" onClick={togglePlayback}>
+            <button
+              type="button"
+              className="vfe-video-overlay"
+              onClick={togglePlayback}
+              aria-label={isPlaying ? 'Pause video' : 'Play video'}
+            >
               {!isPlaying && (
                 <div className="vfe-play-icon">
                   <Icons.Play />
                 </div>
               )}
-            </div>
+            </button>
           </div>
 
           {/* Video Info */}
@@ -625,6 +630,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
               className="vfe-control-btn"
               onClick={() => seekRelative(-5)}
               title="Back 5 seconds"
+              aria-label="Back 5 seconds"
             >
               <Icons.SkipBack />
             </button>
@@ -638,6 +644,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
               className="vfe-control-btn"
               onClick={() => seekRelative(5)}
               title="Forward 5 seconds"
+              aria-label="Forward 5 seconds"
             >
               <Icons.SkipForward />
             </button>
@@ -647,6 +654,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
               onClick={extractCurrentFrame}
               disabled={videoIsLoading}
               title="Capture current frame"
+              aria-label="Capture current frame"
             >
               <Icons.Camera />
               <span>Capture Frame</span>
@@ -700,6 +708,7 @@ const VideoFrameExtractor: React.FC<VideoFrameExtractorProps> = ({
                     removeExtractedFrame(frame.timestamp);
                   }}
                   title="Remove frame"
+                  aria-label="Remove frame"
                 >
                   <Icons.X />
                 </button>

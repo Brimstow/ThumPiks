@@ -3,10 +3,17 @@
  * 
  * Accessible drag handle for sortable items.
  * Provides keyboard navigation support for WCAG 2.5.7 compliance.
+ * 
+ * Features:
+ * - Focusable button element
+ * - aria-grabbed state attribute
+ * - aria-describedby referencing instructions
+ * - Visual focus indicators
  */
 import React, { useContext } from 'react';
 import { SortableItemContext } from './SortableLayerItem';
 import type { DragHandleProps } from '../types';
+import { LAYER_DRAG_INSTRUCTIONS } from '../accessibility';
 
 /**
  * Grip icon for drag handle
@@ -111,6 +118,6 @@ export const DragInstructions: React.FC = () => (
       border: 0,
     }}
   >
-    Press Space or Enter to pick up. Use Arrow keys to move. Press Space or Enter to drop. Press Escape to cancel.
+    {LAYER_DRAG_INSTRUCTIONS}
   </div>
 );

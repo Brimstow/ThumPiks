@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Youtube, Instagram, Music, Twitter, Filter, ArrowUpDown, Edit, Download, Image, RefreshCw, Sparkles } from 'lucide-react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { useDraggable, useDroppable } from '@dnd-kit/react';
+import type { DndEvent } from '../../features/drag-drop/types';
 import { IS_DEVELOPMENT, API_BASE_URL } from '../../config/environment';
 import { authGet } from '../../utils/api';
 import { formatRelativeTime } from '../../lib/formatters';
@@ -10,6 +11,7 @@ import { recategorizeThumbnail } from '../../services/quickEditService';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
 import ImagePreviewModal from '../ui/ImagePreviewModal';
 import AssetContextMenu, { ThumbnailPlatform } from '../ui/AssetContextMenu';
+import Tooltip from '../ui/Tooltip';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -32,6 +34,63 @@ interface Thumbnail {
 }
 
 type PlatformFilter = 'all' | 'youtube' | 'instagram' | 'tiktok' | 'twitter';
+const DEFAULT_SORT_ORDER: 'asc' | 'desc' = 'desc';
+
+let thumbnailsCache: Thumbnail[] | null = null;
+let thumbnailsCachePromise: Promise<Thumbnail[]> | null = null;
+
+function buildThumbnailsApiUrl(
+  searchQuery: string,
+  sortOrder: 'asc' | 'desc'
+): string {
+  const queryParams = new URLSearchParams();
+  if (searchQuery) queryParams.append('search', searchQuery);
+  queryParams.append('sortOrder', sortOrder);
+
+  return IS_DEVELOPMENT
+    ? `/api/thumbnails?${queryParams.toString()}`
+    : `${API_BASE_URL}/api/thumbnails?${queryParams.toString()}`;
+}
+
+async function fetchDefaultThumbnailsWithCache(): Promise<Thumbnail[]> {
+  if (thumbnailsCache) {
+    return thumbnailsCache;
+  }
+
+  if (!thumbnailsCachePromise) {
+    thumbnailsCachePromise = authGet(
+      buildThumbnailsApiUrl('', DEFAULT_SORT_ORDER)
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Session expired. Please log in again.');
+          }
+          throw new Error(`Failed to fetch thumbnails (${response.status})`);
+        }
+
+        const data = await response.json();
+        const normalizedThumbnails: Thumbnail[] = data.thumbnails || [];
+        thumbnailsCache = normalizedThumbnails;
+        return normalizedThumbnails;
+      })
+      .catch((err) => {
+        thumbnailsCachePromise = null;
+        throw err;
+      });
+  }
+
+  return thumbnailsCachePromise;
+}
+
+export async function prefetchMyThumbnailsData(): Promise<Thumbnail[] | null> {
+  try {
+    return await fetchDefaultThumbnailsWithCache();
+  } catch (err) {
+    console.error('Error prefetching thumbnails:', err);
+    return null;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -149,12 +208,12 @@ const DroppablePlatformTab: React.FC<{
 const MyThumbnailsPage: React.FC = () => {
   const navigate = useNavigate();
   // State
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>(thumbnailsCache ?? []);
+  const [loading, setLoading] = useState(thumbnailsCache === null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(DEFAULT_SORT_ORDER);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -164,16 +223,22 @@ const MyThumbnailsPage: React.FC = () => {
   const fetchThumbnails = useCallback(async () => {
     try {
       setError(null);
+
+      const isDefaultQuery = !searchQuery && sortOrder === DEFAULT_SORT_ORDER;
+      if (isDefaultQuery && thumbnailsCache) {
+        setThumbnails(thumbnailsCache);
+        setLoading(false);
+        return;
+      }
+
+      if (isDefaultQuery) {
+        const cachedThumbnails = await fetchDefaultThumbnailsWithCache();
+        setThumbnails(cachedThumbnails);
+        return;
+      }
       
       // Build query params
-      const queryParams = new URLSearchParams();
-      if (searchQuery) queryParams.append('search', searchQuery);
-      if (sortOrder) queryParams.append('sortOrder', sortOrder);
-
-      // Use Vite proxy in development, full URL in production
-      const apiUrl = IS_DEVELOPMENT 
-        ? `/api/thumbnails?${queryParams.toString()}`
-        : `${API_BASE_URL}/api/thumbnails?${queryParams.toString()}`;
+      const apiUrl = buildThumbnailsApiUrl(searchQuery, sortOrder);
 
       const response = await authGet(apiUrl);
 
@@ -255,14 +320,13 @@ const MyThumbnailsPage: React.FC = () => {
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragEnd = useCallback((event: DndEvent) => {
     const source = event.operation?.source;
     const target = event.operation?.target;
     if (!source || !target) return;
 
-    const thumbnailId = source.data?.thumbnailId as string | undefined;
-    const platform = target.data?.platform as string | undefined;
+    const thumbnailId = (source.data as Record<string, unknown>)?.thumbnailId as string | undefined;
+    const platform = (target.data as Record<string, unknown>)?.platform as string | undefined;
     if (thumbnailId && platform && platform !== 'all') {
       handleRecategorizeThumbnail(thumbnailId, platform as ThumbnailPlatform);
     }
@@ -296,14 +360,15 @@ const MyThumbnailsPage: React.FC = () => {
           </form>
           
           {/* Refresh Button */}
+          <Tooltip content="Refresh thumbnails">
           <button 
             onClick={handleRefresh}
             disabled={loading}
             className="p-2.5 rounded-lg border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
-            title="Refresh thumbnails"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          </Tooltip>
           
           {/* Create New Button */}
           <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">
@@ -495,6 +560,7 @@ const MyThumbnailsPage: React.FC = () => {
                       {thumbnail.title || 'Untitled Thumbnail'}
                     </span>
                     <div className="flex gap-1.5">
+                      <Tooltip content="Recreate Better with AI" side="top">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -509,17 +575,19 @@ const MyThumbnailsPage: React.FC = () => {
                           }));
                         }}
                         className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:shadow-lg hover:shadow-purple-500/30 transition-all"
-                        title="Recreate Better with AI"
                       >
                         <Sparkles className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
+                      <Tooltip content="Edit thumbnail" side="top">
                       <button 
                         onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/editor/${thumbnail.id}`); }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
-                        title="Edit thumbnail"
                       >
                         <Edit className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
+                      <Tooltip content="Download thumbnail" side="top">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -530,10 +598,10 @@ const MyThumbnailsPage: React.FC = () => {
                           link.click();
                         }}
                         className="p-1.5 bg-white text-slate-900 rounded-full hover:bg-slate-200 transition-colors"
-                        title="Download thumbnail"
                       >
                         <Download className="w-3 h-3" strokeWidth={2.5} />
                       </button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

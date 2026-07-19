@@ -12,12 +12,18 @@
  */
 
 import { CacheService } from '../services/cache.service';
+import { EmailService } from '../services/email.service';
+import { NotificationRouter } from '../services/notification-router.service';
+import { SSEService } from '../services/sse.service';
 
 // Type-safe service registry
-type ServiceType = 'cache';
+type ServiceType = 'cache' | 'email' | 'notificationRouter' | 'sse';
 
 interface ServiceRegistry {
   cache: CacheService;
+  email: EmailService;
+  notificationRouter: NotificationRouter;
+  sse: SSEService;
 }
 
 /**
@@ -31,6 +37,12 @@ export function getService<T extends ServiceType>(type: T): ServiceRegistry[T] {
   switch (type) {
     case 'cache':
       return CacheService.getInstance() as ServiceRegistry[T];
+    case 'email':
+      return EmailService.getInstance() as ServiceRegistry[T];
+    case 'notificationRouter':
+      return NotificationRouter.getInstance() as ServiceRegistry[T];
+    case 'sse':
+      return SSEService.getInstance() as ServiceRegistry[T];
     default:
       throw new Error(`Unknown service type: ${type}`);
   }
@@ -44,6 +56,12 @@ export async function cleanupAllServices(): Promise<void> {
   const cache = CacheService.getInstance();
   cache.cleanup();
   await cache.disconnect();
+
+  const email = EmailService.getInstance();
+  await email.disconnect();
+
+  const sse = SSEService.getInstance();
+  sse.shutdown();
 }
 
 /**
@@ -54,9 +72,20 @@ export async function healthCheckServices(): Promise<
   Record<ServiceType, boolean>
 > {
   const cache = CacheService.getInstance();
+  const email = EmailService.getInstance();
+  const router = NotificationRouter.getInstance();
+
+  const [cacheHealth, emailHealth, routerHealth] = await Promise.all([
+    cache.healthCheck(),
+    email.healthCheck(),
+    router.healthCheck().then((h) => h.adminPanel && h.email),
+  ]);
 
   return {
-    cache: await cache.healthCheck(),
+    cache: cacheHealth,
+    email: emailHealth,
+    notificationRouter: routerHealth,
+    sse: true, // SSE is always healthy if the process is running
   };
 }
 

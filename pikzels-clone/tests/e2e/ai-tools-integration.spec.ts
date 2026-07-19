@@ -48,7 +48,7 @@ async function loginUser(page: Page, credentials = TEST_USER) {
   await passwordInput.clear();
   await passwordInput.fill(credentials.password);
 
-  await page.click('button:has-text("Sign In")');
+  await page.locator('form').getByRole('button', { name: 'Sign In', exact: true }).click();
   await page.waitForURL(/dashboard/, { timeout: 15000 });
 }
 

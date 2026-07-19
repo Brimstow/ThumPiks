@@ -183,19 +183,32 @@
 }
 
 /* Form elements */
-.dark input,
-.dark textarea,
-.dark select {
+/* NOTE: Only apply generic dark-mode input styles to inputs that don't
+   already have explicit bg/text Tailwind classes (e.g. modal inputs).
+   Scoped to avoid overriding ThumPiksLanding modal inputs. */
+.dark input:not([class*="bg-"]),
+.dark textarea:not([class*="bg-"]),
+.dark select:not([class*="bg-"]) {
   background-color: #1f2937;
   color: #f9fafb;
   border-color: #4b5563;
 }
 
-.dark input:focus,
-.dark textarea:focus,
-.dark select:focus {
+.dark input:not([class*="bg-"]):focus,
+.dark textarea:not([class*="bg-"]):focus,
+.dark select:not([class*="bg-"]):focus {
   border-color: #818cf8;
   box-shadow: 0 0 0 1px #818cf8;
+}
+
+/* Fix browser autofill yellow background on dark modal inputs */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
 }
 
 /* Buttons */

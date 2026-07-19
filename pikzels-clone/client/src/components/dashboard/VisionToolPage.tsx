@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
 import {
   Eye,
   Upload,
@@ -22,7 +23,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { authGet, authPost } from '../../utils/api';
+import { authGet, authPost, createAIToolAbortController } from '../../utils/api';
 import type { VisionAnalysisResult, BingImageResult, CTRFactors } from '../../types/vision.types';
 import ThumbnailActionBar from '../ui/ThumbnailActionBar';
 import RecreateBetterModal from '../ui/RecreateBetterModal';
@@ -226,10 +227,12 @@ const VisionToolPage: React.FC = () => {
   }, [searchQuery]);
 
   // Copy to clipboard
-  const handleCopy = useCallback((text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
+  const handleCopy = useCallback(async (text: string, field: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
   }, []);
 
   // Analyze a search result
@@ -255,11 +258,15 @@ const VisionToolPage: React.FC = () => {
     setError(null);
 
     try {
+      // JJ: Per-tool AbortController with timeout (55s for generate)
+      const { controller, timeoutId } = createAIToolAbortController('generate');
       const response = await authPost('/api/thumbnails/ai/generate', {
         prompt: analysisResult.suggestedPrompt,
         aspectRatio: '16:9',
         style: analysisResult.elements.style || 'photorealistic',
-      });
+      }, { signal: controller.signal });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const data = await response.json();
@@ -314,12 +321,12 @@ const VisionToolPage: React.FC = () => {
     <div className="min-h-screen bg-[#020817] text-slate-100 pb-12">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
               Vision Analysis
             </h1>
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-sm sm:text-lg">
               Analyze any thumbnail to extract design elements and generate AI prompts
             </p>
           </div>
@@ -393,7 +400,7 @@ const VisionToolPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             {/* Upload Tab */}
             {activeTab === 'upload' && (
               <>
@@ -911,7 +918,7 @@ const VisionToolPage: React.FC = () => {
                 Upload an image, paste a URL, or search the web to analyze a thumbnail's design
                 elements and generate AI prompts.
               </p>
-              <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+              <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-cyan-400">1</div>
                   <div className="text-xs text-slate-500 mt-1">Credit per analysis</div>

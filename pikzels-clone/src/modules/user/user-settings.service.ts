@@ -1,6 +1,7 @@
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
 import { UserSettingsSchema } from './types';
+import { Prisma } from '@prisma/client';
 import {
   validateJsonColumn,
   safeParseJsonColumn,
@@ -72,7 +73,7 @@ export async function updateEmailPreferences(
   preferences: Partial<EmailPreferences>
 ) {
   try {
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
 
     if (typeof preferences.marketingEmails === 'boolean') {
       updateData.marketingEmails = preferences.marketingEmails;
@@ -184,7 +185,7 @@ export async function updateAutoSave(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { settings: settings as any },
+      data: { settings: settings as Prisma.InputJsonValue },
     });
 
     logger.info('Auto-save setting updated', { userId, enabled });
@@ -222,7 +223,7 @@ export async function updateAutoImport(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { settings: settings as any },
+      data: { settings: settings as Prisma.InputJsonValue },
     });
 
     logger.info('Auto-import setting updated', { userId, enabled });

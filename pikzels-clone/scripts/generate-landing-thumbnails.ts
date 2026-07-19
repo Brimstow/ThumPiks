@@ -200,7 +200,7 @@ async function main() {
     }
   }
 
-  console.log('\n✨ Done! Update PikzelsLanding.tsx to use the new images.');
+  console.log('\n✨ Done! Update ThumPiksLanding.tsx to use the new images.');
 }
 
 main().catch(console.error);

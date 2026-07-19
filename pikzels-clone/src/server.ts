@@ -4,8 +4,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import passport from 'passport';
 import { isProductionLike, isDevelopmentEnv } from './utils/env';
-// import rateLimit from 'express-rate-limit'; // TODO: Implement rate limiting
 
 // Load environment variables FIRST
 dotenv.config();
@@ -25,6 +25,8 @@ import { requestIdMiddleware } from './middleware/request-id.middleware';
 
 // Import services AFTER environment variables are loaded
 import { CacheService } from './services/cache.service';
+import { OAuthService } from './modules/auth/oauth.service';
+import { AuthRequest } from './types/auth';
 import {
   performanceMiddleware,
   responseTimeMiddleware,
@@ -33,6 +35,7 @@ import { logger, flushLogger } from './utils/logger';
 import { getRequestId } from './utils/request-context';
 import { eventRegistry } from './events';
 import { getReplicateQueue } from './modules/thumbnail/replicate-queue.service';
+import { getAIPriorityQueue } from './modules/thumbnail/ai-priority-queue.service';
 import { healthCheckPrisma } from './utils/prisma-factory';
 
 // Import routes
@@ -42,7 +45,6 @@ import thumbnailRoutes from './modules/thumbnail/thumbnail.routes';
 import thumbnailPublicRoutes from './modules/thumbnail/thumbnail.public.routes';
 import projectRoutes from './modules/project/project.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
-import socialShareRoutes from './modules/social-share/social-share.routes';
 import templateRoutes from './modules/templates/template.routes';
 import collaborationRoutes from './modules/collaboration/collaboration.routes';
 import performanceRoutes from './routes/performance.routes';
@@ -50,6 +52,7 @@ import videoProxyRoutes from './modules/video-proxy/video-proxy.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
 import creditRoutes from './modules/credit/credit.routes';
 import billingRoutes from './modules/billing/billing.routes';
+import polarWebhookRoutes from './modules/billing/polar-webhook.routes';
 import userSettingsRoutes from './modules/user/user-settings.routes';
 import accountRoutes from './modules/account/account.routes';
 import visionRoutes from './modules/vision/vision.routes';
@@ -62,6 +65,12 @@ import editorChatRoutes from './modules/editor-chat/editor-chat.routes';
 import compositionLayoutRoutes from './modules/composition-layout/composition-layout.routes';
 import youtubeTrendingRoutes from './modules/youtube-trending/youtube-trending.routes';
 import brandKitRoutes from './modules/brand-kit/brand-kit.routes';
+import feedbackRoutes from './modules/feedback/feedback.routes';
+import feedbackAdminRoutes from './modules/feedback/feedback.admin.routes';
+import globalChatRoutes from './modules/global-chat/global-chat.routes';
+import contactRoutes from './modules/contact/contact.routes';
+import reviewRoutes from './modules/review/review.routes';
+import reviewAdminRoutes from './modules/review/review.admin.routes';
 
 // Import admin routes
 import adminAuthRoutes from './modules/admin/admin-auth.routes';
@@ -69,6 +78,24 @@ import userManagementRoutes from './modules/admin/user-management.routes';
 import analyticsAdminRoutes from './modules/admin/analytics.routes';
 import systemMonitoringRoutes from './modules/admin/system-monitoring.routes';
 import sitemapRoutes from './modules/admin/sitemap.routes';
+import notificationConfigRoutes from './modules/notification-config/notification-config.routes';
+import adminNotificationRoutes from './modules/admin-notification/admin-notification.routes';
+import userNotificationRoutes from './modules/user-notification/user-notification.routes';
+import userSSERoutes, {
+  adminSSERouter,
+} from './modules/notification-sse/notification-sse.routes';
+import { startDigestScheduler } from './schedulers/digest.scheduler';
+
+// Fail fast: ensure critical secrets are set in production/staging
+if (isProductionLike()) {
+  const requiredSecrets = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET'];
+  const missing = requiredSecrets.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required secrets in production: ${missing.join(', ')}`
+    );
+  }
+}
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8550;
@@ -88,7 +115,7 @@ if (process.env.ENABLE_HTTPS_REDIRECT === 'true') {
 
 if (process.env.ENABLE_SECURITY_HEADERS === 'true') {
   app.use(securityHeaders);
-  console.log('🛡️  Security headers enabled');
+  logger.info('Security headers enabled');
 }
 
 // Request ID tracking (must be before any logging middleware)
@@ -105,19 +132,19 @@ app.use(apiVersioning);
 
 // Input sanitization
 app.use(sanitizeInput);
-console.log('🧹 Input sanitization enabled');
+logger.info('Input sanitization enabled');
 
 // Performance monitoring middleware
 if (process.env.ENABLE_PERFORMANCE_MONITORING === 'true') {
   app.use(performanceMiddleware());
   app.use(responseTimeMiddleware());
-  console.log('📊 Performance monitoring enabled');
+  logger.info('Performance monitoring enabled');
 }
 
 // Performance middleware
 if (process.env.ENABLE_COMPRESSION === 'true') {
   app.use(compression());
-  console.log('🗜️  Compression enabled');
+  logger.info('Compression enabled');
 }
 
 // Rate limiting with security-focused configuration
@@ -128,7 +155,7 @@ if (process.env.ENABLE_RATE_LIMITING === 'true') {
   // Strict rate limiting for auth endpoints
   app.use('/api/auth/', authRateLimit);
 
-  console.log('🛡️  Enhanced rate limiting enabled');
+  logger.info('Enhanced rate limiting enabled');
 }
 
 // Enhanced CORS configuration
@@ -141,7 +168,7 @@ const prodOrigins = process.env.CORS_ORIGIN?.split(',') || [];
 const corsOptions = {
   origin: isDev ? [...devOrigins, ...prodOrigins] : prodOrigins,
   credentials: true, // Always enable credentials for HttpOnly cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -161,21 +188,31 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-console.log('🌐 Enhanced CORS enabled with origins:', corsOptions.origin);
+logger.info('CORS enabled', { origins: corsOptions.origin });
 
 // Cookie parser for HttpOnly authentication cookies
 app.use(cookieParser());
-console.log('🍪 Cookie parser enabled');
+logger.info('Cookie parser enabled');
+
+// Initialize Passport for OAuth authentication
+app.use(passport.initialize());
+OAuthService.initializePassport();
+logger.info('Passport OAuth initialized');
 
 // Enhanced JSON parsing with security limits
 app.use(
   express.json({
     limit: process.env.MAX_FILE_SIZE || '10mb',
     strict: true,
-    verify: (req: any, _res, buf) => {
+    verify: ((req: { rawBody?: Buffer }, _res: unknown, buf: Buffer) => {
       // Store raw body for webhook verification if needed
       req.rawBody = buf;
-    },
+    }) as unknown as (
+      req: import('http').IncomingMessage,
+      res: import('http').ServerResponse,
+      buf: Buffer,
+      encoding: string
+    ) => void,
   })
 );
 
@@ -201,7 +238,6 @@ app.use('/api/thumbnails', thumbnailRoutes);
 app.use('/api/thumbnails', thumbnailPublicRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/social-share', socialShareRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/composition-layouts', compositionLayoutRoutes);
 app.use('/api/collaboration', collaborationRoutes);
@@ -210,16 +246,23 @@ app.use('/api/video', videoProxyRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/polar', polarWebhookRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/editor-command', editorCommandRoutes);
 app.use('/api/editor-chat', editorChatRoutes);
+app.use('/api/global-chat', globalChatRoutes);
 app.use('/api/visual-search', visualSearchRoutes);
 app.use('/api/ab-tests', abTestingRoutes);
 app.use('/api/user-assets', userAssetRoutes);
 app.use('/api/url-history', urlHistoryRoutes);
 app.use('/api/youtube-trending', youtubeTrendingRoutes);
 app.use('/api/brand-kit', brandKitRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', userNotificationRoutes);
+app.use('/api/notifications', userSSERoutes);
 
 // Admin routes
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -227,6 +270,11 @@ app.use('/api/admin/users', userManagementRoutes);
 app.use('/api/admin/analytics', analyticsAdminRoutes);
 app.use('/api/admin/system', systemMonitoringRoutes);
 app.use('/api/admin/sitemap', sitemapRoutes);
+app.use('/api/admin/support', feedbackAdminRoutes);
+app.use('/api/admin/notifications', notificationConfigRoutes);
+app.use('/api/admin/notifications', adminNotificationRoutes);
+app.use('/api/admin/notifications', adminSSERouter);
+app.use('/api/admin/reviews', reviewAdminRoutes);
 
 // Health check endpoint - MUST be before error handler for Railway healthchecks
 app.get('/health', async (_req, res) => {
@@ -333,11 +381,13 @@ app.use(
   ) => {
     const requestId = getRequestId();
 
+    const userId = (req as AuthRequest).user?.id;
+    const userAgent = req.get('User-Agent');
     logger.error('Unhandled API error', err, {
       url: req.url,
       method: req.method,
-      userId: (req as any).user?.id,
-      userAgent: req.get('User-Agent'),
+      ...(userId !== undefined && { userId }),
+      ...(userAgent !== undefined && { userAgent }),
     });
 
     // Don't leak error details in production/staging
@@ -356,22 +406,46 @@ async function initializeServer() {
   try {
     // Initialize event handlers
     await eventRegistry.initialize();
-    console.log('📡 Event system initialized');
+    logger.info('Event system initialized');
 
     // Initialize Replicate queue if Redis is available
     if (process.env.ENABLE_REPLICATE_QUEUE !== 'false') {
       try {
         const replicateQueue = getReplicateQueue();
         await replicateQueue.initialize();
-        console.log('🚀 Replicate job queue initialized');
+        logger.info('Replicate job queue initialized');
       } catch (queueError) {
-        // Queue initialization failure is non-fatal - service will work without queue
-        console.warn(
-          '⚠️  Replicate queue not initialized (Redis may be unavailable):',
-          queueError instanceof Error ? queueError.message : String(queueError)
+        logger.warn(
+          'Replicate queue not initialized (Redis may be unavailable)',
+          {
+            error:
+              queueError instanceof Error
+                ? queueError.message
+                : String(queueError),
+            fallback:
+              'Replicate requests will be processed directly without queuing',
+          }
         );
-        console.warn(
-          '   Replicate requests will be processed directly without queuing'
+      }
+    }
+
+    // Initialize AI priority queue if Redis is available
+    if (process.env.ENABLE_AI_PRIORITY_QUEUE !== 'false') {
+      try {
+        const aiQueue = getAIPriorityQueue();
+        await aiQueue.initialize();
+        logger.info('AI priority queue initialized');
+      } catch (queueError) {
+        logger.warn(
+          'AI priority queue not initialized (Redis may be unavailable)',
+          {
+            error:
+              queueError instanceof Error
+                ? queueError.message
+                : String(queueError),
+            fallback:
+              'AI requests will be processed directly without priority queuing',
+          }
         );
       }
     }
@@ -382,19 +456,33 @@ async function initializeServer() {
         logger.error('Server failed to start', error);
         process.exit(1);
       }
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🎯 Health check: http://localhost:${PORT}/health`);
 
-      // Log performance features
+      // JJ: Fix Railway 504 errors caused by Node.js default keepAliveTimeout=5s.
+      // Railway's edge proxy reuses keep-alive connections, but Node.js closes idle
+      // ones after 5s. When Railway sends a new request on a dead connection →
+      // ECONNRESET → Railway returns 504 to the client.
+      // Source: Node.js GitHub issue #27363 (same symptom on Railway).
+      // 61s > Railway's 60s idle timeout; headersTimeout must be > keepAliveTimeout.
+      server.keepAliveTimeout = 61_000; // 61 seconds
+      server.headersTimeout = 65_000; // 65 seconds
+
+      logger.info('Server started', {
+        port: PORT,
+        health: `http://localhost:${PORT}/health`,
+      });
+
       if (process.env.ENABLE_CACHE === 'true') {
-        console.log('⚡ Redis caching enabled');
+        logger.info('Redis caching enabled');
       }
 
-      // Log event system stats
       const eventStats = eventRegistry.getStats();
-      console.log(
-        `📊 Event system: ${eventStats.totalHandlers} handlers for ${eventStats.eventTypes} event types`
-      );
+      logger.info('Event system ready', {
+        handlers: eventStats.totalHandlers,
+        eventTypes: eventStats.eventTypes,
+      });
+
+      // Start digest scheduler
+      startDigestScheduler();
     });
 
     return server;
@@ -417,10 +505,10 @@ if (require.main === module) {
 
   // Graceful shutdown
   process.on('SIGTERM', async () => {
-    console.log('📝 Received SIGTERM, shutting down gracefully');
+    logger.info('Received SIGTERM, shutting down gracefully');
     const server = await serverPromise;
     server.close(() => {
-      console.log('👋 Process terminated');
+      logger.info('Process terminated');
     });
 
     // Shutdown Replicate queue
@@ -429,21 +517,37 @@ if (require.main === module) {
       await replicateQueue.shutdown();
     }
 
+    // Shutdown AI priority queue
+    const aiQueue = getAIPriorityQueue();
+    if (aiQueue.isReady()) {
+      await aiQueue.shutdown();
+    }
+
+    // Shutdown SSE connections
+    const { SSEService } = await import('./services/sse.service');
+    SSEService.getInstance().shutdown();
+
     await flushLogger();
     await cache.disconnect();
   });
 
   process.on('SIGINT', async () => {
-    console.log('📝 Received SIGINT, shutting down gracefully');
+    logger.info('Received SIGINT, shutting down gracefully');
     const server = await serverPromise;
     server.close(() => {
-      console.log('👋 Process terminated');
+      logger.info('Process terminated');
     });
 
     // Shutdown Replicate queue
     const replicateQueue = getReplicateQueue();
     if (replicateQueue.isReady()) {
       await replicateQueue.shutdown();
+    }
+
+    // Shutdown AI priority queue
+    const aiQueue2 = getAIPriorityQueue();
+    if (aiQueue2.isReady()) {
+      await aiQueue2.shutdown();
     }
 
     await flushLogger();

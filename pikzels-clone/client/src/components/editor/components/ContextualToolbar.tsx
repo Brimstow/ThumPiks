@@ -74,6 +74,12 @@ const Icons = {
       <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
     </svg>
   ),
+  Decompose: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+      <path d="M7 7h.01" />
+    </svg>
+  ),
   Loader: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="animate-spin">
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -104,6 +110,7 @@ const IMAGE_ACTIONS: QuickAction[] = [
   { id: 'enhance', label: 'Enhance', icon: 'Enhance', enabled: true, loading: false, tooltip: 'AI image enhancement' },
   { id: 'replace', label: 'Replace', icon: 'Replace', enabled: true, loading: false, tooltip: 'Replace object with AI' },
   { id: 'expand', label: 'Expand', icon: 'Expand', enabled: true, loading: false, tooltip: 'Generatively expand image' },
+  { id: 'decompose', label: 'Decompose', icon: 'Decompose', enabled: true, loading: false, tooltip: 'Split image into layers (3 credits)' },
 ];
 
 const TEXT_ACTIONS: QuickAction[] = [

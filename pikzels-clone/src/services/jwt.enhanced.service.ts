@@ -1,6 +1,7 @@
 import * as jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { logger } from '../utils/logger';
+import { isProductionLike } from '../utils/env';
 
 interface TokenPayload {
   userId: string;
@@ -10,13 +11,42 @@ interface TokenPayload {
 }
 
 export class EnhancedJWTService {
+  private static readonly ISSUER = 'thumbnail-maker-studio';
+  private static readonly AUDIENCE = 'thumbnail-maker-users';
+
+  /**
+   * Public accessor for the JWT secret. Used by session coordination
+   * and anywhere raw jwt.sign/verify is needed outside auth tokens.
+   */
+  static getSecret(): string {
+    return this.getJwtSecret();
+  }
+
   // Dynamic getters for secrets to support test environment variable injection
   private static getJwtSecret(): string {
-    return process.env.JWT_SECRET ?? 'your-secret-key';
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret === 'your-secret-key') {
+      if (isProductionLike()) {
+        logger.error('CRITICAL: JWT_SECRET not set in production environment');
+        throw new Error('JWT_SECRET must be set in production/staging');
+      }
+      logger.warn('Using default JWT secret - not suitable for production');
+      return 'your-secret-key';
+    }
+    return secret;
   }
 
   private static getRefreshSecret(): string {
-    return process.env.REFRESH_TOKEN_SECRET ?? 'your-refresh-secret';
+    const secret = process.env.REFRESH_TOKEN_SECRET;
+    if (!secret || secret === 'your-refresh-secret') {
+      if (isProductionLike()) {
+        logger.error('CRITICAL: REFRESH_TOKEN_SECRET not set in production environment');
+        throw new Error('REFRESH_TOKEN_SECRET must be set in production/staging');
+      }
+      logger.warn('Using default refresh secret - not suitable for production');
+      return 'your-refresh-secret';
+    }
+    return secret;
   }
 
   static generateSessionId(): string {
@@ -30,13 +60,13 @@ export class EnhancedJWTService {
     const accessToken = jwt.sign(
       { userId, email, sessionId },
       this.getJwtSecret(),
-      { expiresIn: '15m' }
+      { expiresIn: '15m', issuer: this.ISSUER, audience: this.AUDIENCE }
     );
 
     const refreshToken = jwt.sign(
       { userId, email, sessionId, type: 'refresh' },
       this.getRefreshSecret(),
-      { expiresIn: '7d' }
+      { expiresIn: '7d', issuer: this.ISSUER, audience: this.AUDIENCE }
     );
 
     return {
@@ -49,7 +79,10 @@ export class EnhancedJWTService {
 
   static verifyAccessToken(token: string): TokenPayload | null {
     try {
-      return jwt.verify(token, this.getJwtSecret()) as TokenPayload;
+      return jwt.verify(token, this.getJwtSecret(), {
+        issuer: this.ISSUER,
+        audience: this.AUDIENCE,
+      }) as TokenPayload;
     } catch (error) {
       logger.warn('Access token verification failed', { error });
       return null;
@@ -58,7 +91,10 @@ export class EnhancedJWTService {
 
   static verifyRefreshToken(token: string): TokenPayload | null {
     try {
-      const payload = jwt.verify(token, this.getRefreshSecret()) as TokenPayload;
+      const payload = jwt.verify(token, this.getRefreshSecret(), {
+        issuer: this.ISSUER,
+        audience: this.AUDIENCE,
+      }) as TokenPayload;
       if (payload.type !== 'refresh') {
         throw new Error('Invalid token type');
       }
@@ -73,13 +109,16 @@ export class EnhancedJWTService {
     return jwt.sign(
       { userId, email, action: 'reset-password' },
       this.getJwtSecret(),
-      { expiresIn: '1h' }
+      { expiresIn: '1h', issuer: this.ISSUER, audience: this.AUDIENCE }
     );
   }
 
   static verifyResetToken(token: string): TokenPayload | null {
     try {
-      return jwt.verify(token, this.getJwtSecret()) as TokenPayload;
+      return jwt.verify(token, this.getJwtSecret(), {
+        issuer: this.ISSUER,
+        audience: this.AUDIENCE,
+      }) as TokenPayload;
     } catch (error) {
       logger.warn('Reset token verification failed', { error });
       return null;

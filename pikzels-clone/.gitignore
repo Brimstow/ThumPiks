@@ -76,7 +76,7 @@ cache/
 
 package-lock.json
 
-client/package-lock.jsonnul
+client/package-lock.json
 
 # Test results and security reports
 git-security-report.json
@@ -90,8 +90,13 @@ GIT_SECURITY_REPORT.md
 GIT_SECURITY_SUMMARY.md
 HUSKY_SETUP_STATUS.md
 
-# Misc generated / platform artifacts
+# Windows reserved device names (cause jj/git errors on Windows)
 nul
+con
+prn
+aux
+com[1-9]
+lpt[1-9]
 
 # Screenshots and visual test artifacts
 scripts/screenshots/
@@ -112,3 +117,16 @@ setup-all-test-users.ts
 # Duplicate secretlint configs (root versions are canonical)
 .secretlintrc.json
 .secretlintignore
+
+# Scratch directory for ad-hoc debug/test scripts
+scratch/
+
+# Move script (one-time use)
+_move-scripts.mjs
+
+# Testimonial images are local mock data only (not used on the deployed site).
+# Ignore everything under the testimonials directory to keep VCS clean.
+client/public/images/testimonials/
+
+# Recovered orphan blobs from 2026-04-12 Augment save session (local only)
+.rescued/

@@ -1,8 +1,11 @@
 import { Response } from 'express';
 import { ProjectService } from './project.service';
 import { AuthRequest } from '../../types/auth';
+import { CacheService } from '../../services/cache.service';
 import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
+import { requireUser } from '../../middleware/auth.middleware';
+import { logger } from '../../utils/logger';
 
 // Create shared instances that can be overridden for testing
 let sharedPrisma: PrismaClient;
@@ -11,12 +14,12 @@ let sharedProjectService: ProjectService;
 // Initialize services (can be overridden in tests)
 export const initializeProjectServices = (
   prismaClient?: PrismaClient,
-  cacheService?: any
+  cacheService?: CacheService
 ) => {
   sharedPrisma = prismaClient || getPrisma();
   sharedProjectService = new ProjectService({
     prisma: sharedPrisma,
-    cache: cacheService,
+    ...(cacheService !== undefined && { cache: cacheService }),
   });
 };
 
@@ -36,9 +39,8 @@ const getProjectService = () => {
 export class ProjectController {
   async createProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const { name, description, parentProjectId, folderType } = req.body;
 
@@ -60,7 +62,7 @@ export class ProjectController {
       if (parentProjectId) {
         const parentProject =
           await getProjectService().getProjectById(parentProjectId);
-        if (!parentProject || parentProject.userId !== req.user.id) {
+        if (!parentProject || parentProject.userId !== user.id) {
           return res.status(400).json({
             error: 'Invalid parent project or access denied',
           });
@@ -70,22 +72,23 @@ export class ProjectController {
       const project = await getProjectService().createProject({
         name,
         description,
-        userId: req.user.id,
+        userId: user.id,
         parentProjectId,
         folderType,
       });
 
       return res.status(201).json({ project });
-    } catch (error: any) {
-      console.error('Error creating project:', error);
+    } catch (error: unknown) {
+      logger.error('Error creating project', error instanceof Error ? error : new Error(String(error)));
 
+      const message = error instanceof Error ? error.message : String(error);
       // Handle hierarchy validation errors
       if (
-        error.message.includes('Maximum nesting depth') ||
-        error.message.includes('Folders cannot contain') ||
-        error.message.includes('Parent project not found')
+        message.includes('Maximum nesting depth') ||
+        message.includes('Folders cannot contain') ||
+        message.includes('Parent project not found')
       ) {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ error: message });
       }
 
       return res.status(500).json({ error: 'Internal server error' });
@@ -94,16 +97,15 @@ export class ProjectController {
 
   async getProjects(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       // Extract filter parameters from query
       const { search, category, type, sortBy, sortOrder, isArchived } =
         req.query;
 
       // Build filters object
-      const filters: any = {};
+      const filters: Record<string, string | boolean | undefined> = {};
 
       if (search && typeof search === 'string') {
         filters.searchTerm = search;
@@ -136,7 +138,7 @@ export class ProjectController {
 
       // Get filtered projects for user
       const allProjects = await getProjectService().getProjectsByUser(
-        req.user.id,
+        user.id,
         Object.keys(filters).length > 0 ? filters : undefined
       );
 
@@ -157,16 +159,15 @@ export class ProjectController {
         },
       });
     } catch (error) {
-      console.error('Error fetching projects:', error);
+      logger.error('Error fetching projects', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async getProjectById(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -180,22 +181,21 @@ export class ProjectController {
       }
 
       // Check if user owns this project
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       return res.status(200).json({ project });
     } catch (error) {
-      console.error('Error fetching project:', error);
+      logger.error('Error fetching project', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async updateProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -210,7 +210,7 @@ export class ProjectController {
       }
 
       // Check if user owns this project
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -222,16 +222,15 @@ export class ProjectController {
 
       return res.status(200).json({ project: updatedProject });
     } catch (error) {
-      console.error('Error updating project:', error);
+      logger.error('Error updating project', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async deleteProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -244,23 +243,22 @@ export class ProjectController {
       }
 
       // Check if user owns this project
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       await getProjectService().deleteProject(id);
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error('Error deleting project:', error);
+      logger.error('Error deleting project', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async duplicateProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -274,23 +272,24 @@ export class ProjectController {
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const duplicateProject = await getProjectService().duplicateProject(
         id,
-        req.user.id
+        user.id
       );
       return res.status(201).json({ project: duplicateProject });
-    } catch (error: any) {
-      console.error('Error duplicating project:', error);
+    } catch (error: unknown) {
+      logger.error('Error duplicating project', error instanceof Error ? error : new Error(String(error)));
 
+      const message = error instanceof Error ? error.message : String(error);
       if (
-        error.message.includes('Maximum nesting depth') ||
-        error.message.includes('permission')
+        message.includes('Maximum nesting depth') ||
+        message.includes('permission')
       ) {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ error: message });
       }
 
       return res.status(500).json({ error: 'Internal server error' });
@@ -299,9 +298,8 @@ export class ProjectController {
 
   async archiveProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -314,26 +312,25 @@ export class ProjectController {
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const archivedProject = await getProjectService().archiveProject(
         id,
-        req.user.id
+        user.id
       );
       return res.status(200).json({ project: archivedProject });
-    } catch (error: any) {
-      console.error('Error archiving project:', error);
+    } catch (error: unknown) {
+      logger.error('Error archiving project', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async unarchiveProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -346,26 +343,25 @@ export class ProjectController {
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const unarchivedProject = await getProjectService().unarchiveProject(
         id,
-        req.user.id
+        user.id
       );
       return res.status(200).json({ project: unarchivedProject });
-    } catch (error: any) {
-      console.error('Error unarchiving project:', error);
+    } catch (error: unknown) {
+      logger.error('Error unarchiving project', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   async setFeaturedThumbnail(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const projectId = req.params.projectId as string;
       if (!projectId) {
@@ -383,7 +379,7 @@ export class ProjectController {
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      if (project.userId !== req.user.id) {
+      if (project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -394,17 +390,18 @@ export class ProjectController {
       );
 
       return res.status(200).json({ project: updatedProject });
-    } catch (error: any) {
-      if (error.message === 'Thumbnail does not belong to this project') {
-        return res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message === 'Thumbnail does not belong to this project') {
+        return res.status(400).json({ error: message });
       }
 
-      console.error('Error setting featured thumbnail:', error);
+      logger.error('Error setting featured thumbnail', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  // 🏗️ HIERARCHY-SPECIFIC ENDPOINTS
+  // HIERARCHY-SPECIFIC ENDPOINTS
 
   /**
    * Get projects in hierarchical tree structure
@@ -412,16 +409,15 @@ export class ProjectController {
    */
   async getProjectsTree(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const projectsTree = await getProjectService().getProjectsTree(
-        req.user.id
+        user.id
       );
       return res.status(200).json({ projectsTree });
     } catch (error) {
-      console.error('Error fetching projects tree:', error);
+      logger.error('Error fetching projects tree', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -432,9 +428,8 @@ export class ProjectController {
    */
   async getProjectChildren(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -443,14 +438,14 @@ export class ProjectController {
 
       // Verify the parent project belongs to the user
       const parentProject = await getProjectService().getProjectById(id);
-      if (!parentProject || parentProject.userId !== req.user.id) {
+      if (!parentProject || parentProject.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const children = await getProjectService().getProjectChildren(id);
       return res.status(200).json({ children });
     } catch (error) {
-      console.error('Error fetching project children:', error);
+      logger.error('Error fetching project children', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -461,23 +456,22 @@ export class ProjectController {
    */
   async getProjectBreadcrumb(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
         return res.status(400).json({ error: 'Project ID is required' });
       }
       const project = await getProjectService().getProjectById(id);
-      if (!project || project.userId !== req.user.id) {
+      if (!project || project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const breadcrumb = await getProjectService().getProjectBreadcrumb(id);
       return res.status(200).json({ breadcrumb });
     } catch (error) {
-      console.error('Error fetching project breadcrumb:', error);
+      logger.error('Error fetching project breadcrumb', error instanceof Error ? error : new Error(String(error)));
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -488,9 +482,8 @@ export class ProjectController {
    */
   async moveProject(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const id = req.params.id as string;
       if (!id) {
@@ -500,14 +493,14 @@ export class ProjectController {
 
       // Verify the project belongs to the user
       const project = await getProjectService().getProjectById(id);
-      if (!project || project.userId !== req.user.id) {
+      if (!project || project.userId !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       // If new parent is specified, verify it belongs to the user
       if (newParentId) {
         const newParent = await getProjectService().getProjectById(newParentId);
-        if (!newParent || newParent.userId !== req.user.id) {
+        if (!newParent || newParent.userId !== user.id) {
           return res.status(400).json({ error: 'Invalid new parent project' });
         }
       }
@@ -517,15 +510,16 @@ export class ProjectController {
         newParentId
       );
       return res.status(200).json({ project: movedProject });
-    } catch (error: any) {
-      console.error('Error moving project:', error);
+    } catch (error: unknown) {
+      logger.error('Error moving project', error instanceof Error ? error : new Error(String(error)));
 
+      const message = error instanceof Error ? error.message : String(error);
       // Handle specific move validation errors
       if (
-        error.message.includes('circular reference') ||
-        error.message.includes('Maximum nesting depth')
+        message.includes('circular reference') ||
+        message.includes('Maximum nesting depth')
       ) {
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ error: message });
       }
 
       return res.status(500).json({ error: 'Internal server error' });

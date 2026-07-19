@@ -21,7 +21,7 @@ export class TemplateService {
     description?: string;
     thumbnailId: string;
     creatorId: string;
-    parameters: any;
+    parameters: Record<string, unknown>;
     tags: string[];
     isPublic?: boolean;
   }) {
@@ -37,6 +37,7 @@ export class TemplateService {
       data: {
         id: uuidv4(),
         ...data,
+        parameters: data.parameters as never,
         tags: JSON.stringify(data.tags),
         isPublic: data.isPublic ?? false,
         updatedAt: new Date(),
@@ -66,7 +67,7 @@ export class TemplateService {
       return this.getMockTemplates(filters);
     }
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     // Apply public filter
     if (filters?.isPublic !== undefined) {
@@ -95,7 +96,7 @@ export class TemplateService {
     }
 
     // Build orderBy clause
-    let orderBy: any = { createdAt: 'desc' };
+    let orderBy: Record<string, string> = { createdAt: 'desc' };
     if (filters?.sortBy) {
       const sortField = ['createdAt', 'downloads', 'likes'].includes(
         filters.sortBy
@@ -208,7 +209,7 @@ export class TemplateService {
       isPublic: boolean;
     }>
   ) {
-    const updateData: any = { ...data };
+    const updateData: Record<string, unknown> = { ...data };
 
     // Handle tags update with validation
     if (data.tags) {
@@ -419,8 +420,8 @@ export class TemplateService {
     const sortOrder = filters?.sortOrder === 'asc' ? 1 : -1;
 
     sorted.sort((a, b) => {
-      const av = a[sortField] as any;
-      const bv = b[sortField] as any;
+      const av = a[sortField];
+      const bv = b[sortField];
 
       if (av < bv) return -1 * sortOrder;
       if (av > bv) return 1 * sortOrder;

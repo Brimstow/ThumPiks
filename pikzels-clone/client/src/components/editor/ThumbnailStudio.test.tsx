@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { TooltipProvider } from '@radix-ui/react-tooltip';
 import '@testing-library/jest-dom';
 
 // Mock environment config to avoid import.meta.env issues
@@ -70,11 +71,65 @@ jest.mock('./FloatingLayerToolbar', () => {
   };
 });
 
+// Mock additional editor sub-components that ThumbnailStudio imports
+jest.mock('./components/AttentionHeatmap', () => ({ __esModule: true, default: () => null }));
+jest.mock('./components/ContextualToolbar', () => ({ __esModule: true, default: () => null }));
+jest.mock('./components/PlatformPreviewOverlay', () => ({ __esModule: true, default: () => null }));
+jest.mock('./components/SmartGuides', () => ({ __esModule: true, default: () => null }));
+jest.mock('./components/SmartSelectTool', () => ({ __esModule: true, default: () => null }));
+jest.mock('./components/AICommandBar', () => ({ __esModule: true, default: () => null }));
+jest.mock('./panels/PropertiesPanel', () => ({ __esModule: true, default: () => <div>Properties</div> }));
+jest.mock('./panels/VideoFrameExtractor', () => ({ __esModule: true, default: () => <div>Video Frame Extractor</div> }));
+jest.mock('./panels/AIToolsPanel', () => ({ __esModule: true, default: () => <div>AI Tools Panel</div> }));
+jest.mock('./panels/AdjustmentsPanel', () => ({
+  __esModule: true,
+  default: function MockAdjustmentsPanel() {
+    return (
+      <div data-testid="adjustments-panel">
+        <span>Brightness</span>
+        <span>Contrast</span>
+        <span>Saturation</span>
+        <span>Filter</span>
+      </div>
+    );
+  },
+}));
+jest.mock('./panels/LayersPanel', () => ({ __esModule: true, default: () => <div data-testid="layers-panel">Layers Panel</div> }));
+jest.mock('./panels/ToolsPanel', () => ({ __esModule: true, default: () => <div data-testid="tools-panel">Tools Panel</div> }));
+jest.mock('../ui/Tooltip', () => ({ __esModule: true, default: ({ children }: any) => <>{children}</> }));
+
+// Mock hooks and stores that require external providers
+jest.mock('./hooks/useEditorState', () => ({
+  useEditorState: () => ({
+    state: { isModified: false, layers: [], selectedLayerId: null, adjustments: { brightness: 0, contrast: 0, saturation: 0 }, history: { past: [], future: [] } },
+    dispatch: jest.fn(),
+    addImageLayer: jest.fn(), addTextLayer: jest.fn(), addShapeLayer: jest.fn(), addDrawingLayer: jest.fn(),
+    selectLayer: jest.fn(), clearSelection: jest.fn(), selectedLayers: [], orderedLayers: [],
+    canUndo: false, canRedo: false,
+    updateAdjustments: jest.fn(), markSaved: jest.fn(),
+    setSmartSelection: jest.fn(), clearSmartSelection: jest.fn(), smartSelection: null,
+    clearCanvas: jest.fn(),
+  }),
+}));
+jest.mock('../../hooks/useBackendAI', () => ({ useBackendAI: () => ({ generateThumbnail: jest.fn(), isGenerating: false, error: null }) }));
+jest.mock('../../hooks/useSubscription', () => ({ useSubscription: () => ({ planType: 'free', shouldWatermark: false, watermarkFreeRemaining: 0, refreshSubscription: jest.fn() }) }));
+jest.mock('../../stores/aiToolsStore', () => ({ useAIToolsStore: () => ({ activeTool: null, setActiveTool: jest.fn() }) }));
+jest.mock('../../features/editor-mode', () => ({ EditorModeToggle: () => null, useEditorMode: () => ({ isSimpleMode: false, mode: 'edit', setMode: jest.fn() }) }));
+jest.mock('../../features/ai-chat', () => ({
+  ChatPanel: () => null,
+  useChatConversation: () => ({ messages: [], sendMessage: jest.fn() }),
+  useChatActions: () => ({ actions: [] }),
+}));
+jest.mock('./hooks/useCommandExecutor', () => ({ useCommandExecutor: () => ({ execute: jest.fn() }) }));
+
 describe('ThumbnailStudio', () => {
   const defaultProps: ThumbnailStudioProps = {
     onSave: jest.fn(),
     onClose: jest.fn(),
   };
+
+  const renderWithProviders = (ui: React.ReactElement) =>
+    render(<TooltipProvider>{ui}</TooltipProvider>);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -82,24 +137,24 @@ describe('ThumbnailStudio', () => {
 
   describe('basic rendering', () => {
     it('renders without crashing', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       expect(screen.getByText('Thumbnail Studio')).toBeInTheDocument();
     });
 
     it('renders toolbar with undo/redo buttons', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       expect(screen.getByRole('button', { name: /undo/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /redo/i })).toBeInTheDocument();
     });
 
     it('renders save and export buttons', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
     });
 
     it('renders panel tabs', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       // Use getAllByRole since there may be multiple elements, then check specific ones
       const layersTab = screen.getByRole('button', { name: 'Layers' });
       const videoTab = screen.getByRole('button', { name: 'Video' });
@@ -122,7 +177,7 @@ describe('ThumbnailStudio', () => {
         parameters: {},
       };
 
-      render(
+      renderWithProviders(
         <ThumbnailStudio
           {...defaultProps}
           thumbnailId="thumb-123"
@@ -140,7 +195,7 @@ describe('ThumbnailStudio', () => {
 
   describe('adjustments panel', () => {
     it('switches to adjustments tab when ADJUST clicked', async () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const adjustTab = screen.getByRole('button', { name: /adjust/i });
       fireEvent.click(adjustTab);
@@ -152,7 +207,7 @@ describe('ThumbnailStudio', () => {
     });
 
     it('shows brightness slider in adjustments panel', async () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const adjustTab = screen.getByRole('button', { name: /adjust/i });
       fireEvent.click(adjustTab);
@@ -163,7 +218,7 @@ describe('ThumbnailStudio', () => {
     });
 
     it('shows contrast slider in adjustments panel', async () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const adjustTab = screen.getByRole('button', { name: /adjust/i });
       fireEvent.click(adjustTab);
@@ -174,7 +229,7 @@ describe('ThumbnailStudio', () => {
     });
 
     it('shows saturation slider in adjustments panel', async () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const adjustTab = screen.getByRole('button', { name: /adjust/i });
       fireEvent.click(adjustTab);
@@ -185,7 +240,7 @@ describe('ThumbnailStudio', () => {
     });
 
     it('shows filter presets in adjustments panel', async () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const adjustTab = screen.getByRole('button', { name: /adjust/i });
       fireEvent.click(adjustTab);
@@ -199,14 +254,14 @@ describe('ThumbnailStudio', () => {
 
   describe('undo/redo functionality', () => {
     it('undo button is disabled initially', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const undoButton = screen.getByRole('button', { name: /undo/i });
       expect(undoButton).toBeDisabled();
     });
 
     it('redo button is disabled initially', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       const redoButton = screen.getByRole('button', { name: /redo/i });
       expect(redoButton).toBeDisabled();
@@ -216,7 +271,7 @@ describe('ThumbnailStudio', () => {
   describe('close button', () => {
     it('calls onClose when close button clicked', () => {
       const onClose = jest.fn();
-      render(<ThumbnailStudio {...defaultProps} onClose={onClose} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} onClose={onClose} />);
       
       const closeButton = screen.getByRole('button', { name: /close/i });
       fireEvent.click(closeButton);
@@ -227,7 +282,7 @@ describe('ThumbnailStudio', () => {
 
   describe('fullscreen toggle', () => {
     it('renders fullscreen toggle button', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       expect(screen.getByRole('button', { name: /fullscreen/i })).toBeInTheDocument();
     });
@@ -235,7 +290,7 @@ describe('ThumbnailStudio', () => {
 
   describe('tools panel', () => {
     it('renders tool buttons', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       // Check for common tool buttons
       expect(screen.getByRole('button', { name: /select/i })).toBeInTheDocument();
@@ -246,7 +301,7 @@ describe('ThumbnailStudio', () => {
 
   describe('zoom controls', () => {
     it('renders zoom tool button', () => {
-      render(<ThumbnailStudio {...defaultProps} />);
+      renderWithProviders(<ThumbnailStudio {...defaultProps} />);
       
       // Zoom tool in the toolbar
       expect(screen.getByRole('button', { name: /zoom.*z/i })).toBeInTheDocument();

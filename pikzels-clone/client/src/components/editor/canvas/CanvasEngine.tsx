@@ -1,17 +1,43 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import type { EditorState, Layer, LayerTransform, GroupLayer } from '../types/editor.types';
+import type { EditorState, Layer, LayerTransform, LayerEffect, GroupLayer, TextLayer, ImageLayer, ShapeLayer, DrawingLayer, DrawingPath } from '../types/editor.types';
+import { parseTextShadow } from '../../../constants/text-styles';
+import { INLINE_EDIT_STYLES } from '../../../hooks/useInlineTextEdit';
+import { UploadZoneOverlay } from './UploadZoneOverlay';
+import { TemplateGroupDragHandle } from '../../../features/drag-drop/components/TemplateGroupDragHandle';
+import type { LayoutPreset } from '../../../features/composition-templates/types';
 
 interface CanvasEngineProps {
   state: EditorState;
   onZoomChange: (zoom: number) => void;
   onPanChange: (panX: number, panY: number) => void;
   onLayerSelect: (layerId: string | null) => void;
-  onDrawingUpdate?: (paths: any[]) => void;
+  onDrawingUpdate?: (paths: DrawingPath[]) => void;
   onShapeCreate?: (shapeType: 'rectangle' | 'ellipse' | 'line' | 'polygon', x: number, y: number, width: number, height: number, points?: { x: number; y: number }[]) => void;
   onTextCreate?: (x: number, y: number) => void;
   onColorPick?: (color: string) => void;
   onFillArea?: (x: number, y: number, color: string) => void;
   onCrop?: (x: number, y: number, width: number, height: number) => void;
+  onToolChange?: (tool: string) => void;
+  onLayerMove?: (layerId: string, x: number, y: number) => void;
+  onGradientApply?: (startX: number, startY: number, endX: number, endY: number) => void;
+  editingTextLayerId?: string | null;
+  onTextEditStart?: (layerId: string) => void;
+  onTextEditEnd?: () => void;
+  onTextContentChange?: (layerId: string, content: string) => void;
+  /** Callback when user fills an upload zone with an image */
+  onFillUploadZone?: (layerId: string, imageSrc: string, imageWidth: number, imageHeight: number) => void;
+  /** Callback when user clears a filled upload zone back to placeholder */
+  onClearUploadZone?: (layerId: string) => void;
+  /** Template being dragged over canvas — shows slot preview outlines */
+  dragPreviewTemplate?: LayoutPreset | null;
+  /** Callback when user removes a template group from canvas via drag handle */
+  onRemoveTemplateGroup?: (groupId: string) => void;
+  /** Called when a template-group layer drag leaves the canvas viewport */
+  onTemplateDragOutside?: (info: { groupId: string; layerCount: number }) => void;
+  /** Called when cursor re-enters canvas during an outside drag (cancel removal) */
+  onTemplateDragReturn?: () => void;
+  /** Move all layers in a template group at once (batch move, no history push) */
+  onGroupMove?: (moves: Array<{ layerId: string; x: number; y: number }>) => void;
 }
 
 const CanvasEngine: React.FC<CanvasEngineProps> = ({
@@ -25,6 +51,20 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
   onColorPick,
   onFillArea,
   onCrop,
+  onToolChange,
+  onLayerMove,
+  onGradientApply,
+  editingTextLayerId,
+  onTextEditStart,
+  onTextEditEnd,
+  onTextContentChange,
+  onFillUploadZone,
+  onClearUploadZone,
+  dragPreviewTemplate,
+  onRemoveTemplateGroup,
+  onTemplateDragOutside,
+  onTemplateDragReturn,
+  onGroupMove,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +79,25 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
   const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   
+  // Move tool drag state
+  const [isDraggingLayer, setIsDraggingLayer] = useState(false);
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
+  const [dragLayerStartTransform, setDragLayerStartTransform] = useState({ x: 0, y: 0 });
+
+  // Drag-off-canvas state: when a template-group layer is dragged outside the viewport
+  const [isDragOutside, setIsDragOutside] = useState(false);
+  const dragOutsideGroupIdRef = useRef<string | null>(null);
+  // Store start transforms of all layers in a template group for group dragging
+  const groupDragStartTransformsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  
+  // Clone stamp state
+  const [cloneSource, setCloneSource] = useState<{ x: number; y: number } | null>(null);
+  
+  // Gradient tool state
+  const [gradientStart, setGradientStart] = useState<{ x: number; y: number } | null>(null);
+  const [gradientEnd, setGradientEnd] = useState<{ x: number; y: number } | null>(null);
+
   // Image cache to store loaded HTMLImageElement objects
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const [imagesLoaded, setImagesLoaded] = useState(0); // Trigger re-render when images load
@@ -111,7 +170,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
   // Preload images when layers change
   useEffect(() => {
-    const imageLayers = layers.filter(l => l.type === 'image') as any[];
+    const imageLayers = layers.filter(l => l.type === 'image') as ImageLayer[];
     
     imageLayers.forEach(layer => {
       const src = layer.src;
@@ -130,6 +189,89 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     });
   }, [layers]);
 
+  // --- Effect rendering helpers ---
+
+  /** Convert hex color + opacity (0-100) to rgba string */
+  const hexToRgba = (hex: string, opacity: number): string => {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
+  };
+
+  /** Apply pre-draw effects (shadow, glow, blur, bevel) to context before content render */
+  const applyPreDrawEffects = (ctx: CanvasRenderingContext2D, effects: LayerEffect[]) => {
+    for (const effect of effects) {
+      if (!effect.enabled) continue;
+      const s = effect.settings;
+
+      switch (effect.type) {
+        case 'shadow': {
+          const color = (s.color as string) || '#000000';
+          const opacity = (s.opacity as number) ?? 80;
+          ctx.shadowColor = hexToRgba(color, opacity);
+          ctx.shadowOffsetX = (s.offsetX as number) ?? 4;
+          ctx.shadowOffsetY = (s.offsetY as number) ?? 4;
+          ctx.shadowBlur = (s.blur as number) ?? 8;
+          break;
+        }
+        case 'glow': {
+          const color = (s.color as string) || '#FFFF00';
+          const opacity = (s.opacity as number) ?? 90;
+          ctx.shadowColor = hexToRgba(color, opacity);
+          ctx.shadowOffsetX = (s.offsetX as number) ?? 0;
+          ctx.shadowOffsetY = (s.offsetY as number) ?? 0;
+          ctx.shadowBlur = (s.blur as number) ?? 15;
+          break;
+        }
+        case 'blur': {
+          const radius = (s.radius as number) ?? 4;
+          ctx.filter = `blur(${radius}px)`;
+          break;
+        }
+        case 'bevel': {
+          // Bevel approximation: render a light shadow offset in one direction
+          const lightColor = (s.lightColor as string) || '#FFFFFF';
+          const opacity = (s.opacity as number) ?? 70;
+          const depth = (s.depth as number) ?? 3;
+          const angle = (s.angle as number) ?? 135;
+          const rad = (angle * Math.PI) / 180;
+          ctx.shadowColor = hexToRgba(lightColor, opacity);
+          ctx.shadowOffsetX = Math.cos(rad) * depth;
+          ctx.shadowOffsetY = Math.sin(rad) * depth;
+          ctx.shadowBlur = depth;
+          break;
+        }
+      }
+    }
+  };
+
+  /** Apply post-draw effects (stroke) after content render */
+  const applyPostDrawEffects = (ctx: CanvasRenderingContext2D, layer: Layer, effects: LayerEffect[]) => {
+    for (const effect of effects) {
+      if (!effect.enabled || effect.type !== 'stroke') continue;
+      const s = effect.settings;
+      const color = (s.color as string) || '#000000';
+      const opacity = (s.opacity as number) ?? 100;
+      const width = (s.width as number) ?? 3;
+      const { width: lw, height: lh } = layer.transform;
+
+      ctx.strokeStyle = hexToRgba(color, opacity);
+      ctx.lineWidth = width;
+      ctx.strokeRect(0, 0, lw, lh);
+    }
+  };
+
+  /** Reset all effect-related ctx state */
+  const resetEffectState = (ctx: CanvasRenderingContext2D) => {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.shadowBlur = 0;
+    ctx.filter = 'none';
+  };
+
   // Render all layers to canvas
   const renderLayers = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -146,7 +288,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
       // Skip rendering group layer itself - children are rendered separately
       if (layer.type === 'group') {
-        renderGroupLayer(ctx, layer as any, layers, layerOrder);
+        renderGroupLayer(ctx, layer as GroupLayer, layers, layerOrder);
         return;
       }
 
@@ -174,20 +316,46 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.scale(scaleX, scaleY);
       ctx.translate(-width / 2, -height / 2);
 
+      // Apply layer effects (pre-draw: shadow, glow, blur, bevel)
+      const layerEffects: LayerEffect[] = layer.effects || [];
+      const enabledPreEffects = layerEffects.filter(
+        e => e.enabled && e.type !== 'stroke'
+      );
+      if (enabledPreEffects.length > 0) {
+        applyPreDrawEffects(ctx, enabledPreEffects);
+      }
+
       // Render based on layer type
       switch (layer.type) {
         case 'image':
-          renderImageLayer(ctx, layer as any);
+          renderImageLayer(ctx, layer as ImageLayer);
           break;
         case 'text':
-          renderTextLayer(ctx, layer as any);
+          // Skip canvas rendering when inline textarea is visible (prevents ghost/double text)
+          if (editingTextLayerId !== layer.id) {
+            renderTextLayer(ctx, layer as TextLayer);
+          }
           break;
         case 'shape':
-          renderShapeLayer(ctx, layer as any);
+          renderShapeLayer(ctx, layer as ShapeLayer);
           break;
         case 'drawing':
-          renderDrawingLayer(ctx, layer as any);
+          renderDrawingLayer(ctx, layer as DrawingLayer);
           break;
+      }
+
+      // Apply post-draw effects (stroke outline)
+      const enabledPostEffects = layerEffects.filter(
+        e => e.enabled && e.type === 'stroke'
+      );
+      if (enabledPostEffects.length > 0) {
+        resetEffectState(ctx);
+        applyPostDrawEffects(ctx, layer, enabledPostEffects);
+      }
+
+      // Reset effect state before restore
+      if (enabledPreEffects.length > 0) {
+        resetEffectState(ctx);
       }
 
       ctx.restore();
@@ -195,7 +363,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
     // Render selection overlay
     renderSelectionOverlay();
-  }, [layers, layerOrder, canvas, selection, imagesLoaded]);
+  }, [layers, layerOrder, canvas, selection, imagesLoaded, editingTextLayerId]);
 
   // Helper to get parent group's transform
   const getParentTransform = (parentId: string, layers: Layer[]): LayerTransform | null => {
@@ -245,16 +413,18 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       
       switch (childLayer.type) {
         case 'image':
-          renderImageLayer(ctx, childLayer as any);
+          renderImageLayer(ctx, childLayer as ImageLayer);
           break;
         case 'text':
-          renderTextLayer(ctx, childLayer as any);
+          if (editingTextLayerId !== childLayer.id) {
+            renderTextLayer(ctx, childLayer as TextLayer);
+          }
           break;
         case 'shape':
-          renderShapeLayer(ctx, childLayer as any);
+          renderShapeLayer(ctx, childLayer as ShapeLayer);
           break;
         case 'drawing':
-          renderDrawingLayer(ctx, childLayer as any);
+          renderDrawingLayer(ctx, childLayer as DrawingLayer);
           break;
       }
       
@@ -264,7 +434,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.restore();
   };
 
-  const renderImageLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderImageLayer = (ctx: CanvasRenderingContext2D, layer: ImageLayer) => {
     // Get cached image
     const img = imageCache.current.get(layer.src);
     if (!img) {
@@ -293,34 +463,94 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.filter = 'none';
   };
 
-  const renderTextLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderTextLayer = (ctx: CanvasRenderingContext2D, layer: TextLayer) => {
     ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
     ctx.fillStyle = layer.fill;
-    ctx.textAlign = layer.textAlign;
+    ctx.textAlign = layer.textAlign === 'justify' ? 'left' : layer.textAlign;
     ctx.textBaseline = 'top';
 
     const lines = layer.content.split('\n');
     const lineHeight = layer.fontSize * layer.lineHeight;
+    // Vertical centering offset (match textarea paddingTop formula)
+    const visibleTextHeight = lines.length === 1
+      ? layer.fontSize
+      : layer.fontSize + (lines.length - 1) * lineHeight;
+    const vertOffset = Math.max(0, (layer.transform.height - visibleTextHeight) / 2);
 
-    lines.forEach((line: string, i: number) => {
-      const x = layer.textAlign === 'center' ? layer.transform.width / 2 :
-                layer.textAlign === 'right' ? layer.transform.width : 0;
-      ctx.fillText(line, x, i * lineHeight);
-    });
+    // Background banner
+    if (layer.backgroundColor) {
+      const pad = layer.backgroundPadding ?? 8;
+      ctx.save();
+      ctx.fillStyle = layer.backgroundColor;
+      lines.forEach((line: string, i: number) => {
+        const metrics = ctx.measureText(line);
+        const textW = metrics.width;
+        const x = layer.textAlign === 'center' ? layer.transform.width / 2 - textW / 2 :
+                  layer.textAlign === 'right' ? layer.transform.width - textW : 0;
+        const y = vertOffset + i * lineHeight;
+        const radius = 4;
+        const bx = x - pad;
+        const by = y - pad / 2;
+        const bw = textW + pad * 2;
+        const bh = layer.fontSize + pad;
+        ctx.beginPath();
+        ctx.moveTo(bx + radius, by);
+        ctx.lineTo(bx + bw - radius, by);
+        ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + radius);
+        ctx.lineTo(bx + bw, by + bh - radius);
+        ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - radius, by + bh);
+        ctx.lineTo(bx + radius, by + bh);
+        ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - radius);
+        ctx.lineTo(bx, by + radius);
+        ctx.quadraticCurveTo(bx, by, bx + radius, by);
+        ctx.closePath();
+        ctx.fill();
+      });
+      ctx.restore();
+    }
 
-    // Stroke if present
+    // Apply shadow from CSS textShadow string (skip if new-style effects already set shadow)
+    const hasEffectShadow = (layer.effects || []).some(
+      (e: LayerEffect) => e.enabled && (e.type === 'shadow' || e.type === 'glow')
+    );
+    const shadow = (!hasEffectShadow && layer.textShadow) ? parseTextShadow(layer.textShadow) : null;
+    if (shadow) {
+      ctx.shadowOffsetX = shadow.offsetX;
+      ctx.shadowOffsetY = shadow.offsetY;
+      ctx.shadowBlur = shadow.blur;
+      ctx.shadowColor = shadow.color;
+    }
+
+    // Stroke BEFORE fill so stroke appears behind the fill
     if (layer.stroke && layer.strokeWidth) {
       ctx.strokeStyle = layer.stroke;
       ctx.lineWidth = layer.strokeWidth;
+      ctx.lineJoin = 'round';
       lines.forEach((line: string, i: number) => {
         const x = layer.textAlign === 'center' ? layer.transform.width / 2 :
                   layer.textAlign === 'right' ? layer.transform.width : 0;
-        ctx.strokeText(line, x, i * lineHeight);
+        ctx.strokeText(line, x, vertOffset + i * lineHeight);
       });
+    }
+
+    // Fill text on top
+    ctx.fillStyle = layer.fill;
+    lines.forEach((line: string, i: number) => {
+      const x = layer.textAlign === 'center' ? layer.transform.width / 2 :
+                layer.textAlign === 'right' ? layer.transform.width : 0;
+      ctx.fillText(line, x, vertOffset + i * lineHeight);
+    });
+
+    // Reset shadow state
+    if (shadow) {
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
     }
   };
 
-  const renderShapeLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
+  const renderShapeLayer = (ctx: CanvasRenderingContext2D, layer: ShapeLayer) => {
     const { width, height } = layer.transform;
 
     ctx.fillStyle = layer.fill;
@@ -374,8 +604,8 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     ctx.stroke();
   };
 
-  const renderDrawingLayer = (ctx: CanvasRenderingContext2D, layer: any) => {
-    layer.paths.forEach((path: any) => {
+  const renderDrawingLayer = (ctx: CanvasRenderingContext2D, layer: DrawingLayer) => {
+    layer.paths.forEach((path: DrawingPath) => {
       if (path.points.length < 2) return;
 
       ctx.beginPath();
@@ -386,7 +616,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       ctx.globalAlpha = path.opacity / 100;
 
       ctx.moveTo(path.points[0].x, path.points[0].y);
-      path.points.slice(1).forEach((point: any) => {
+      path.points.slice(1).forEach((point: { x: number; y: number; pressure?: number }) => {
         ctx.lineTo(point.x, point.y);
       });
       ctx.stroke();
@@ -574,12 +804,96 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
         overlayCtx.strokeRect(cx, cy, handleSize, handleSize);
       });
     }
+
+    // Draw live slot preview during template drag
+    if (dragPreviewTemplate) {
+      overlayCtx.globalAlpha = 1;
+      overlayCtx.setLineDash([6, 4]);
+      overlayCtx.lineWidth = 2;
+
+      // Draw image slot outlines
+      dragPreviewTemplate.slots.forEach(slot => {
+        const sx = Math.round(slot.bounds.x * canvas.width);
+        const sy = Math.round(slot.bounds.y * canvas.height);
+        const sw = Math.round(slot.bounds.width * canvas.width);
+        const sh = Math.round(slot.bounds.height * canvas.height);
+
+        // Slot outline
+        overlayCtx.strokeStyle = 'rgba(99, 102, 241, 0.6)';
+        overlayCtx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+        overlayCtx.fillRect(sx, sy, sw, sh);
+        overlayCtx.strokeRect(sx, sy, sw, sh);
+
+        // Slot label
+        const fontSize = Math.min(14, Math.max(10, sw * 0.06));
+        overlayCtx.font = `500 ${fontSize}px Inter, system-ui, sans-serif`;
+        overlayCtx.fillStyle = 'rgba(99, 102, 241, 0.8)';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(slot.label, sx + sw / 2, sy + sh / 2);
+      });
+
+      // Draw text slot outlines in a different color
+      dragPreviewTemplate.textSlots.forEach(ts => {
+        const tx = Math.round(ts.bounds.x * canvas.width);
+        const ty = Math.round(ts.bounds.y * canvas.height);
+        const tw = Math.round(ts.bounds.width * canvas.width);
+        const th = Math.round(ts.bounds.height * canvas.height);
+
+        overlayCtx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
+        overlayCtx.fillStyle = 'rgba(249, 115, 22, 0.06)';
+        overlayCtx.fillRect(tx, ty, tw, th);
+        overlayCtx.strokeRect(tx, ty, tw, th);
+
+        const fontSize = Math.min(12, Math.max(9, tw * 0.05));
+        overlayCtx.font = `400 ${fontSize}px Inter, system-ui, sans-serif`;
+        overlayCtx.fillStyle = 'rgba(249, 115, 22, 0.7)';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'middle';
+        overlayCtx.fillText(ts.label, tx + tw / 2, ty + th / 2);
+      });
+
+      overlayCtx.setLineDash([]);
+    }
   };
 
   // Re-render on state change
   useEffect(() => {
     renderLayers();
   }, [renderLayers]);
+
+  // Re-render overlay when drag preview template changes
+  useEffect(() => {
+    renderSelectionOverlay();
+  }, [dragPreviewTemplate]);
+
+  // Figma-style: selected text layer + any printable key → start editing
+  useEffect(() => {
+    if (editingTextLayerId) return; // already editing
+    const selectedId = selection.layerIds[0];
+    if (!selectedId) return;
+    const selectedLayer = layers.find(l => l.id === selectedId);
+    if (!selectedLayer || selectedLayer.type !== 'text') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore modifier-only keys, navigation, and shortcuts
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock',
+           'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+           'Delete', 'Backspace', 'F1', 'F2', 'F3', 'F4', 'F5',
+           'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+          ].includes(e.key)) return;
+
+      // Enter key or any printable key → start editing
+      if (e.key === 'Enter' || e.key.length === 1) {
+        e.preventDefault();
+        onTextEditStart?.(selectedId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editingTextLayerId, selection.layerIds, layers, onTextEditStart]);
 
   // Get canvas coordinates from mouse event
   const getCanvasCoords = (e: React.MouseEvent) => {
@@ -600,6 +914,12 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
 
   // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent) => {
+    // Dismiss inline text editing when clicking elsewhere on canvas
+    if (editingTextLayerId) {
+      onTextEditEnd?.();
+      return;
+    }
+
     const coords = getCanvasCoords(e);
     setLastPosition({ x: e.clientX, y: e.clientY });
 
@@ -614,6 +934,18 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       return;
     }
 
+    if (activeTool === 'clone') {
+      if (e.altKey) {
+        // Alt+click sets the clone source sampling point
+        setCloneSource(coords);
+      } else if (cloneSource) {
+        // Normal click with source set: start clone painting
+        setIsDrawing(true);
+        setCurrentPath([coords]);
+      }
+      return;
+    }
+
     if (activeTool === 'rectangle' || activeTool === 'ellipse' || activeTool === 'line') {
       setShapeStart(coords);
       setShapeCurrent(coords);
@@ -621,28 +953,91 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       return;
     }
 
-    if (activeTool === 'select' || activeTool === 'move') {
-      // Check if clicked on a layer
+    if (activeTool === 'move') {
+      // Check if clicked on a layer for dragging
       const clickedLayer = [...layerOrder].reverse().find(layerId => {
         const layer = layers.find(l => l.id === layerId);
         if (!layer || !layer.visible) return false;
-
         const { x, y, width, height } = layer.transform;
         return coords.x >= x && coords.x <= x + width &&
                coords.y >= y && coords.y <= y + height;
       });
+      if (clickedLayer) {
+        onLayerSelect(clickedLayer);
+        const layer = layers.find(l => l.id === clickedLayer)!;
+        setIsDraggingLayer(true);
+        setDraggedLayerId(clickedLayer);
+        setDragStartPos(coords);
+        setDragLayerStartTransform({ x: layer.transform.x, y: layer.transform.y });
+        // Store start transforms of all group members for group dragging
+        if (layer.groupId) {
+          const starts = new Map<string, { x: number; y: number }>();
+          layers.filter(l => l.groupId === layer.groupId).forEach(l => {
+            starts.set(l.id, { x: l.transform.x, y: l.transform.y });
+          });
+          groupDragStartTransformsRef.current = starts;
+        } else {
+          groupDragStartTransformsRef.current = new Map();
+        }
+      } else {
+        onLayerSelect(null);
+      }
+      return;
+    }
 
-      onLayerSelect(clickedLayer || null);
+    if (activeTool === 'select') {
+      // Click to select a layer; template-group layers are also draggable
+      // so the user can drag them off-canvas to remove without switching tools
+      const clickedLayer = [...layerOrder].reverse().find(layerId => {
+        const layer = layers.find(l => l.id === layerId);
+        if (!layer || !layer.visible) return false;
+        const { x, y, width, height } = layer.transform;
+        return coords.x >= x && coords.x <= x + width &&
+               coords.y >= y && coords.y <= y + height;
+      });
+      if (clickedLayer) {
+        onLayerSelect(clickedLayer);
+        const layer = layers.find(l => l.id === clickedLayer)!;
+        // Template-group layers: enable drag so user can drag off canvas to remove
+        if (layer.groupId) {
+          setIsDraggingLayer(true);
+          setDraggedLayerId(clickedLayer);
+          setDragStartPos(coords);
+          setDragLayerStartTransform({ x: layer.transform.x, y: layer.transform.y });
+          // Store start transforms of all group members for group dragging
+          const starts = new Map<string, { x: number; y: number }>();
+          layers.filter(l => l.groupId === layer.groupId).forEach(l => {
+            starts.set(l.id, { x: l.transform.x, y: l.transform.y });
+          });
+          groupDragStartTransformsRef.current = starts;
+        }
+      } else {
+        onLayerSelect(null);
+      }
+      return;
     }
 
     if (activeTool === 'text') {
-      // Create text layer at click position
+      // Create text layer at click position, start inline editing
       onTextCreate?.(coords.x, coords.y);
+      onToolChange?.('select');
+      // Signal that we want to start editing the newly created layer
+      // ThumbnailStudio will handle setting editingTextLayerId after addTextLayer
+      return;
+    }
+
+    if (activeTool === 'gradient') {
+      // Start gradient drag
+      setGradientStart(coords);
+      setGradientEnd(coords);
+      setIsDrawing(true);
+      return;
     }
 
     if (activeTool === 'fill') {
       // Trigger flood fill at click position with current brush color
       onFillArea?.(coords.x, coords.y, toolSettings.brush.color);
+      return;
     }
 
     if (activeTool === 'eyedropper') {
@@ -652,10 +1047,10 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       if (ctx && canvas) {
         const pixel = ctx.getImageData(coords.x, coords.y, 1, 1).data;
         const color = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1)}`;
-        console.log('Picked color:', color);
         // Apply picked color to tool settings
         onColorPick?.(color);
       }
+      return;
     }
 
     if (activeTool === 'zoom') {
@@ -665,12 +1060,14 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       } else {
         onZoomChange(Math.min(canvas.zoom * 1.25, 5));
       }
+      return;
     }
 
     if (activeTool === 'polygon') {
       // Multi-click polygon drawing
       setPolygonPoints(prev => [...prev, coords]);
       renderSelectionOverlay();
+      return;
     }
 
     if (activeTool === 'crop') {
@@ -678,6 +1075,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       setShapeStart(coords);
       setShapeCurrent(coords);
       setIsCropping(true);
+      return;
     }
   };
 
@@ -690,11 +1088,30 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       return;
     }
 
+    // Move tool layer dragging
+    if (isDraggingLayer && draggedLayerId) {
+      const coords = getCanvasCoords(e);
+      const dx = coords.x - dragStartPos.x;
+      const dy = coords.y - dragStartPos.y;
+      // Template-group layers: move the whole group as one unit
+      const draggedLayer = layers.find(l => l.id === draggedLayerId);
+      if (draggedLayer?.groupId && groupDragStartTransformsRef.current.size > 0 && onGroupMove) {
+        const moves: Array<{ layerId: string; x: number; y: number }> = [];
+        groupDragStartTransformsRef.current.forEach((start, layerId) => {
+          moves.push({ layerId, x: start.x + dx, y: start.y + dy });
+        });
+        onGroupMove(moves);
+      } else {
+        onLayerMove?.(draggedLayerId, dragLayerStartTransform.x + dx, dragLayerStartTransform.y + dy);
+      }
+      return;
+    }
+
     if (isDrawing) {
       const coords = getCanvasCoords(e);
 
-      // For drawing tools (brush, eraser, pen)
-      if (activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'pen') {
+      // For drawing tools (brush, eraser, pen) and clone stamp
+      if (activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'pen' || activeTool === 'clone') {
         setCurrentPath(prev => [...prev, coords]);
         renderSelectionOverlay();
       }
@@ -702,6 +1119,12 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       // For shape tools (rectangle, ellipse, line)
       if ((activeTool === 'rectangle' || activeTool === 'ellipse' || activeTool === 'line') && shapeStart) {
         setShapeCurrent(coords);
+        renderSelectionOverlay();
+      }
+
+      // For gradient tool
+      if (activeTool === 'gradient') {
+        setGradientEnd(coords);
         renderSelectionOverlay();
       }
     }
@@ -719,6 +1142,14 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       setIsPanning(false);
       return;
     }
+
+    // Move tool: end layer drag
+    if (isDraggingLayer) {
+      setIsDraggingLayer(false);
+      setDraggedLayerId(null);
+      groupDragStartTransformsRef.current = new Map();
+      return;
+    }
   
     if (isDrawing && currentPath.length > 1 && (activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'pen')) {
       // Commit the drawing path
@@ -734,6 +1165,32 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
         },
       ]);
       setCurrentPath([]);
+      setIsDrawing(false);
+    }
+
+    // Clone stamp: commit the clone stroke
+    if (isDrawing && currentPath.length > 1 && activeTool === 'clone' && cloneSource) {
+      onDrawingUpdate?.([
+        {
+          id: `clone-${Date.now()}`,
+          points: currentPath,
+          color: 'clone',
+          lineWidth: toolSettings.clone.size,
+          opacity: toolSettings.clone.opacity,
+          blendMode: 'normal',
+          smoothing: 0,
+          cloneSource: { ...cloneSource },
+        },
+      ]);
+      setCurrentPath([]);
+      setIsDrawing(false);
+    }
+
+    // Gradient tool: apply gradient
+    if (isDrawing && activeTool === 'gradient' && gradientStart && gradientEnd) {
+      onGradientApply?.(gradientStart.x, gradientStart.y, gradientEnd.x, gradientEnd.y);
+      setGradientStart(null);
+      setGradientEnd(null);
       setIsDrawing(false);
     }
   
@@ -771,6 +1228,74 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     }
   };
 
+  // Mouse leave handler: for template-group layers, enter "drag outside" mode
+  // instead of ending the drag immediately
+  const handleMouseLeave = () => {
+    if (isDraggingLayer && draggedLayerId) {
+      const layer = layers.find(l => l.id === draggedLayerId);
+      if (layer?.groupId && onTemplateDragOutside) {
+        // Template-group layer: enter outside-drag mode
+        const layerCount = layers.filter(l => l.groupId === layer.groupId).length;
+        dragOutsideGroupIdRef.current = layer.groupId;
+        setIsDragOutside(true);
+        onTemplateDragOutside({ groupId: layer.groupId, layerCount });
+        return;
+      }
+    }
+    // Non-template layer or not dragging: default behavior
+    handleMouseUp();
+  };
+
+  // Global listeners for drag-off-canvas: active only when isDragOutside is true
+  useEffect(() => {
+    if (!isDragOutside) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      // If cursor re-enters the canvas viewport, cancel outside mode and resume drag
+      if (e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        dragOutsideGroupIdRef.current = null;
+        setIsDragOutside(false);
+        onTemplateDragReturn?.();
+      }
+    };
+
+    const handleGlobalMouseUp = (e: MouseEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const groupId = dragOutsideGroupIdRef.current;
+      // If released to the right of the canvas (over sidebar area), remove the template
+      if (rect && groupId && e.clientX > rect.right) {
+        onRemoveTemplateGroup?.(groupId);
+      }
+      // Clean up all drag state
+      dragOutsideGroupIdRef.current = null;
+      setIsDragOutside(false);
+      setIsDraggingLayer(false);
+      setDraggedLayerId(null);
+      onTemplateDragReturn?.();
+    };
+
+    const handleBlur = () => {
+      // Window lost focus during drag — cancel
+      dragOutsideGroupIdRef.current = null;
+      setIsDragOutside(false);
+      setIsDraggingLayer(false);
+      setDraggedLayerId(null);
+      onTemplateDragReturn?.();
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [isDragOutside, onRemoveTemplateGroup, onTemplateDragReturn, layers, draggedLayerId]);
+
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -782,7 +1307,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
     }
   };
 
-  // Double-click handler for completing polygon
+  // Double-click handler for completing polygon or editing text
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (activeTool === 'polygon' && polygonPoints.length >= 3) {
       // Calculate bounding box of polygon
@@ -796,6 +1321,22 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       // Create polygon shape layer
       onShapeCreate?.('polygon', minX, minY, maxX - minX, maxY - minY, polygonPoints);
       setPolygonPoints([]);
+      return;
+    }
+
+    // Double-click on text layer → start inline editing
+    if (activeTool === 'select' || activeTool === 'move') {
+      const coords = getCanvasCoords(e);
+      const clickedTextLayerId = [...layerOrder].reverse().find(layerId => {
+        const layer = layers.find(l => l.id === layerId);
+        if (!layer || !layer.visible || layer.type !== 'text') return false;
+        const { x, y, width, height } = layer.transform;
+        return coords.x >= x && coords.x <= x + width &&
+               coords.y >= y && coords.y <= y + height;
+      });
+      if (clickedTextLayerId) {
+        onTextEditStart?.(clickedTextLayerId);
+      }
     }
   };
 
@@ -827,9 +1368,12 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
   const getCursor = () => {
     switch (activeTool) {
       case 'hand': return isPanning ? 'grabbing' : 'grab';
+      case 'move': return isDraggingLayer ? 'grabbing' : 'move';
       case 'zoom': return 'zoom-in';
       case 'brush':
-      case 'eraser': return 'crosshair';
+      case 'eraser':
+      case 'clone':
+      case 'gradient': return 'crosshair';
       case 'text': return 'text';
       case 'eyedropper': return 'crosshair';
       case 'crop': return 'crosshair';
@@ -847,7 +1391,7 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
       >
@@ -888,6 +1432,95 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
                 pointerEvents: 'none',
               }}
             />
+            {/* Interactive upload zone overlays for composition template placeholders */}
+            {onFillUploadZone && onClearUploadZone && (
+              <UploadZoneOverlay
+                layers={layers}
+                onFillZone={onFillUploadZone}
+                onClearZone={onClearUploadZone}
+              />
+            )}
+            {/* Drag handle for template group layers — drag to Layouts to remove */}
+            <TemplateGroupDragHandle
+              layers={layers}
+              selection={selection}
+              onRemoveGroup={onRemoveTemplateGroup}
+            />
+            {/* Inline text editing overlay with seamless type-to-drag zones */}
+            {editingTextLayerId && (() => {
+              const editLayer = layers.find(
+                (l): l is TextLayer => l.id === editingTextLayerId && l.type === 'text'
+              );
+              if (!editLayer) return null;
+              const t = editLayer.transform;
+              const grabPad = 12; // px — outer grab zone around the textarea
+              // Approximate vertical centering: compute top padding
+              const lineCount = Math.max(1, (editLayer.content || '').split('\n').length);
+              // Use fontSize for glyph height + lineHeight spacing between lines
+              const lineH = editLayer.fontSize * (editLayer.lineHeight || 1.4);
+              const textHeight = lineCount === 1
+                ? editLayer.fontSize  // single line: just glyph height
+                : editLayer.fontSize + (lineCount - 1) * lineH; // multi-line: first line + rest with spacing
+              const vertPad = Math.max(0, (t.height - textHeight) / 2);
+              return (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: t.x - grabPad,
+                    top: t.y - grabPad,
+                    width: t.width + grabPad * 2,
+                    height: t.height + grabPad * 2,
+                    zIndex: 50,
+                    cursor: 'grab',
+                    border: '1.5px dashed rgba(168,85,247,0.7)',
+                    borderRadius: 4,
+                    boxSizing: 'border-box',
+                  }}
+                  onMouseDown={e => {
+                    // Grab zone: start dragging this text layer
+                    e.stopPropagation();
+                    const coords = getCanvasCoords(e);
+                    onLayerSelect(editLayer.id);
+                    setIsDraggingLayer(true);
+                    setDraggedLayerId(editLayer.id);
+                    setDragStartPos(coords);
+                    setDragLayerStartTransform({ x: t.x, y: t.y });
+                  }}
+                >
+                  <textarea
+                    autoFocus
+                    value={editLayer.content}
+                    onChange={e => onTextContentChange?.(editLayer.id, e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') onTextEditEnd?.();
+                    }}
+                    onMouseDown={e => {
+                      // Inner typing zone: stop propagation so drag doesn't start
+                      e.stopPropagation();
+                    }}
+                    style={{
+                      ...INLINE_EDIT_STYLES,
+                      position: 'absolute',
+                      left: grabPad,
+                      top: grabPad,
+                      width: t.width,
+                      height: t.height,
+                      boxSizing: 'border-box',
+                      paddingTop: vertPad,
+                      color: editLayer.fill,
+                      fontFamily: editLayer.fontFamily,
+                      fontSize: editLayer.fontSize,
+                      fontWeight: editLayer.fontWeight,
+                      fontStyle: editLayer.fontStyle,
+                      textAlign: editLayer.textAlign as CanvasTextAlign,
+                      lineHeight: editLayer.lineHeight,
+                      caretColor: '#a855f7',
+                      cursor: 'text',
+                    }}
+                  />
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -895,19 +1528,19 @@ const CanvasEngine: React.FC<CanvasEngineProps> = ({
       {/* Zoom controls */}
       <div className="canvas-controls">
         <div className="zoom-control">
-          <button onClick={zoomOut} title="Zoom out">
+          <button onClick={zoomOut} title="Zoom out" aria-label="Zoom out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
           <span className="zoom-control__value">{Math.round(canvas.zoom * 100)}%</span>
-          <button onClick={zoomIn} title="Zoom in">
+          <button onClick={zoomIn} title="Zoom in" aria-label="Zoom in">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-          <button onClick={zoomFit} title="Fit to view" style={{ marginLeft: 8, width: 'auto', padding: '0 8px' }}>
+          <button onClick={zoomFit} title="Fit to view" aria-label="Fit to view" style={{ marginLeft: 8, width: 'auto', padding: '0 8px' }}>
             Fit
           </button>
         </div>

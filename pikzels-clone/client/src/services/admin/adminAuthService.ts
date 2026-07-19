@@ -1,59 +1,57 @@
 /**
  * Admin Auth Service
- * 
+ *
  * Handles admin authentication with environment-aware routing:
  * - Development: uses mock data (no backend needed)
  * - Production: hits real /api/admin/auth/* endpoints
  */
 
-import { adminApi, shouldUseMockData, setAdminToken, setAdminUser, clearAdminAuth } from './adminApiClient';
+import { adminApi, setAdminToken, setAdminUser, clearAdminAuth } from './adminApiClient';
 import { mockAdminLogin, mockAdminMe } from './adminMockData';
+import { createAdminService } from './createAdminService';
 
-export const adminAuthService = {
-  /**
-   * Login with email/password
-   */
+function handleLoginResult(result: any) {
+  if (result.success && result.data) {
+    setAdminToken(result.data.token);
+    setAdminUser(result.data.user);
+  }
+  return result;
+}
+
+const realImpl = {
   async login(email: string, password: string) {
-    if (shouldUseMockData()) {
-      const result = await mockAdminLogin(email, password);
-      if (result.success && result.data) {
-        setAdminToken(result.data.token);
-        setAdminUser(result.data.user);
-      }
-      return result;
-    }
-
     const result = await adminApi.post<{ token: string; user: Record<string, unknown> }>(
       '/auth/login',
       { email, password }
     );
-
-    if (result.success && result.data) {
-      setAdminToken(result.data.token);
-      setAdminUser(result.data.user);
-    }
-
-    return result;
+    return handleLoginResult(result);
   },
 
-  /**
-   * Logout current admin
-   */
   async logout() {
-    if (!shouldUseMockData()) {
-      await adminApi.post('/auth/logout');
-    }
+    await adminApi.post('/auth/logout');
     clearAdminAuth();
     return { success: true };
   },
 
-  /**
-   * Get current admin info (validate token)
-   */
   async getCurrentAdmin() {
-    if (shouldUseMockData()) {
-      return mockAdminMe();
-    }
     return adminApi.get('/auth/me');
   },
 };
+
+const mockImpl = {
+  async login(email: string, password: string) {
+    const result = await mockAdminLogin(email, password);
+    return handleLoginResult(result);
+  },
+
+  async logout() {
+    clearAdminAuth();
+    return { success: true };
+  },
+
+  async getCurrentAdmin() {
+    return mockAdminMe();
+  },
+};
+
+export const adminAuthService = createAdminService(realImpl, mockImpl);

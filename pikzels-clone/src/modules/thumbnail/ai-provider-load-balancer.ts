@@ -2,6 +2,7 @@ import { CometAIService } from './comet-ai.service';
 import { ZenmuxAIService } from './zenmux-ai.service';
 import { OpenRouterAIService } from './openrouter-ai.service';
 import { AIService } from './ai.service';
+import { logger } from '../../utils/logger';
 
 /**
  * AI Provider Load Balancer
@@ -18,6 +19,18 @@ import { AIService } from './ai.service';
 
 export type ProviderName = 'comet' | 'zenmux' | 'openrouter' | 'openai';
 
+interface AIProvider {
+  generateImages(
+    prompt: string,
+    style?: string,
+    count?: number
+  ): Promise<string[]>;
+  generateThumbnails?(
+    prompt: string,
+    style?: string,
+    count?: number
+  ): Promise<string[]>;
+}
 export interface ProviderStatus {
   name: ProviderName;
   healthy: boolean;
@@ -35,7 +48,12 @@ export interface ProviderStatus {
 
 export interface LoadBalancerConfig {
   // Strategy for selecting providers
-  strategy: 'round-robin' | 'least-loaded' | 'fastest' | 'weighted' | 'failover-only';
+  strategy:
+    | 'round-robin'
+    | 'least-loaded'
+    | 'fastest'
+    | 'weighted'
+    | 'failover-only';
 
   // Provider weights for weighted strategy (higher = more traffic)
   weights?: Partial<Record<ProviderName, number>>;
@@ -74,7 +92,7 @@ export interface GenerationRequest {
   priority?: 'low' | 'normal' | 'high';
   preferredProvider?: ProviderName;
   excludeProviders?: ProviderName[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
 }
 
@@ -96,12 +114,14 @@ interface QueuedRequest {
 }
 
 export class AIProviderLoadBalancer {
-  private providers: Map<ProviderName, any>;
+  private providers: Map<ProviderName, AIProvider>;
   private providerStatus: Map<ProviderName, ProviderStatus>;
   private config: Required<LoadBalancerConfig>;
   private requestQueue: QueuedRequest[] = [];
-  private activeRequests: Map<string, { provider: ProviderName; startTime: Date }> =
-    new Map();
+  private activeRequests: Map<
+    string,
+    { provider: ProviderName; startTime: Date }
+  > = new Map();
   private roundRobinIndex = 0;
   private healthCheckInterval?: NodeJS.Timeout;
   private queueProcessorInterval?: NodeJS.Timeout;
@@ -120,9 +140,9 @@ export class AIProviderLoadBalancer {
     maxConcurrentPerProvider: 5,
     maxConcurrentTotal: 15,
     maxQueueSize: 100,
-    queueTimeoutMs: 120000, // 2 minutes
+    queueTimeoutMs: 60_000, // JJ: 60s (was 120s — queued requests shouldn't wait 2 min)
     maxRetries: 2,
-    retryDelayMs: 1000,
+    retryDelayMs: 2000, // JJ: 2s base (was 1s) — per Gemini API best practices
     retryBackoffMultiplier: 2,
     healthCheckIntervalMs: 30000, // 30 seconds
     unhealthyThreshold: 3,
@@ -162,7 +182,10 @@ export class AIProviderLoadBalancer {
     // Initialize OpenRouter
     const openrouterService = new OpenRouterAIService();
     if (openrouterService.isConfigured()) {
-      this.providers.set('openrouter', openrouterService);
+      this.providers.set(
+        'openrouter',
+        openrouterService as unknown as AIProvider
+      );
       this.initializeProviderStatus('openrouter');
     }
 
@@ -170,17 +193,17 @@ export class AIProviderLoadBalancer {
     try {
       const openaiService = new AIService();
       if (openaiService.isConfigured()) {
-        this.providers.set('openai', openaiService);
+        this.providers.set('openai', openaiService as unknown as AIProvider);
         this.initializeProviderStatus('openai');
       }
     } catch {
       // OpenAI service may not be available
     }
 
-    console.log(
-      `[LoadBalancer] Initialized with ${this.providers.size} providers:`,
-      Array.from(this.providers.keys()).join(', ')
-    );
+    logger.info('[LoadBalancer] Initialized with providers', {
+      providerCount: this.providers.size,
+      providers: Array.from(this.providers.keys()).join(', '),
+    });
   }
 
   /**
@@ -203,7 +226,9 @@ export class AIProviderLoadBalancer {
   /**
    * Generate images with automatic load balancing and failover
    */
-  async generateImages(request: Omit<GenerationRequest, 'id' | 'createdAt'>): Promise<GenerationResult> {
+  async generateImages(
+    request: Omit<GenerationRequest, 'id' | 'createdAt'>
+  ): Promise<GenerationResult> {
     const fullRequest: GenerationRequest = {
       ...request,
       id: this.generateRequestId(),
@@ -232,7 +257,9 @@ export class AIProviderLoadBalancer {
   /**
    * Enqueue a request for later processing
    */
-  private enqueueRequest(request: GenerationRequest): Promise<GenerationResult> {
+  private enqueueRequest(
+    request: GenerationRequest
+  ): Promise<GenerationResult> {
     if (this.requestQueue.length >= this.config.maxQueueSize) {
       return Promise.resolve({
         success: false,
@@ -257,7 +284,7 @@ export class AIProviderLoadBalancer {
       if (request.priority === 'high') {
         // Find first non-high priority request and insert before it
         const insertIndex = this.requestQueue.findIndex(
-          (r) => r.request.priority !== 'high'
+          r => r.request.priority !== 'high'
         );
         if (insertIndex === -1) {
           this.requestQueue.push(queuedRequest);
@@ -269,7 +296,7 @@ export class AIProviderLoadBalancer {
       } else {
         // Normal priority - insert after high priority requests
         const insertIndex = this.requestQueue.findIndex(
-          (r) => r.request.priority === 'low'
+          r => r.request.priority === 'low'
         );
         if (insertIndex === -1) {
           this.requestQueue.push(queuedRequest);
@@ -278,16 +305,19 @@ export class AIProviderLoadBalancer {
         }
       }
 
-      console.log(
-        `[LoadBalancer] Request ${request.id} queued. Queue size: ${this.requestQueue.length}`
-      );
+      logger.info('[LoadBalancer] Request queued', {
+        requestId: request.id,
+        queueSize: this.requestQueue.length,
+      });
     });
   }
 
   /**
    * Process a single request with retries and failover
    */
-  private async processRequest(request: GenerationRequest): Promise<GenerationResult> {
+  private async processRequest(
+    request: GenerationRequest
+  ): Promise<GenerationResult> {
     const startTime = Date.now();
     let lastError: string | undefined;
     let retries = 0;
@@ -329,10 +359,12 @@ export class AIProviderLoadBalancer {
         if (this.isRetryableError(lastError)) {
           retries++;
           if (retries <= this.config.maxRetries) {
-            const delay =
+            // JJ: Exponential backoff with jitter to prevent thundering herd
+            const baseDelay =
               this.config.retryDelayMs *
               Math.pow(this.config.retryBackoffMultiplier, retries - 1);
-            await this.sleep(delay);
+            const jitter = Math.random() * 1000; // 0-1s random jitter
+            await this.sleep(baseDelay + jitter);
           }
         } else {
           // Non-retryable error, try next provider
@@ -367,7 +399,10 @@ export class AIProviderLoadBalancer {
     }
 
     // If preferred provider is available, use it
-    if (request.preferredProvider && available.includes(request.preferredProvider)) {
+    if (
+      request.preferredProvider &&
+      available.includes(request.preferredProvider)
+    ) {
       return request.preferredProvider;
     }
 
@@ -473,7 +508,11 @@ export class AIProviderLoadBalancer {
 
     for (const name of available) {
       const status = this.providerStatus.get(name);
-      if (status && status.averageResponseTime < minTime && status.successCount > 0) {
+      if (
+        status &&
+        status.averageResponseTime < minTime &&
+        status.successCount > 0
+      ) {
         minTime = status.averageResponseTime;
         selected = name;
       }
@@ -486,7 +525,7 @@ export class AIProviderLoadBalancer {
    * Weighted random selection
    */
   private selectWeighted(available: ProviderName[]): ProviderName {
-    const weights = available.map((name) => this.config.weights[name] || 1);
+    const weights = available.map(name => this.config.weights[name] || 1);
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     let random = Math.random() * totalWeight;
 
@@ -544,13 +583,12 @@ export class AIProviderLoadBalancer {
         case 'openrouter':
           images = await provider.generateImages(
             request.prompt,
-            undefined, // Use default model
-            request.style
+            request.style // Use style as second param (model/style)
           );
           break;
 
         case 'openai':
-          images = await provider.generateThumbnails(
+          images = await provider.generateThumbnails!(
             request.prompt,
             request.style,
             1
@@ -592,7 +630,8 @@ export class AIProviderLoadBalancer {
       status.successCount++;
       // Update rolling average response time
       status.averageResponseTime =
-        (status.averageResponseTime * (status.successCount - 1) + responseTime) /
+        (status.averageResponseTime * (status.successCount - 1) +
+          responseTime) /
         status.successCount;
 
       // Check if we should mark as healthy again
@@ -600,7 +639,9 @@ export class AIProviderLoadBalancer {
         const recentSuccesses = status.successCount;
         if (recentSuccesses >= this.config.healthyThreshold) {
           status.healthy = true;
-          console.log(`[LoadBalancer] Provider ${providerName} marked healthy`);
+          logger.info('[LoadBalancer] Provider marked healthy', {
+            provider: providerName,
+          });
         }
       }
     } else {
@@ -612,11 +653,15 @@ export class AIProviderLoadBalancer {
         const totalRecent = status.successCount + status.failureCount;
         if (totalRecent >= 5) {
           const failureRate = status.failureCount / totalRecent;
-          if (failureRate > 0.5 || status.failureCount >= this.config.unhealthyThreshold) {
+          if (
+            failureRate > 0.5 ||
+            status.failureCount >= this.config.unhealthyThreshold
+          ) {
             status.healthy = false;
-            console.log(
-              `[LoadBalancer] Provider ${providerName} marked unhealthy (failure rate: ${failureRate})`
-            );
+            logger.warn('[LoadBalancer] Provider marked unhealthy', {
+              provider: providerName,
+              failureRate,
+            });
           }
         }
       }
@@ -639,9 +684,10 @@ export class AIProviderLoadBalancer {
       status.rateLimitResetAt = new Date(
         Date.now() + this.config.rateLimitCooldownMs
       );
-      console.log(
-        `[LoadBalancer] Provider ${providerName} rate limited until ${status.rateLimitResetAt}`
-      );
+      logger.warn('[LoadBalancer] Provider rate limited', {
+        provider: providerName,
+        rateLimitResetAt: status.rateLimitResetAt,
+      });
     }
   }
 
@@ -657,7 +703,7 @@ export class AIProviderLoadBalancer {
       'throttl',
     ];
     const lowerError = error.toLowerCase();
-    return rateLimitPatterns.some((pattern) => lowerError.includes(pattern));
+    return rateLimitPatterns.some(pattern => lowerError.includes(pattern));
   }
 
   /**
@@ -672,9 +718,11 @@ export class AIProviderLoadBalancer {
       'not found',
       'invalid prompt',
       'content policy',
+      'insufficient credits', // JJ: billing issues, retrying won't help
+      'model may not support', // JJ: wrong model selected, retrying same model is pointless
     ];
     const lowerError = error.toLowerCase();
-    return !nonRetryablePatterns.some((pattern) => lowerError.includes(pattern));
+    return !nonRetryablePatterns.some(pattern => lowerError.includes(pattern));
   }
 
   /**
@@ -697,7 +745,9 @@ export class AIProviderLoadBalancer {
         if (new Date() >= status.rateLimitResetAt) {
           status.rateLimited = false;
           delete status.rateLimitResetAt;
-          console.log(`[LoadBalancer] Provider ${name} rate limit cooldown expired`);
+          logger.info('[LoadBalancer] Provider rate limit cooldown expired', {
+            provider: name,
+          });
         }
       }
 
@@ -746,11 +796,11 @@ export class AIProviderLoadBalancer {
 
         // Process the request
         this.processRequest(queued.request)
-          .then((result) => {
+          .then(result => {
             result.queueTimeMs = queueTime;
             queued.resolve(result);
           })
-          .catch((error) => {
+          .catch(error => {
             queued.reject(error);
           });
       }
@@ -779,16 +829,16 @@ export class AIProviderLoadBalancer {
       providers: Array.from(this.providerStatus.values()),
       queue: {
         size: this.requestQueue.length,
-        ...(oldestRequest && { oldestRequestAge: Date.now() - oldestRequest.enqueuedAt.getTime() }),
+        ...(oldestRequest && {
+          oldestRequestAge: Date.now() - oldestRequest.enqueuedAt.getTime(),
+        }),
       },
       stats: {
         totalRequests: this.totalRequests,
         totalSuccesses: this.totalSuccesses,
         totalFailures: this.totalFailures,
         successRate:
-          this.totalRequests > 0
-            ? this.totalSuccesses / this.totalRequests
-            : 0,
+          this.totalRequests > 0 ? this.totalSuccesses / this.totalRequests : 0,
         activeRequests: this.activeRequests.size,
       },
     };
@@ -820,7 +870,7 @@ export class AIProviderLoadBalancer {
       delete status.lastErrorAt;
       status.successCount = 0;
       status.failureCount = 0;
-      console.log(`[LoadBalancer] Provider ${providerName} reset`);
+      logger.info('[LoadBalancer] Provider reset', { provider: providerName });
     }
   }
 
@@ -829,7 +879,7 @@ export class AIProviderLoadBalancer {
    */
   updateConfig(config: Partial<LoadBalancerConfig>): void {
     this.config = { ...this.config, ...config };
-    console.log('[LoadBalancer] Configuration updated');
+    logger.info('[LoadBalancer] Configuration updated');
   }
 
   /**
@@ -851,7 +901,7 @@ export class AIProviderLoadBalancer {
       }
     }
 
-    console.log('[LoadBalancer] Shutdown complete');
+    logger.info('[LoadBalancer] Shutdown complete');
   }
 
   /**
@@ -865,7 +915,7 @@ export class AIProviderLoadBalancer {
    * Sleep utility
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

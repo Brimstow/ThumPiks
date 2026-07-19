@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { RequestHandler } from 'express';
 import {
   createTeam,
   getUserTeams,
@@ -19,7 +19,7 @@ const router = express.Router();
 
 // Team routes
 router.post('/teams', authenticateToken, userApiRateLimit, createTeam);
-router.get('/teams', authenticateToken, userApiRateLimit, getUserTeams);
+router.get('/teams', authenticateToken, userApiRateLimit, getUserTeams as unknown as RequestHandler);
 router.get('/teams/:id', authenticateToken, userApiRateLimit, getTeamById);
 router.put('/teams/:id', authenticateToken, userApiRateLimit, updateTeam);
 router.delete('/teams/:id', authenticateToken, userApiRateLimit, deleteTeam);
@@ -35,13 +35,13 @@ router.delete(
   '/teams/:teamId/members/:memberId',
   authenticateToken,
   userApiRateLimit,
-  removeTeamMember
+  removeTeamMember as unknown as RequestHandler
 );
 router.put(
   '/teams/:teamId/members/:memberId/role',
   authenticateToken,
   userApiRateLimit,
-  updateMemberRole
+  updateMemberRole as unknown as RequestHandler
 );
 
 // Invitation routes
@@ -49,13 +49,13 @@ router.get(
   '/invitations',
   authenticateToken,
   userApiRateLimit,
-  getUserInvitations
+  getUserInvitations as unknown as RequestHandler
 );
 router.post(
   '/invitations/:id/respond',
   authenticateToken,
   userApiRateLimit,
-  respondToInvitation
+  respondToInvitation as unknown as RequestHandler
 );
 
 // Team projects routes

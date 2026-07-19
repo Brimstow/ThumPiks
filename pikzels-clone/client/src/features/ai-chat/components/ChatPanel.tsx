@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
+import Tooltip from '../../../components/ui/Tooltip';
 import type {
   ChatMessage as ChatMessageType,
   PlatformPresetContext,
@@ -29,6 +30,10 @@ interface ChatPanelProps {
   onToggleCollapse: () => void;
   /** Handler for uploading an image from the chat input */
   onUpload?: (file: File) => void;
+  /** Called when user confirms pending actions (preview mode) */
+  onConfirmActions?: (messageId: string) => void;
+  /** Called when user dismisses pending actions (preview mode) */
+  onDismissActions?: (messageId: string) => void;
 }
 
 /** Generate context-aware suggestion chips based on selected layer type */
@@ -75,6 +80,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isCollapsed,
   onToggleCollapse,
   onUpload,
+  onConfirmActions,
+  onDismissActions,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -97,19 +104,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   if (isCollapsed) {
     return (
       <div className="chat-section chat-section--collapsed">
-        <button
-          className="chat-section__toggle"
-          onClick={onToggleCollapse}
-          type="button"
+        <Tooltip
+          content="Multi-turn AI conversation — chat back and forth, ask follow-ups, and refine results with full context."
+          side="top"
+          sideOffset={8}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-          </svg>
-          <span>AI Chat</span>
-          {unreadCount > 0 && (
-            <span className="chat-section__badge">{unreadCount}</span>
-          )}
-        </button>
+          <button
+            className="chat-section__toggle"
+            onClick={onToggleCollapse}
+            type="button"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+            <span>AI Chat</span>
+            {unreadCount > 0 && (
+              <span className="chat-section__badge">{unreadCount}</span>
+            )}
+          </button>
+        </Tooltip>
       </div>
     );
   }
@@ -117,12 +130,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className="chat-section">
       <div className="chat-section__header">
-        <div className="chat-section__title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-          </svg>
-          AI Chat
-        </div>
+        <Tooltip
+          content="Multi-turn AI conversation — chat back and forth, ask follow-ups, and refine results with full context."
+          side="bottom"
+          sideOffset={8}
+        >
+          <div className="chat-section__title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+            AI Chat
+            <span className="chat-section__subtitle">Multi-turn conversation</span>
+          </div>
+        </Tooltip>
         <div className="chat-section__actions">
           {messages.length > 0 && (
             <button
@@ -130,6 +150,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onClick={onClear}
               type="button"
               title="Clear conversation"
+              aria-label="Clear conversation"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                 <path d="M3 6h18" />
@@ -143,6 +164,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onClick={onToggleCollapse}
             type="button"
             title="Collapse chat"
+            aria-label="Collapse chat"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
               <polyline points="6 9 12 15 18 9" />
@@ -161,7 +183,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+          <ChatMessage
+            key={msg.id}
+            message={msg}
+            onConfirmActions={onConfirmActions}
+            onDismissActions={onDismissActions}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

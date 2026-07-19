@@ -17,7 +17,14 @@ export interface FeatureFlags {
     /** Manual step-by-step brand kit setup */
     manualSetup: boolean;
   };
-  // Add more feature groups here as needed
+  feedback: {
+    /** Hotjar-style right-edge feedback tab */
+    sideTab: boolean;
+  };
+  globalChat: {
+    /** Global AI chatbot widget on all dashboard pages */
+    enabled: boolean;
+  };
 }
 
 /**
@@ -31,6 +38,12 @@ export const featureFlags: FeatureFlags = {
     aiGenerator: false,  // Coming soon - AI brand generation wizard
     urlImport: false,    // Coming soon - Extract brand from website URL
     manualSetup: false,  // Coming soon - Manual brand kit setup
+  },
+  feedback: {
+    sideTab: true,       // Hotjar-style right-edge feedback tab
+  },
+  globalChat: {
+    enabled: true,       // Global AI chatbot widget
   },
 };
 

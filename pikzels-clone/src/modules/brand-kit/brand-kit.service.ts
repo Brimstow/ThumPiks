@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { getCloudinaryProvider } from '../storage/cloudinary.provider';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../../utils/logger';
 
 const defaultPrisma = getPrisma();
 
@@ -15,16 +16,39 @@ export interface FontWeight {
   style: 'normal' | 'italic';
 }
 
+export interface BrandKitFont {
+  weights: FontWeight[];
+  [key: string]: unknown;
+}
+
+export interface BrandKitBrandVoice {
+  keywords: string[];
+  dos: string[];
+  donts: string[];
+  [key: string]: unknown;
+}
+
+export interface BrandKitPhoto {
+  tags: string[];
+  [key: string]: unknown;
+}
+
+export interface BrandKitStyle {
+  fontPairing: { heading: string; body: string };
+  colorScheme: string[];
+  [key: string]: unknown;
+}
+
 export interface BrandKitState {
-  logos: any[];
-  colorPalettes: any[];
-  fonts: any[];
-  brandVoice: any | null;
-  photos: any[];
-  graphics: any[];
-  icons: any[];
-  styles: any[];
-  customCategories: any[];
+  logos: Record<string, unknown>[];
+  colorPalettes: Record<string, unknown>[];
+  fonts: BrandKitFont[];
+  brandVoice: BrandKitBrandVoice | null;
+  photos: BrandKitPhoto[];
+  graphics: Record<string, unknown>[];
+  icons: Record<string, unknown>[];
+  styles: BrandKitStyle[];
+  customCategories: Record<string, unknown>[];
 }
 
 // ============================================
@@ -228,7 +252,7 @@ export class BrandKitService {
         const cloudinary = getCloudinaryProvider();
         await cloudinary.delete(logo.publicId);
       } catch (err) {
-        console.warn('Cloudinary delete failed:', err);
+        logger.warn('Cloudinary delete failed', { error: String(err) });
       }
     }
 
@@ -340,7 +364,7 @@ export class BrandKitService {
         userId: data.userId,
         name: data.name,
         fontFamily: data.fontFamily,
-        weights: data.weights as unknown as any,
+        weights: data.weights as unknown as Prisma.InputJsonValue,
         role: data.role,
         previewText: data.previewText || 'Aa',
       },
@@ -365,7 +389,7 @@ export class BrandKitService {
     if (updates.fontFamily !== undefined)
       prismaUpdates.fontFamily = updates.fontFamily;
     if (updates.weights !== undefined)
-      prismaUpdates.weights = updates.weights as unknown as any;
+      prismaUpdates.weights = updates.weights as unknown as Prisma.InputJsonValue;
     if (updates.role !== undefined) prismaUpdates.role = updates.role;
 
     return this.prisma.brandFont.update({
@@ -501,7 +525,7 @@ export class BrandKitService {
         const cloudinary = getCloudinaryProvider();
         await cloudinary.delete(photo.publicId);
       } catch (err) {
-        console.warn('Cloudinary delete failed:', err);
+        logger.warn('Cloudinary delete failed', { error: String(err) });
       }
     }
 
@@ -589,7 +613,7 @@ export class BrandKitService {
         const cloudinary = getCloudinaryProvider();
         await cloudinary.delete(graphic.publicId);
       } catch (err) {
-        console.warn('Cloudinary delete failed:', err);
+        logger.warn('Cloudinary delete failed', { error: String(err) });
       }
     }
 
@@ -659,7 +683,7 @@ export class BrandKitService {
         textPlacement: data.textPlacement || 'center',
         overlayColor: data.overlayColor || '#000000',
         overlayOpacity: data.overlayOpacity ?? 0.5,
-        fontPairing: (data.fontPairing || {}) as unknown as any,
+        fontPairing: (data.fontPairing || {}) as unknown as Prisma.InputJsonValue,
         colorScheme: data.colorScheme || [],
       },
     });

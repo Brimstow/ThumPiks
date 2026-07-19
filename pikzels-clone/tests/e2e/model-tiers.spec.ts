@@ -30,8 +30,8 @@ async function loginAsTestUser(page: any) {
   await passwordInput.clear();
   await passwordInput.fill('Test123!');
 
-  // Submit and wait for redirect
-  await page.click('button:has-text("Sign In")');
+  // Submit and wait for redirect (scoped to <form> to avoid "Sign in with Google" button)
+  await page.locator('form').getByRole('button', { name: 'Sign In', exact: true }).click();
   await page.waitForURL(/dashboard/, { timeout: 15000 });
 }
 

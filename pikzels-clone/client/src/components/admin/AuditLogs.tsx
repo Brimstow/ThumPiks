@@ -42,7 +42,23 @@ interface AuditLogEntry {
   severity: 'low' | 'medium' | 'high' | 'critical';
   category: 'authentication' | 'authorization' | 'data' | 'system' | 'security' | 'admin';
   success: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+}
+
+interface AuditLogApiEntry {
+  id: string;
+  timestamp: string;
+  user: AuditLogEntry['user'];
+  action: string;
+  resource: string;
+  resourceId?: string;
+  details: string;
+  ipAddress: string;
+  userAgent: string;
+  severity: AuditLogEntry['severity'];
+  category: AuditLogEntry['category'];
+  success: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 interface FilterOptions {
@@ -77,7 +93,7 @@ const AuditLogs: React.FC = () => {
     try {
       const result = await adminAuditService.getActivityLogs();
       if (result.success && result.data) {
-        const normalized = (result.data as any[]).map((log: any) => ({
+        const normalized = (result.data as AuditLogApiEntry[]).map((log) => ({
           id: log.id,
           timestamp: new Date(log.timestamp),
           user: log.user,

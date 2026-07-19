@@ -22,7 +22,7 @@ interface HealthCheck {
   responseTime?: number;
   errorMessage?: string;
   lastChecked: Date;
-  details?: any;
+  details?: unknown;
 }
 
 interface SystemHealth {
@@ -65,6 +65,27 @@ interface Alert {
   acknowledged: boolean;
 }
 
+interface HealthCheckApi {
+  service?: string;
+  name?: string;
+  status?: HealthCheck['status'];
+  responseTime?: number;
+  errorMessage?: string;
+  lastChecked?: string;
+  details?: unknown;
+}
+
+interface SystemHealthApi {
+  overall?: SystemHealth['overall'];
+  services?: HealthCheckApi[];
+  uptime?: number;
+  timestamp?: string;
+}
+
+interface AlertApi extends Omit<Alert, 'triggeredAt'> {
+  triggeredAt?: string;
+}
+
 const SystemMonitoring: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
@@ -90,13 +111,18 @@ const SystemMonitoring: React.FC = () => {
       ]);
 
       if (healthResult.success && healthResult.data) {
-        const h = healthResult.data as any;
+        const h = healthResult.data as SystemHealthApi;
         setSystemHealth({
-          ...h,
+          overall: h.overall ?? 'healthy',
+          uptime: h.uptime ?? 0,
           timestamp: new Date(h.timestamp ?? Date.now()),
-          services: (h.services ?? []).map((s: any) => ({
-            ...s,
+          services: (h.services ?? []).map((s) => ({
+            service: s.service || s.name || 'unknown',
+            status: s.status ?? 'healthy',
+            responseTime: s.responseTime,
+            errorMessage: s.errorMessage,
             lastChecked: new Date(s.lastChecked ?? Date.now()),
+            details: s.details,
           })),
         });
       }
@@ -104,10 +130,17 @@ const SystemMonitoring: React.FC = () => {
         setPerformanceMetrics(perfResult.data as PerformanceMetrics);
       }
       if (alertsResult.success && alertsResult.data) {
-        const raw = alertsResult.data as any[];
-        setAlerts(raw.map((a: any) => ({
-          ...a,
+        const raw = alertsResult.data as AlertApi[];
+        setAlerts(raw.map((a) => ({
+          id: a.id,
+          ruleId: a.ruleId,
+          ruleName: a.ruleName,
+          message: a.message,
+          severity: a.severity,
+          value: a.value,
+          threshold: a.threshold,
           triggeredAt: new Date(a.triggeredAt ?? Date.now()),
+          acknowledged: a.acknowledged,
         })));
       }
     } catch (error) {

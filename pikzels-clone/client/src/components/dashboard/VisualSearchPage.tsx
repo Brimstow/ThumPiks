@@ -359,34 +359,35 @@ const VisualSearchPage: React.FC = () => {
     <div className="min-h-screen bg-[#020817] text-slate-100 pb-12">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-3 bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
               Visual Search
             </h1>
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-sm sm:text-lg">
               Find similar thumbnails using AI-powered visual similarity
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={handleHealthCheck}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
             >
               <Zap className="w-4 h-4" />
-              Status
+              <span className="hidden sm:inline">Status</span>
             </button>
             <button
               onClick={handleIndexBatch}
               disabled={isIndexing}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
               {isIndexing ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <Database className="w-4 h-4" />
               )}
-              Index My Thumbnails
+              <span className="hidden sm:inline">Index My Thumbnails</span>
+              <span className="sm:hidden">Index</span>
             </button>
           </div>
         </div>
@@ -456,7 +457,7 @@ const VisualSearchPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4">
             {searchMode === 'image' && (
               <>
                 {/* URL Input */}

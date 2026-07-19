@@ -49,6 +49,37 @@ interface UserStats {
   newThisWeek: number;
 }
 
+interface UserApiEntry {
+  id: string;
+  email: string;
+  name?: string | null;
+  isVerified?: boolean;
+  isActive?: boolean;
+  createdAt: string;
+  lastLoginAt?: string | null;
+  adminRoles?: Array<{ role: string; isActive: boolean }>;
+  isAdmin?: boolean;
+  role?: string;
+  _count?: { projects: number; thumbnails: number };
+  projectCount?: number;
+  thumbnailCount?: number;
+}
+
+interface UserStatsApi {
+  totalUsers?: number;
+  total?: number;
+  activeUsers?: number;
+  active?: number;
+  verifiedUsers?: number;
+  verified?: number;
+  adminUsers?: number;
+  admins?: number;
+  newUsersThisMonth?: number;
+  newThisMonth?: number;
+  newUsersThisWeek?: number;
+  newThisWeek?: number;
+}
+
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -72,10 +103,10 @@ const UserManagement: React.FC = () => {
 
       if (result.success && result.data) {
         // Normalize data shape — service may return flat user objects
-        const normalized = (result.data as any[]).map((u: any) => ({
+        const normalized = (result.data as UserApiEntry[]).map((u) => ({
           id: u.id,
           email: u.email,
-          name: u.name,
+          name: u.name ?? null,
           isVerified: u.isVerified ?? false,
           isActive: u.isActive ?? true,
           createdAt: u.createdAt,
@@ -96,7 +127,7 @@ const UserManagement: React.FC = () => {
     try {
       const result = await adminUserService.getUserStats();
       if (result.success && result.data) {
-        const d = result.data as any;
+        const d = result.data as UserStatsApi;
         setStats({
           total: d.totalUsers ?? d.total ?? 0,
           active: d.activeUsers ?? d.active ?? 0,
@@ -131,7 +162,7 @@ const UserManagement: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const handleFilterChange = (key: keyof UserFilters, value: any) => {
+  const handleFilterChange = (key: keyof UserFilters, value: string | boolean | undefined) => {
     setFilters({ ...filters, [key]: value });
     setCurrentPage(1);
   };

@@ -85,11 +85,16 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-project-modal-title"
+        className="bg-slate-900 border border-slate-700 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-700">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 id="create-project-modal-title" className="text-lg font-semibold text-white">
               Create New
             </h3>
             <button

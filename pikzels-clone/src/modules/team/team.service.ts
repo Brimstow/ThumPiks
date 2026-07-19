@@ -123,7 +123,8 @@ export async function getTeamInvitations(
 
 /**
  * Invite team member
- * TODO: Implement when schema includes email/role fields
+ * Requires schema update to include email/role fields on TeamMember model.
+ * Currently throws until the Prisma schema is extended.
  */
 export async function inviteTeamMember(
   teamId: string,

@@ -5,7 +5,7 @@ export interface User {
   email: string;
   name?: string;
   password: string;
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +26,7 @@ export interface Thumbnail {
   title: string;
   imageUrl: string;
   prompt: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   style?: string;
   featured: boolean;
   featuredAt?: Date;
@@ -54,7 +54,7 @@ export interface Template {
   name: string;
   description?: string;
   imageUrl?: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   category?: string;
   isPublic: boolean;
   createdBy: string;

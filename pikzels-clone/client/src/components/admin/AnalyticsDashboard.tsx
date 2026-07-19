@@ -26,6 +26,32 @@ interface ChartData {
   value: number;
 }
 
+interface AnalyticsApiData {
+  overview?: {
+    totalUsers?: number;
+    activeUsers?: number;
+    totalRevenue?: number;
+    monthlyGrowth?: number;
+  };
+  userMetrics?: {
+    newUsers?: number;
+    retentionRate?: number;
+    averageSessionTime?: number;
+  };
+  contentMetrics?: {
+    totalThumbnails?: number;
+    newThumbnails?: number;
+    totalProjects?: number;
+    popularCategories?: Array<{ name: string; count: number; percentage: number }>;
+  };
+  revenueMetrics?: {
+    monthlyRevenue?: number;
+    averageRevenuePerUser?: number;
+    subscriptionBreakdown?: Array<{ plan: string; count: number; revenue: number; percentage: number }>;
+  };
+  chartData?: Array<{ date: string; users?: number; thumbnails?: number; value?: number }>;
+}
+
 const AnalyticsDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
@@ -64,10 +90,10 @@ const AnalyticsDashboard: React.FC = () => {
       const result = await adminAnalyticsService.getOverview({ period: selectedPeriod });
 
       if (result.success && result.data) {
-        const d = result.data as any;
+        const d = result.data as AnalyticsApiData;
         setAnalyticsData({
-          overview: d.overview ?? analyticsData.overview,
-          userMetrics: d.userMetrics ?? analyticsData.userMetrics,
+          overview: { ...analyticsData.overview, ...d.overview },
+          userMetrics: { ...analyticsData.userMetrics, ...d.userMetrics },
           contentMetrics: {
             totalThumbnails: d.contentMetrics?.totalThumbnails ?? 0,
             newThumbnails: d.contentMetrics?.newThumbnails ?? 0,
@@ -83,7 +109,7 @@ const AnalyticsDashboard: React.FC = () => {
 
         // Chart data from service
         if (d.chartData && Array.isArray(d.chartData)) {
-          setChartData(d.chartData.map((p: any) => ({
+          setChartData(d.chartData.map((p) => ({
             date: p.date,
             value: p.users ?? p.thumbnails ?? p.value ?? 0,
           })));

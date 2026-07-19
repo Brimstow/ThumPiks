@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import * as billingController from './billing.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 
@@ -12,7 +12,7 @@ const router = Router();
 router.get(
   '/payment-methods',
   authenticate,
-  billingController.getPaymentMethods
+  billingController.getPaymentMethods as unknown as RequestHandler
 );
 
 /**
@@ -20,13 +20,21 @@ router.get(
  * @desc    Get billing history (invoices + credit purchases)
  * @access  Private
  */
-router.get('/history', authenticate, billingController.getBillingHistory);
+router.get(
+  '/history',
+  authenticate,
+  billingController.getBillingHistory as unknown as RequestHandler
+);
 
 /**
  * @route   POST /api/billing/portal
  * @desc    Create Stripe Billing Portal session
  * @access  Private
  */
-router.post('/portal', authenticate, billingController.createBillingPortal);
+router.post(
+  '/portal',
+  authenticate,
+  billingController.createBillingPortal as unknown as RequestHandler
+);
 
 export default router;

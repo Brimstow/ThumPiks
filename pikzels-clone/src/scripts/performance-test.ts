@@ -1,6 +1,5 @@
 import { performance } from 'perf_hooks';
 import { CacheService } from '../services/cache.service';
-// import { ThumbnailService } from '../modules/thumbnail/thumbnail.service'; // TODO: Use for performance testing
 import { ProjectService } from '../modules/project/project.service';
 
 /**
@@ -9,7 +8,6 @@ import { ProjectService } from '../modules/project/project.service';
  */
 
 const cache = CacheService.getInstance();
-// const thumbnailService = new ThumbnailService(); // TODO: Use for performance testing
 const projectService = new ProjectService();
 
 interface PerformanceTestResult {

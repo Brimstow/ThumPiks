@@ -25,7 +25,7 @@ async function testBackup() {
   }
 
   const match = url.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
-  if (!match || !match[1] || !match[2] || !match[3]) {
+  if (!match?.[1] || !match[2] || !match[3]) {
     console.log('❌ Invalid CLOUDINARY_URL format');
     return;
   }

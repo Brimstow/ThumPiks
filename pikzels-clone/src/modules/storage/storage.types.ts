@@ -56,7 +56,7 @@ export interface StorageUploadResult {
   /** Expiration timestamp if temporary */
   expiresAt?: Date;
   /** Original response from provider */
-  rawResponse?: any;
+  rawResponse?: unknown;
 }
 
 export interface StorageDeleteResult {

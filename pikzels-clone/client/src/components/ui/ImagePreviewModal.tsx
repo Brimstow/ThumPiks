@@ -111,7 +111,13 @@ const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" />
 
           {/* Content wrapper */}
-          <div className="relative flex flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={title ?? 'Image preview'}
+            className="relative flex flex-1 min-w-0"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Main image area */}
             <div className="flex-1 flex flex-col min-w-0">
               {/* Top bar */}

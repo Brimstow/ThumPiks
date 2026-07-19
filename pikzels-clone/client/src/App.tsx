@@ -1,11 +1,17 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+  useLocation,
+} from 'react-router-dom';
+import { Provider as TooltipProvider } from '@radix-ui/react-tooltip';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import LandingPage from './components/LandingPage';
-import LandingPage2 from './components/LandingPage2';
-import ThumPiksLanding from './components/PikzelsLanding';
-import ThumPiksTest from './components/PikzelsTest';
+import ThumPiksLanding from './components/ThumPiksLanding';
+import ThumPiksTest from './components/ThumPiksTest';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -14,11 +20,12 @@ import VerifyEmailSuccess from './components/auth/VerifyEmailSuccess';
 import ShadcnTest from './components/ShadcnTest';
 
 // User Components
-import Dashboard from './components/Dashboard';
+
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import DashboardHome from './components/dashboard/DashboardHome';
 import HelpPage from './components/dashboard/HelpPage';
+import { HelpCategoryPage, HelpArticlePage } from './components/dashboard/help';
 import BrandPage from './components/dashboard/BrandPage';
 import ProjectsPage from './components/dashboard/ProjectsPage';
 import ProjectDetail from './components/projects/ProjectDetail';
@@ -29,22 +36,20 @@ import UploadsPage from './components/dashboard/UploadsPage';
 import TrendingPage from './components/dashboard/TrendingPage';
 import PricingPage from './components/dashboard/PricingPage';
 import CreditsPage from './components/dashboard/CreditsPage';
+import NotificationsPage from './components/notifications/NotificationsPage';
 import AIToolsPage from './components/dashboard/AIToolsPage';
 import VisionToolPage from './components/dashboard/VisionToolPage';
 import VisualSearchPage from './components/dashboard/VisualSearchPage';
 import ABTestingPage from './components/dashboard/ABTestingPage';
 import QuickEditView from './components/dashboard/QuickEditView';
 import ErrorBoundary from './components/ErrorBoundary';
-// ThumbnailEditorPage removed - legacy route now redirects to unified editor
 import BatchEditor from './components/BatchEditor';
 import CanvasEditorPage from './pages/CanvasEditorPage';
 import PresetEditorPage from './pages/PresetEditorPage';
 import ThumbnailStudioPage from './pages/ThumbnailStudioPage';
 import UserAnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
-import SocialShareAnalytics from './components/SocialShareAnalytics';
-import UserSettings from './components/UserSettings';
-import CreateThumbnail from './components/CreateThumbnail';
+
 import AccountPage from './components/account/AccountPage';
 import SharedThumbnailPage from './components/SharedThumbnailPage';
 import AboutPage from './components/AboutPage';
@@ -52,6 +57,7 @@ import ContactPage from './components/ContactPage';
 import PrivacyPage from './components/PrivacyPage';
 import TermsPage from './components/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
+import ComparePage from './pages/ComparePage';
 import ReviewsPage from './pages/ReviewsPage';
 import ChangelogPage from './pages/ChangelogPage';
 import VideoEditorPage from './pages/VideoEditorPage';
@@ -61,19 +67,7 @@ import DemoCheckout from './components/dashboard/DemoCheckout';
 // Import custom styles
 import './styles/animations.css';
 
-// Admin Components
-import AdminLogin from './components/admin/AdminLogin';
-import AdminLayout from './components/admin/AdminLayout';
-import AdminDashboard from './components/admin/AdminDashboard';
-import UserManagement from './components/admin/UserManagement';
-import SitemapAdmin from './components/admin/SitemapAdmin';
-import AnalyticsDashboard from './components/admin/AnalyticsDashboard';
-import SystemHealthMonitoring from './components/admin/SystemHealthMonitoring';
-import AuditLogs from './components/admin/AuditLogs';
-import AdminSettings from './components/admin/AdminSettings';
-import RolePermissionManagement from './components/admin/RolePermissionManagement';
-import ContentManagement from './components/admin/ContentManagement';
-import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
+
 
 // Simple test component
 const TestPage = () => (
@@ -122,6 +116,97 @@ const RedirectToEditor = () => {
   return <Navigate to={`/dashboard/editor/${id}`} replace />;
 };
 
+// Scroll position storage key
+const SCROLL_POSITION_KEY = 'thumpiks-scroll-positions';
+const LANDING_PAGE_PATH = '/';
+
+// Save scroll position for a path
+function saveScrollPosition(path: string, position: number) {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    positions[path] = position;
+    sessionStorage.setItem(SCROLL_POSITION_KEY, JSON.stringify(positions));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Get scroll position for a path
+function getScrollPosition(path: string): number {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    return positions[path] || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Clear scroll position for a path
+function clearScrollPosition(path: string) {
+  try {
+    const positions = JSON.parse(sessionStorage.getItem(SCROLL_POSITION_KEY) || '{}');
+    delete positions[path];
+    sessionStorage.setItem(SCROLL_POSITION_KEY, JSON.stringify(positions));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// ScrollManager - handles scroll behavior for navigation
+function ScrollManager() {
+  const { pathname } = useLocation();
+  const lastPathRef = useRef<string>(pathname);
+  const isFirstRenderRef = useRef(true);
+
+  // Track scroll position on landing page
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.location.pathname === LANDING_PAGE_PATH) {
+        saveScrollPosition(LANDING_PAGE_PATH, window.scrollY);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Handle scroll behavior on route changes
+  useLayoutEffect(() => {
+    // Always scroll to top on initial app load
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+      lastPathRef.current = pathname;
+      return;
+    }
+
+    const previousPath = lastPathRef.current;
+    lastPathRef.current = pathname;
+
+    // If navigating back to landing page, restore scroll position
+    if (pathname === LANDING_PAGE_PATH) {
+      const savedPosition = getScrollPosition(LANDING_PAGE_PATH);
+      // Use setTimeout for Firefox compatibility
+      setTimeout(() => {
+        window.scrollTo({ top: savedPosition, left: 0, behavior: 'instant' as ScrollBehavior });
+      }, 0);
+    } else {
+      // For all other navigation, scroll to top immediately
+      // Use setTimeout for Firefox compatibility
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+      }, 0);
+    }
+  }, [pathname]);
+
+  // Set scroll restoration to manual to prevent browser interference
+  useEffect(() => {
+    window.history.scrollRestoration = 'manual';
+  }, []);
+
+  return null;
+}
+
 function App() {
   useEffect(() => {
     console.log('🚀 App component mounted successfully!');
@@ -129,13 +214,14 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ScrollManager />
+      <TooltipProvider delayDuration={300}>
       <ThemeProvider>
         <AuthProvider>
           <div className="App">
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<ThumPiksLanding />} />
-              <Route path="/landing2" element={<LandingPage2 />} />
               <Route path="/thumpiks" element={<ThumPiksLanding />} />
               <Route path="/test-thumpiks" element={<ThumPiksTest />} />
               <Route path="/login" element={<Login />} />
@@ -145,10 +231,7 @@ function App() {
                 path="/reset-password/:token"
                 element={<ResetPassword />}
               />
-              <Route
-                path="/reset-password"
-                element={<ResetPassword />}
-              />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/verify-email/:token"
                 element={<VerifyEmailSuccess />}
@@ -160,15 +243,19 @@ function App() {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/compare" element={<ComparePage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/changelog" element={<ChangelogPage />} />
-              
+
               {/* Demo Checkout (Development Only) */}
-              <Route path="/demo-checkout" element={
-                <ProtectedRoute>
-                  <DemoCheckout />
-                </ProtectedRoute>
-              } />
+              <Route
+                path="/demo-checkout"
+                element={
+                  <ProtectedRoute>
+                    <DemoCheckout />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Shared Content Routes (No Auth Required) */}
               <Route path="/shared/:token" element={<SharedThumbnailPage />} />
@@ -196,40 +283,64 @@ function App() {
                 <Route path="editor" element={<ThumbnailStudioPage />} />
                 <Route path="editor/:id" element={<ThumbnailStudioPage />} />
                 <Route path="brand" element={<BrandPage />} />
-                <Route path="ai-tools" element={<ErrorBoundary><AIToolsPage /></ErrorBoundary>} />
-                <Route path="vision" element={<ErrorBoundary><VisionToolPage /></ErrorBoundary>} />
-                <Route path="visual-search" element={<ErrorBoundary><VisualSearchPage /></ErrorBoundary>} />
-                <Route path="ab-testing" element={<ErrorBoundary><ABTestingPage /></ErrorBoundary>} />
+                <Route
+                  path="ai-tools"
+                  element={
+                    <ErrorBoundary>
+                      <AIToolsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="vision"
+                  element={
+                    <ErrorBoundary>
+                      <VisionToolPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="visual-search"
+                  element={
+                    <ErrorBoundary>
+                      <VisualSearchPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="ab-testing"
+                  element={
+                    <ErrorBoundary>
+                      <ABTestingPage />
+                    </ErrorBoundary>
+                  }
+                />
                 <Route path="trending" element={<TrendingPage />} />
-                <Route path="settings" element={<UserSettings />} />
+                <Route path="settings" element={<Navigate to="/dashboard/account/settings" replace />} />
                 <Route path="help" element={<HelpPage />} />
+                <Route path="help/:categorySlug" element={<HelpCategoryPage />} />
+                <Route path="help/:categorySlug/:articleSlug" element={<HelpArticlePage />} />
                 <Route path="pricing" element={<PricingPage />} />
                 <Route path="credits" element={<CreditsPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="account" element={<AccountPage />} />
                 <Route path="account/:section" element={<AccountPage />} />
                 <Route path="video-editor" element={<VideoEditorPage />} />
                 <Route path="create-plus" element={<CreatePlusPage />} />
-                <Route path="create-plus/:presetId" element={<PresetEditorPage />} />
-                <Route path="quick-edit" element={<ErrorBoundary><QuickEditView /></ErrorBoundary>} />
+                <Route
+                  path="create-plus/:presetId"
+                  element={<PresetEditorPage />}
+                />
+                <Route
+                  path="quick-edit"
+                  element={
+                    <ErrorBoundary>
+                      <QuickEditView />
+                    </ErrorBoundary>
+                  }
+                />
               </Route>
 
-              {/* Legacy Thumbnail Routes - Keep for backwards compatibility */}
-              <Route
-                path="/thumbnails"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/thumbnails/create"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
 
               {/* Canvas Editor Routes */}
               <Route
@@ -307,14 +418,6 @@ function App() {
                 }
               />
               <Route
-                path="/analytics/social"
-                element={
-                  <ProtectedRoute>
-                    <SocialShareAnalytics />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/analytics/advanced"
                 element={
                   <ProtectedRoute>
@@ -326,157 +429,14 @@ function App() {
               {/* User Management Routes */}
               <Route
                 path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <UserSettings />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/dashboard/account/settings" replace />}
               />
               <Route
                 path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <UserSettings />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/dashboard/account/profile" replace />}
               />
 
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route
-                path="/admin"
-                element={
-                  <AdminProtectedRoute>
-                    <AdminLayout />
-                  </AdminProtectedRoute>
-                }
-              >
-                <Route index element={<AdminDashboard />} />
-
-                {/* User Management */}
-                <Route
-                  path="users"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['users.view']}>
-                      <UserManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="users/roles"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['admin.roles']}>
-                      <RolePermissionManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Content Management */}
-                <Route
-                  path="content"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/thumbnails"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/templates"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="content/projects"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <ContentManagement />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Sitemap */}
-                <Route
-                  path="sitemap"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['content.view']}>
-                      <SitemapAdmin />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* Analytics */}
-                <Route
-                  path="analytics"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="analytics/users"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="analytics/performance"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['analytics.view']}
-                    >
-                      <AnalyticsDashboard />
-                    </AdminProtectedRoute>
-                  }
-                />
-
-                {/* System Management */}
-                <Route
-                  path="system/health"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['system.health']}
-                    >
-                      <SystemHealthMonitoring />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="system/logs"
-                  element={
-                    <AdminProtectedRoute requiredPermissions={['system.logs']}>
-                      <AuditLogs />
-                    </AdminProtectedRoute>
-                  }
-                />
-                <Route
-                  path="system/settings"
-                  element={
-                    <AdminProtectedRoute
-                      requiredPermissions={['system.config']}
-                    >
-                      <AdminSettings />
-                    </AdminProtectedRoute>
-                  }
-                />
-              </Route>
+              {/* Admin is a separate app at /admin/index.html */}
 
               {/* Test pages - Development Only */}
               <Route path="/test" element={<TestPage />} />
@@ -489,6 +449,7 @@ function App() {
           </div>
         </AuthProvider>
       </ThemeProvider>
+      </TooltipProvider>
     </Router>
   );
 }

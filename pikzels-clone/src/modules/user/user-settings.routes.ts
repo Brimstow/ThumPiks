@@ -1,54 +1,49 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import * as userSettingsController from './user-settings.controller';
+import { requestDataExport } from './data-export.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 
 const router = Router();
 
-/**
- * @route   GET /api/user/settings
- * @desc    Get user settings
- * @access  Private
- */
-router.get('/settings', authenticate, userSettingsController.getSettings);
-
-/**
- * @route   PUT /api/user/settings/email
- * @desc    Update email preferences
- * @access  Private
- */
+router.get(
+  '/settings',
+  authenticate,
+  userSettingsController.getSettings as unknown as RequestHandler
+);
 router.put(
   '/settings/email',
   authenticate,
-  userSettingsController.updateEmailPreferences
+  userSettingsController.updateEmailPreferences as unknown as RequestHandler
 );
-
-/**
- * @route   GET /api/user/storage
- * @desc    Get user storage information
- * @access  Private
- */
-router.get('/storage', authenticate, userSettingsController.getStorage);
-
-/**
- * @route   PUT /api/user/settings/auto-save
- * @desc    Update auto-save setting
- * @access  Private
- */
+router.get(
+  '/storage',
+  authenticate,
+  userSettingsController.getStorage as unknown as RequestHandler
+);
 router.put(
   '/settings/auto-save',
   authenticate,
-  userSettingsController.updateAutoSave
+  userSettingsController.updateAutoSave as unknown as RequestHandler
 );
-
-/**
- * @route   PUT /api/user/settings/auto-import
- * @desc    Update auto-import setting
- * @access  Private
- */
 router.put(
   '/settings/auto-import',
   authenticate,
-  userSettingsController.updateAutoImport
+  userSettingsController.updateAutoImport as unknown as RequestHandler
+);
+router.put(
+  '/password',
+  authenticate,
+  userSettingsController.changePassword as unknown as RequestHandler
+);
+router.delete(
+  '/account',
+  authenticate,
+  userSettingsController.deleteAccount as unknown as RequestHandler
+);
+router.post(
+  '/export',
+  authenticate,
+  requestDataExport as unknown as RequestHandler
 );
 
 export default router;

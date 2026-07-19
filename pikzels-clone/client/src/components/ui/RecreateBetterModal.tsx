@@ -25,10 +25,10 @@ import {
   Users,
   Type,
   BarChart3,
-  Check,
 } from 'lucide-react';
-import { authPost } from '../../utils/api';
+import { authPost, createAIToolAbortController } from '../../utils/api';
 import { useImageActions, enhancePromptFromAnalysis, calculateRecreateBetterCost } from '../../hooks/useImageActions';
+import { useSaveThumbnail } from '../../hooks/useSaveThumbnail';
 import type { RecreateBetterModalProps, RecreateBetterStage } from '../../types/image-actions.types';
 import type { VisionAnalysisResult } from '../../types/vision.types';
 
@@ -44,7 +44,8 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
   onImageGenerated,
   onSave,
 }) => {
-  const { saveToLibrary, openInEditor, downloadImage } = useImageActions();
+  const { openInEditor, downloadImage } = useImageActions();
+  const { triggerSave, SaveModal } = useSaveThumbnail();
 
   // Self-management state (used when no props provided)
   const [internalOpen, setInternalOpen] = useState(false);
@@ -79,9 +80,6 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
   // Generation state
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
-  // Save state
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Calculate credit cost
   const creditCost = calculateRecreateBetterCost(!!existingAnalysis);
@@ -123,7 +121,7 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
         startAnalysis();
       }
     }
-  }, [isOpen, stage, existingAnalysis]);
+  }, [isOpen, stage, existingAnalysis]);  
 
   // Reset state when modal closes
   useEffect(() => {
@@ -134,7 +132,6 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       setImprovedPrompt('');
       setImprovements([]);
       setGeneratedImageUrl(null);
-      setSaveSuccess(false);
     }
   }, [isOpen, existingAnalysis]);
 
@@ -178,11 +175,15 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
     setError(null);
 
     try {
+      // JJ: Per-tool AbortController with timeout (55s for generate)
+      const { controller, timeoutId } = createAIToolAbortController('generate');
       const response = await authPost('/api/thumbnails/ai/generate', {
         prompt: improvedPrompt,
         aspectRatio: '16:9',
         tier: 'balanced',
-      });
+      }, { signal: controller.signal });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const data = await response.json();
@@ -200,30 +201,24 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       onImageGenerated?.(newImageUrl, improvedPrompt);
       setStage('result');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Generation timed out or was cancelled. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Generation failed');
+      }
       setStage('error');
     }
   }, [improvedPrompt, onImageGenerated]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!generatedImageUrl) return;
 
-    setIsSaving(true);
-    try {
-      const result = await saveToLibrary(generatedImageUrl, {
-        title: `Improved Thumbnail ${new Date().toLocaleDateString()}`,
-        platform: 'youtube',
-      });
-
-      if (result.success) {
-        setSaveSuccess(true);
-        onSave?.(generatedImageUrl);
-        setTimeout(() => onClose(), 1500);
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  }, [generatedImageUrl, saveToLibrary, onSave, onClose]);
+    triggerSave(generatedImageUrl, {
+      title: `Improved Thumbnail ${new Date().toLocaleDateString()}`,
+      source: 'recreate-better',
+      prompt: improvedPrompt || undefined,
+    });
+  }, [generatedImageUrl, triggerSave, improvedPrompt]);
 
   const handleEdit = useCallback(() => {
     if (generatedImageUrl) {
@@ -451,17 +446,10 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           onClick={handleSave}
-          disabled={isSaving || saveSuccess}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all disabled:opacity-50"
         >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : saveSuccess ? (
-            <Check className="w-4 h-4" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          {saveSuccess ? 'Saved!' : 'Save'}
+          <Save className="w-4 h-4" />
+          Save
         </button>
 
         <button
@@ -518,7 +506,12 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recreate-better-modal-title"
+        className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
           <div className="flex items-center gap-3">
@@ -526,7 +519,7 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Recreate Better</h2>
+              <h2 id="recreate-better-modal-title" className="text-lg font-semibold text-white">Recreate Better</h2>
               <p className="text-xs text-slate-400">
                 {stage === 'analyzing' && 'Analyzing your thumbnail...'}
                 {stage === 'preview' && 'Review analysis and generate'}
@@ -554,6 +547,7 @@ export const RecreateBetterModal: React.FC<RecreateBetterModalProps> = ({
           {stage === 'error' && renderErrorStage()}
         </div>
       </div>
+      {SaveModal}
     </div>
   );
 };

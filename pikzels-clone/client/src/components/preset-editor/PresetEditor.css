@@ -243,6 +243,7 @@
   min-width: 340px;
   background: var(--editor-bg-dark, #111827);
   border-left: 1px solid var(--editor-border-default, #1f2937);
+  position: relative;
 }
 
 /* Tabs */
@@ -334,4 +335,98 @@
 
 .preset-editor__chat-divider:hover::after {
   background: var(--editor-accent, #3b82f6);
+}
+
+/* ---- Clear Canvas Dialog ---- */
+.preset-editor__dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preset-editor__dialog {
+  background: var(--editor-bg-panel, #1e1e2e);
+  border: 1px solid var(--editor-border-default, #374151);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.preset-editor__dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--editor-text-primary, #f9fafb);
+  margin: 0 0 8px;
+}
+
+.preset-editor__dialog-message {
+  font-size: 13px;
+  color: var(--editor-text-muted, #9ca3af);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.preset-editor__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pe-btn--danger {
+  background: #ef4444;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.pe-btn--danger:hover {
+  background: #dc2626;
+}
+
+/* Drag-off-canvas removal overlay (shared with ThumbnailStudio) */
+.sidebar-removal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 2.5px dashed rgba(99, 102, 241, 0.6);
+  border-radius: 8px;
+  pointer-events: none;
+  animation: sidebar-removal-fade-in 150ms ease-out;
+}
+
+.sidebar-removal-overlay__text {
+  color: rgba(99, 102, 241, 0.95);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  user-select: none;
+}
+
+.sidebar-removal-overlay__count {
+  color: rgba(99, 102, 241, 0.7);
+  font-size: 12px;
+  font-weight: 400;
+  user-select: none;
+}
+
+@keyframes sidebar-removal-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

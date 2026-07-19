@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authPost } from '../../utils/api';
 import { CheckCircle, CreditCard, Clock } from 'lucide-react';
+import { usePricingData } from '../../hooks/usePricingData';
 
 /**
  * Demo Checkout Page
@@ -20,28 +21,21 @@ export default function DemoCheckout() {
   const planId = searchParams.get('plan');
   const cycle = searchParams.get('cycle');
 
+  const { plans, loading: pricingLoading } = usePricingData();
+
   // Get plan display name
   const getPlanName = (plan: string | null) => {
-    const planNames: Record<string, string> = {
-      starter: 'Starter',
-      pro: 'Creator Pro',
-      ultra_pro: 'Ultra Pro'
-    };
-    return planNames[plan || ''] || plan;
+    const found = plans.find((p) => p.id === plan);
+    return found ? found.name : plan;
   };
 
   // Get plan price
   const getPlanPrice = (plan: string | null, billingCycle: string | null) => {
-    const prices: Record<string, { monthly: number; annual: number }> = {
-      starter: { monthly: 19, annual: 15 },
-      pro: { monthly: 39, annual: 29 },
-      ultra_pro: { monthly: 79, annual: 59 }
-    };
-    const planPrices = prices[plan || ''];
-    if (!planPrices) return '$0';
-    return billingCycle === 'annual' 
-      ? `$${planPrices.annual}/month (billed annually)`
-      : `$${planPrices.monthly}/month`;
+    const found = plans.find((p) => p.id === plan);
+    if (!found) return '$0';
+    return billingCycle === 'annual'
+      ? `$${found.annualPrice}/month (billed annually)`
+      : `$${found.monthlyPrice}/month`;
   };
 
   useEffect(() => {
@@ -94,8 +88,8 @@ export default function DemoCheckout() {
           setError(data.error || 'Failed to complete demo checkout');
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : undefined) || 'An error occurred');
     } finally {
       setProcessing(false);
     }
@@ -105,6 +99,17 @@ export default function DemoCheckout() {
     setAutoComplete(false);
     completeDemoCheckout();
   };
+
+  if (pricingLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading checkout...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!sessionId || !userId || !planId || !cycle) {
     return (

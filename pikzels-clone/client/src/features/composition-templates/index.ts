@@ -20,7 +20,7 @@ export type { UseLayoutsReturn } from './useCompositionTemplates';
 
 // Layer converter (for Advanced Editor integration)
 export { compositionToLayers } from './compositionToLayers';
-export type { ConvertedLayers } from './compositionToLayers';
+export type { ConvertedLayers, CompositionToLayersOptions } from './compositionToLayers';
 
 // Components
 export { default as TemplatePicker } from './components/TemplatePicker';

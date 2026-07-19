@@ -549,4 +549,177 @@ describe('useEditorState', () => {
       expect(result.current.state.selection.layerIds).toHaveLength(2);
     });
   });
+
+  describe('clearCanvas', () => {
+    it('removes all layers', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img1.png', 'Layer 1');
+      });
+      act(() => {
+        result.current.addTextLayer('Hello', 10, 20);
+      });
+      expect(result.current.state.layers).toHaveLength(2);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.layers).toHaveLength(0);
+      expect(result.current.state.layerOrder).toHaveLength(0);
+    });
+
+    it('preserves canvas dimensions', () => {
+      const { result } = renderHook(() => useEditorState(1280, 720));
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img.png');
+      });
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.canvas.width).toBe(1280);
+      expect(result.current.state.canvas.height).toBe(720);
+    });
+
+    it('resets adjustments to defaults', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.updateAdjustments({ brightness: 150, contrast: 80 });
+      });
+      expect(result.current.state.adjustments.brightness).toBe(150);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.adjustments).toEqual(DEFAULT_ADJUSTMENTS);
+    });
+
+    it('clears selection', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img.png');
+      });
+      expect(result.current.state.selection.layerIds).toHaveLength(1);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.selection.layerIds).toHaveLength(0);
+    });
+
+    it('resets history to single entry', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img.png');
+      });
+      act(() => {
+        result.current.updateAdjustments({ brightness: 120 });
+      });
+      expect(result.current.state.history.length).toBeGreaterThan(1);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.history).toHaveLength(1);
+      expect(result.current.state.historyIndex).toBe(0);
+    });
+
+    it('sets isModified to true', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img.png');
+      });
+      act(() => {
+        result.current.markSaved();
+      });
+      expect(result.current.isModified).toBe(false);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.isModified).toBe(true);
+    });
+
+    it('resets active tool to select', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.state.activeTool).toBe('select');
+    });
+
+    it('canUndo is false after clear (fresh history)', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      act(() => {
+        result.current.addImageLayer('https://example.com/img.png');
+      });
+      expect(result.current.canUndo).toBe(true);
+
+      act(() => {
+        result.current.clearCanvas();
+      });
+
+      expect(result.current.canUndo).toBe(false);
+    });
+  });
+
+  describe('options.store parameter', () => {
+    it('accepts an external store hook', () => {
+      // Create a minimal mock store that returns default-shaped state
+      const mockStoreHook = (() => ({
+        layers: [],
+        layerOrder: [],
+        selection: { layerIds: [] },
+        activeTool: 'select',
+        toolSettings: {},
+        canvas: { width: 800, height: 600, zoom: 1, panX: 0, panY: 0 },
+        adjustments: DEFAULT_ADJUSTMENTS,
+        smartSelection: { enabled: false, segments: [], selectedSegmentIds: [], selectionMode: 'click' },
+        // Store actions (unused by useEditorState initialization but part of shape)
+        setLayers: jest.fn(),
+        setLayerOrder: jest.fn(),
+        setSelection: jest.fn(),
+        setActiveTool: jest.fn(),
+        setToolSettings: jest.fn(),
+        setCanvas: jest.fn(),
+        setAdjustments: jest.fn(),
+        setSmartSelection: jest.fn(),
+        addLayer: jest.fn(),
+        removeLayer: jest.fn(),
+        updateLayer: jest.fn(),
+        reorderLayers: jest.fn(),
+        undo: jest.fn(),
+        redo: jest.fn(),
+        reset: jest.fn(),
+      })) as any;
+
+      const { result } = renderHook(() => useEditorState(undefined, undefined, { store: mockStoreHook }));
+
+      // Hook should initialize successfully with the injected store
+      expect(result.current.state.layers).toEqual([]);
+      expect(result.current.state.canvas.width).toBe(1920); // Default, since mock store has empty layers
+    });
+
+    it('uses default store when options.store not provided', () => {
+      const { result } = renderHook(() => useEditorState());
+
+      // Should work without options parameter
+      expect(result.current.state).toBeDefined();
+      expect(result.current.state.canvas.width).toBe(1920);
+    });
+  });
 });

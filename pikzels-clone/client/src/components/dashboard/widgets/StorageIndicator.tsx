@@ -62,7 +62,7 @@ export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ className = 
   const storagePercentage = storage ? (storage.usedGB / storage.totalGB) * 100 : 0;
 
   return (
-    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-6 ${className}`}>
+    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-4 sm:p-6 ${className}`}>
       {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center py-8">

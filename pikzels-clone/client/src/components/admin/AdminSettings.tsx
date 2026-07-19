@@ -37,7 +37,7 @@ interface Setting {
   label: string;
   description: string;
   type: 'text' | 'email' | 'password' | 'number' | 'boolean' | 'select' | 'textarea' | 'color' | 'file';
-  value: any;
+  value: string | number | boolean;
   options?: { value: string; label: string }[];
   validation?: {
     required?: boolean;
@@ -51,7 +51,7 @@ interface Setting {
 const AdminSettings: React.FC = () => {
   const [settings, setSettings] = useState<SettingSection[]>([]);
   const [activeSection, setActiveSection] = useState('general');
-  const [unsavedChanges, setUnsavedChanges] = useState<Record<string, any>>({});
+  const [unsavedChanges, setUnsavedChanges] = useState<Record<string, string | number | boolean>>({});
   const [saving, setSaving] = useState(false);
   const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -359,7 +359,7 @@ const AdminSettings: React.FC = () => {
       try {
         const result = await adminSettingsService.getSettings();
         if (result.success && result.data) {
-          const values = result.data as Record<string, Record<string, any>>;
+          const values = result.data as Record<string, Record<string, string | number | boolean>>;
           const merged = mockSettings.map(section => ({
             ...section,
             settings: section.settings.map(setting => {
@@ -381,7 +381,7 @@ const AdminSettings: React.FC = () => {
     loadValues();
   }, []);
 
-  const handleSettingChange = (sectionId: string, settingId: string, value: any) => {
+  const handleSettingChange = (sectionId: string, settingId: string, value: string | number | boolean) => {
     setUnsavedChanges(prev => ({
       ...prev,
       [`${sectionId}.${settingId}`]: value
@@ -445,19 +445,19 @@ const AdminSettings: React.FC = () => {
           <label className="flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={currentValue}
+              checked={currentValue as boolean}
               onChange={(e) => handleSettingChange(section.id, setting.id, e.target.checked)}
               className="sr-only"
             />
             <div className={`relative w-12 h-6 rounded-full transition-colors ${
-              currentValue ? 'bg-[#2563ff]' : 'bg-slate-600'
+              (currentValue as boolean) ? 'bg-[#2563ff]' : 'bg-slate-600'
             }`}>
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${
-                currentValue ? 'translate-x-7' : 'translate-x-1'
+                (currentValue as boolean) ? 'translate-x-7' : 'translate-x-1'
               }`} />
             </div>
             <span className="ml-3 text-sm font-medium text-slate-300">
-              {currentValue ? 'Enabled' : 'Disabled'}
+              {(currentValue as boolean) ? 'Enabled' : 'Disabled'}
             </span>
           </label>
         );
@@ -465,7 +465,7 @@ const AdminSettings: React.FC = () => {
       case 'select':
         return (
           <select
-            value={currentValue}
+            value={currentValue as string}
             onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
             className={commonClasses}
           >
@@ -480,7 +480,7 @@ const AdminSettings: React.FC = () => {
       case 'textarea':
         return (
           <textarea
-            value={currentValue}
+            value={currentValue as string}
             onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
             className={`${commonClasses} h-24 resize-none`}
             placeholder={setting.description}
@@ -492,13 +492,13 @@ const AdminSettings: React.FC = () => {
           <div className="flex items-center gap-3">
             <input
               type="color"
-              value={currentValue}
+              value={currentValue as string}
               onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
               className="w-12 h-8 rounded border border-slate-700 cursor-pointer"
             />
             <input
               type="text"
-              value={currentValue}
+              value={currentValue as string}
               onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
               className={commonClasses}
               placeholder="#000000"
@@ -511,7 +511,7 @@ const AdminSettings: React.FC = () => {
           <div className="relative">
             <input
               type={setting.sensitive && !showSensitive[setting.id] ? 'password' : 'text'}
-              value={currentValue}
+              value={currentValue as string}
               onChange={(e) => handleSettingChange(section.id, setting.id, e.target.value)}
               className={`${commonClasses} pr-12`}
               placeholder={setting.description}
@@ -532,7 +532,7 @@ const AdminSettings: React.FC = () => {
         return (
           <input
             type={setting.type}
-            value={currentValue}
+            value={currentValue as string | number}
             onChange={(e) => handleSettingChange(section.id, setting.id, setting.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
             className={commonClasses}
             placeholder={setting.description}

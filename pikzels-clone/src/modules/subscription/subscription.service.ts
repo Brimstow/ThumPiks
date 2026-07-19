@@ -1,26 +1,21 @@
 /**
  * Subscription Service
  *
- * Handles Stripe subscription operations and database synchronization
+ * Handles subscription operations and database synchronization.
+ * Uses the BillingProvider abstraction to support Stripe, Polar, and Demo modes.
  */
 
 import Stripe from 'stripe';
-import {
-  STRIPE_CONFIG,
-  getStripePriceId,
-  getPlanById,
-} from './subscription.config';
+import { getProviderProductId, getPlanById } from './subscription.config';
+import { getActiveDiscountId } from './pricing.service';
+import { getBillingProvider, getBillingProviderByName } from '../billing';
+import type { BillingProviderName } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getClientUrl } from '../../utils/env';
+import { getService } from '../../utils/service-factory';
 
 const prisma = getPrisma();
-
-// Initialize Stripe only if secret key is provided
-const stripe = STRIPE_CONFIG.secretKey
-  ? new Stripe(STRIPE_CONFIG.secretKey, {
-      apiVersion: '2026-02-25.clover',
-    })
-  : null;
 
 export interface CreateCheckoutSessionParams {
   userId: string;
@@ -34,92 +29,57 @@ export interface SubscriptionData {
   planType: string;
   creditsBalance: number;
   creditsUsed: number;
+  addonCreditsBalance: number;
+  addonCreditsUsed: number;
   periodStart: Date;
   periodEnd: Date;
   status: 'active' | 'cancelled' | 'expired';
   stripeSubscriptionId?: string | undefined;
+  polarSubscriptionId?: string | undefined;
+  billingProvider: string;
 }
 
 /**
- * Create Stripe checkout session for new subscription
- * In dev mode (no Stripe keys), simulates successful checkout
+ * Create checkout session for new subscription.
+ * Uses the active billing provider (Stripe, Polar, or Demo).
  */
 export async function createCheckoutSession(
   params: CreateCheckoutSessionParams
 ): Promise<{ sessionId: string; url: string }> {
   const { userId, planId, billingCycle, email } = params;
+  const provider = getBillingProvider();
 
-  // DEMO MODE: If Stripe not configured, simulate checkout
-  if (!stripe) {
-    return createDemoCheckoutSession(params);
+  const productId = getProviderProductId(
+    planId,
+    billingCycle,
+    provider.providerName
+  );
+
+  if (!productId && provider.providerName !== 'demo') {
+    throw new Error(
+      `No ${provider.providerName} product ID configured for plan "${planId}" (${billingCycle})`
+    );
   }
 
-  try {
-    // Get or create Stripe customer
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { stripeCustomerId: true },
-    });
+  const clientUrl = getClientUrl();
 
-    let customerId = user?.stripeCustomerId;
+  // Fetch active beta discount (if any) to auto-apply at checkout
+  const discountId =
+    provider.providerName === 'polar'
+      ? ((await getActiveDiscountId(billingCycle)) ?? undefined)
+      : undefined;
 
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email,
-        metadata: { userId },
-      });
-      customerId = customer.id;
-
-      // Save Stripe customer ID
-      await prisma.user.update({
-        where: { id: userId },
-        data: { stripeCustomerId: customerId },
-      });
-    }
-
-    // Get price ID
-    const priceId = getStripePriceId(planId, billingCycle);
-    if (!priceId) {
-      throw new Error(`Invalid plan or price ID not configured: ${planId}`);
-    }
-
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: STRIPE_CONFIG.successUrl,
-      cancel_url: STRIPE_CONFIG.cancelUrl,
-      metadata: {
-        userId,
-        planId,
-        billingCycle,
-      },
-    });
-
-    logger.info('Checkout session created', {
-      userId,
-      planId,
-      sessionId: session.id,
-    });
-
-    return {
-      sessionId: session.id,
-      url: session.url || '',
-    };
-  } catch (error) {
-    logger.error('Failed to create checkout session', error as Error, {
-      userId,
-      planId,
-    });
-    throw error;
-  }
+  return provider.createCheckoutSession({
+    userId,
+    email,
+    planId,
+    billingCycle,
+    productId,
+    successUrl: `${clientUrl}/dashboard?subscription=success`,
+    cancelUrl: `${clientUrl}/pricing?subscription=cancelled`,
+    discountId,
+    allowDiscountCodes: provider.providerName === 'polar',
+  });
 }
 
 /**
@@ -146,10 +106,14 @@ export async function getCurrentSubscription(
       planType: subscription.planType,
       creditsBalance: subscription.creditsBalance,
       creditsUsed: subscription.creditsUsed,
+      addonCreditsBalance: subscription.addonCreditsBalance,
+      addonCreditsUsed: subscription.addonCreditsUsed,
       periodStart: subscription.periodStart,
       periodEnd: subscription.periodEnd,
       status: isActive ? 'active' : 'expired',
       stripeSubscriptionId: subscription.stripeSubscriptionId || undefined,
+      polarSubscriptionId: subscription.polarSubscriptionId || undefined,
+      billingProvider: subscription.billingProvider,
     };
   } catch (error) {
     logger.error('Failed to get subscription', error as Error, { userId });
@@ -158,47 +122,10 @@ export async function getCurrentSubscription(
 }
 
 /**
- * Cancel subscription (at period end)
+ * Cancel subscription (at period end).
+ * Uses the provider that originally created the subscription.
  */
 export async function cancelSubscription(userId: string): Promise<void> {
-  if (!stripe) {
-    throw new Error(
-      'Stripe is not configured. Please add STRIPE_SECRET_KEY to your .env file.'
-    );
-  }
-
-  try {
-    const subscription = await prisma.subscription.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!subscription?.stripeSubscriptionId) {
-      throw new Error('No active Stripe subscription found');
-    }
-
-    // Cancel at period end (user keeps access until then)
-    await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-      cancel_at_period_end: true,
-    });
-
-    logger.info('Subscription cancelled', {
-      userId,
-      subscriptionId: subscription.id,
-    });
-  } catch (error) {
-    logger.error('Failed to cancel subscription', error as Error, { userId });
-    throw error;
-  }
-}
-
-/**
- * Deduct credits from user's subscription
- */
-export async function deductCredits(
-  userId: string,
-  amount: number = 1
-): Promise<boolean> {
   try {
     const subscription = await prisma.subscription.findFirst({
       where: { userId },
@@ -206,38 +133,54 @@ export async function deductCredits(
     });
 
     if (!subscription) {
-      throw new Error('No subscription found');
+      throw new Error('No active subscription found');
     }
 
-    if (subscription.creditsBalance < amount) {
-      return false; // Insufficient credits
+    const providerName = subscription.billingProvider as BillingProviderName;
+    const provider = getBillingProviderByName(providerName);
+
+    // Determine the provider-specific subscription ID
+    const providerSubId =
+      providerName === 'polar'
+        ? subscription.polarSubscriptionId
+        : subscription.stripeSubscriptionId;
+
+    if (!providerSubId) {
+      throw new Error(`No ${providerName} subscription ID found`);
     }
 
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: {
-        creditsBalance: { decrement: amount },
-        creditsUsed: { increment: amount },
-      },
-    });
+    await provider.cancelSubscription(providerSubId);
 
-    logger.info('Credits deducted', {
+    logger.info('Subscription cancelled', {
       userId,
-      amount,
-      remaining: subscription.creditsBalance - amount,
+      subscriptionId: subscription.id,
+      provider: providerName,
     });
-    return true;
   } catch (error) {
-    logger.error('Failed to deduct credits', error as Error, {
-      userId,
-      amount,
-    });
+    logger.error('Failed to cancel subscription', error as Error, { userId });
     throw error;
   }
 }
 
+// ---------------------------------------------------------------------------
+// deductCredits — re-exported from credit.service.ts (single source of truth)
+//
+// The canonical implementation lives in ../credit/credit.service.ts and supports:
+//   • Dual credit pools (plan credits consumed first, then addon credits)
+//   • Full transaction logging (creditTransaction table with balanceBefore/After)
+//   • Low-credit and depleted-credit user notifications
+//
+// This re-export exists so that any code importing from subscription.service
+// still gets the correct, production-grade implementation.
+// ---------------------------------------------------------------------------
+export { deductCredits } from '../credit/credit.service';
+
+// =========================================================================
+// Webhook Handlers (called by subscription.controller.ts)
+// =========================================================================
+
 /**
- * Handle successful checkout (called by webhook)
+ * Handle successful Stripe checkout (called by webhook)
  */
 export async function handleCheckoutComplete(
   session: Stripe.Checkout.Session
@@ -268,12 +211,8 @@ export async function handleCheckoutComplete(
   }
 
   try {
-    // Create or update subscription
     const existingSub = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        planType: planId,
-      },
+      where: { userId, planType: planId },
     });
 
     if (existingSub) {
@@ -284,6 +223,7 @@ export async function handleCheckoutComplete(
           periodStart,
           periodEnd,
           stripeSubscriptionId: session.subscription as string,
+          billingProvider: 'stripe',
         },
       });
     } else {
@@ -297,17 +237,17 @@ export async function handleCheckoutComplete(
           periodStart,
           periodEnd,
           stripeSubscriptionId: session.subscription as string,
+          billingProvider: 'stripe',
         },
       });
     }
 
-    // Update user's Stripe subscription ID
     await prisma.user.update({
       where: { id: userId },
       data: { stripeSubscriptionId: session.subscription as string },
     });
 
-    logger.info('Subscription created/updated from checkout', {
+    logger.info('Subscription created/updated from Stripe checkout', {
       userId,
       planId,
     });
@@ -321,7 +261,7 @@ export async function handleCheckoutComplete(
 }
 
 /**
- * Handle subscription renewal (called by webhook)
+ * Handle Stripe subscription renewal (called by webhook)
  */
 export async function handleSubscriptionRenewed(
   stripeSubscription: Stripe.Subscription
@@ -355,12 +295,13 @@ export async function handleSubscriptionRenewed(
       return;
     }
 
-    // Refresh credits and extend period
     const periodStart = new Date(
-      (stripeSubscription as any).current_period_start * 1000
+      (stripeSubscription as unknown as { current_period_start: number })
+        .current_period_start * 1000
     );
     const periodEnd = new Date(
-      (stripeSubscription as any).current_period_end * 1000
+      (stripeSubscription as unknown as { current_period_end: number })
+        .current_period_end * 1000
     );
 
     await prisma.subscription.update({
@@ -368,6 +309,8 @@ export async function handleSubscriptionRenewed(
       data: {
         creditsBalance: plan.credits,
         creditsUsed: 0,
+        watermarkFreeUsed: 0,
+        watermarkFreeResetDate: periodStart,
         periodStart,
         periodEnd,
       },
@@ -386,7 +329,7 @@ export async function handleSubscriptionRenewed(
 }
 
 /**
- * Handle subscription cancellation (called by webhook)
+ * Handle Stripe subscription cancellation (called by webhook)
  */
 export async function handleSubscriptionCancelled(
   stripeSubscription: Stripe.Subscription
@@ -403,8 +346,6 @@ export async function handleSubscriptionCancelled(
       return;
     }
 
-    // Keep subscription active until period end
-    // Don't delete - just let it expire naturally
     logger.info('Subscription will expire at period end', {
       subscriptionId: subscription.id,
       periodEnd: subscription.periodEnd,
@@ -415,43 +356,230 @@ export async function handleSubscriptionCancelled(
   }
 }
 
+// =========================================================================
+// Polar Webhook Handlers
+// =========================================================================
+
 /**
- * DEMO MODE: Simulate checkout session without Stripe
- * Used in development when STRIPE_SECRET_KEY is not configured
+ * Handle Polar subscription created/activated
  */
-async function createDemoCheckoutSession(
-  params: CreateCheckoutSessionParams
-): Promise<{ sessionId: string; url: string }> {
-  const { userId, planId, billingCycle } = params;
+export async function handlePolarSubscriptionActive(data: {
+  subscriptionId: string;
+  customerId: string;
+  userId: string;
+  planId: string;
+  billingCycle: 'monthly' | 'annual';
+}): Promise<void> {
+  const { subscriptionId, customerId, userId, planId, billingCycle } = data;
 
-  const demoSessionId = `demo_session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-  const demoCustomerId = `demo_cus_${userId}`;
+  const plan = getPlanById(planId);
+  if (!plan) {
+    logger.error('Invalid plan ID from Polar webhook', undefined, { planId });
+    return;
+  }
 
-  logger.info('🎭 DEMO MODE: Creating simulated checkout session', {
-    userId,
-    planId,
-    billingCycle,
-  });
+  const periodStart = new Date();
+  const periodEnd = new Date();
+  if (billingCycle === 'monthly') {
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  } else {
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  }
 
-  // Save demo customer ID to user
-  await prisma.user.update({
-    where: { id: userId },
-    data: { stripeCustomerId: demoCustomerId },
-  });
+  try {
+    // Store Polar customer ID
+    await prisma.user.update({
+      where: { id: userId },
+      data: { polarCustomerId: customerId },
+    });
 
-  // Build demo checkout URL that will auto-complete
-  // Use localhost:8556 for development frontend
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:8556';
-  const demoUrl = `${clientUrl}/demo-checkout?session=${demoSessionId}&user=${userId}&plan=${planId}&cycle=${billingCycle}`;
+    const existingSub = await prisma.subscription.findFirst({
+      where: { userId, planType: planId },
+    });
 
-  return {
-    sessionId: demoSessionId,
-    url: demoUrl,
-  };
+    if (existingSub) {
+      await prisma.subscription.update({
+        where: { id: existingSub.id },
+        data: {
+          creditsBalance: plan.credits,
+          periodStart,
+          periodEnd,
+          polarSubscriptionId: subscriptionId,
+          billingProvider: 'polar',
+        },
+      });
+    } else {
+      await prisma.subscription.create({
+        data: {
+          id: `sub_${Date.now()}`,
+          userId,
+          planType: planId,
+          creditsBalance: plan.credits,
+          creditsUsed: 0,
+          periodStart,
+          periodEnd,
+          polarSubscriptionId: subscriptionId,
+          billingProvider: 'polar',
+        },
+      });
+    }
+
+    logger.info('Subscription created/updated from Polar webhook', {
+      userId,
+      planId,
+      polarSubscriptionId: subscriptionId,
+    });
+
+    // Notify user of subscription activation (fire-and-forget)
+    const router = getService('notificationRouter');
+    router
+      .routeToUser(userId, {
+        type: 'subscription_activated',
+        title: 'Subscription Activated',
+        message: `Your ${plan.name} plan is now active with ${plan.credits} credits.`,
+        priority: 'normal',
+        actionUrl: '/dashboard/credits',
+        metadata: { planId, credits: plan.credits, billingCycle },
+      })
+      .catch(() => {});
+  } catch (error) {
+    logger.error('Failed to handle Polar subscription', error as Error, {
+      userId,
+      planId,
+    });
+    throw error;
+  }
 }
 
 /**
- * DEMO MODE: Complete simulated subscription after demo checkout
+ * Handle Polar subscription cancellation
+ */
+export async function handlePolarSubscriptionCancelled(
+  polarSubscriptionId: string
+): Promise<void> {
+  try {
+    const subscription = await prisma.subscription.findFirst({
+      where: { polarSubscriptionId },
+    });
+
+    if (!subscription) {
+      logger.error('Polar subscription not found for cancellation', undefined, {
+        polarSubscriptionId,
+      });
+      return;
+    }
+
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        cancelAtPeriodEnd: true,
+        status: 'cancelling',
+      },
+    });
+
+    logger.info('Polar subscription marked for cancellation at period end', {
+      subscriptionId: subscription.id,
+      periodEnd: subscription.periodEnd,
+    });
+
+    // Notify user of cancellation (fire-and-forget)
+    const router = getService('notificationRouter');
+    router
+      .routeToUser(subscription.userId, {
+        type: 'subscription_cancelled',
+        title: 'Subscription Cancelled',
+        message: `Your subscription will end on ${subscription.periodEnd?.toLocaleDateString() || 'your current period end'}. You can continue using your remaining credits until then.`,
+        priority: 'high',
+        actionUrl: '/dashboard/credits',
+      })
+      .catch(() => {});
+  } catch (error) {
+    logger.error(
+      'Failed to handle Polar subscription cancellation',
+      error as Error
+    );
+    throw error;
+  }
+}
+
+/**
+ * Handle Polar subscription renewal / update (subscription.updated webhook).
+ * Resets credits for the new billing period.
+ */
+export async function handlePolarSubscriptionRenewed(
+  polarSubscriptionId: string
+): Promise<void> {
+  try {
+    const subscription = await prisma.subscription.findFirst({
+      where: { polarSubscriptionId },
+    });
+
+    if (!subscription) {
+      logger.error('Polar subscription not found for renewal', undefined, {
+        polarSubscriptionId,
+      });
+      return;
+    }
+
+    const plan = getPlanById(subscription.planType);
+    if (!plan) {
+      logger.error('Invalid plan type for Polar renewal', undefined, {
+        planType: subscription.planType,
+      });
+      return;
+    }
+
+    const periodStart = new Date();
+    const periodEnd = new Date();
+    if (subscription.billingCycle === 'annual') {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        creditsBalance: plan.credits,
+        creditsUsed: 0,
+        watermarkFreeUsed: 0,
+        watermarkFreeResetDate: periodStart,
+        periodStart,
+        periodEnd,
+        cancelAtPeriodEnd: false,
+        status: 'active',
+      },
+    });
+
+    logger.info('Polar subscription renewed', {
+      subscriptionId: subscription.id,
+      polarSubscriptionId,
+    });
+
+    // Notify user of subscription renewal (fire-and-forget)
+    const renewRouter = getService('notificationRouter');
+    renewRouter
+      .routeToUser(subscription.userId, {
+        type: 'subscription_renewed',
+        title: 'Subscription Renewed',
+        message: `Your subscription has been renewed. ${plan.credits} credits are now available.`,
+        priority: 'normal',
+        actionUrl: '/dashboard/credits',
+        metadata: { credits: plan.credits },
+      })
+      .catch(() => {});
+  } catch (error) {
+    logger.error('Failed to handle Polar subscription renewal', error as Error);
+    throw error;
+  }
+}
+
+// =========================================================================
+// Demo Mode Checkout Completion
+// =========================================================================
+
+/**
+ * Complete simulated subscription after demo checkout
  */
 export async function completeDemoCheckout(
   userId: string,
@@ -475,12 +603,8 @@ export async function completeDemoCheckout(
   const demoSubscriptionId = `demo_sub_${Date.now()}`;
 
   try {
-    // Create subscription in database
     const existingSub = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        planType: planId,
-      },
+      where: { userId, planType: planId },
     });
 
     if (existingSub) {
@@ -491,6 +615,7 @@ export async function completeDemoCheckout(
           periodStart,
           periodEnd,
           stripeSubscriptionId: demoSubscriptionId,
+          billingProvider: 'demo',
         },
       });
     } else {
@@ -504,17 +629,17 @@ export async function completeDemoCheckout(
           periodStart,
           periodEnd,
           stripeSubscriptionId: demoSubscriptionId,
+          billingProvider: 'demo',
         },
       });
     }
 
-    // Update user's subscription ID
     await prisma.user.update({
       where: { id: userId },
       data: { stripeSubscriptionId: demoSubscriptionId },
     });
 
-    logger.info('🎭 DEMO MODE: Subscription created successfully', {
+    logger.info('DEMO MODE: Subscription created successfully', {
       userId,
       planId,
       credits: plan.credits,
@@ -528,5 +653,3 @@ export async function completeDemoCheckout(
     throw error;
   }
 }
-
-export { stripe };

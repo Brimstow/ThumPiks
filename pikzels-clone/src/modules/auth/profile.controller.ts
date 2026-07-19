@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 
 // Initialize Prisma client for database operations
 const prisma = getPrisma();
@@ -8,13 +10,12 @@ const prisma = getPrisma();
 export class ProfileController {
   async getProfile(req: AuthRequest, res: Response) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
-      return res.status(200).json({ user: req.user });
+      return res.status(200).json({ user });
     } catch (error) {
-      console.error('Error getting profile:', error);
+      logger.error('Error getting profile', error instanceof Error ? error : undefined);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -24,18 +25,17 @@ export class ProfileController {
     res: Response
   ) {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const { name, email } = req.body as { name?: string; email?: string };
 
       // Update user profile logic here
-      const updatedUser = { ...req.user, name, email };
+      const updatedUser = { ...user, name, email };
 
       return res.status(200).json({ user: updatedUser });
     } catch (error) {
-      console.error('Error updating profile:', error);
+      logger.error('Error updating profile', error instanceof Error ? error : undefined);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -59,23 +59,21 @@ export class ProfileController {
    */
   async getUserSettings(req: AuthRequest, res: Response): Promise<void> {
     try {
-      if (!req.user) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       // Fetch user settings from database
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
         select: { settings: true },
       });
 
       // Return settings or empty object if no settings found
-      const settings = user?.settings || {};
+      const settings = dbUser?.settings || {};
 
       res.status(200).json({ settings });
     } catch (error) {
-      console.error('Error getting user settings:', error);
+      logger.error('Error getting user settings', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -102,10 +100,8 @@ export class ProfileController {
     res: Response
   ): Promise<void> {
     try {
-      if (!req.user) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-      }
+      const user = requireUser(req, res);
+      if (!user) return;
 
       const { settings } = req.body as {
         settings: Record<string, unknown> | null;
@@ -114,14 +110,14 @@ export class ProfileController {
       // Update user settings in database
       // Cast to InputJsonValue (Prisma's JSON type) since settings can be any valid JSON object
       const updatedUser = await prisma.user.update({
-        where: { id: req.user.id },
+        where: { id: user.id },
         data: { settings: settings as object },
         select: { settings: true },
       });
 
       res.status(200).json({ settings: updatedUser.settings });
     } catch (error) {
-      console.error('Error updating user settings:', error);
+      logger.error('Error updating user settings', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

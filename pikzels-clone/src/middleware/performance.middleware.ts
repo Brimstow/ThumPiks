@@ -24,6 +24,97 @@ interface DailyMetrics {
   errors: number;
 }
 
+// --- Buffered metrics to reduce Redis write amplification ---
+interface BufferedRouteMetric {
+  requestCount: number;
+  totalResponseTime: number;
+  errorCount: number;
+}
+
+const FLUSH_INTERVAL_MS = 10_000; // Flush every 10 seconds
+const FLUSH_REQUEST_THRESHOLD = 100; // Or every 100 requests
+
+const metricsBuffer = new Map<string, BufferedRouteMetric>();
+let dailyBuffer: DailyMetrics = { requests: 0, errors: 0 };
+let bufferedRequestCount = 0;
+let flushTimer: NodeJS.Timeout | null = null;
+
+function startFlushTimer() {
+  if (flushTimer) return;
+  flushTimer = setInterval(() => {
+    flushMetricsBuffer().catch(err =>
+      logger.error(
+        'Failed to flush perf metrics buffer',
+        err instanceof Error ? err : new Error(String(err))
+      )
+    );
+  }, FLUSH_INTERVAL_MS);
+  // Unref so the timer doesn't prevent graceful shutdown
+  flushTimer.unref();
+}
+
+/**
+ * Flush buffered metrics to Redis in a single batch.
+ * Called periodically and on shutdown.
+ */
+export async function flushMetricsBuffer(): Promise<void> {
+  if (bufferedRequestCount === 0) return;
+
+  const routeEntries = Array.from(metricsBuffer.entries());
+  const dailySnapshot = { ...dailyBuffer };
+  const dailyKey = `performance:daily:${new Date().toISOString().split('T')[0]}`;
+
+  // Reset buffers immediately so new requests accumulate into a fresh buffer
+  metricsBuffer.clear();
+  dailyBuffer = { requests: 0, errors: 0 };
+  bufferedRequestCount = 0;
+
+  try {
+    // Merge each route's buffered counts into the existing cached metrics
+    for (const [metricsKey, buffered] of routeEntries) {
+      const existing = (await cache.get<PerformanceMetrics>(metricsKey)) || {
+        requestCount: 0,
+        averageResponseTime: 0,
+        errorCount: 0,
+        lastUpdated: new Date(),
+      };
+
+      const newCount = existing.requestCount + buffered.requestCount;
+      const newAvg =
+        (existing.averageResponseTime * existing.requestCount +
+          buffered.totalResponseTime) /
+        newCount;
+
+      await cache.set(
+        metricsKey,
+        {
+          requestCount: newCount,
+          averageResponseTime: Math.round(newAvg * 100) / 100,
+          errorCount: existing.errorCount + buffered.errorCount,
+          lastUpdated: new Date(),
+        } as PerformanceMetrics,
+        3600
+      );
+    }
+
+    // Merge daily counters
+    if (dailySnapshot.requests > 0) {
+      const existingDaily = (await cache.get<DailyMetrics>(dailyKey)) || {
+        requests: 0,
+        errors: 0,
+      };
+      existingDaily.requests += dailySnapshot.requests;
+      existingDaily.errors += dailySnapshot.errors;
+      await cache.set(dailyKey, existingDaily, 86400);
+    }
+  } catch (error) {
+    logger.error(
+      'Error flushing performance metrics buffer',
+      error instanceof Error ? error : new Error(String(error))
+    );
+  }
+}
+
 /**
  * Performance monitoring middleware
  * Tracks response times, request counts, and error rates
@@ -42,24 +133,25 @@ export const performanceMiddleware = () => {
     };
 
     // Attach timing to request for later use
-    (req as any).timing = timing;
+    (req as unknown as Record<string, unknown>).timing = timing;
 
     // Override res.end to capture response time
-    const originalEnd = res.end;
-    (res as any).end = function (...args: any[]) {
+    const originalEnd = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = function (...args: unknown[]) {
       const responseTime = Date.now() - startTime;
       logPerformanceMetrics(req, res, responseTime);
-      return (originalEnd as any).apply(this, args);
-    };
+      return originalEnd(...args);
+    } as typeof res.end;
 
     next();
   };
 };
 
 /**
- * Log performance metrics to cache and Axiom
+ * Buffer performance metrics in-memory; flush to Redis periodically.
+ * Eliminates per-request Redis writes (2 set() calls → 0).
  */
-async function logPerformanceMetrics(
+function logPerformanceMetrics(
   req: Request,
   res: Response,
   responseTime: number
@@ -81,46 +173,36 @@ async function logPerformanceMetrics(
       userAgent: req.get('User-Agent'),
     });
 
-    // Create metric keys
+    // Buffer metrics in-memory instead of writing to Redis per-request
     const metricsKey = `performance:${method}:${route}`;
-    const dailyKey = `performance:daily:${new Date().toISOString().split('T')[0]}`;
-
-    // Get existing metrics
-    const existingMetrics = (await cache.get<PerformanceMetrics>(
-      metricsKey
-    )) || {
+    const existing = metricsBuffer.get(metricsKey) || {
       requestCount: 0,
-      averageResponseTime: 0,
+      totalResponseTime: 0,
       errorCount: 0,
-      lastUpdated: new Date(),
     };
+    existing.requestCount += 1;
+    existing.totalResponseTime += responseTime;
+    if (isError) existing.errorCount += 1;
+    metricsBuffer.set(metricsKey, existing);
 
-    // Update metrics
-    const newRequestCount = existingMetrics.requestCount + 1;
-    const newAverageResponseTime =
-      (existingMetrics.averageResponseTime * existingMetrics.requestCount +
-        responseTime) /
-      newRequestCount;
-    const newErrorCount = existingMetrics.errorCount + (isError ? 1 : 0);
+    // Buffer daily counters
+    dailyBuffer.requests += 1;
+    if (isError) dailyBuffer.errors += 1;
 
-    const updatedMetrics: PerformanceMetrics = {
-      requestCount: newRequestCount,
-      averageResponseTime: Math.round(newAverageResponseTime * 100) / 100,
-      errorCount: newErrorCount,
-      lastUpdated: new Date(),
-    };
+    bufferedRequestCount += 1;
 
-    // Store updated metrics (keep for 1 hour)
-    await cache.set(metricsKey, updatedMetrics, 3600);
+    // Ensure flush timer is running
+    startFlushTimer();
 
-    // Update daily metrics
-    const dailyMetrics = (await cache.get<DailyMetrics>(dailyKey)) || {
-      requests: 0,
-      errors: 0,
-    };
-    dailyMetrics.requests += 1;
-    if (isError) dailyMetrics.errors += 1;
-    await cache.set(dailyKey, dailyMetrics, 86400); // Keep for 24 hours
+    // Flush early if threshold reached
+    if (bufferedRequestCount >= FLUSH_REQUEST_THRESHOLD) {
+      flushMetricsBuffer().catch(err =>
+        logger.error(
+          'Failed to flush perf metrics buffer',
+          err instanceof Error ? err : new Error(String(err))
+        )
+      );
+    }
 
     // Log slow requests (> 1000ms)
     if (responseTime > 1000) {
@@ -141,17 +223,6 @@ async function logPerformanceMetrics(
         statusCode,
         duration: responseTime,
         ip: req.ip,
-      });
-    }
-
-    // Log performance summary every 100 requests
-    if (newRequestCount % 100 === 0) {
-      logger.info(`Performance summary for ${method} ${route}`, {
-        method,
-        url: route,
-        requests: String(newRequestCount),
-        avgResponseTime: `${updatedMetrics.averageResponseTime}ms`,
-        errorRate: `${((newErrorCount / newRequestCount) * 100).toFixed(2)}%`,
       });
     }
   } catch (error) {
@@ -198,7 +269,7 @@ export async function getPerformanceMetrics(
       'performance:DELETE:*',
     ];
 
-    const allMetrics: any = {};
+    const allMetrics: Record<string, unknown> = {};
 
     for (const pattern of patterns) {
       // Note: In a real implementation, you'd need to implement key scanning

@@ -1,14 +1,18 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
 import { ABTestingService } from './ab-testing.service';
+import { CacheService } from '../../services/cache.service';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
+import type { PrismaClient } from '@prisma/client';
 
 let sharedService: ABTestingService;
 
-export const initializeServices = (prismaClient?: any, cacheService?: any) => {
+export const initializeServices = (prismaClient?: PrismaClient, cacheService?: CacheService) => {
   sharedService = new ABTestingService({
     prisma: prismaClient || getPrisma(),
-    cache: cacheService,
+    ...(cacheService !== undefined && { cache: cacheService }),
   });
 };
 
@@ -28,7 +32,8 @@ const getService = () => {
  */
 export const createTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { name, description, variants } = req.body;
     if (!name || !variants || !Array.isArray(variants)) {
@@ -37,21 +42,22 @@ export const createTest = async (req: AuthRequest, res: Response) => {
         .json({ error: 'name and variants array are required' });
     }
 
-    const result = await getService().createTest(req.user.id, {
+    const result = await getService().createTest(user.id, {
       name,
       description,
       variants,
     });
 
     return res.status(201).json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     if (
-      error.message?.includes('variants') ||
-      error.message?.includes('Maximum')
+      message.includes('variants') ||
+      message.includes('Maximum')
     ) {
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ error: message });
     }
-    console.error('Error creating AB test:', error);
+    logger.error('Error creating AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -61,12 +67,13 @@ export const createTest = async (req: AuthRequest, res: Response) => {
  */
 export const getUserTests = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
-    const tests = await getService().getUserTests(req.user.id);
+    const tests = await getService().getUserTests(user.id);
     return res.status(200).json({ tests });
-  } catch (error) {
-    console.error('Error fetching AB tests:', error);
+  } catch (error: unknown) {
+    logger.error('Error fetching AB tests', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -76,16 +83,18 @@ export const getUserTests = async (req: AuthRequest, res: Response) => {
  */
 export const getTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
-    const result = await getService().getTest(testId!, req.user.id);
+    const result = await getService().getTest(testId!, user.id);
     return res.status(200).json(result);
-  } catch (error: any) {
-    if (error.message === 'Test not found') {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === 'Test not found') {
+      return res.status(404).json({ error: message });
     }
-    console.error('Error fetching AB test:', error);
+    logger.error('Error fetching AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -95,19 +104,21 @@ export const getTest = async (req: AuthRequest, res: Response) => {
  */
 export const startTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
-    const result = await getService().startTest(testId!, req.user.id);
+    const result = await getService().startTest(testId!, user.id);
     return res.status(200).json(result);
-  } catch (error: any) {
-    if (error.message?.includes('not found')) {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
     }
-    if (error.message?.includes('already') || error.message?.includes('Cannot')) {
-      return res.status(400).json({ error: error.message });
+    if (message.includes('already') || message.includes('Cannot')) {
+      return res.status(400).json({ error: message });
     }
-    console.error('Error starting AB test:', error);
+    logger.error('Error starting AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -117,19 +128,21 @@ export const startTest = async (req: AuthRequest, res: Response) => {
  */
 export const pauseTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
-    const result = await getService().pauseTest(testId!, req.user.id);
+    const result = await getService().pauseTest(testId!, user.id);
     return res.status(200).json(result);
-  } catch (error: any) {
-    if (error.message?.includes('not found')) {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
     }
-    if (error.message?.includes('Only active')) {
-      return res.status(400).json({ error: error.message });
+    if (message.includes('Only active')) {
+      return res.status(400).json({ error: message });
     }
-    console.error('Error pausing AB test:', error);
+    logger.error('Error pausing AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -139,22 +152,24 @@ export const pauseTest = async (req: AuthRequest, res: Response) => {
  */
 export const completeTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
     const result = await getService().completeTest(
       testId!,
-      req.user.id
+      user.id
     );
     return res.status(200).json(result);
-  } catch (error: any) {
-    if (error.message?.includes('not found')) {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
     }
-    if (error.message?.includes('already completed')) {
-      return res.status(400).json({ error: error.message });
+    if (message.includes('already completed')) {
+      return res.status(400).json({ error: message });
     }
-    console.error('Error completing AB test:', error);
+    logger.error('Error completing AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -164,7 +179,8 @@ export const completeTest = async (req: AuthRequest, res: Response) => {
  */
 export const recordEvent = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { variantId, action } = req.body;
     if (!variantId || !action) {
@@ -183,16 +199,17 @@ export const recordEvent = async (req: AuthRequest, res: Response) => {
     await getService().recordEvent(
       testId!,
       variantId,
-      req.user.id,
+      user.id,
       action
     );
 
     return res.status(200).json({ success: true });
-  } catch (error: any) {
-    if (error.message?.includes('not found') || error.message?.includes('not active')) {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found') || message.includes('not active')) {
+      return res.status(404).json({ error: message });
     }
-    console.error('Error recording AB test event:', error);
+    logger.error('Error recording AB test event', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -202,19 +219,21 @@ export const recordEvent = async (req: AuthRequest, res: Response) => {
  */
 export const deleteTest = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
-    await getService().deleteTest(testId!, req.user.id);
+    await getService().deleteTest(testId!, user.id);
     return res.status(204).send();
-  } catch (error: any) {
-    if (error.message?.includes('not found')) {
-      return res.status(404).json({ error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
     }
-    if (error.message?.includes('Cannot delete')) {
-      return res.status(400).json({ error: error.message });
+    if (message.includes('Cannot delete')) {
+      return res.status(400).json({ error: message });
     }
-    console.error('Error deleting AB test:', error);
+    logger.error('Error deleting AB test', error instanceof Error ? error : new Error(message));
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

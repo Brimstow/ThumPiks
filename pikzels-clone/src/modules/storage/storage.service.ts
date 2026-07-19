@@ -7,6 +7,7 @@ import {
   ImageTransformation,
 } from './storage.types';
 import { CloudinaryProvider, getCloudinaryProvider } from './cloudinary.provider';
+import { logger } from '../../utils/logger';
 
 /**
  * Hybrid Storage Service
@@ -81,6 +82,24 @@ export class StorageService {
   }
 
   /**
+   * Upload a clean (un-watermarked) original for free-tier users.
+   * Stored permanently in Cloudinary; logical 45-day TTL enforced at read time.
+   * Cleaned up by `cleanupExpiredOriginals()` in watermark.service.ts.
+   */
+  async uploadCleanOriginal(
+    source: Buffer,
+    options: StorageUploadOptions = {}
+  ): Promise<StorageUploadResult> {
+    const uploadOptions: StorageUploadOptions = {
+      folder: 'thumpiks/originals',
+      tags: ['clean-original', 'wm-free'],
+      ...options,
+    };
+
+    return this.uploadWithFallback(source, uploadOptions);
+  }
+
+  /**
    * Upload a processed/edited image.
    */
   async uploadProcessedImage(
@@ -105,12 +124,12 @@ export class StorageService {
     source: string | Buffer,
     options: StorageUploadOptions
   ): Promise<StorageUploadResult> {
-    // Currently only Cloudinary is implemented
-    // TODO: Add Storacha as primary when credentials available
+    // Storacha will be added as primary storage when credentials are configured.
+    // Currently Cloudinary is the only storage provider.
     try {
       return await this.uploadToCloudinary(source, options);
     } catch (error) {
-      console.error('Primary upload failed, attempting fallback:', error);
+      logger.error('Primary upload failed, attempting fallback', error instanceof Error ? error : undefined);
       // For now, rethrow since Cloudinary is both primary and fallback
       throw error;
     }

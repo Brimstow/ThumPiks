@@ -6,6 +6,7 @@ import {
 import { CacheService } from '../services/cache.service';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { userApiRateLimit } from '../middleware/security.middleware';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const cache = CacheService.getInstance();
@@ -33,7 +34,7 @@ router.get('/metrics', async (req, res) => {
       data: metrics,
     });
   } catch (error) {
-    console.error('Error getting performance metrics:', error);
+    logger.error('Error getting performance metrics', error instanceof Error ? error : undefined);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -59,7 +60,7 @@ router.get('/cache', async (_req, res) => {
       data: stats,
     });
   } catch (error) {
-    console.error('Error getting cache stats:', error);
+    logger.error('Error getting cache stats', error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -78,7 +79,7 @@ router.delete('/metrics', async (_req, res) => {
       res.status(500).json({ error: 'Failed to clear performance metrics' });
     }
   } catch (error) {
-    console.error('Error clearing performance metrics:', error);
+    logger.error('Error clearing performance metrics', error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -123,7 +124,7 @@ router.get('/health', async (_req, res) => {
       data: health,
     });
   } catch (error) {
-    console.error('Error getting health status:', error);
+    logger.error('Error getting health status', error instanceof Error ? error : undefined);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -44,6 +44,21 @@ interface User {
   status: 'active' | 'inactive' | 'suspended';
 }
 
+interface UserApiEntry {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  lastActive: string;
+  status: 'active' | 'inactive' | 'suspended';
+}
+
+interface RoleApiData {
+  permissions?: Permission[];
+  roles?: Role[];
+  users?: UserApiEntry[];
+}
+
 const RolePermissionManagement: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -58,13 +73,17 @@ const RolePermissionManagement: React.FC = () => {
     try {
       const result = await adminRoleService.getRoles();
       if (result.success && result.data) {
-        const d = result.data as any;
+        const d = result.data as RoleApiData;
         if (d.permissions) setPermissions(d.permissions);
         if (d.roles) setRoles(d.roles);
         if (d.users) {
-          setUsers((d.users as any[]).map((u: any) => ({
-            ...u,
+          setUsers(d.users.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            roles: u.roles,
             lastActive: new Date(u.lastActive),
+            status: u.status,
           })));
         }
       }

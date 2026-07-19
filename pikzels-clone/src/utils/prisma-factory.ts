@@ -22,6 +22,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { logger } from './logger';
 
 // Singleton storage
 let prismaInstance: PrismaClient | null = null;
@@ -99,7 +100,7 @@ export async function healthCheckPrisma(): Promise<boolean> {
     await prisma.$queryRaw`SELECT 1`;
     return true;
   } catch (error) {
-    console.error('Prisma health check failed:', error);
+    logger.error('Prisma health check failed', error instanceof Error ? error : undefined);
     return false;
   }
 }

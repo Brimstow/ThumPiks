@@ -1,6 +1,7 @@
 import { analyticsService } from './analytics.service';
 import { adminAuthService } from './admin-auth.service';
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 import Redis from 'ioredis';
 import os from 'os';
 
@@ -12,7 +13,7 @@ export interface HealthCheck {
   responseTime?: number;
   errorMessage?: string;
   lastChecked: Date;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export interface SystemHealth {
@@ -48,7 +49,7 @@ export interface ErrorLog {
   level: 'error' | 'warning' | 'critical';
   message: string;
   stack?: string;
-  context?: any;
+  context?: Record<string, unknown>;
   timestamp: Date;
   resolved: boolean;
 }
@@ -95,7 +96,7 @@ export class SystemMonitoringService {
         this.redis = new Redis(process.env.REDIS_URL);
       }
     } catch (error) {
-      console.error('Redis initialization failed:', error);
+      logger.error('Redis initialization failed', error instanceof Error ? error : undefined);
     }
   }
 
@@ -108,7 +109,7 @@ export class SystemMonitoringService {
       try {
         await this.runHealthChecks();
       } catch (error) {
-        console.error('Health check error:', error);
+        logger.error('Health check error', error instanceof Error ? error : undefined);
       }
     }, 30000);
   }
@@ -122,7 +123,7 @@ export class SystemMonitoringService {
       try {
         await this.collectSystemMetrics();
       } catch (error) {
-        console.error('Metrics collection error:', error);
+        logger.error('Metrics collection error', error instanceof Error ? error : undefined);
       }
     }, 60000);
   }
@@ -156,7 +157,7 @@ export class SystemMonitoringService {
         timestamp: new Date(),
       };
     } catch (error) {
-      console.error('Error getting system health:', error);
+      logger.error('Error getting system health', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -421,7 +422,7 @@ export class SystemMonitoringService {
         },
       });
     } catch (error) {
-      console.error('Error storing health check:', error);
+      logger.error('Error storing health check', error instanceof Error ? error : undefined);
     }
   }
 
@@ -445,7 +446,7 @@ export class SystemMonitoringService {
 
       return metrics;
     } catch (error) {
-      console.error('Error collecting system metrics:', error);
+      logger.error('Error collecting system metrics', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -547,7 +548,7 @@ export class SystemMonitoringService {
         ),
       ]);
     } catch (error) {
-      console.error('Error storing performance metrics:', error);
+      logger.error('Error storing performance metrics', error instanceof Error ? error : undefined);
     }
   }
 
@@ -558,7 +559,7 @@ export class SystemMonitoringService {
     level: 'error' | 'warning' | 'critical',
     message: string,
     stack?: string,
-    context?: any
+    context?: Record<string, unknown>
   ): Promise<void> {
     try {
       // Store in audit log
@@ -580,22 +581,17 @@ export class SystemMonitoringService {
             : 'warning'
       );
 
-      // Log to console based on level
-      if (level === 'error') {
-        console.error(`[${level.toUpperCase()}] ${message}`, {
+      // Log based on level
+      if (level === 'error' || level === 'critical') {
+        logger.error(`[${level.toUpperCase()}] ${message}`, undefined, {
           stack,
           context,
         });
       } else if (level === 'warning') {
-        console.warn(`[${level.toUpperCase()}] ${message}`, { stack, context });
-      } else {
-        console.error(`[${level.toUpperCase()}] ${message}`, {
-          stack,
-          context,
-        });
+        logger.warn(`[${level.toUpperCase()}] ${message}`, { stack, context });
       }
     } catch (error) {
-      console.error('Error logging system error:', error);
+      logger.error('Error logging system error', error instanceof Error ? error : undefined);
     }
   }
 
@@ -623,7 +619,7 @@ export class SystemMonitoringService {
         resolved ? !!alert.resolvedAt : !alert.resolvedAt
       );
     } catch (error) {
-      console.error('Error getting system alerts:', error);
+      logger.error('Error getting system alerts', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -644,7 +640,7 @@ export class SystemMonitoringService {
 
       return true;
     } catch (error) {
-      console.error('Error acknowledging alert:', error);
+      logger.error('Error acknowledging alert', error instanceof Error ? error : undefined);
       return false;
     }
   }
@@ -657,7 +653,7 @@ export class SystemMonitoringService {
     level?: 'error' | 'warning' | 'critical'
   ): Promise<ErrorLog[]> {
     try {
-      const where: any = {
+      const where: Record<string, unknown> = {
         action: 'SYSTEM_ERROR',
       };
 
@@ -685,7 +681,7 @@ export class SystemMonitoringService {
         resolved: false, // Would track resolution status
       }));
     } catch (error) {
-      console.error('Error getting error logs:', error);
+      logger.error('Error getting error logs', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -712,9 +708,9 @@ export class SystemMonitoringService {
         },
       });
 
-      console.log('Old monitoring data cleaned up successfully');
+      logger.info('Old monitoring data cleaned up successfully');
     } catch (error) {
-      console.error('Error cleaning up old data:', error);
+      logger.error('Error cleaning up old data', error instanceof Error ? error : undefined);
     }
   }
 

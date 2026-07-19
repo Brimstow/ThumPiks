@@ -4,53 +4,17 @@
  * Handles credit transactions, balance tracking, and credit pack purchases
  */
 
-import Stripe from 'stripe';
+import { getBillingProvider } from '../billing';
 import { getPrisma } from '../../utils/prisma-factory';
 import { logger } from '../../utils/logger';
+import { getClientUrl } from '../../utils/env';
+import { CREDIT_PACKS, type CreditPack } from '../subscription/subscription.config';
+import { getService } from '../../utils/service-factory';
 
 const prisma = getPrisma();
 
-// Initialize Stripe (use same key from subscription module)
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-02-25.clover',
-    })
-  : null;
-
-// Credit pack definitions (matching frontend)
-interface CreditPack {
-  id: string;
-  name: string;
-  credits: number;
-  price: number; // in dollars
-}
-
-const CREDIT_PACKS: CreditPack[] = [
-  {
-    id: 'pack_50',
-    name: 'Starter Pack',
-    credits: 50,
-    price: 9,
-  },
-  {
-    id: 'pack_100',
-    name: 'Value Pack',
-    credits: 100,
-    price: 15,
-  },
-  {
-    id: 'pack_250',
-    name: 'Pro Pack',
-    credits: 250,
-    price: 35,
-  },
-  {
-    id: 'pack_500',
-    name: 'Ultra Pack',
-    credits: 500,
-    price: 60,
-  },
-];
+// Re-export for backward compatibility
+export { CREDIT_PACKS, type CreditPack };
 
 /**
  * Get credit transactions for a user
@@ -90,7 +54,8 @@ export async function getBalance(userId: string): Promise<number> {
 }
 
 /**
- * Create Stripe checkout session for credit pack purchase
+ * Create checkout session for credit pack purchase.
+ * Uses the active billing provider (Stripe, Polar, or Demo).
  */
 export async function createCreditPackCheckout(
   userId: string,
@@ -103,78 +68,28 @@ export async function createCreditPackCheckout(
     throw new Error('Invalid credit pack ID');
   }
 
-  // DEMO MODE: If Stripe not configured, return demo URL
-  if (!stripe) {
-    const demoUrl =
-      `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/demo-checkout?` +
-      `userId=${userId}&` +
-      `planId=${packId}&` +
-      `sessionId=demo_pack_${Date.now()}`;
-
-    logger.info('Demo credit pack checkout created (no Stripe)', {
-      userId,
-      packId,
-    });
-    return demoUrl;
-  }
+  const provider = getBillingProvider();
+  const clientUrl = getClientUrl();
 
   try {
-    // Get or create Stripe customer
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { stripeCustomerId: true },
-    });
-
-    let customerId = user?.stripeCustomerId;
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: userEmail,
-        metadata: { userId },
-      });
-      customerId = customer.id;
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: { stripeCustomerId: customerId },
-      });
-    }
-
-    // Create one-time payment checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'payment', // One-time payment, not subscription
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: pack.name,
-              description: `${pack.credits} AI thumbnail generation credits`,
-            },
-            unit_amount: pack.price * 100, // Convert to cents
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/dashboard/credits?success=true`,
-      cancel_url: `${process.env.VITE_BASE_URL || 'http://localhost:8556'}/dashboard/credits?cancel=true`,
-      metadata: {
-        userId,
-        packId,
-        credits: pack.credits.toString(),
-        type: 'credit_pack_purchase',
-      },
+    const url = await provider.createCreditPackCheckout({
+      userId,
+      email: userEmail,
+      packId: pack.id,
+      packName: pack.name,
+      credits: pack.credits,
+      price: pack.price,
+      successUrl: `${clientUrl}/dashboard/credits?success=true`,
+      cancelUrl: `${clientUrl}/dashboard/credits?cancel=true`,
     });
 
     logger.info('Credit pack checkout session created', {
       userId,
       packId,
-      sessionId: session.id,
+      provider: provider.providerName,
     });
 
-    return session.url || '';
+    return url;
   } catch (error) {
     logger.error('Failed to create credit pack checkout', error as Error, {
       userId,
@@ -185,13 +100,17 @@ export async function createCreditPackCheckout(
 }
 
 /**
- * Add purchased credits to user's balance
- * Called by webhook after successful payment
+ * Add purchased credits to user's balance.
+ * Called by webhook after successful payment from any provider.
+ *
+ * @param provider - Which billing provider completed the payment ('stripe' | 'polar' | 'demo')
+ * @param paymentId - The provider-specific session/order ID
  */
 export async function addPurchasedCredits(
   userId: string,
   packId: string,
-  stripeSessionId: string
+  paymentId: string,
+  provider: 'stripe' | 'polar' | 'demo' = 'stripe'
 ): Promise<void> {
   const pack = CREDIT_PACKS.find(p => p.id === packId);
 
@@ -223,7 +142,9 @@ export async function addPurchasedCredits(
         type: 'purchase',
         amount: pack.credits,
         description: `Purchased ${pack.name}`,
-        stripePaymentId: stripeSessionId,
+        ...(provider === 'polar'
+          ? { polarOrderId: paymentId }
+          : { stripePaymentId: paymentId }),
       },
     });
 
@@ -231,8 +152,20 @@ export async function addPurchasedCredits(
       userId,
       packId,
       credits: pack.credits,
-      stripeSessionId,
+      provider,
+      paymentId,
     });
+
+    // Notify user of successful credit purchase (fire-and-forget)
+    const router = getService('notificationRouter');
+    router.routeToUser(userId, {
+      type: 'credits_purchased',
+      title: 'Credits Added',
+      message: `${pack.credits} credits from ${pack.name} have been added to your account.`,
+      priority: 'normal',
+      actionUrl: '/dashboard/credits',
+      metadata: { packId, credits: pack.credits },
+    }).catch(() => {});
   } catch (error) {
     logger.error('Failed to add purchased credits', error as Error, {
       userId,
@@ -244,6 +177,7 @@ export async function addPurchasedCredits(
 
 /**
  * Deduct credits with transaction logging
+ * Uses plan credits first, then add-on credits
  * Used when user generates a thumbnail
  */
 export async function deductCredits(
@@ -262,29 +196,78 @@ export async function deductCredits(
       throw new Error('No subscription found');
     }
 
-    if (subscription.creditsBalance < amount) {
+    // Calculate available credits
+    const planCreditsAvailable = subscription.creditsBalance;
+    const addonCreditsAvailable = subscription.addonCreditsBalance;
+    const totalAvailable = planCreditsAvailable + addonCreditsAvailable;
+
+    if (totalAvailable < amount) {
       return false; // Insufficient credits
     }
 
-    // Deduct credits and create transaction
+    // Determine how much to deduct from each pool
+    // Priority: Plan credits first (they expire), then add-on credits
+    const planCreditsToDeduct = Math.min(planCreditsAvailable, amount);
+    const addonCreditsToDeduct = amount - planCreditsToDeduct;
+
+    // Update subscription with deductions
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
-        creditsBalance: { decrement: amount },
-        creditsUsed: { increment: amount },
+        creditsBalance: { decrement: planCreditsToDeduct },
+        creditsUsed: { increment: planCreditsToDeduct },
+        addonCreditsBalance: { decrement: addonCreditsToDeduct },
+        addonCreditsUsed: { increment: addonCreditsToDeduct },
       },
     });
 
+    // Create transaction record
     await prisma.creditTransaction.create({
       data: {
         userId,
         type: 'usage',
         amount: -amount, // Negative for deductions
         description,
+        balanceBefore: totalAvailable,
+        balanceAfter: totalAvailable - amount,
       },
     });
 
-    logger.info('Credits deducted', { userId, amount, description });
+    logger.info('Credits deducted', {
+      userId,
+      amount,
+      planCreditsDeducted: planCreditsToDeduct,
+      addonCreditsDeducted: addonCreditsToDeduct,
+      description,
+    });
+
+    // Check for low/depleted credits and notify (fire-and-forget, deduplicated)
+    const remaining = totalAvailable - amount;
+    if (remaining === 0) {
+      const router = getService('notificationRouter');
+      router.routeToUser(userId, {
+        type: 'credits_depleted',
+        title: 'Credits Depleted',
+        message: 'You have no credits remaining. Purchase more to continue generating thumbnails.',
+        priority: 'high',
+        actionUrl: '/dashboard/credits',
+      }).catch(() => {});
+    } else if (remaining <= 5) {
+      const { getUserNotificationService } = await import('../user-notification/user-notification.service');
+      const hasDupe = await getUserNotificationService().hasDuplicate(userId, 'credits_low', 24 * 60 * 60 * 1000);
+      if (!hasDupe) {
+        const router = getService('notificationRouter');
+        router.routeToUser(userId, {
+          type: 'credits_low',
+          title: 'Credits Running Low',
+          message: `You have only ${remaining} credit${remaining === 1 ? '' : 's'} remaining.`,
+          priority: 'normal',
+          actionUrl: '/dashboard/credits',
+          metadata: { remaining },
+        }).catch(() => {});
+      }
+    }
+
     return true;
   } catch (error) {
     logger.error('Failed to deduct credits', error as Error, {

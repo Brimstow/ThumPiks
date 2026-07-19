@@ -6,7 +6,7 @@ export interface BaseEvent {
   type: string;
   timestamp: Date;
   userId: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Thumbnail Events
@@ -16,7 +16,7 @@ export interface ThumbnailCreatedEvent extends BaseEvent {
     thumbnailId: string;
     projectId?: string;
     filePath: string;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
     size: number;
   };
 }
@@ -25,7 +25,7 @@ export interface ThumbnailUpdatedEvent extends BaseEvent {
   type: 'thumbnail.updated';
   data: {
     thumbnailId: string;
-    changes: Record<string, any>;
+    changes: Record<string, unknown>;
     previousVersion?: string;
   };
 }
@@ -53,29 +53,7 @@ export interface ProjectUpdatedEvent extends BaseEvent {
   type: 'project.updated';
   data: {
     projectId: string;
-    changes: Record<string, any>;
-  };
-}
-
-// Social Sharing Events
-export interface SocialShareRequestedEvent extends BaseEvent {
-  type: 'social.share.requested';
-  data: {
-    thumbnailId: string;
-    platforms: string[];
-    shareId: string;
-  };
-}
-
-export interface SocialShareCompletedEvent extends BaseEvent {
-  type: 'social.share.completed';
-  data: {
-    shareId: string;
-    thumbnailId: string;
-    platform: string;
-    success: boolean;
-    shareUrl?: string;
-    error?: string;
+    changes: Record<string, unknown>;
   };
 }
 
@@ -86,7 +64,7 @@ export interface AnalyticsTrackingEvent extends BaseEvent {
     action: string;
     resource: string;
     resourceId: string;
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
   };
 }
 
@@ -108,8 +86,6 @@ export type AppEvent =
   | ThumbnailDeletedEvent
   | ProjectCreatedEvent
   | ProjectUpdatedEvent
-  | SocialShareRequestedEvent
-  | SocialShareCompletedEvent
   | AnalyticsTrackingEvent
   | UserActionEvent;
 

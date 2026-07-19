@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useBackendAI, BackendAIOperation } from '../../hooks/useBackendAI';
 import type { Layer, ImageLayer } from './types/editor.types';
+import Tooltip from '../ui/Tooltip';
 
 // ============================================
 // TYPES
@@ -212,28 +213,21 @@ export const FloatingLayerToolbar: React.FC<FloatingLayerToolbarProps> = ({
       {AI_ACTIONS.map((action) => {
         const isActive = activeOperation === action.id;
         const isDisabled = isLoading || !action.requiresImage;
-        const showTooltip = hoveredAction === action.id && !isActive;
 
         return (
           <div key={action.id} className="floating-toolbar__btn-wrapper">
+            <Tooltip content={`${action.label} (${action.creditCost} credit${action.creditCost > 1 ? 's' : ''})`} side="top">
             <button
               className={`floating-toolbar__btn ${isActive ? 'floating-toolbar__btn--active' : ''}`}
               onClick={() => handleAIAction(action)}
               onMouseEnter={() => setHoveredAction(action.id)}
               onMouseLeave={() => setHoveredAction(null)}
               disabled={isDisabled}
-              title={`${action.label} (${action.creditCost} credit${action.creditCost > 1 ? 's' : ''})`}
             >
               {isActive ? <Icons.Loader /> : action.icon}
               <span className="floating-toolbar__btn-label">{action.label}</span>
             </button>
-            
-            {/* Credit cost tooltip */}
-            {showTooltip && (
-              <div className="floating-toolbar__tooltip">
-                {action.creditCost} credit{action.creditCost > 1 ? 's' : ''}
-              </div>
-            )}
+            </Tooltip>
           </div>
         );
       })}

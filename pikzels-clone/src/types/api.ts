@@ -4,7 +4,7 @@ export interface CreateThumbnailRequest {
   title: string;
   imageUrl?: string;
   prompt: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   projectId: string;
 }
 
@@ -12,7 +12,7 @@ export interface UpdateThumbnailRequest {
   title?: string;
   imageUrl?: string;
   prompt?: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 export interface ThumbnailFilters {
@@ -39,7 +39,7 @@ export interface ProjectCreateRequest {
 }
 
 export interface UserSettingsRequest {
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
 }
 
 // Standard API error response

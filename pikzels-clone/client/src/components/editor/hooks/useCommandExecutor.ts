@@ -1,11 +1,20 @@
 import { useCallback } from 'react';
-import { authPost } from '../../../utils/api';
-import type { Layer, TextLayer, ImageLayer, ShapeLayer } from '../types/editor.types';
+import { authPost, createAIToolAbortController } from '../../../utils/api';
+import type { Layer, TextLayer, ImageLayer, ShapeLayer, LayerEffect } from '../types/editor.types';
 
 // ============================================================================
 // AI Command Executor Hook
 // Maps structured editor actions from the LLM to existing editor dispatch/handlers
 // ============================================================================
+
+/** Default settings per effect type — merged with AI-provided params */
+const EFFECT_DEFAULTS: Record<string, Record<string, number | string | boolean>> = {
+  shadow: { color: '#000000', offsetX: 4, offsetY: 4, blur: 8, opacity: 80 },
+  glow:   { color: '#FFFF00', offsetX: 0, offsetY: 0, blur: 15, opacity: 90 },
+  blur:   { radius: 4, opacity: 100 },
+  stroke: { color: '#000000', width: 3, opacity: 100 },
+  bevel:  { lightColor: '#FFFFFF', shadowColor: '#000000', depth: 3, angle: 135, opacity: 70 },
+};
 
 /** Matches the backend EditorAction type */
 export interface EditorAction {
@@ -32,6 +41,16 @@ export interface LayerContext {
   visible: boolean;
   locked: boolean;
   selected: boolean;
+  // Spatial data
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  blendMode?: string;
+  zIndex: number;
+  // Type-specific data
   text?: string;
   font?: string;
   fontSize?: number;
@@ -49,6 +68,8 @@ export interface CommandExecutorCallbacks {
   duplicateLayer: (layerId: string) => void;
   selectLayer: (layerId: string) => void;
   reorderLayers: (layerIds: string[]) => void;
+  groupLayers: (layerIds: string[]) => void;
+  ungroupLayers: (groupId: string) => void;
   // AI operations (via useBackendAI)
   callBackendAI: (operation: 'generate' | 'inpaint' | 'face-swap' | 'upscale' | 'remove-background' | 'enhance' | 'segment', request: Record<string, unknown>) => Promise<string[]>;
   // State getters
@@ -56,13 +77,18 @@ export interface CommandExecutorCallbacks {
   getLayerOrder: () => string[];
   getSelectedLayerIds: () => string[];
   getCanvasSize: () => { width: number; height: number };
+  // Batch undo (Phase 4)
+  startBatch?: (label: string) => void;
+  endBatch?: () => void;
+  // Vision (Phase 5)
+  getCanvasScreenshot?: () => string | null;
 }
 
 interface UseCommandExecutorReturn {
   /** Send a natural language prompt to the LLM and get structured actions */
   parseCommand: (prompt: string) => Promise<EditorCommandResult>;
-  /** Execute a single parsed action using editor callbacks */
-  executeAction: (action: EditorAction) => Promise<void>;
+  /** Execute a single parsed action using editor callbacks. Returns text for analysis actions. */
+  executeAction: (action: EditorAction) => Promise<string | void>;
   /** Execute all actions from a command result */
   executeAll: (result: EditorCommandResult) => Promise<{ executed: number; errors: string[] }>;
   /** Build the canvas context payload for the backend */
@@ -78,7 +104,7 @@ export function useCommandExecutor(
     const selectedIds = callbacks.getSelectedLayerIds();
     const { width, height } = callbacks.getCanvasSize();
 
-    const layerContexts: LayerContext[] = layers.map((layer) => {
+    const layerContexts: LayerContext[] = layers.map((layer, index) => {
       const ctx: LayerContext = {
         id: layer.id,
         type: layer.type,
@@ -86,6 +112,15 @@ export function useCommandExecutor(
         visible: layer.visible,
         locked: layer.locked,
         selected: selectedIds.includes(layer.id),
+        // Spatial data from transform
+        x: layer.transform.x,
+        y: layer.transform.y,
+        width: layer.transform.width,
+        height: layer.transform.height,
+        rotation: layer.transform.rotation || 0,
+        opacity: typeof layer.opacity === 'number' ? layer.opacity / 100 : 1,
+        blendMode: layer.blendMode || 'normal',
+        zIndex: index,
       };
 
       if (layer.type === 'text') {
@@ -166,7 +201,7 @@ export function useCommandExecutor(
 
   /** Execute a single editor action */
   const executeAction = useCallback(
-    async (action: EditorAction): Promise<void> => {
+    async (action: EditorAction): Promise<string | void> => {
       const { width, height } = callbacks.getCanvasSize();
       const targetLayer = resolveTarget(action);
 
@@ -218,7 +253,8 @@ export function useCommandExecutor(
 
         // ---- TEXT EDITING ----
         case 'updateText': {
-          if (!targetLayer || targetLayer.type !== 'text') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a text layer first.`);
+          if (targetLayer.type !== 'text') throw new Error(`Target "${targetLayer.name}" is not a text layer.`);
           const p = action.params;
           const updates: Partial<TextLayer> = {};
           if (p.text !== undefined) updates.content = p.text as string;
@@ -232,7 +268,7 @@ export function useCommandExecutor(
         }
 
         case 'recolorLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           const color = action.params.color as string;
           if (targetLayer.type === 'text') {
             callbacks.updateLayer(targetLayer.id, { fill: color } as Partial<TextLayer>);
@@ -244,7 +280,8 @@ export function useCommandExecutor(
 
         // ---- IMAGE AI OPERATIONS ----
         case 'removeBackground': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Remove background only works on images.`);
           const images = await callbacks.callBackendAI('remove-background', {
             image: (targetLayer as ImageLayer).src,
           });
@@ -255,7 +292,8 @@ export function useCommandExecutor(
         }
 
         case 'enhance': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Enhance only works on images.`);
           const enhanceType = (action.params.enhancementType as string) || 'auto';
           const images = await callbacks.callBackendAI('enhance', {
             image: (targetLayer as ImageLayer).src,
@@ -268,7 +306,8 @@ export function useCommandExecutor(
         }
 
         case 'upscale': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Upscale only works on images.`);
           const scale = (action.params.scale as string) || '2x';
           const images = await callbacks.callBackendAI('upscale', {
             image: (targetLayer as ImageLayer).src,
@@ -281,7 +320,8 @@ export function useCommandExecutor(
         }
 
         case 'inpaint': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Inpaint only works on images.`);
           const images = await callbacks.callBackendAI('inpaint', {
             image: (targetLayer as ImageLayer).src,
             prompt: action.params.prompt as string,
@@ -305,7 +345,8 @@ export function useCommandExecutor(
         }
 
         case 'faceSwap': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Face swap only works on images.`);
           const images = await callbacks.callBackendAI('face-swap', {
             targetImage: (targetLayer as ImageLayer).src,
             prompt: (action.params.prompt as string) || undefined,
@@ -316,9 +357,9 @@ export function useCommandExecutor(
           break;
         }
 
-        // ---- IMAGE ADJUSTMENTS ----
         case 'adjustImage': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Image adjustments only work on images.`);
           const p = action.params;
           const filters: Record<string, number> = {};
           if (p.brightness !== undefined) filters.brightness = p.brightness as number;
@@ -340,19 +381,19 @@ export function useCommandExecutor(
 
         // ---- LAYER MANAGEMENT ----
         case 'deleteLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           callbacks.deleteLayer(targetLayer.id);
           break;
         }
 
         case 'duplicateLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           callbacks.duplicateLayer(targetLayer.id);
           break;
         }
 
         case 'reorderLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           const order = [...callbacks.getLayerOrder()];
           const idx = order.indexOf(targetLayer.id);
           if (idx === -1) break;
@@ -373,7 +414,7 @@ export function useCommandExecutor(
         }
 
         case 'moveLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           const p = action.params;
           const transform = { ...targetLayer.transform };
 
@@ -398,7 +439,7 @@ export function useCommandExecutor(
         }
 
         case 'resizeLayer': {
-          if (!targetLayer) break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
           const p = action.params;
           const t = { ...targetLayer.transform };
 
@@ -422,34 +463,296 @@ export function useCommandExecutor(
               l.name.toLowerCase().includes(query.toLowerCase()) ||
               l.type === query.toLowerCase()
           );
-          if (match) {
-            callbacks.selectLayer(match.id);
+          if (!match) throw new Error(`Could not find a layer matching "${query}".`);
+          callbacks.selectLayer(match.id);
+          break;
+        }
+
+        // ---- ROTATION ----
+        case 'rotateLayer': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
+          const angle = action.params.angle as number;
+          if (typeof angle !== 'number') throw new Error('Rotation angle is required.');
+          const currentRotation = targetLayer.transform.rotation || 0;
+          const newRotation = ((currentRotation + angle) % 360 + 360) % 360;
+          callbacks.updateLayer(targetLayer.id, {
+            transform: { ...targetLayer.transform, rotation: newRotation },
+          });
+          break;
+        }
+
+        // ---- GROUPING ----
+        case 'groupLayers': {
+          const layerNames = action.params.layerNames as string[];
+          if (!layerNames || !Array.isArray(layerNames) || layerNames.length < 2) {
+            throw new Error('At least 2 layer names are required to create a group.');
           }
+          const allLayers = callbacks.getLayers();
+          const ids: string[] = [];
+          for (const name of layerNames) {
+            const found = allLayers.find(
+              (l) => l.name.toLowerCase().includes(name.toLowerCase()) || l.type === name.toLowerCase()
+            );
+            if (!found) throw new Error(`Could not find layer matching "${name}" for grouping.`);
+            ids.push(found.id);
+          }
+          callbacks.groupLayers(ids);
+          break;
+        }
+
+        case 'ungroupLayers': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a group layer.`);
+          if (targetLayer.type !== 'group') throw new Error(`Target "${targetLayer.name}" is not a group layer.`);
+          callbacks.ungroupLayers(targetLayer.id);
+          break;
+        }
+
+        // ---- CROP ----
+        case 'cropLayer': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Crop only works on images.`);
+          const imgLayer = targetLayer as ImageLayer;
+          const p = action.params;
+          const lw = imgLayer.transform.width;
+          const lh = imgLayer.transform.height;
+
+          let cx = 0, cy = 0, cw = lw, ch = lh;
+
+          if (p.region) {
+            const region = p.region as string;
+            switch (region) {
+              case 'top-half': cx = 0; cy = 0; cw = lw; ch = lh / 2; break;
+              case 'bottom-half': cx = 0; cy = lh / 2; cw = lw; ch = lh / 2; break;
+              case 'left-half': cx = 0; cy = 0; cw = lw / 2; ch = lh; break;
+              case 'right-half': cx = lw / 2; cy = 0; cw = lw / 2; ch = lh; break;
+              case 'center': cx = lw * 0.25; cy = lh * 0.25; cw = lw * 0.5; ch = lh * 0.5; break;
+              default: throw new Error(`Unknown crop region: ${region}`);
+            }
+          } else {
+            if (typeof p.x === 'number') cx = p.x;
+            if (typeof p.y === 'number') cy = p.y;
+            if (typeof p.width === 'number') cw = p.width;
+            if (typeof p.height === 'number') ch = p.height;
+          }
+
+          // Perform client-side crop using offscreen canvas
+          const cropImg = new Image();
+          cropImg.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            cropImg.onload = () => resolve();
+            cropImg.onerror = () => reject(new Error('Failed to load image for cropping.'));
+            cropImg.src = imgLayer.src;
+          });
+
+          // Calculate crop in image-space (may differ from display dimensions)
+          const scaleX = cropImg.naturalWidth / lw;
+          const scaleY = cropImg.naturalHeight / lh;
+          const offscreen = document.createElement('canvas');
+          offscreen.width = Math.round(cw * scaleX);
+          offscreen.height = Math.round(ch * scaleY);
+          const ctx = offscreen.getContext('2d');
+          if (!ctx) throw new Error('Canvas context unavailable for crop.');
+          ctx.drawImage(
+            cropImg,
+            Math.round(cx * scaleX), Math.round(cy * scaleY),
+            offscreen.width, offscreen.height,
+            0, 0,
+            offscreen.width, offscreen.height
+          );
+          const croppedSrc = offscreen.toDataURL('image/png');
+
+          callbacks.updateLayer(targetLayer.id, {
+            src: croppedSrc,
+            transform: {
+              ...imgLayer.transform,
+              x: imgLayer.transform.x + cx,
+              y: imgLayer.transform.y + cy,
+              width: cw,
+              height: ch,
+            },
+          } as Partial<ImageLayer>);
           break;
         }
 
         case 'decompose': {
-          if (!targetLayer || targetLayer.type !== 'image') break;
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Decompose only works on images.`);
           const maxLayers = typeof action.params.maxLayers === 'number' ? action.params.maxLayers : 8;
-          const decomposeResp = await authPost('/api/thumbnails/ai/decompose', {
-            image: (targetLayer as ImageLayer).src,
-            maxLayers,
-          });
-          if (decomposeResp.ok) {
-            const decomposeData = await decomposeResp.json();
-            if (decomposeData.success && decomposeData.layers) {
-              decomposeData.layers.forEach((layer: { imageBase64: string }, idx: number) => {
-                callbacks.addImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`);
-              });
+          // JJ: Per-tool AbortController with timeout
+          const { controller: decompCtrl, timeoutId: decompTimeout } = createAIToolAbortController('generate');
+          try {
+            const decomposeResp = await authPost('/api/thumbnails/ai/decompose', {
+              image: (targetLayer as ImageLayer).src,
+              maxLayers,
+            }, { signal: decompCtrl.signal });
+            clearTimeout(decompTimeout);
+            if (decomposeResp.ok) {
+              const decomposeData = await decomposeResp.json();
+              if (decomposeData.success && decomposeData.layers) {
+                decomposeData.layers.forEach((layer: { imageBase64: string }, idx: number) => {
+                  callbacks.addImageLayer(layer.imageBase64, `Decomposed ${idx + 1}`);
+                });
+              }
             }
+          } catch (err) {
+            clearTimeout(decompTimeout);
+            if (err instanceof Error && err.name !== 'AbortError') throw err;
+            // AbortError: silently ignore timeout/abort for decompose
           }
           break;
         }
 
         case 'analyzeImage': {
-          // This would trigger the vision analysis panel
-          // For now, we'll log it — can wire to the vision tab later
-          console.log('[AI Command] Analyze image requested');
+          // Get image source: either from target layer or canvas screenshot
+          let analyzeSource: string | null = null;
+          if (targetLayer && targetLayer.type === 'image') {
+            analyzeSource = (targetLayer as ImageLayer).src;
+          } else {
+            analyzeSource = callbacks.getCanvasScreenshot?.() || null;
+          }
+          if (!analyzeSource) throw new Error('No image available to analyze. Select an image layer or ensure the canvas has content.');
+
+          const analyzeResp = await authPost('/api/vision/describe', {
+            imageBase64: analyzeSource,
+          });
+          if (!analyzeResp.ok) {
+            const errData = await analyzeResp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Image analysis failed.');
+          }
+          const analyzeData = await analyzeResp.json();
+          return analyzeData.description || analyzeData.analysis || JSON.stringify(analyzeData);
+        }
+
+        // ---- EXPANDED CAPABILITIES ----
+        case 'expand': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting an image layer first.`);
+          if (targetLayer.type !== 'image') throw new Error(`Target "${targetLayer.name}" is not an image layer. Expand only works on images.`);
+          const images = await callbacks.callBackendAI('generate', {
+            image: (targetLayer as ImageLayer).src,
+            direction: action.params.direction as string,
+            prompt: (action.params.prompt as string) || undefined,
+            operation: 'expand',
+          });
+          if (images.length > 0) {
+            callbacks.updateLayer(targetLayer.id, { src: images[0] } as Partial<ImageLayer>);
+          }
+          break;
+        }
+
+        case 'aiText': {
+          const p = action.params;
+          // JJ: Per-tool AbortController with timeout (generate-text uses default 55s)
+          const { controller: textCtrl, timeoutId: textTimeout } = createAIToolAbortController('generate');
+          try {
+            const resp = await authPost('/api/thumbnails/ai/generate-text', {
+              prompt: p.prompt as string,
+              style: (p.style as string) || undefined,
+            }, { signal: textCtrl.signal });
+            clearTimeout(textTimeout);
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.text) {
+                const x = width / 2;
+                const y = height / 2;
+                callbacks.addTextLayer(data.text, x, y);
+              }
+            }
+          } catch (err) {
+            clearTimeout(textTimeout);
+            if (err instanceof Error && err.name !== 'AbortError') throw err;
+          }
+          break;
+        }
+
+        case 'vision': {
+          // Describe what is visible on the canvas or a specific layer
+          let visionSource: string | null = null;
+          if (targetLayer && targetLayer.type === 'image') {
+            visionSource = (targetLayer as ImageLayer).src;
+          } else {
+            visionSource = callbacks.getCanvasScreenshot?.() || null;
+          }
+          if (!visionSource) throw new Error('No image available to describe. Select an image layer or ensure the canvas has content.');
+
+          const visionResp = await authPost('/api/vision/describe', {
+            imageBase64: visionSource,
+          });
+          if (!visionResp.ok) {
+            const errData = await visionResp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Vision description failed.');
+          }
+          const visionData = await visionResp.json();
+          return visionData.description || visionData.analysis || JSON.stringify(visionData);
+        }
+
+        case 'visionSearch': {
+          const query = action.params.query as string;
+          const resp = await authPost('/api/vision/search', { query });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.imageUrl) {
+              callbacks.addImageLayer(data.imageUrl, `Search: ${query}`);
+            }
+          }
+          break;
+        }
+
+        // ---- LAYER EFFECTS ----
+        case 'addEffect': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
+          const p = action.params;
+          const effectType = p.effectType as string;
+          if (!effectType || !EFFECT_DEFAULTS[effectType]) {
+            throw new Error(`Invalid effect type "${effectType}". Must be one of: shadow, glow, blur, stroke, bevel.`);
+          }
+
+          // Build settings by merging AI params over defaults
+          const defaults = { ...EFFECT_DEFAULTS[effectType] };
+          const settings: Record<string, number | string | boolean> = { ...defaults };
+
+          if (p.color !== undefined) settings.color = p.color as string;
+          if (p.offsetX !== undefined) settings.offsetX = p.offsetX as number;
+          if (p.offsetY !== undefined) settings.offsetY = p.offsetY as number;
+          if (p.opacity !== undefined) settings.opacity = p.opacity as number;
+
+          // Map 'blur' param to the correct settings key per effect type
+          if (p.blur !== undefined) {
+            if (effectType === 'blur') {
+              settings.radius = p.blur as number;
+            } else {
+              settings.blur = p.blur as number;
+            }
+          }
+
+          // Map 'spread' param to width (stroke) or depth (bevel)
+          if (p.spread !== undefined) {
+            if (effectType === 'stroke') {
+              settings.width = p.spread as number;
+            } else if (effectType === 'bevel') {
+              settings.depth = p.spread as number;
+            }
+          }
+
+          const newEffect: LayerEffect = {
+            id: `effect-${effectType}-${Date.now()}`,
+            type: effectType as LayerEffect['type'],
+            enabled: true,
+            settings,
+          };
+
+          // Replace existing effect of same type (one per type per layer)
+          const currentEffects = (targetLayer as any).effects || [];
+          const filtered = currentEffects.filter((e: LayerEffect) => e.type !== effectType);
+          callbacks.updateLayer(targetLayer.id, { effects: [...filtered, newEffect] });
+          break;
+        }
+
+        case 'removeEffect': {
+          if (!targetLayer) throw new Error(`Could not find target layer "${action.target}". Try selecting a layer first.`);
+          const rmEffectType = action.params.effectType as string;
+          const rmCurrentEffects = (targetLayer as any).effects || [];
+          const rmFiltered = rmCurrentEffects.filter((e: LayerEffect) => e.type !== rmEffectType);
+          callbacks.updateLayer(targetLayer.id, { effects: rmFiltered });
           break;
         }
 
@@ -466,15 +769,20 @@ export function useCommandExecutor(
       let executed = 0;
       const errors: string[] = [];
 
-      for (const action of result.actions) {
-        try {
-          await executeAction(action);
-          executed++;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Unknown error';
-          errors.push(`${action.description}: ${msg}`);
-          console.error(`[AI Command] Failed: ${action.action}`, err);
+      callbacks.startBatch?.(result.summary || 'AI command');
+      try {
+        for (const action of result.actions) {
+          try {
+            await executeAction(action);
+            executed++;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            errors.push(`${action.description}: ${msg}`);
+            console.error(`[AI Command] Failed: ${action.action}`, err);
+          }
         }
+      } finally {
+        callbacks.endBatch?.();
       }
 
       return { executed, errors };

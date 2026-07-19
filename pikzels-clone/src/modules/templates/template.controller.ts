@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { TemplateService } from './template.service';
 import { AuthRequest } from '../../types/auth';
+import { requireUser } from '../../middleware/auth.middleware';
+import { logger } from '../../utils/logger';
 
 const templateService = new TemplateService();
 
@@ -9,9 +11,8 @@ const templateService = new TemplateService();
  */
 export const createTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const { name, content } = req.body;
     if (!name) {
@@ -20,10 +21,13 @@ export const createTemplate = async (req: AuthRequest, res: Response) => {
 
     // Create template logic here
     const template = { id: '1', name, content };
-    
+
     return res.status(201).json({ template });
   } catch (error) {
-    console.error('Error creating template:', error);
+    logger.error(
+      'Error creating template',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -44,13 +48,22 @@ export const getTemplates = async (req: Request, res: Response) => {
       limit,
     } = req.query;
 
-    const filters: any = {};
+    const filters: {
+      search?: string;
+      tags?: string[];
+      isPublic?: boolean;
+      creatorId?: string;
+      sortBy?: 'createdAt' | 'downloads' | 'likes';
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      limit?: number;
+    } = {};
 
     if (search) filters.search = search as string;
     if (tags) filters.tags = (tags as string).split(',');
     if (isPublic !== undefined) filters.isPublic = isPublic === 'true';
     if (creatorId) filters.creatorId = creatorId as string;
-    if (sortBy) filters.sortBy = sortBy as string;
+    if (sortBy) filters.sortBy = sortBy as 'createdAt' | 'downloads' | 'likes';
     if (sortOrder) filters.sortOrder = sortOrder as 'asc' | 'desc';
     if (page) filters.page = parseInt(page as string);
     if (limit) filters.limit = parseInt(limit as string);
@@ -58,11 +71,13 @@ export const getTemplates = async (req: Request, res: Response) => {
     const templates = await templateService.getTemplates(filters);
 
     res.status(200).json(templates);
-  } catch (error: any) {
-    console.error('Error fetching templates:', error);
-    res
-      .status(500)
-      .json({ error: error.message || 'Failed to fetch templates' });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error(
+      'Error fetching templates',
+      error instanceof Error ? error : new Error(String(error))
+    );
+    res.status(500).json({ error: msg || 'Failed to fetch templates' });
   }
 };
 
@@ -71,9 +86,8 @@ export const getTemplates = async (req: Request, res: Response) => {
  */
 export const getTemplateById = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     if (!id) {
@@ -82,10 +96,13 @@ export const getTemplateById = async (req: AuthRequest, res: Response) => {
 
     // Get template logic here
     const template = { id, name: 'Sample Template' };
-    
+
     return res.status(200).json({ template });
   } catch (error) {
-    console.error('Error getting template:', error);
+    logger.error(
+      'Error getting template',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -95,9 +112,8 @@ export const getTemplateById = async (req: AuthRequest, res: Response) => {
  */
 export const updateTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     if (!id) {
@@ -105,13 +121,16 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
     }
 
     const { name, content } = req.body;
-    
+
     // Update template logic here
     const template = { id, name, content };
-    
+
     return res.status(200).json({ template });
   } catch (error) {
-    console.error('Error updating template:', error);
+    logger.error(
+      'Error updating template',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -121,9 +140,8 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
  */
 export const deleteTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     if (!id) {
@@ -131,19 +149,21 @@ export const deleteTemplate = async (req: AuthRequest, res: Response) => {
     }
 
     // Delete template logic here
-    
+
     return res.status(204).send();
   } catch (error) {
-    console.error('Error deleting template:', error);
+    logger.error(
+      'Error deleting template',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const downloadTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     if (!id) {
@@ -153,16 +173,18 @@ export const downloadTemplate = async (req: AuthRequest, res: Response) => {
     const template = await templateService.incrementDownloads(id);
     return res.status(200).json({ template });
   } catch (error) {
-    console.error('Error downloading template:', error);
+    logger.error(
+      'Error downloading template',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const toggleLikeTemplate = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = requireUser(req, res);
+    if (!user) return;
 
     const id = req.params.id as string;
     if (!id) {
@@ -172,7 +194,10 @@ export const toggleLikeTemplate = async (req: AuthRequest, res: Response) => {
     const template = await templateService.toggleLike(id);
     return res.status(200).json({ template });
   } catch (error) {
-    console.error('Error toggling like:', error);
+    logger.error(
+      'Error toggling like',
+      error instanceof Error ? error : new Error(String(error))
+    );
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

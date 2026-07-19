@@ -45,6 +45,11 @@ interface ContentItem {
   size?: { width: number; height: number };
 }
 
+interface ContentItemApi extends Omit<ContentItem, 'createdAt' | 'updatedAt'> {
+  createdAt: string;
+  updatedAt: string;
+}
+
 const ContentManagement: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -78,7 +83,7 @@ const ContentManagement: React.FC = () => {
     try {
       const result = await adminContentService.getContent();
       if (result.success && result.data) {
-        const normalized = (result.data as any[]).map((item: any) => ({
+        const normalized = (result.data as ContentItemApi[]).map((item) => ({
           ...item,
           createdAt: new Date(item.createdAt),
           updatedAt: new Date(item.updatedAt),

@@ -6,12 +6,36 @@
 
 import type { WorkerMessage, WorkerTaskType } from './ai-worker-types';
 
+/** Minimal interface for the @tensorflow/tfjs module (dynamically imported) */
+interface TfModule {
+  setBackend(name: string): Promise<boolean>;
+  ready(): Promise<void>;
+  getBackend(): string;
+}
+
+/** Minimal interface for the body segmentation model */
+interface SegmentationModel {
+  segmentPeople(
+    input: ImageBitmap,
+    config: Record<string, unknown>
+  ): Promise<Array<{ mask: { toCanvasImageSource(): Promise<CanvasImageSource> } }>>;
+}
+
+/** Minimal interface for the body-segmentation module namespace */
+interface BodySegmentationModule {
+  createSegmenter(
+    model: string,
+    config: Record<string, unknown>
+  ): Promise<SegmentationModel>;
+  SupportedModels: { MediaPipeSelfieSegmentation: string };
+}
+
 // TensorFlow.js will be imported dynamically to avoid bundling issues
-let tf: any = null;
-let bodySegmentation: any = null;
+let tf: TfModule | null = null;
+let bodySegmentation: BodySegmentationModule | null = null;
 
 let isInitialized = false;
-let segmentationModel: any = null;
+let segmentationModel: SegmentationModel | null = null;
 
 /**
  * Initialize TensorFlow.js with WASM backend
@@ -22,11 +46,11 @@ async function initialize() {
   try {
     // Dynamic import to avoid bundling the entire TF.js in main bundle
     const tfModule = await import('@tensorflow/tfjs');
-    tf = tfModule;
+    tf = tfModule as unknown as TfModule;
     const wasmBackend = await import('@tensorflow/tfjs-backend-wasm');
     
     // Set WASM paths (use local files for better performance and offline support)
-    wasmBackend.setWasmPaths('/wasm/');
+    (wasmBackend as unknown as { setWasmPaths(paths: string): void }).setWasmPaths('/wasm/');
     
     // Set backend to WASM (CPU-based, no GPU contention)
     await tf.setBackend('wasm');
@@ -48,7 +72,7 @@ async function loadSegmentationModel() {
   
   console.log('[Worker] Loading segmentation model...');
   
-  bodySegmentation = await import('@tensorflow-models/body-segmentation');
+  bodySegmentation = await import('@tensorflow-models/body-segmentation') as unknown as BodySegmentationModule;
   
   segmentationModel = await bodySegmentation.createSegmenter(
     bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
@@ -114,12 +138,12 @@ async function removeBackground(data: { image: string; returnMask?: boolean }) {
   
   // Get mask
   const mask = segmentation[0].mask;
-  const maskCanvas = await mask.toCanvasImageSource();
+  const maskCanvas = await mask.toCanvasImageSource() as HTMLCanvasElement;
   
   if (data.returnMask) {
     // Return just the mask
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(maskCanvas as any, 0, 0);
+    ctx.drawImage(maskCanvas, 0, 0);
     
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     const maskDataUrl = await blobToDataUrl(blob);
@@ -135,7 +159,7 @@ async function removeBackground(data: { image: string; returnMask?: boolean }) {
   const tempCtx = tempCanvas.getContext('2d');
   if (!tempCtx) throw new Error('Failed to get temp canvas context');
   
-  tempCtx.drawImage(maskCanvas as any, 0, 0);
+  tempCtx.drawImage(maskCanvas, 0, 0);
   const maskData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
   
   // Apply mask (set alpha based on mask value)
@@ -288,10 +312,10 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
     
     switch (taskType) {
       case 'removeBackground':
-        result = await removeBackground(data);
+        result = await removeBackground(data as { image: string; returnMask?: boolean });
         break;
       case 'enhance':
-        result = await enhance(data);
+        result = await enhance(data as { image: string; type: string; strength: number });
         break;
       default:
         throw new Error(`Unknown task type: ${taskType}`);

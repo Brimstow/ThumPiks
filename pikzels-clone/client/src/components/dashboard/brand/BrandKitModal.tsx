@@ -24,6 +24,7 @@ import {
   BrandKitState,
 } from './types';
 import { UseBrandKitReturn } from './useBrandKit';
+import Tooltip from '../../ui/Tooltip';
 
 // ── Props ─────────────────────────────────────────────────────────────
 
@@ -57,12 +58,14 @@ const BrandKitModal: React.FC<BrandKitModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-800">
           <h2 className="text-xl font-semibold text-slate-50">{title}</h2>
+          <Tooltip content="Close">
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-slate-400" />
           </button>
+          </Tooltip>
         </div>
 
         {/* Content (scrollable) */}
@@ -170,21 +173,23 @@ const LogosContent: React.FC<{ brandKit: UseBrandKitReturn }> = ({ brandKit }) =
             {/* Actions (on hover) */}
             <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
               {!logo.isPrimary && (
+                <Tooltip content="Set as primary">
                 <button
                   onClick={() => setPrimaryLogo(logo.id)}
                   className="p-1.5 bg-slate-800 hover:bg-blue-600 rounded-lg transition-colors"
-                  title="Set as primary"
                 >
                   <Star className="w-3.5 h-3.5 text-slate-300" />
                 </button>
+                </Tooltip>
               )}
+              <Tooltip content="Delete logo">
               <button
                 onClick={() => deleteLogo(logo.id)}
                 className="p-1.5 bg-slate-800 hover:bg-red-600 rounded-lg transition-colors"
-                title="Delete"
               >
                 <Trash2 className="w-3.5 h-3.5 text-slate-300" />
               </button>
+              </Tooltip>
             </div>
           </div>
         ))}
@@ -296,17 +301,20 @@ const ColorsContent: React.FC<{ brandKit: UseBrandKitReturn }> = ({ brandKit }) 
           <div className="flex flex-wrap gap-2 mb-3">
             {palette.colors.map((color) => (
               <div key={color.id} className="group relative">
+                <Tooltip content={`${color.name} (${color.hex})`}>
                 <div
                   className="w-12 h-12 rounded-lg shadow-sm cursor-pointer ring-1 ring-white/10 transition-transform hover:scale-110"
                   style={{ backgroundColor: color.hex }}
-                  title={`${color.name} (${color.hex})`}
                 />
+                </Tooltip>
+                <Tooltip content="Remove color">
                 <button
                   onClick={() => removeColorFromPalette(palette.id, color.id)}
                   className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-2.5 h-2.5 text-white" />
                 </button>
+                </Tooltip>
                 <p className="text-[10px] text-slate-500 mt-1 text-center truncate w-12">
                   {color.hex}
                 </p>

@@ -1,8 +1,277 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Check, X, ChevronRight, Loader2, CreditCard, Shield, Clock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
+import {
+  Sparkles,
+  Check,
+  X,
+  ChevronRight,
+  Loader2,
+  CreditCard,
+  Shield,
+  Clock,
+  AlertCircle,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { authPost, authGet } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePricingData, PricingPlan } from '../../hooks/usePricingData';
+import BetaPhaseBanner from '../shared/BetaPhaseBanner';
+
+// ---------------------------------------------------------------------------
+// Memoized plan card — only re-renders when price or billingCycle changes.
+// Features, name, description never change so they skip reconciliation.
+// ---------------------------------------------------------------------------
+interface PlanCardProps {
+  plan: PricingPlan;
+  billingCycle: 'monthly' | 'annual';
+  isCurrentPlan: boolean;
+  upgrading: string | null;
+  onUpgrade: (planId: string) => void;
+}
+
+function formatPrice(amount: number): {
+  dollars: string;
+  cents: string;
+  hasCents: boolean;
+} {
+  const dollars = Math.floor(amount);
+  const cents = Math.round((amount - dollars) * 100);
+  return {
+    dollars: dollars.toString(),
+    cents: cents.toString().padStart(2, '0'),
+    hasCents: cents > 0,
+  };
+}
+
+const PlanCard = memo(
+  ({
+    plan,
+    billingCycle,
+    isCurrentPlan,
+    upgrading,
+    onUpgrade,
+  }: PlanCardProps) => {
+    const price =
+      billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+    const originalPrice =
+      billingCycle === 'monthly'
+        ? plan.originalMonthlyPrice
+        : plan.originalAnnualPrice;
+    const showStrikethrough = plan.hasDiscount && originalPrice > price;
+    const { dollars, cents, hasCents } = formatPrice(price);
+    const discountPercent = showStrikethrough
+      ? Math.round((1 - price / originalPrice) * 100)
+      : 0;
+    const isPopular = plan.popular;
+    const isFree = plan.monthlyPrice === 0;
+
+    const buttonLabel =
+      upgrading === plan.id
+        ? 'Processing...'
+        : isCurrentPlan || plan.id === 'free'
+          ? 'Current Plan'
+          : 'Upgrade';
+    const buttonDisabled =
+      isCurrentPlan || upgrading !== null || plan.id === 'free';
+
+    // Build feature entries dynamically — mirrors landing page PricingCard logic
+    const featureEntries = useMemo<
+      Array<{ label: string; positive: boolean }>
+    >(() => {
+      const entries: Array<{ label: string; positive: boolean }> = [];
+
+      // Thumbnails
+      entries.push({
+        label: `${plan.credits} AI thumbnail credits/month`,
+        positive: true,
+      });
+
+      // Resolution
+      if (plan.features.resolution) {
+        entries.push({
+          label: `${plan.features.resolution} resolution`,
+          positive: true,
+        });
+      }
+
+      // Watermark
+      if (plan.features.watermark) {
+        entries.push({
+          label:
+            plan.features.watermarkFreeExports === 1
+              ? '1 watermark-free export/month'
+              : 'Includes watermark',
+          positive: plan.features.watermarkFreeExports === 1,
+        });
+      } else {
+        entries.push({ label: 'No watermark', positive: true });
+      }
+
+      // Face swap
+      if (plan.features.faceSwap !== undefined) {
+        if (typeof plan.features.faceSwap === 'boolean') {
+          entries.push({
+            label: plan.features.faceSwap ? 'Face swap' : 'No face swap',
+            positive: plan.features.faceSwap,
+          });
+        } else if (typeof plan.features.faceSwap === 'number') {
+          entries.push({
+            label:
+              plan.features.faceSwap === -1
+                ? 'Unlimited face swaps'
+                : `Face swap (${plan.features.faceSwap}/month)`,
+            positive: true,
+          });
+        }
+      }
+
+      // A/B Testing
+      if (plan.features.abTesting !== undefined) {
+        if (typeof plan.features.abTesting === 'boolean') {
+          entries.push({
+            label: plan.features.abTesting
+              ? 'A/B testing (coming soon)'
+              : 'No A/B testing',
+            positive: plan.features.abTesting,
+          });
+        } else if (typeof plan.features.abTesting === 'number') {
+          entries.push({
+            label: `A/B testing · ${plan.features.abTesting} variants (coming soon)`,
+            positive: true,
+          });
+        }
+      }
+
+      // Analytics
+      if (plan.features.analytics !== undefined) {
+        entries.push({
+          label: plan.features.analytics
+            ? 'Analytics & CTR tracking'
+            : 'No analytics',
+          positive: plan.features.analytics,
+        });
+      }
+
+      // Brand Kit (coming soon for all paid plans)
+      if (plan.monthlyPrice > 0) {
+        entries.push({ label: 'Brand kit (coming soon)', positive: true });
+      }
+
+      // Support — same for all plans (honest, no fake tiers)
+      entries.push({ label: 'Email support', positive: true });
+
+      // Early access
+      if (plan.features.earlyAccess !== undefined) {
+        entries.push({
+          label: 'Early access to new features',
+          positive: Boolean(plan.features.earlyAccess),
+        });
+      }
+
+      // Private mode
+      if (plan.features.privateModeDefault !== undefined) {
+        entries.push({
+          label: 'All generations private',
+          positive: Boolean(plan.features.privateModeDefault),
+        });
+      }
+
+      return entries;
+    }, [plan.features, plan.credits, plan.monthlyPrice]);
+
+    // Sub-note below CTA
+    let subNote: string;
+    if (isFree) {
+      subNote = 'No credit card required';
+    } else if (billingCycle === 'annual' && plan.annualSavings > 0) {
+      subNote = `Save ${plan.annualSavings}% annually`;
+    } else {
+      subNote = '7-day free trial';
+    }
+
+    return (
+      <div
+        data-testid={isPopular ? 'pro-plan-card' : undefined}
+        className={`bg-[#0F172A] rounded-2xl p-5 sm:p-8 relative flex flex-col ${
+          isPopular
+            ? 'border-2 border-blue-600'
+            : 'border border-slate-800 hover:border-blue-500/50 transition-all'
+        }`}
+      >
+        {isPopular && (
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+            <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
+              MOST POPULAR
+            </div>
+          </div>
+        )}
+
+        <div className={`mb-6 ${isPopular ? 'pt-6' : ''}`}>
+          <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            {plan.name}
+          </div>
+          <div className="mb-2 text-slate-50">
+            <span className="text-5xl font-light">${dollars}</span>
+            {hasCents && <sup className="text-xl font-light">{cents}</sup>}
+            <span className="text-lg text-slate-400">
+              /{billingCycle === 'monthly' ? 'month' : 'year'}
+            </span>
+          </div>
+          {showStrikethrough && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="text-red-400 font-semibold">
+                -{discountPercent}%
+              </span>
+              <span className="text-slate-500 line-through">
+                ${originalPrice}/{billingCycle === 'monthly' ? 'mo' : 'yr'}
+              </span>
+            </div>
+          )}
+          <div className="text-sm text-slate-400">{plan.description}</div>
+        </div>
+
+        <div className="space-y-4 flex-grow">
+          {featureEntries.map((feat, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center gap-3 text-sm ${
+                feat.positive ? 'text-slate-300' : 'text-slate-600'
+              }`}
+            >
+              {feat.positive ? (
+                <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+              ) : (
+                <X className="w-4 h-4 flex-shrink-0" />
+              )}
+              <span>{feat.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto pt-6">
+          <button
+            onClick={() => onUpgrade(plan.id)}
+            disabled={buttonDisabled}
+            className={`w-full disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+              isPopular
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-slate-800 hover:bg-slate-700'
+            }`}
+          >
+            {upgrading === plan.id && (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            )}
+            {buttonLabel}
+          </button>
+          <div className="text-center text-xs text-slate-500 mt-3">
+            {subNote}
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
 
 interface Subscription {
   id: string;
@@ -12,24 +281,39 @@ interface Subscription {
   periodEnd: string;
 }
 
-interface PlanDetails {
-  id: string;
-  name: string;
-  price: number;
-  features: string[];
-  thumbnails: number;
-}
-
 const PricingPage = () => {
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const {
+    phase,
+    spotsLeft,
+    spotsTotal,
+    endsAt,
+    plans,
+    faqs,
+    loading: pricingLoading,
+    error: pricingError,
+  } = usePricingData();
+  const hasBetaDiscount = phase && phase.discountPercentMonthly > 0;
+  const annualSavingsPercent = useMemo(() => {
+    const paid = plans.find(p => p.monthlyPrice > 0);
+    if (!paid || paid.monthlyPrice === 0) return 25;
+    const monthlyTotal = paid.monthlyPrice * 12;
+    return Math.round((1 - paid.annualPrice / monthlyTotal) * 100);
+  }, [plans]);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(
+    'monthly'
+  );
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
+  const [currentSubscription, setCurrentSubscription] =
+    useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanDetails | null>(null);
-  const [checkoutStep, setCheckoutStep] = useState<'confirm' | 'processing' | 'redirecting'>('confirm');
+  const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<
+    'confirm' | 'processing' | 'redirecting'
+  >('confirm');
 
   useEffect(() => {
     fetchCurrentSubscription();
@@ -55,67 +339,22 @@ const PricingPage = () => {
     }
   };
 
-  const getPlanDetails = (planId: string): PlanDetails => {
-    const plans: Record<string, PlanDetails> = {
-      starter: {
-        id: 'starter',
-        name: 'Starter',
-        price: billingCycle === 'monthly' ? 19 : 15,
-        thumbnails: 50,
-        features: [
-          '50 AI thumbnails/month',
-          'All 9 AI tools',
-          '1080p HD resolution',
-          'No watermark',
-          'Multi-format export (PNG/JPG/WebP)',
-          'Email support'
-        ]
-      },
-      pro: {
-        id: 'pro',
-        name: 'Creator Pro',
-        price: billingCycle === 'monthly' ? 39 : 29,
-        thumbnails: 200,
-        features: [
-          '200 AI thumbnails/month',
-          'All Starter features',
-          'Flash + Standard + Pro models',
-          'A/B testing',
-          'Vision / CTR analysis',
-          'Brand kit & analytics'
-        ]
-      },
-      ultra_pro: {
-        id: 'ultra_pro',
-        name: 'Ultra Pro',
-        price: billingCycle === 'monthly' ? 79 : 59,
-        thumbnails: 600,
-        features: [
-          '600 AI thumbnails/month',
-          'All Creator Pro features',
-          'All generations private',
-          'Pro models default',
-          'Early access to new features',
-          'Dedicated support'
-        ]
-      }
-    };
-    return plans[planId] || plans.starter;
-  };
-
   const handleUpgradeClick = (planId: string) => {
     if (planId === 'free' || upgrading) return;
-    
+
     // Check if user is authenticated
     if (!isAuthenticated || !user) {
-      alert('🔐 Please Log In\n\nYou need to be logged in to upgrade your subscription.\n\nClick OK to go to the login page.');
+      alert(
+        '🔐 Please Log In\n\nYou need to be logged in to upgrade your subscription.\n\nClick OK to go to the login page.'
+      );
       setTimeout(() => {
         window.location.href = '/login';
       }, 500);
       return;
     }
-    
-    const plan = getPlanDetails(planId);
+
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
     setSelectedPlan(plan);
     setShowConfirmModal(true);
     setCheckoutStep('confirm');
@@ -126,7 +365,7 @@ const PricingPage = () => {
 
     setCheckoutStep('processing');
     setUpgrading(selectedPlan.id);
-    
+
     try {
       const response = await authPost('/api/subscription/create-checkout', {
         planId: selectedPlan.id,
@@ -136,10 +375,10 @@ const PricingPage = () => {
       if (response.ok) {
         const { url } = await response.json();
         console.log('🎭 Demo checkout URL:', url);
-        
+
         // Show redirecting state
         setCheckoutStep('redirecting');
-        
+
         // Wait a moment so user can see the redirecting message
         setTimeout(() => {
           window.location.href = url;
@@ -147,38 +386,54 @@ const PricingPage = () => {
       } else {
         const error = await response.json();
         console.error('Checkout error:', error);
-        
+
         // Reset states
         setShowConfirmModal(false);
         setUpgrading(null);
-        
+
         // Handle specific error cases
         if (response.status === 401 || response.status === 403) {
-          alert('🔐 Authentication Error\n\nYour session has expired. Please log in again to continue.');
+          alert(
+            '🔐 Authentication Error\n\nYour session has expired. Please log in again to continue.'
+          );
           // Redirect to login after a short delay
           setTimeout(() => {
             window.location.href = '/login';
           }, 2000);
         } else if (error.error?.includes('Stripe is not configured')) {
-          alert('⚠️ Stripe is not configured in development.\n\nTo test payments:\n1. Add STRIPE_SECRET_KEY to your .env file\n2. Restart the backend server\n\nThe app works without Stripe for other features.');
-        } else if (error.error?.includes('Access token required') || error.error?.includes('token')) {
-          alert('🔐 Authentication Required\n\nPlease log in to upgrade your subscription.');
+          alert(
+            '⚠️ Stripe is not configured in development.\n\nTo test payments:\n1. Add STRIPE_SECRET_KEY to your .env file\n2. Restart the backend server\n\nThe app works without Stripe for other features.'
+          );
+        } else if (
+          error.error?.includes('Access token required') ||
+          error.error?.includes('token')
+        ) {
+          alert(
+            '🔐 Authentication Required\n\nPlease log in to upgrade your subscription.'
+          );
           setTimeout(() => {
             window.location.href = '/login';
           }, 2000);
+        } else if (error.code === 'INVALID_EMAIL') {
+          const goToSettings = confirm(
+            `⚠️ Email Issue\n\n${error.error}\n\nWould you like to go to Account Settings now?`
+          );
+          if (goToSettings) {
+            window.location.href = '/dashboard/settings';
+          }
         } else {
-          alert(`❌ Checkout Failed
-
-${error.error || 'Failed to create checkout session'}
-
-Please try again or contact support if the issue persists.`);
+          alert(
+            `❌ Checkout Failed\n\n${error.error || 'Failed to create checkout session'}\n\nPlease try again or contact support if the issue persists.`
+          );
         }
       }
     } catch (error) {
       console.error('Upgrade failed:', error);
       setShowConfirmModal(false);
       setUpgrading(null);
-      alert('❌ Network Error\n\nCould not connect to the server. Please check:\n1. Backend server is running\n2. You have an active internet connection\n3. Try refreshing the page');
+      alert(
+        '❌ Network Error\n\nCould not connect to the server. Please check:\n1. Backend server is running\n2. You have an active internet connection\n3. Try refreshing the page'
+      );
     }
   };
 
@@ -209,287 +464,104 @@ Please try again or contact support if the issue persists.`);
     <main className="flex-1 overflow-y-auto bg-[#020817] px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-50 mb-4">
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-50 mb-4">
           Choose Your Pricing Plan
         </h1>
         <p className="text-slate-400 text-base max-w-2xl mx-auto leading-relaxed">
-          Select the perfect plan for your needs. All plans include our core features with no hidden fees.
+          Select the perfect plan for your needs. All plans include our core
+          features with no hidden fees.
         </p>
       </div>
 
       {/* Billing Toggle */}
       <div className="flex items-center justify-center mb-12">
-        <div className="inline-flex bg-slate-800 rounded-full p-1 border border-slate-700">
+        <div className="relative inline-flex bg-slate-800 rounded-full p-1 border border-slate-700">
+          <div
+            className="absolute top-1 bottom-1 bg-blue-600 rounded-full transition-none"
+            style={{
+              left: billingCycle === 'monthly' ? 4 : '50%',
+              right: billingCycle === 'monthly' ? '50%' : 4,
+            }}
+          />
           <button
             onClick={() => setBillingCycle('monthly')}
-            className={`relative px-8 py-3 rounded-full font-medium transition-all ${
-              billingCycle === 'monthly'
-                ? 'text-white'
-                : 'text-slate-400'
-            }`}
+            className="relative z-10 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-medium flex items-center gap-1.5 text-sm sm:text-base"
+            style={{
+              color: billingCycle === 'monthly' ? '#ffffff' : '#94a3b8',
+            }}
           >
-            {billingCycle === 'monthly' && (
-              <motion.div
-                layoutId="billing-indicator"
-                className="absolute inset-0 bg-blue-600 rounded-full"
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              />
+            Monthly
+            {hasBetaDiscount && (
+              <span
+                className="text-sm font-bold"
+                style={{
+                  color: billingCycle === 'monthly' ? '#22c55e' : '#60a5fa',
+                }}
+              >
+                -{phase.discountPercentMonthly}%
+              </span>
             )}
-            <span className="relative z-10">Monthly</span>
           </button>
-
           <button
             onClick={() => setBillingCycle('annual')}
-            className={`relative px-8 py-3 rounded-full font-medium transition-all ${
-              billingCycle === 'annual'
-                ? 'text-white'
-                : 'text-slate-400'
-            }`}
+            className="relative z-10 px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-medium flex items-center gap-1.5 text-sm sm:text-base"
+            style={{ color: billingCycle === 'annual' ? '#ffffff' : '#94a3b8' }}
           >
-            {billingCycle === 'annual' && (
-              <motion.div
-                layoutId="billing-indicator"
-                className="absolute inset-0 bg-blue-600 rounded-full"
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              />
-            )}
-            <span className="relative z-10">Annual -25%</span>
+            Annual
+            <span
+              className="text-sm font-bold"
+              style={{
+                color: billingCycle === 'annual' ? '#22c55e' : '#60a5fa',
+              }}
+            >
+              -
+              {hasBetaDiscount
+                ? phase.discountPercentAnnual
+                : annualSavingsPercent}
+              %
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Beta Phase Banner */}
+      {phase && (
+        <div className="max-w-7xl mx-auto">
+          <BetaPhaseBanner
+            phase={phase}
+            spotsLeft={spotsLeft}
+            spotsTotal={spotsTotal}
+            endsAt={endsAt}
+          />
+        </div>
+      )}
 
       {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16 max-w-7xl mx-auto">
-        {/* Free Plan */}
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
-          <div className="mb-6">
-            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Free
-            </div>
-            <div className="text-5xl font-light mb-2 text-slate-50">
-              $0
-              <span className="text-lg text-slate-400">/month</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              Try before you subscribe
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>5 AI thumbnails/month</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Basic styles & templates</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>720p resolution</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>Includes watermark</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>No face swap</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <X className="w-4 h-4 flex-shrink-0" />
-              <span>Community support only</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => handleUpgradeClick('free')}
-            disabled={getButtonDisabled('free')}
-            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            {upgrading === 'free' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {getButtonText('free')}
-          </button>
-          <div className="text-center text-xs text-slate-500 mt-3">
-            No credit card required
+      {pricingLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        </div>
+      ) : pricingError ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+            <p className="text-slate-400 text-sm">{pricingError}</p>
           </div>
         </div>
-
-        {/* Starter Plan */}
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
-          <div className="mb-6">
-            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Starter
-            </div>
-            <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '19' : '15'}
-              <span className="text-lg text-slate-400">/month</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              Perfect for new creators
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>50 AI thumbnails/month</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>All 9 AI tools</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>1080p HD resolution</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>No watermark</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Multi-format export</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Email support</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => handleUpgradeClick('starter')}
-            disabled={getButtonDisabled('starter')}
-            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            {upgrading === 'starter' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {getButtonText('starter')}
-          </button>
-          <div className="text-center text-xs text-slate-500 mt-3">
-            {billingCycle === 'annual' ? 'Save 21% annually' : '7-day free trial'}
-          </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16 max-w-7xl mx-auto">
+          {plans.map(plan => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              billingCycle={billingCycle}
+              isCurrentPlan={isCurrentPlan(plan.id)}
+              upgrading={upgrading}
+              onUpgrade={handleUpgradeClick}
+            />
+          ))}
         </div>
-
-        {/* Creator Pro Plan */}
-        <div className="bg-[#0F172A] border-2 border-blue-600 rounded-2xl p-8 relative" data-testid="pro-plan-card">
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-            <div className="bg-blue-600 text-white text-xs px-4 py-1.5 rounded-full font-medium">
-              MOST POPULAR
-            </div>
-          </div>
-
-          <div className="mb-6 pt-6">
-            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Creator Pro
-            </div>
-            <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '39' : '29'}
-              <span className="text-lg text-slate-400">/month</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              For serious YouTubers
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>200 AI thumbnails/month</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>All Starter features</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Flash + Standard + Pro models</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>A/B testing</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Vision / CTR analysis</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Brand kit & analytics</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => handleUpgradeClick('pro')}
-            disabled={getButtonDisabled('pro')}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            {upgrading === 'pro' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {getButtonText('pro')}
-          </button>
-          <div className="text-center text-xs text-slate-500 mt-3">
-            14-day free trial included
-          </div>
-        </div>
-
-        {/* Ultra Pro Plan */}
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-8 hover:border-blue-500/50 transition-all">
-          <div className="mb-6">
-            <div className="text-sm text-slate-400 mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Ultra Pro
-            </div>
-            <div className="text-5xl font-light mb-2 text-slate-50">
-              ${billingCycle === 'monthly' ? '79' : '59'}
-              <span className="text-lg text-slate-400">/month</span>
-            </div>
-            <div className="text-sm text-slate-400">
-              For power creators
-            </div>
-          </div>
-
-          <div className="space-y-4 mb-8">
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>600 AI thumbnails/month</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>All Creator Pro features</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>All generations private</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Pro models default</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Early access to new features</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-              <span>Dedicated support</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => handleUpgradeClick('ultra_pro')}
-            disabled={getButtonDisabled('ultra_pro')}
-            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            {upgrading === 'ultra_pro' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {getButtonText('ultra_pro')}
-          </button>
-          <div className="text-center text-xs text-slate-500 mt-3">
-            {billingCycle === 'annual' ? 'Save 25% annually' : '14-day free trial'}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* FAQ Section */}
       <div className="max-w-3xl mx-auto">
@@ -503,63 +575,7 @@ Please try again or contact support if the issue persists.`);
         </div>
 
         <div className="space-y-4">
-          {[
-            {
-              question: 'What is ThumPiks and how does it work?',
-              answer:
-                'ThumPiks is an AI-powered thumbnail generator optimized for YouTube, with support for TikTok, Instagram, Twitter/X, Facebook, Twitch, and any other platform or general thumbnail needs. Simply paste your video link or describe what you want, choose your style preferences, and our AI instantly generates professional thumbnails optimized for maximum engagement.',
-            },
-            {
-              question: 'What platforms and content types does ThumPiks support?',
-              answer:
-                'ThumPiks works great for all social media platforms including YouTube, TikTok, Instagram Reels, Twitter/X, Facebook, Twitch streams, and more. You can also generate thumbnails for blogs, podcasts, websites, course materials, or any project that needs eye-catching visuals. Our AI adapts to your specific platform needs.',
-            },
-            {
-              question: 'How is ThumPiks different from manual design tools?',
-              answer:
-                'While tools like Canva and Photoshop require manual design work (30-60 minutes per thumbnail), ThumPiks uses AI to generate thumbnails in seconds. Our AI analyzes trending thumbnails across all major platforms to ensure your designs follow proven engagement patterns.',
-            },
-            {
-              question: 'What happens when I run out of thumbnails in my plan?',
-              answer:
-                'Your account will switch to the Free tier (5 thumbnails/month with watermark) until your next billing cycle. You can upgrade your plan anytime or purchase additional thumbnail credits if needed. All your previous creations remain accessible.',
-            },
-            {
-              question: 'Do my monthly thumbnails roll over to the next month?',
-              answer:
-                'Unused thumbnails do not roll over to the next billing period. Each month, your thumbnail count resets to your plan limit. We recommend this approach to keep pricing simple and predictable.',
-            },
-            {
-              question: 'Can I cancel my subscription anytime?',
-              answer:
-                'Yes! You can cancel your ThumPiks subscription anytime from your account settings. There are no cancellation fees or penalties. You\'ll retain access to your plan features until the end of your current billing period.',
-            },
-            {
-              question: 'Do you offer refunds or free trials?',
-              answer:
-                'All paid plans include a 14-day free trial (no credit card required for Free tier). If you\'re not satisfied within 7 days of your first payment, contact our support team for a full refund.',
-            },
-            {
-              question: 'What payment methods do you accept?',
-              answer:
-                'We accept all major credit cards (Visa, Mastercard, American Express, Discover) and PayPal. For Ultra Pro plans, we can also arrange custom invoicing.',
-            },
-            {
-              question: 'Is there a discount for annual billing?',
-              answer:
-                'Yes! When you choose annual billing, you save 17-21% compared to paying monthly (varies by plan). This applies to all paid tiers and is automatically calculated when you select the annual option.',
-            },
-            {
-              question: 'Can I upgrade or downgrade my plan?',
-              answer:
-                'Absolutely! You can upgrade your plan at any time and changes take effect immediately. For downgrades, changes take effect at the end of your current billing period to ensure you get full value.',
-            },
-            {
-              question: 'Are there any hidden fees?',
-              answer:
-                'No hidden fees whatsoever! The price you see is the price you pay. There are no setup fees, cancellation fees, or surprise charges. Additional features and add-ons are always clearly priced and optional.',
-            },
-          ].map((faq, i) => (
+          {faqs.map((faq, i) => (
             <div
               key={i}
               className="rounded-xl bg-slate-900/50 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 transition-all overflow-hidden group"
@@ -583,17 +599,36 @@ Please try again or contact support if the issue persists.`);
         </div>
       </div>
 
+      {/* Compare link */}
+      <div className="text-center mt-10 mb-6">
+        <p className="text-slate-500 text-sm mb-2">
+          Wondering how ThumPiks compares to other thumbnail tools?
+        </p>
+        <button
+          onClick={() => navigate('/compare')}
+          className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors inline-flex items-center gap-1.5"
+        >
+          See the full feature comparison
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Confirmation Modal */}
       <AnimatePresence>
         {showConfirmModal && selectedPlan && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="checkout-modal-overlay">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            data-testid="checkout-modal-overlay"
+          >
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={checkoutStep === 'confirm' ? handleCancelConfirm : undefined}
+              onClick={
+                checkoutStep === 'confirm' ? handleCancelConfirm : undefined
+              }
             />
 
             {/* Modal */}
@@ -602,7 +637,7 @@ Please try again or contact support if the issue persists.`);
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="relative bg-[#0F172A] border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl"
+              className="relative bg-[#0F172A] border border-slate-700 rounded-2xl p-5 sm:p-8 max-w-md w-full shadow-2xl"
               data-testid="checkout-confirmation-modal"
               role="dialog"
               aria-labelledby="modal-title"
@@ -615,9 +650,12 @@ Please try again or contact support if the issue persists.`);
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                         <div>
-                          <h4 className="text-yellow-500 font-medium mb-1">Authentication Required</h4>
+                          <h4 className="text-yellow-500 font-medium mb-1">
+                            Authentication Required
+                          </h4>
                           <p className="text-slate-300 text-sm">
-                            You must be logged in to complete the checkout. Please log in and try again.
+                            You must be logged in to complete the checkout.
+                            Please log in and try again.
                           </p>
                         </div>
                       </div>
@@ -628,7 +666,10 @@ Please try again or contact support if the issue persists.`);
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/10 rounded-full mb-4">
                       <CreditCard className="w-8 h-8 text-blue-500" />
                     </div>
-                    <h3 id="modal-title" className="text-2xl font-semibold text-slate-50 mb-2">
+                    <h3
+                      id="modal-title"
+                      className="text-2xl font-semibold text-slate-50 mb-2"
+                    >
                       Confirm Your Upgrade
                     </h3>
                     <p className="text-slate-400 text-sm">
@@ -636,35 +677,53 @@ Please try again or contact support if the issue persists.`);
                     </p>
                   </div>
 
-                  <div className="bg-slate-900/50 rounded-xl p-6 mb-6 border border-slate-800" data-testid="order-summary">
+                  <div
+                    className="bg-slate-900/50 rounded-xl p-6 mb-6 border border-slate-800"
+                    data-testid="order-summary"
+                  >
                     <div className="flex items-baseline justify-between mb-4">
-                      <span className="text-slate-300 font-medium">{selectedPlan.name} Plan</span>
+                      <span className="text-slate-300 font-medium">
+                        {selectedPlan.name} Plan
+                      </span>
                       <div className="text-right">
-                        <div className="text-3xl font-bold text-slate-50" data-testid="modal-price">
-                          ${selectedPlan.price}
+                        <div
+                          className="text-3xl font-bold text-slate-50"
+                          data-testid="modal-price"
+                        >
+                          $
+                          {billingCycle === 'monthly'
+                            ? selectedPlan.monthlyPrice
+                            : selectedPlan.annualPrice}
                         </div>
-                        <div className="text-sm text-slate-400">/{billingCycle === 'monthly' ? 'month' : 'year'}</div>
+                        <div className="text-sm text-slate-400">
+                          /{billingCycle === 'monthly' ? 'month' : 'year'}
+                        </div>
                       </div>
                     </div>
 
                     <div className="space-y-2 mb-4">
-                      {selectedPlan.features.slice(0, 3).map((feature, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm text-slate-300">
-                          <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                      {selectedPlan.features.length > 3 && (
-                        <div className="text-sm text-slate-400 pl-6">
-                          + {selectedPlan.features.length - 3} more features
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>
+                          {selectedPlan.credits} AI thumbnail credits/month
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>
+                          {selectedPlan.features.resolution} resolution
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span>{selectedPlan.features.support}</span>
+                      </div>
                     </div>
 
                     <div className="pt-4 border-t border-slate-800 space-y-2">
                       <div className="flex items-center gap-2 text-sm text-slate-400">
                         <Shield className="w-4 h-4" />
-                        <span>Secure payment via Stripe</span>
+                        <span>Secure payment via Polar</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-400">
                         <Clock className="w-4 h-4" />
@@ -707,7 +766,10 @@ Please try again or contact support if the issue persists.`);
                       <span>Verifying account details</span>
                     </div>
                     <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                      <div
+                        className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                        style={{ animationDelay: '0.2s' }}
+                      />
                       <span>Creating secure session</span>
                     </div>
                   </div>

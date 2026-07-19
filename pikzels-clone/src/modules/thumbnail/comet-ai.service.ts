@@ -1,46 +1,74 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
 
+// ── Comet/Replicate API response types ────────────────────────────────────────
+interface ReplicatePredictionResponse {
+  id?: string;
+  status?: string;
+  output?: string | string[];
+  error?: string;
+  data?: {
+    task_id?: string;
+    status?: string;
+    fail_reason?: string;
+    output?: string | string[];
+    data?: { output?: string | string[]; error?: string };
+  };
+  code?: string;
+  detail?: string;
+}
+
+interface CometErrorResponse {
+  error?: { message?: string };
+  detail?: string;
+}
+
 /**
- * CometAIService - AI Service using CometAPI aggregation platform
+ * CometAIService - Flash-tier image generation service
  *
- * CometAPI is an API aggregation platform that provides unified access to
- * various AI models including FLUX image generation, Midjourney, DALL-E, etc.
+ * Uses the same model (flux-schnell) across two gateways:
+ * 1. Replicate API directly (REPLICATE_API_KEY) — primary, no middleman
+ * 2. CometAPI /replicate/v1/predictions (COMET_API_KEY) — fallback, same model
  *
- * Supported image generation endpoints:
- * - /flux/generate - Direct FLUX image generation
- * - /replicate/v1/predictions - Replicate-compatible endpoint
- * - /v1/images/generations - OpenAI-compatible endpoint
+ * Default model: black-forest-labs/flux-schnell (~0.6s, ~$0.003/image)
  *
+ * @see https://replicate.com/docs/reference/http
  * @see https://api.cometapi.com/doc
  */
 export class CometAIService {
   private apiKey: string;
   private apiUrl: string;
+  private replicateApiKey: string;
+  private replicateBaseUrl: string;
 
   constructor() {
     this.apiKey = process.env.COMET_API_KEY || '';
+    this.replicateApiKey = process.env.REPLICATE_API_KEY || '';
+    this.replicateBaseUrl =
+      process.env.REPLICATE_API_URL || 'https://api.replicate.com/v1';
+
     // CometAPI base URL - normalize to remove trailing /v1 if present
     let baseUrl = process.env.COMET_API_URL || 'https://api.cometapi.com';
-    // Remove trailing slash and /v1 suffix if present (user may have set full OpenAI-style URL)
-    baseUrl = baseUrl.replace(/\/+$/, ''); // Remove trailing slashes
+    baseUrl = baseUrl.replace(/\/+$/, '');
     if (baseUrl.endsWith('/v1')) {
-      baseUrl = baseUrl.slice(0, -3); // Remove /v1 suffix
+      baseUrl = baseUrl.slice(0, -3);
     }
     this.apiUrl = baseUrl;
 
-    if (!this.apiKey) {
-      console.warn(
-        'COMET_API_KEY not found in environment variables. Comet AI features will not work.'
+    if (!this.replicateApiKey && !this.apiKey) {
+      logger.warn(
+        'Neither REPLICATE_API_KEY nor COMET_API_KEY found. Flash-tier image generation will not work.'
       );
     }
   }
 
   /**
-   * Generate images using CometAPI's FLUX endpoint
-   * This is the recommended method for FLUX image generation
+   * Generate images using flux-schnell via two gateways:
+   * 1. Replicate API directly (primary — no middleman)
+   * 2. CometAPI /replicate/v1/predictions (fallback — same model, different gateway)
    *
    * @param prompt Text prompt for image generation
    * @param style Style of the image (bold, minimalist, dramatic)
@@ -50,8 +78,8 @@ export class CometAIService {
     prompt: string,
     style: string = 'default'
   ): Promise<string[]> {
-    if (!this.apiKey) {
-      throw new Error('Comet API key not configured');
+    if (!this.replicateApiKey && !this.apiKey) {
+      throw new Error('No API keys configured for Flash-tier generation');
     }
 
     if (!prompt || prompt.trim().length === 0) {
@@ -72,115 +100,168 @@ export class CometAIService {
         break;
     }
 
-    // Try FLUX endpoint first, then fallback to Replicate-style endpoint
-    try {
-      return await this.generateWithFluxEndpoint(styledPrompt);
-    } catch (fluxError) {
-      console.warn(
-        'FLUX endpoint failed, trying Replicate endpoint:',
-        fluxError instanceof Error ? fluxError.message : fluxError
-      );
+    const errors: string[] = [];
 
+    // 1. Primary: Replicate API directly (the actual model provider)
+    if (this.replicateApiKey) {
       try {
-        return await this.generateWithReplicateEndpoint(styledPrompt);
-      } catch (replicateError) {
-        // If both fail, throw the original FLUX error as it's more descriptive
-        throw fluxError;
+        logger.info('[CometAI] Trying Replicate API directly (primary)');
+        return await this.generateWithReplicateAPI(styledPrompt);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('[CometAI] Replicate API failed', { error: msg });
+        errors.push(`Replicate: ${msg}`);
       }
     }
+
+    // 2. Fallback: CometAPI — same flux-schnell model, different gateway
+    if (this.apiKey) {
+      try {
+        logger.info(
+          '[CometAI] Trying CometAPI fallback (same model, different gateway)'
+        );
+        return await this.generateWithCometEndpoint(styledPrompt);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn('[CometAI] CometAPI fallback failed', { error: msg });
+        errors.push(`CometAPI: ${msg}`);
+      }
+    }
+
+    throw new Error(`All Flash-tier providers failed: ${errors.join(' | ')}`);
   }
 
   /**
-   * Generate images using CometAPI's dedicated FLUX endpoint
-   * @param prompt The styled prompt
-   * @returns Array of image URLs
-   */
-  private async generateWithFluxEndpoint(prompt: string): Promise<string[]> {
-    // CometAPI FLUX generation endpoint
-    const response = await fetch(`${this.apiUrl}/flux/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        model: process.env.COMET_FLUX_MODEL || 'flux-dev', // flux-dev, flux-schnell, flux-pro
-        width: 1792, // 16:9 aspect ratio for thumbnails
-        height: 1024,
-        num_outputs: 1,
-        output_format: 'jpg',
-        output_quality: 90,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData: any = await response.json().catch(() => ({}));
-
-      if (response.status === 401) {
-        throw new Error('Comet API key is invalid or expired');
-      }
-      if (response.status === 429) {
-        throw new Error(
-          'Comet API rate limit exceeded. Please try again later.'
-        );
-      }
-      if (response.status === 402) {
-        throw new Error('Comet API: Insufficient credits or payment required');
-      }
-      if (response.status === 404) {
-        throw new Error(
-          'Comet API: FLUX endpoint not found. The API may have changed.'
-        );
-      }
-
-      throw new Error(
-        errorData.error?.message ||
-          errorData.detail ||
-          `Comet API error (${response.status}): ${response.statusText}`
-      );
-    }
-
-    const data: any = await response.json();
-
-    // Handle different response formats
-    // Direct image URLs
-    if (data.images && Array.isArray(data.images)) {
-      return data.images.filter((url: string) => url);
-    }
-
-    // Output field (common in FLUX responses)
-    if (data.output) {
-      const output = Array.isArray(data.output) ? data.output : [data.output];
-      return output.filter((url: string) => url);
-    }
-
-    // Data array format
-    if (data.data && Array.isArray(data.data)) {
-      return data.data
-        .map((item: any) => item.url || item.image_url || item)
-        .filter((url: string) => typeof url === 'string' && url);
-    }
-
-    // Single URL response
-    if (data.url || data.image_url) {
-      return [data.url || data.image_url];
-    }
-
-    throw new Error('Invalid response from Comet FLUX API - no images found');
-  }
-
-  /**
-   * Generate images using CometAPI's Replicate-compatible endpoint
-   * This is an async endpoint that requires polling
+   * Generate images using Replicate API directly
+   * Uses the official Replicate predictions endpoint with flux-schnell
    *
    * @param prompt The styled prompt
    * @returns Array of image URLs
    */
-  private async generateWithReplicateEndpoint(
-    prompt: string
+  private async generateWithReplicateAPI(prompt: string): Promise<string[]> {
+    const model =
+      process.env.COMET_REPLICATE_MODEL || 'black-forest-labs/flux-schnell';
+    const url = `${this.replicateBaseUrl}/models/${model}/predictions`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.replicateApiKey}`,
+        Prefer: 'wait', // Request synchronous response (Replicate supports this for fast models)
+      },
+      body: JSON.stringify({
+        input: {
+          prompt: prompt,
+          num_outputs: 1,
+          aspect_ratio: '16:9',
+          output_format: 'jpg',
+          output_quality: 90,
+          go_fast: true,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = (await response
+        .json()
+        .catch(() => ({}))) as CometErrorResponse;
+      if (response.status === 401) {
+        throw new Error('Replicate API key is invalid or expired');
+      }
+      if (response.status === 429) {
+        throw new Error('Replicate rate limit exceeded');
+      }
+      throw new Error(
+        errorData.detail || `Replicate API error (${response.status})`
+      );
+    }
+
+    const data = (await response.json()) as ReplicatePredictionResponse;
+
+    // If prediction completed synchronously (Prefer: wait)
+    if (data.status === 'succeeded' && data.output) {
+      const imageUrls = Array.isArray(data.output)
+        ? data.output
+        : [data.output];
+      return imageUrls.filter((url: string) => url);
+    }
+
+    // If still processing, poll for completion
+    if (
+      data.id &&
+      (data.status === 'starting' || data.status === 'processing')
+    ) {
+      return await this.pollReplicatePrediction(data.id);
+    }
+
+    if (data.status === 'failed') {
+      throw new Error(data.error || 'Replicate prediction failed');
+    }
+
+    throw new Error(`Unexpected Replicate response status: ${data.status}`);
+  }
+
+  /**
+   * Poll Replicate API for prediction completion
+   * @param predictionId The prediction ID to poll
+   * @returns Array of image URLs
+   */
+  private async pollReplicatePrediction(
+    predictionId: string
   ): Promise<string[]> {
-    // CometAPI Replicate-format endpoint for FLUX
+    const maxAttempts = 60;
+    const pollInterval = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const pollResponse = await fetch(
+        `${this.replicateBaseUrl}/predictions/${predictionId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.replicateApiKey}`,
+          },
+        }
+      );
+
+      if (!pollResponse.ok) {
+        if (pollResponse.status >= 500) continue;
+        throw new Error(`Replicate poll failed (${pollResponse.status})`);
+      }
+
+      const pollData =
+        (await pollResponse.json()) as ReplicatePredictionResponse;
+
+      if (pollData.status === 'succeeded' && pollData.output) {
+        const imageUrls = Array.isArray(pollData.output)
+          ? pollData.output
+          : [pollData.output];
+        return imageUrls.filter((url: string) => url);
+      }
+      if (pollData.status === 'failed') {
+        throw new Error(pollData.error || 'Replicate prediction failed');
+      }
+      if (pollData.status === 'canceled') {
+        throw new Error('Replicate prediction was canceled');
+      }
+    }
+
+    throw new Error('Replicate prediction timed out after 60 seconds');
+  }
+
+  /**
+   * Generate images using CometAPI's Replicate-compatible endpoint
+   * Same model (flux-schnell) as the primary Replicate path, different gateway
+   *
+   * @param prompt The styled prompt
+   * @returns Array of image URLs
+   */
+  private async generateWithCometEndpoint(prompt: string): Promise<string[]> {
+    // Same model as primary — ensures consistent results across gateways
+    const model =
+      process.env.COMET_REPLICATE_MODEL || 'black-forest-labs/flux-schnell';
+
     const response = await fetch(`${this.apiUrl}/replicate/v1/predictions`, {
       method: 'POST',
       headers: {
@@ -188,21 +269,22 @@ export class CometAIService {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        // Use FLUX Dev model - CometAPI uses 'model' field, not 'version'
-        model:
-          process.env.COMET_REPLICATE_MODEL || 'black-forest-labs/flux-dev',
+        model,
         input: {
           prompt: prompt,
           num_outputs: 1,
-          aspect_ratio: '16:9', // Good for thumbnails
+          aspect_ratio: '16:9',
           output_format: 'jpg',
           output_quality: 90,
+          go_fast: true,
         },
       }),
     });
 
     if (!response.ok) {
-      const errorData: any = await response.json().catch(() => ({}));
+      const errorData = (await response
+        .json()
+        .catch(() => ({}))) as CometErrorResponse;
 
       if (response.status === 401) {
         throw new Error('Comet API key is invalid or expired');
@@ -220,7 +302,7 @@ export class CometAIService {
       );
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as ReplicatePredictionResponse;
 
     // Get prediction ID - could be in id or data.task_id (CometAPI format)
     const predictionId = data.id || data.data?.task_id;
@@ -305,7 +387,8 @@ export class CometAIService {
         throw new Error(`Polling failed with status ${pollResponse.status}`);
       }
 
-      const pollData: any = await pollResponse.json();
+      const pollData =
+        (await pollResponse.json()) as ReplicatePredictionResponse;
 
       // CometAPI wrapped response format: { code, data: { status, data: { output } } }
       if (pollData.code === 'success' && pollData.data) {
@@ -366,70 +449,6 @@ export class CometAIService {
   }
 
   /**
-   * Generate images using OpenAI-compatible endpoint (DALL-E style)
-   * Alternative method if FLUX endpoints are not available
-   *
-   * @param prompt Text prompt for image generation
-   * @param style Style of the image
-   * @returns Array of image URLs
-   */
-  async generateWithOpenAIEndpoint(
-    prompt: string,
-    style: string = 'default'
-  ): Promise<string[]> {
-    if (!this.apiKey) {
-      throw new Error('Comet API key not configured');
-    }
-
-    let styledPrompt = prompt;
-    switch (style.toLowerCase()) {
-      case 'bold':
-        styledPrompt = `Bold, eye-catching design: ${prompt}. High contrast, vibrant colors.`;
-        break;
-      case 'minimalist':
-        styledPrompt = `Minimalist design: ${prompt}. Clean, simple, minimal elements.`;
-        break;
-      case 'dramatic':
-        styledPrompt = `Dramatic style: ${prompt}. Strong lighting, high contrast.`;
-        break;
-    }
-
-    const response = await fetch(`${this.apiUrl}/v1/images/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.COMET_OPENAI_MODEL || 'dall-e-3',
-        prompt: styledPrompt,
-        n: 1,
-        size: '1792x1024',
-        quality: 'hd',
-        response_format: 'url',
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData: any = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error?.message ||
-          `Comet OpenAI-style API error (${response.status})`
-      );
-    }
-
-    const data: any = await response.json();
-
-    if (data.data && Array.isArray(data.data)) {
-      return data.data
-        .map((item: any) => item.url)
-        .filter((url: string) => url);
-    }
-
-    throw new Error('Invalid response from Comet OpenAI-style API');
-  }
-
-  /**
    * Query the status of a generation task
    * Handles both standard Replicate format and CometAPI wrapped format
    *
@@ -454,12 +473,17 @@ export class CometAIService {
       throw new Error(`Failed to query task status: ${response.status}`);
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as Record<string, unknown>;
 
     // Handle CometAPI wrapped format
     if (data.code === 'success' && data.data) {
-      const taskData = data.data;
-      const output = taskData.data?.output || taskData.output;
+      const taskData = data.data as {
+        status: string;
+        output?: unknown;
+        fail_reason?: string;
+        data?: { output?: unknown; error?: string };
+      };
+      const output = taskData.data?.output ?? taskData.output;
 
       const result: {
         status: string;
@@ -470,11 +494,13 @@ export class CometAIService {
       };
 
       if (output) {
-        result.output = Array.isArray(output) ? output : [output];
+        result.output = Array.isArray(output)
+          ? (output as string[])
+          : [String(output)];
       }
 
-      if (taskData.fail_reason || taskData.data?.error) {
-        result.error = taskData.fail_reason || taskData.data?.error;
+      if (taskData.fail_reason ?? taskData.data?.error) {
+        result.error = taskData.fail_reason ?? taskData.data?.error;
       }
 
       return result;
@@ -486,26 +512,28 @@ export class CometAIService {
       output?: string[] | undefined;
       error?: string | undefined;
     } = {
-      status: data.status,
+      status: data.status as string,
     };
 
     if (data.output) {
-      result.output = Array.isArray(data.output) ? data.output : [data.output];
+      result.output = Array.isArray(data.output)
+        ? (data.output as string[])
+        : [String(data.output)];
     }
 
     if (data.error) {
-      result.error = data.error;
+      result.error = data.error as string;
     }
 
     return result;
   }
 
   /**
-   * Validate if the Comet AI service is properly configured
-   * @returns Boolean indicating if the service is ready to use
+   * Validate if the service is properly configured
+   * Returns true if at least one provider (Replicate or CometAPI) has a key
    */
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.replicateApiKey || !!this.apiKey;
   }
 
   /**

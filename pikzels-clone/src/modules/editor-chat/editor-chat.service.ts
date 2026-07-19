@@ -1,16 +1,17 @@
 import fetch from 'node-fetch';
 import {
-  ACTION_CATALOG,
   TARGETING_RULES,
   buildContextMessage,
 } from '../editor-command/action-catalog';
+import { EDITOR_TOOLS, buildToolsSystemPrompt } from '../editor-command/tool-definitions';
+import { getFrontendUrl } from '../../utils/env';
 import type { CanvasContext } from '../editor-command/action-catalog';
 import type { ChatMessagePayload, PlatformPresetContext } from './types';
 
 // ============================================================================
 // Editor Chat Service
 // Multi-turn conversational AI that streams responses and can emit editor actions.
-// Uses OpenRouter streaming completions with the same model as editor-command.
+// Uses OpenRouter streaming completions with native function calling (tools).
 // ============================================================================
 
 /** Maximum conversation messages sent to the LLM (to stay within token limits) */
@@ -18,38 +19,35 @@ const MAX_CONVERSATION_HISTORY = 10;
 
 /**
  * Build the system prompt for the chat LLM.
- * Combines thumbnail assistant identity, action catalog, targeting rules,
- * and instructions for the mixed prose + action response format.
+ * Combines tool-calling system prompt with canvas state and targeting rules.
  */
 function buildSystemPrompt(
   canvasContext: CanvasContext,
   platformPreset?: PlatformPresetContext
 ): string {
   const contextMessage = buildContextMessage(canvasContext);
+  const toolsPrompt = buildToolsSystemPrompt();
 
   let platformLine = '';
   if (platformPreset) {
     platformLine = `\nTarget platform: ${platformPreset.platform} (${platformPreset.width}x${platformPreset.height}). Respect platform conventions (safe zones, text readability at small sizes, aspect ratio).`;
   }
 
-  return `You are an AI thumbnail editing assistant. You can see the current canvas state and help users create and refine thumbnails through conversation.
+  return `${toolsPrompt}
 ${platformLine}
 
 CURRENT CANVAS STATE:
 ${contextMessage}
 
-${ACTION_CATALOG}
+${TARGETING_RULES}`;
+}
 
-${TARGETING_RULES}
-
-RESPONSE FORMAT:
-- For general questions or explanations, respond with plain conversational text.
-- When the user wants you to make changes to the canvas, include a JSON action block fenced in triple backticks with the "json" language tag.
-- The JSON block must be a single object with this shape: {"actions": [...], "summary": "...", "needsAutoTarget": false}
-- Each action in the array has: { "action": "<type>", "target": "<target>", "description": "<short desc>", "params": { ... } }
-- You can mix text and action blocks: explain what you're doing, then include the action block.
-- Only include an action block when the user actually wants changes made. For questions, analysis, or suggestions, just respond with text.
-- Keep responses concise and helpful. You are a thumbnail expert.`;
+/** Accumulated tool call from streamed delta chunks */
+interface ToolCallAccumulator {
+  index: number;
+  id: string;
+  functionName: string;
+  argumentsJson: string;
 }
 
 export class EditorChatService {
@@ -64,9 +62,12 @@ export class EditorChatService {
 
   /**
    * Stream a chat completion to the client via SSE.
+   * Uses native OpenRouter function calling (tools parameter).
+   * Streams prose via 'token' events, then emits 'actions' from tool_calls.
    *
    * @param messages  Conversation history (user + assistant turns)
    * @param canvasContext  Current editor state
+   * @param canvasScreenshot  Optional base64 canvas screenshot for vision
    * @param platformPreset  Optional platform targeting info
    * @param send  SSE helper: (event, data) => void
    * @param isAborted  Function returning true if client disconnected
@@ -74,6 +75,7 @@ export class EditorChatService {
   async streamChat(
     messages: ChatMessagePayload[],
     canvasContext: CanvasContext,
+    canvasScreenshot: string | undefined,
     platformPreset: PlatformPresetContext | undefined,
     send: (event: string, data: Record<string, unknown>) => void,
     isAborted: () => boolean
@@ -88,18 +90,39 @@ export class EditorChatService {
     // Trim conversation to last N messages
     const trimmed = messages.slice(-MAX_CONVERSATION_HISTORY);
 
+    // Build messages array with optional vision (multimodal last user message)
+    const apiMessages: Array<{ role: string; content: unknown }> = [
+      { role: 'system', content: systemPrompt },
+    ];
+
+    for (let i = 0; i < trimmed.length; i++) {
+      const m = trimmed[i]!;
+      const isLastUserMessage = i === trimmed.length - 1 && m.role === 'user';
+
+      if (isLastUserMessage && canvasScreenshot) {
+        // Multimodal message: image + text
+        apiMessages.push({
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: canvasScreenshot } },
+            { type: 'text', text: m.content },
+          ],
+        });
+      } else {
+        apiMessages.push({
+          role: m.role,
+          content: m.content,
+        });
+      }
+    }
+
     const model =
-      process.env.OPENROUTER_MODEL_COMMAND || 'google/gemini-2.5-flash';
+      process.env.OPENROUTER_MODEL_EDITOR || 'google/gemini-3-flash-preview';
 
     const requestBody = {
       model,
-      messages: [
-        { role: 'system' as const, content: systemPrompt },
-        ...trimmed.map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        })),
-      ],
+      messages: apiMessages,
+      tools: EDITOR_TOOLS,
       stream: true,
       temperature: 0.3,
     };
@@ -109,7 +132,7 @@ export class EditorChatService {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.openrouterApiKey}`,
-        'HTTP-Referer': process.env.CLIENT_URL || 'http://localhost:8556',
+        'HTTP-Referer': getFrontendUrl(),
         'X-Title': 'ThumPiks Editor Chat',
       },
       body: JSON.stringify(requestBody),
@@ -128,9 +151,10 @@ export class EditorChatService {
       return;
     }
 
-    // Stream chunks from OpenRouter and forward as SSE token events
-    let fullContent = '';
+    // Stream chunks from OpenRouter and forward as SSE events
+    // Accumulate both prose (delta.content) and tool calls (delta.tool_calls)
     let buffer = '';
+    const toolCalls: Map<number, ToolCallAccumulator> = new Map();
 
     const stream = response.body as NodeJS.ReadableStream;
 
@@ -150,10 +174,31 @@ export class EditorChatService {
 
         try {
           const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-            send('token', { content: delta });
+          const delta = parsed.choices?.[0]?.delta;
+          if (!delta) continue;
+
+          // Stream prose content to client
+          if (delta.content) {
+            send('token', { content: delta.content });
+          }
+
+          // Accumulate tool call chunks
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+              if (!toolCalls.has(idx)) {
+                toolCalls.set(idx, {
+                  index: idx,
+                  id: tc.id || '',
+                  functionName: tc.function?.name || '',
+                  argumentsJson: '',
+                });
+              }
+              const acc = toolCalls.get(idx)!;
+              if (tc.id) acc.id = tc.id;
+              if (tc.function?.name) acc.functionName = tc.function.name;
+              if (tc.function?.arguments) acc.argumentsJson += tc.function.arguments;
+            }
           }
         } catch {
           // Skip malformed SSE lines
@@ -163,43 +208,50 @@ export class EditorChatService {
 
     if (isAborted()) return;
 
-    // After streaming completes, try to extract action blocks from the full response
-    const actionBlock = this.extractActionBlock(fullContent);
-    if (actionBlock) {
-      send('actions', actionBlock);
+    // Convert accumulated tool calls to editor actions
+    if (toolCalls.size > 0) {
+      const actions = this.toolCallsToActions(toolCalls);
+      if (actions.length > 0) {
+        send('actions', {
+          actions,
+          summary: actions.map(a => a.description).join('; '),
+          needsAutoTarget: false,
+        });
+      }
     }
 
     send('done', { creditCost: 1 });
   }
 
   /**
-   * Extract a JSON action block from the LLM's response text.
-   * Looks for ```json ... ``` fenced blocks containing an "actions" array.
+   * Convert accumulated tool call chunks into EditorAction objects.
+   * Maps native function calling responses to the existing action format
+   * that the frontend already understands.
    */
-  private extractActionBlock(text: string): Record<string, unknown> | null {
-    const jsonBlockRegex = /```json\s*([\s\S]*?)```/;
-    const match = text.match(jsonBlockRegex);
-    if (!match?.[1]) return null;
+  private toolCallsToActions(
+    toolCalls: Map<number, ToolCallAccumulator>
+  ): Array<{ action: string; target: string; description: string; params: Record<string, unknown> }> {
+    const actions: Array<{ action: string; target: string; description: string; params: Record<string, unknown> }> = [];
 
-    try {
-      const parsed = JSON.parse(match[1].trim());
-      if (
-        parsed &&
-        Array.isArray(parsed.actions) &&
-        parsed.actions.length > 0
-      ) {
-        return {
-          actions: parsed.actions,
-          summary: parsed.summary || '',
-          needsAutoTarget: parsed.needsAutoTarget || false,
-          autoTargetQuery: parsed.autoTargetQuery,
-        };
+    for (const [, tc] of toolCalls) {
+      try {
+        const params = tc.argumentsJson ? JSON.parse(tc.argumentsJson) : {};
+        const target = (params.target as string) || 'selected';
+        // Remove 'target' from params since it's a top-level field in EditorAction
+        delete params.target;
+
+        actions.push({
+          action: tc.functionName,
+          target,
+          description: `${tc.functionName}: ${Object.values(params).filter(v => typeof v === 'string').slice(0, 2).join(', ') || 'execute'}`,
+          params,
+        });
+      } catch {
+        // Skip malformed tool call arguments
       }
-    } catch {
-      // Malformed JSON in the action block
     }
 
-    return null;
+    return actions;
   }
 }
 

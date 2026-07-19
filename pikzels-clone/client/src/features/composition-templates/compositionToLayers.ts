@@ -9,6 +9,7 @@
 import type {
   LayoutPreset,
   CompositionState,
+  CompositionSlot,
 } from './types';
 import { CompositionEngine } from './composition-engine';
 import type { LayerDescriptor, TextLayerDescriptor } from './composition-engine';
@@ -16,7 +17,9 @@ import type {
   Layer,
   ImageLayer,
   TextLayer,
+  ShapeLayer,
   BlendMode,
+  SlotMetadata,
 } from '../../components/editor/types/editor.types';
 
 // ============================================
@@ -35,6 +38,66 @@ function mapBlendMode(mode: string): BlendMode {
 }
 
 // ============================================
+// PLACEHOLDER SUPPORT
+// ============================================
+
+/**
+ * Internal type for placeholder layer data before conversion to ShapeLayer
+ */
+interface PlaceholderEntry {
+  slotId: string;
+  label: string;
+  role: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+  required: boolean;
+  slotMetadata: SlotMetadata;
+}
+
+/**
+ * Create a placeholder entry for an unfilled image slot.
+ * This gets converted to a ShapeLayer with visual placeholder styling.
+ * Includes full slotMetadata for interactive upload zone support.
+ */
+function createPlaceholderLayer(
+  slot: CompositionSlot,
+  template: LayoutPreset,
+  _groupId?: string
+): PlaceholderEntry {
+  const w = template.canvasWidth;
+  const h = template.canvasHeight;
+  
+  return {
+    slotId: slot.id,
+    label: slot.label,
+    role: slot.role,
+    x: Math.round(slot.bounds.x * w),
+    y: Math.round(slot.bounds.y * h),
+    width: Math.round(slot.bounds.width * w),
+    height: Math.round(slot.bounds.height * h),
+    zIndex: slot.zIndex,
+    required: slot.required,
+    slotMetadata: {
+      slotId: slot.id,
+      templateId: template.id,
+      label: slot.label,
+      role: slot.role,
+      fit: slot.fit,
+      blendMode: mapBlendMode(slot.blendMode) as BlendMode,
+      opacity: slot.opacity,
+      mask: slot.mask,
+      maskPath: slot.maskPath,
+      filter: slot.filter,
+      autoRemoveBg: slot.autoRemoveBg ?? false,
+      required: slot.required,
+    },
+  };
+}
+
+// ============================================
 // CONVERTER
 // ============================================
 
@@ -44,26 +107,58 @@ export interface ConvertedLayers {
 }
 
 /**
+ * Options for the compositionToLayers conversion
+ */
+export interface CompositionToLayersOptions {
+  /**
+   * Shared group ID to assign to all layers created from this conversion.
+   * Used for Phase 3 bidirectional drag support to identify layers
+   * that came from the same template drop.
+   */
+  groupId?: string;
+}
+
+/**
  * Convert a composition template + fills into editor-compatible layers.
  *
  * Each filled image slot becomes an `ImageLayer` and each text slot
  * becomes a `TextLayer`, all with proper transforms, blend modes,
  * opacity, and z-ordering.
+ * 
+ * UNFILLED SLOT HANDLING:
+ * - Unfilled image slots become placeholder ShapeLayer with dashed border
+ * - Text slots always render (using placeholder text if unfilled)
+ * 
+ * @param template - The layout preset to convert
+ * @param state - The composition state with filled slots
+ * @param options - Optional configuration (e.g., groupId for bidirectional drag)
  */
 export function compositionToLayers(
   template: LayoutPreset,
-  state: CompositionState
+  state: CompositionState,
+  options: CompositionToLayersOptions = {}
 ): ConvertedLayers {
+  const { groupId } = options;
   const { imageLayers, textLayers } = CompositionEngine.buildLayerStack(template, state);
 
   const layers: Layer[] = [];
   const layerOrder: string[] = [];
 
+  // Track which image slots are filled
+  const filledSlotIds = new Set(state.slotFills.map(f => f.slotId));
+
+  // Create placeholder layers for unfilled image slots
+  const placeholderLayers = template.slots
+    .filter(slot => !filledSlotIds.has(slot.id))
+    .map(slot => createPlaceholderLayer(slot, template, groupId))
+    .sort((a, b) => a.zIndex - b.zIndex);
+
   // Merge & sort all by zIndex
-  type Entry = { zIndex: number; type: 'image' | 'text'; data: LayerDescriptor | TextLayerDescriptor };
+  type Entry = { zIndex: number; type: 'image' | 'text' | 'placeholder'; data: LayerDescriptor | TextLayerDescriptor | PlaceholderEntry };
   const all: Entry[] = [
     ...imageLayers.map(l => ({ zIndex: l.zIndex, type: 'image' as const, data: l })),
     ...textLayers.map(l => ({ zIndex: l.zIndex, type: 'text' as const, data: l })),
+    ...placeholderLayers.map(l => ({ zIndex: l.zIndex, type: 'placeholder' as const, data: l })),
   ].sort((a, b) => a.zIndex - b.zIndex);
 
   for (const entry of all) {
@@ -105,8 +200,46 @@ export function compositionToLayers(
           grayscale: 0,
           invert: 0,
         },
+        // Add groupId for bidirectional drag support (Phase 3)
+        ...(groupId ? { groupId } : {}),
       };
       layers.push(imgLayer);
+      layerOrder.push(id);
+    } else if (entry.type === 'placeholder') {
+      // Create placeholder shape layer for unfilled image slot
+      const d = entry.data as PlaceholderEntry;
+      const id = generateId();
+      const placeholderLayer: ShapeLayer = {
+        id,
+        name: `📷 ${d.label} (drop image)`,
+        type: 'shape',
+        visible: true,
+        locked: false,
+        opacity: 100,
+        blendMode: 'normal',
+        transform: {
+          x: d.x,
+          y: d.y,
+          width: d.width,
+          height: d.height,
+          rotation: 0,
+          scaleX: 1,
+          scaleY: 1,
+          skewX: 0,
+          skewY: 0,
+        },
+        effects: [],
+        shapeType: 'rectangle',
+        fill: 'rgba(99, 102, 241, 0.1)', // Subtle purple tint
+        stroke: '#6366f1', // Accent purple
+        strokeWidth: 2,
+        cornerRadius: 4,
+        // Slot metadata for interactive upload zone support
+        slotMetadata: d.slotMetadata,
+        // Add groupId for bidirectional drag support (Phase 3)
+        ...(groupId ? { groupId } : {}),
+      };
+      layers.push(placeholderLayer);
       layerOrder.push(id);
     } else {
       const d = entry.data as TextLayerDescriptor;
@@ -145,6 +278,8 @@ export function compositionToLayers(
         lineHeight: 1.2,
         textDecoration: 'none',
         textTransform: (d.style.textTransform as TextLayer['textTransform']) || 'none',
+        // Add groupId for bidirectional drag support (Phase 3)
+        ...(groupId ? { groupId } : {}),
       };
       layers.push(textLayer);
       layerOrder.push(id);

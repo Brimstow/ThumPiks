@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { authPost } from '../../../utils/api';
+import { authPost, createAIToolAbortController } from '../../../utils/api';
 
 // ============================================================================
 // Quick Edit Command Executor Hook
@@ -286,16 +286,25 @@ export function useQuickEditCommandExecutor(
           if (!imageUrl) break;
           callbacks.setLoading(true);
           callbacks.setLoadingMessage('Enhancing image...');
+          // JJ: AbortController with per-tool timeout (40s for enhance)
+          const { controller: enhanceCtrl, timeoutId: enhanceTimeout } = createAIToolAbortController('enhance');
           try {
             const res = await authPost('/api/thumbnails/ai/enhance', {
-              imageUrl,
-            });
+              image: imageUrl,  // JJ: FIXED — was 'imageUrl', backend expects 'image'
+            }, { signal: enhanceCtrl.signal });
             if (!res.ok) throw new Error('Enhancement failed');
             const data = await res.json();
-            if (data.imageUrl) {
-              callbacks.setResultImageUrl(data.imageUrl);
+            // JJ: FIXED — backend returns data.images (array), not data.imageUrl
+            if (data.images?.length > 0) {
+              callbacks.setResultImageUrl(data.images[0]);
+            }
+          } catch (err: unknown) {
+            // JJ: Handle abort/timeout
+            if (err instanceof Error && err.name === 'AbortError') {
+              callbacks.setError('Enhancement timed out. Please try again.');
             }
           } finally {
+            clearTimeout(enhanceTimeout);
             callbacks.setLoading(false);
             callbacks.setLoadingMessage('');
           }
@@ -333,17 +342,29 @@ export function useQuickEditCommandExecutor(
           }
           callbacks.setLoading(true);
           callbacks.setLoadingMessage('Swapping face...');
+          // JJ: AbortController with per-tool timeout (face-swap sends two images = larger payload)
+          const { controller: faceSwapCtrl, timeoutId: faceSwapTimeoutId } = createAIToolAbortController('face-swap');
           try {
             const res = await authPost('/api/thumbnails/ai/face-swap', {
               sourceImage: facePhoto,
               targetImage: imageUrl,
-            });
-            if (!res.ok) throw new Error('Face swap failed');
+            }, { signal: faceSwapCtrl.signal });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || 'Face swap failed');
+            }
             const data = await res.json();
             if (data.success && data.images?.length > 0) {
               callbacks.setResultImageUrl(data.images[0]);
             }
+          } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
+              callbacks.setError('Face swap timed out or was cancelled. Please try again.');
+            } else {
+              callbacks.setError(err instanceof Error ? err.message : 'Face swap failed');
+            }
           } finally {
+            clearTimeout(faceSwapTimeoutId);
             callbacks.setLoading(false);
             callbacks.setLoadingMessage('');
           }

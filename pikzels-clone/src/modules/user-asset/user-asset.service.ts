@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { getPrisma } from '../../utils/prisma-factory';
 import { getCloudinaryProvider } from '../storage/cloudinary.provider';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../../utils/logger';
 
 const defaultPrisma = getPrisma();
 
@@ -42,9 +43,7 @@ export class UserAssetService {
       },
     });
 
-    console.log(
-      `📦 User asset uploaded: ${asset.id} (${data.type}) for user ${data.userId}`
-    );
+    logger.info('User asset uploaded', { assetId: asset.id, type: data.type, userId: data.userId });
     return asset;
   }
 
@@ -77,14 +76,12 @@ export class UserAssetService {
       },
     });
 
-    console.log(
-      `📦 User asset uploaded from URL: ${asset.id} (${data.type}) for user ${data.userId}`
-    );
+    logger.info('User asset uploaded from URL', { assetId: asset.id, type: data.type, userId: data.userId });
     return asset;
   }
 
   async getAssetsByUser(userId: string, type?: string) {
-    const where: any = { userId };
+    const where: Record<string, unknown> = { userId };
     if (type) {
       where.type = type;
     }
@@ -114,18 +111,15 @@ export class UserAssetService {
     try {
       const cloudinary = getCloudinaryProvider();
       await cloudinary.delete(asset.publicId);
-      console.log(`☁️ Cloudinary asset deleted: ${asset.publicId}`);
+      logger.info('Cloudinary asset deleted', { publicId: asset.publicId });
     } catch (err) {
-      console.warn(
-        'Cloudinary delete failed (asset may already be removed):',
-        err
-      );
+      logger.warn('Cloudinary delete failed (asset may already be removed)', { error: String(err) });
     }
 
     // Delete from DB
     await this.prisma.userAsset.delete({ where: { id } });
 
-    console.log(`🗑️ User asset deleted: ${id} for user ${userId}`);
+    logger.info('User asset deleted', { assetId: id, userId });
     return { success: true };
   }
 
@@ -148,7 +142,7 @@ export class UserAssetService {
       data: { type: newType },
     });
 
-    console.log(`🔀 User asset recategorized: ${id} → ${newType}`);
+    logger.info('User asset recategorized', { assetId: id, newType });
     return updated;
   }
 

@@ -271,6 +271,9 @@
   background: transparent;
   cursor: pointer;
   transition: background 0.15s ease;
+  border: none;
+  padding: 0;
+  width: 100%;
 }
 
 .vfe-video-overlay:hover {

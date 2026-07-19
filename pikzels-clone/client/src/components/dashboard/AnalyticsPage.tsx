@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Image, CheckCircle2, Eye, Calendar, ChevronDown, Download, Lightbulb, ArrowUp, RefreshCw, AlertCircle } from 'lucide-react';
+import { Image, CheckCircle2, Eye, Calendar, ChevronDown, Download, Lightbulb, ArrowUp, ArrowDown, RefreshCw, AlertCircle } from 'lucide-react';
 import { config } from '../../config/environment';
 import { authGet } from '../../utils/api';
 
@@ -37,11 +37,19 @@ interface TopPerformer {
   daysActive: number;
 }
 
+interface ComparativeComparison {
+  thumbnails: { current: number; previous: number; change: number };
+  averagePerDay: { current: number; previous: number; change: number };
+  sharingRate: { current: number; previous: number; change: number };
+  averageEditComplexity: { current: number; previous: number; change: number };
+}
+
 interface StatCard {
   id: number;
   title: string;
   value: string;
-  change: string;
+  change?: string;
+  changeDirection?: 'up' | 'down' | 'neutral';
   icon: React.ComponentType<any>;
   gradient: string;
   shadowColor: string;
@@ -50,6 +58,12 @@ interface StatCard {
 type TimeframeFilter = '7' | '30' | '90';
 type PlatformFilter = 'all' | 'youtube' | 'tiktok' | 'instagram' | 'twitter';
 
+const TIMEFRAME_MAP: Record<TimeframeFilter, string> = {
+  '7': 'weekly',
+  '30': 'monthly',
+  '90': 'monthly',
+};
+
 const AnalyticsPage = () => {
   // ============================================
   // STATE MANAGEMENT
@@ -57,6 +71,7 @@ const AnalyticsPage = () => {
   
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
+  const [comparativeData, setComparativeData] = useState<ComparativeComparison | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -94,6 +109,18 @@ const AnalyticsPage = () => {
       if (performersResponse.ok) {
         const performersResult = await performersResponse.json();
         setTopPerformers(performersResult.topPerformers || []);
+      }
+
+      // Fetch comparative data for real change percentages
+      const comparativeResponse = await authGet(
+        `/api/analytics/comparative?timeframe=${TIMEFRAME_MAP[timeframeFilter]}`
+      );
+
+      if (comparativeResponse.ok) {
+        const comparativeResult = await comparativeResponse.json();
+        setComparativeData(comparativeResult.comparativeAnalytics?.comparison || null);
+      } else {
+        setComparativeData(null);
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
@@ -147,12 +174,21 @@ const AnalyticsPage = () => {
   // COMPUTED VALUES
   // ============================================
 
+  const getChangeInfo = (change: number | undefined): { change?: string; changeDirection?: 'up' | 'down' | 'neutral' } => {
+    if (change === undefined || change === null) return {};
+    if (change === 0) return { change: '0%', changeDirection: 'neutral' };
+    return {
+      change: `${Math.abs(change).toFixed(1)}%`,
+      changeDirection: change > 0 ? 'up' : 'down',
+    };
+  };
+
   const statCards: StatCard[] = analyticsData ? [
     {
       id: 1,
       title: 'Total Thumbnails',
       value: analyticsData.totals.thumbnails.toLocaleString(),
-      change: `${Math.round((analyticsData.totals.recentThumbnails / Math.max(analyticsData.totals.thumbnails, 1)) * 100)}%`,
+      ...getChangeInfo(comparativeData?.thumbnails.change),
       icon: Image,
       gradient: 'from-indigo-500 to-blue-600',
       shadowColor: 'blue-900/20',
@@ -161,7 +197,6 @@ const AnalyticsPage = () => {
       id: 2,
       title: 'Active Projects',
       value: analyticsData.totals.projects.toString(),
-      change: '5%',
       icon: CheckCircle2,
       gradient: 'from-emerald-500 to-teal-500',
       shadowColor: 'emerald-900/20',
@@ -170,7 +205,7 @@ const AnalyticsPage = () => {
       id: 3,
       title: 'Recent (30d)',
       value: analyticsData.totals.recentThumbnails.toString(),
-      change: '34%',
+      ...getChangeInfo(comparativeData?.averagePerDay.change),
       icon: Eye,
       gradient: 'from-cyan-500 to-blue-500',
       shadowColor: 'cyan-900/20',
@@ -179,7 +214,6 @@ const AnalyticsPage = () => {
       id: 4,
       title: 'Top Performer Score',
       value: topPerformers[0]?.performanceScore.toFixed(1) || '0',
-      change: '12%',
       icon: Calendar,
       gradient: 'from-orange-500 to-amber-500',
       shadowColor: 'orange-900/20',
@@ -281,10 +315,19 @@ const AnalyticsPage = () => {
                 <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center text-white shadow-lg shadow-${stat.shadowColor} group-hover:scale-110 transition-transform duration-300`}>
                   <IconComponent className="w-6 h-6" strokeWidth={2} />
                 </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
-                  <ArrowUp className="w-3 h-3" strokeWidth={2} />
-                  {stat.change}
-                </div>
+                {stat.change && (
+                  <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border ${
+                    stat.changeDirection === 'down'
+                      ? 'text-red-400 bg-red-500/10 border-red-500/20'
+                      : stat.changeDirection === 'up'
+                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                        : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                  }`}>
+                    {stat.changeDirection === 'up' && <ArrowUp className="w-3 h-3" strokeWidth={2} />}
+                    {stat.changeDirection === 'down' && <ArrowDown className="w-3 h-3" strokeWidth={2} />}
+                    {stat.change}
+                  </div>
+                )}
               </div>
               <div className="text-3xl font-bold text-slate-50 tracking-tight">{stat.value}</div>
               <div className="text-sm text-slate-400 mt-1 font-medium">{stat.title}</div>

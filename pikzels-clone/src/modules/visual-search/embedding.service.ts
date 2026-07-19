@@ -54,7 +54,7 @@ export class EmbeddingService {
       );
     }
 
-    const data: any = await response.json();
+    const data: { data?: Array<{ embedding?: number[] }> } = await response.json();
     const vector = data.data?.[0]?.embedding;
 
     if (!vector || !Array.isArray(vector)) {
@@ -106,7 +106,7 @@ export class EmbeddingService {
       );
     }
 
-    const data: any = await response.json();
+    const data: { data?: Array<{ embedding?: number[] }> } = await response.json();
     const vector = data.data?.[0]?.embedding;
 
     if (!vector || !Array.isArray(vector)) {

@@ -25,6 +25,29 @@ export type BlendMode =
   | 'luminosity';
 
 // ============================================
+// SLOT METADATA (Composition Template Upload Zones)
+// ============================================
+
+/**
+ * Metadata from a CompositionSlot stored on placeholder layers.
+ * Enables upload zones on the canvas and proper ImageLayer configuration when filled.
+ */
+export interface SlotMetadata {
+  slotId: string;
+  templateId: string;
+  label: string;
+  role: 'primary' | 'secondary' | 'background' | 'accent' | 'text';
+  fit: 'cover' | 'contain' | 'fill' | 'none';
+  blendMode: BlendMode;
+  opacity: number;
+  mask: string;
+  maskPath?: string;
+  filter?: string;
+  autoRemoveBg: boolean;
+  required: boolean;
+}
+
+// ============================================
 // LAYER TYPES
 // ============================================
 export type LayerType = 'image' | 'shape' | 'text' | 'group' | 'adjustment' | 'drawing' | 'ai-effect';
@@ -67,6 +90,8 @@ export interface BaseLayer {
   effects: LayerEffect[];
   mask?: LayerMask;
   parentId?: string; // For grouped layers
+  /** Shared ID for layers created from the same template drop (Phase 3 bidirectional drag support) */
+  groupId?: string;
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -75,6 +100,8 @@ export interface ImageLayer extends BaseLayer {
   originalWidth: number;
   originalHeight: number;
   filters: ImageFilters;
+  /** Present when this image was placed into a composition slot upload zone */
+  slotMetadata?: SlotMetadata;
 }
 
 export interface ShapeLayer extends BaseLayer {
@@ -86,6 +113,8 @@ export interface ShapeLayer extends BaseLayer {
   cornerRadius?: number;
   points?: { x: number; y: number }[];
   sides?: number; // For polygons
+  /** Present when this shape is a composition slot upload zone placeholder */
+  slotMetadata?: SlotMetadata;
 }
 
 export interface TextLayer extends BaseLayer {
@@ -104,6 +133,9 @@ export interface TextLayer extends BaseLayer {
   lineHeight: number;
   textDecoration: 'none' | 'underline' | 'line-through';
   textTransform: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  textShadow?: string;
+  backgroundColor?: string;
+  backgroundPadding?: number;
 }
 
 export interface GroupLayer extends BaseLayer {
@@ -125,6 +157,16 @@ export interface DrawingLayer extends BaseLayer {
 
 export type Layer = ImageLayer | ShapeLayer | TextLayer | GroupLayer | AdjustmentLayer | DrawingLayer;
 
+/** Type guard: checks if a layer is a composition slot upload zone (unfilled placeholder) */
+export function isUploadZoneLayer(layer: Layer): layer is ShapeLayer & { slotMetadata: SlotMetadata } {
+  return layer.type === 'shape' && 'slotMetadata' in layer && (layer as ShapeLayer).slotMetadata != null;
+}
+
+/** Type guard: checks if a layer is a filled upload zone (image with slot metadata for revert) */
+export function isFilledUploadZone(layer: Layer): layer is ImageLayer & { slotMetadata: SlotMetadata } {
+  return layer.type === 'image' && 'slotMetadata' in layer && (layer as ImageLayer).slotMetadata != null;
+}
+
 // ============================================
 // DRAWING
 // ============================================
@@ -136,6 +178,8 @@ export interface DrawingPath {
   opacity: number;
   blendMode: BlendMode;
   smoothing: number;
+  /** Source sampling point for clone stamp tool */
+  cloneSource?: { x: number; y: number };
 }
 
 // ============================================
@@ -322,6 +366,8 @@ export interface EditorState {
   history: HistoryEntry[];
   historyIndex: number;
   isModified: boolean;
+  batchInProgress?: boolean;
+  batchLabel?: string;
   adjustments: AdjustmentState; // Global adjustments for quick photo corrections
   smartSelection: SmartSelectionState; // AI-powered object selection state
 }
@@ -355,7 +401,11 @@ export interface AIGenerationResult {
 export type EditorAction =
   | { type: 'ADD_LAYER'; layer: Layer }
   | { type: 'REMOVE_LAYER'; layerId: string }
+  | { type: 'REMOVE_LAYERS_BATCH'; layerIds: string[] }
+  | { type: 'REMOVE_LAYERS_BY_GROUP'; groupId: string }
   | { type: 'UPDATE_LAYER'; layerId: string; updates: Partial<Layer> }
+  | { type: 'UPDATE_LAYER_SILENT'; layerId: string; updates: Partial<Layer> }
+  | { type: 'MOVE_GROUP_SILENT'; moves: Array<{ layerId: string; x: number; y: number }> }
   | { type: 'REORDER_LAYERS'; layerIds: string[] }
   | { type: 'GROUP_LAYERS'; layerIds: string[] }
   | { type: 'UNGROUP_LAYER'; groupId: string }
@@ -368,9 +418,14 @@ export type EditorAction =
   | { type: 'UPDATE_ADJUSTMENTS'; updates: Partial<AdjustmentState> }
   | { type: 'SET_SMART_SELECTION'; selection: Partial<SmartSelectionState> }
   | { type: 'CLEAR_SMART_SELECTION' }
+  | { type: 'FILL_UPLOAD_ZONE'; layerId: string; imageSrc: string; imageWidth: number; imageHeight: number }
+  | { type: 'CLEAR_UPLOAD_ZONE'; layerId: string }
   | { type: 'UNDO' }
   | { type: 'REDO' }
+  | { type: 'BATCH_START'; label: string }
+  | { type: 'BATCH_END' }
   | { type: 'MARK_SAVED' }
+  | { type: 'CLEAR_CANVAS' }
   | { type: 'RESET' };
 
 // ============================================
@@ -617,7 +672,7 @@ export const DEFAULT_SMART_GUIDES: SmartGuidesState = {
  * Contextual Quick Actions
  * Actions available based on current selection/layer type
  */
-export type QuickActionType = 
+export type QuickActionType =
   | 'remove-bg'
   | 'upscale'
   | 'enhance'
@@ -628,7 +683,8 @@ export type QuickActionType =
   | 'ai-rewrite'
   | 'restyle'
   | 'animate'
-  | 'effects';
+  | 'effects'
+  | 'decompose';
 
 export interface QuickAction {
   id: QuickActionType;

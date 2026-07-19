@@ -97,22 +97,7 @@ const PROD_DEFAULTS = {
  * Log development mode banner with clear warnings about relaxed security
  */
 function logDevModeBanner(): void {
-  const banner = `
-╔══════════════════════════════════════════════════════════════════╗
-║  ⚠️   DEVELOPMENT MODE ACTIVE                                     ║
-║                                                                   ║
-║  The following security features are RELAXED for development:    ║
-║                                                                   ║
-║  🔓 Rate Limiting     → DISABLED (no login attempt limits)       ║
-║  🕐 JWT Expiry        → 24 hours (instead of 15 minutes)         ║
-║  🌐 CORS              → localhost origins allowed                ║
-║  🔒 HTTPS Redirect    → DISABLED                                 ║
-║  🛡️  Security Headers  → DISABLED                                 ║
-║                                                                   ║
-║  ⛔ DO NOT deploy to production with NODE_ENV=development        ║
-╚══════════════════════════════════════════════════════════════════╝`;
-
-  console.log('\x1b[33m%s\x1b[0m', banner); // Yellow color
+  logger.info('DEVELOPMENT MODE ACTIVE - security features relaxed');
 
   logger.warn('🚨 DEVELOPMENT MODE: Security features relaxed', {
     rateLimiting: 'disabled',
@@ -407,22 +392,7 @@ function validateEnvironment(): void {
 
     // CRITICAL: If we're in a cloud environment but NODE_ENV is not production-like
     if (!isProductionLike()) {
-      const errorMsg = `
-╔══════════════════════════════════════════════════════════════════════════╗
-║  🚨 SECURITY FAILSAFE TRIGGERED - STARTUP BLOCKED                        ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  Cloud platform detected: ${(cloudCheck.platform || 'Unknown').padEnd(44)}║
-║  But NODE_ENV is: ${(process.env.NODE_ENV || 'undefined').padEnd(50)}║
-║                                                                          ║
-║  This is DANGEROUS! Development settings would be used in production.    ║
-║                                                                          ║
-║  FIX: Set NODE_ENV=production in your ${(cloudCheck.platform || 'cloud').padEnd(30)}║
-║       environment variables before deploying.                            ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝`;
-
-      console.error('\x1b[31m%s\x1b[0m', errorMsg);
+      logger.error('SECURITY FAILSAFE TRIGGERED - startup blocked in cloud without production NODE_ENV');
       logger.error(
         `FAILSAFE: Cloud environment detected without NODE_ENV=production - platform: ${cloudCheck.platform}, nodeEnv: ${process.env.NODE_ENV}`
       );

@@ -54,7 +54,7 @@ async function createSuperAdmin() {
     if (existingUser) {
       if (
         existingUser.AdminRole.some(
-          (role: any) => role.role === AdminRoles.SUPER_ADMIN && role.isActive
+          (role: { role: string; isActive: boolean }) => role.role === AdminRoles.SUPER_ADMIN && role.isActive
         )
       ) {
         console.log('❌ User already has super admin role');
@@ -156,7 +156,7 @@ async function listAdmins() {
     }
 
     admins.forEach((admin, index) => {
-      const roles = admin.AdminRole.map((role: any) => role.role).join(', ');
+      const roles = admin.AdminRole.map((role: { role: string }) => role.role).join(', ');
       console.log(`${index + 1}. ${admin.name || 'Unnamed'} (${admin.email})`);
       console.log(`   Roles: ${roles}`);
       console.log(`   Created: ${admin.createdAt.toISOString()}`);

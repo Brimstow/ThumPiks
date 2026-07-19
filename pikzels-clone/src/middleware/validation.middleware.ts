@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import DOMPurify from 'isomorphic-dompurify';
 import validator from 'validator';
+import { AuthRequest } from '../types/auth';
 
 // Enhanced email validation regex (more comprehensive)
 const EMAIL_REGEX =
@@ -32,7 +33,7 @@ interface ValidationRule {
   whitelist?: string[]; // Allowed values
   blacklist?: string[]; // Forbidden values
   sanitize?: boolean; // Enable HTML sanitization
-  custom?: (value: any) => boolean | string;
+  custom?: (value: unknown) => boolean | string;
 }
 
 interface ValidationOptions {
@@ -67,7 +68,7 @@ export const validateRequest = (options: ValidationOptions) => {
       } = validateFields(req.params, options.params, 'params');
       errors.push(...paramErrors);
       warnings.push(...paramWarnings);
-      req.params = sanitized;
+      req.params = sanitized as typeof req.params;
     }
 
     // Validate query
@@ -79,27 +80,31 @@ export const validateRequest = (options: ValidationOptions) => {
       } = validateFields(req.query, options.query, 'query');
       errors.push(...queryErrors);
       warnings.push(...queryWarnings);
-      req.query = sanitized;
+      req.query = sanitized as typeof req.query;
     }
 
     // Log warnings but don't block request
     if (warnings.length > 0) {
+      const userId = (req as AuthRequest).user?.id;
       logger.warn('Validation warnings', {
         url: req.url,
         method: req.method,
         warnings,
-        userId: (req as any).user?.id,
+        ...(userId !== undefined && { userId }),
       });
     }
 
     if (errors.length > 0) {
+      const userId = (req as AuthRequest).user?.id;
+      const ip = req.ip;
+      const userAgent = req.get('User-Agent');
       logger.warn('Validation failed', {
         url: req.url,
         method: req.method,
         errors,
-        userId: (req as any).user?.id,
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
+        ...(userId !== undefined && { userId }),
+        ...(ip !== undefined && { ip }),
+        ...(userAgent !== undefined && { userAgent }),
       });
 
       return res.status(400).json({
@@ -113,24 +118,36 @@ export const validateRequest = (options: ValidationOptions) => {
   };
 };
 
-export const validateSchema = (schema: any) => {
+interface ZodLikeSchema {
+  validate: (data: unknown) => {
+    error?: { details: Array<{ message: string }> };
+  };
+}
+
+export const validateSchema = (schema: ZodLikeSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const { error } = schema.validate(req.body);
     if (error) {
-      return res.status(400).json({ error: error.details[0].message });
+      return res
+        .status(400)
+        .json({ error: error.details[0]?.message ?? 'Validation error' });
     }
     return next();
   };
 };
 
 function validateFields(
-  data: any,
+  data: Record<string, unknown>,
   rules: ValidationRule[],
   source: string
-): { errors: string[]; warnings: string[]; sanitized: any } {
+): {
+  errors: string[];
+  warnings: string[];
+  sanitized: Record<string, unknown>;
+} {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const sanitized: any = Array.isArray(data) ? [] : {};
+  const sanitized: Record<string, unknown> = {};
 
   // Copy non-validated fields
   for (const key in data) {
@@ -221,12 +238,12 @@ function validateFields(
     }
 
     // Whitelist validation
-    if (rule.whitelist && !rule.whitelist.includes(processedValue)) {
+    if (rule.whitelist && !rule.whitelist.includes(processedValue as string)) {
       errors.push(`${fieldPath} must be one of: ${rule.whitelist.join(', ')}`);
     }
 
     // Blacklist validation
-    if (rule.blacklist?.includes(processedValue)) {
+    if (rule.blacklist?.includes(processedValue as string)) {
       errors.push(`${fieldPath} contains forbidden value`);
     }
 
@@ -248,7 +265,7 @@ function validateFields(
 }
 
 function validateType(
-  value: any,
+  value: unknown,
   type: string,
   fieldPath: string
 ): string | null {
@@ -329,7 +346,7 @@ export const commonValidations = {
     required: true,
     type: 'password' as const,
     minLength: 12,
-    custom: (value: string) => {
+    custom: (value: unknown) => {
       // Check against common passwords
       const commonPasswords = [
         'password',
@@ -340,7 +357,10 @@ export const commonValidations = {
         'welcome123',
         'letmein123',
       ];
-      if (commonPasswords.includes(value.toLowerCase())) {
+      if (
+        typeof value === 'string' &&
+        commonPasswords.includes(value.toLowerCase())
+      ) {
         return 'Password is too common, please choose a stronger password';
       }
       return true;
@@ -391,7 +411,7 @@ export const commonValidations = {
     required: false,
     type: 'array' as const,
     maxLength: 10, // Max 10 tags
-    custom: (value: string[]) => {
+    custom: (value: unknown) => {
       if (!Array.isArray(value)) return 'Tags must be an array';
       if (value.some(tag => typeof tag !== 'string' || tag.length > 50)) {
         return 'Each tag must be a string with max 50 characters';

@@ -1,4 +1,5 @@
 import { getPrisma } from '../../utils/prisma-factory';
+import { logger } from '../../utils/logger';
 
 const prisma = getPrisma();
 
@@ -203,7 +204,7 @@ export class AnalyticsService {
     } catch (error) {
       // In development, fall back to mock data on database error
       if (isDevelopmentEnvironment()) {
-        console.warn('Failed to get user stats from database, using mock data:', error);
+        logger.warn('Failed to get user stats from database, using mock data', { error });
         return {
           thumbnailsCreated: 12,
           clickThroughRate: 2.8,
@@ -296,12 +297,12 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const style = (thumbnail.parameters as any).style || 'other';
+        const style = String((thumbnail.parameters as Record<string, unknown>).style || 'other');
         if (
           style in styleDistribution &&
-          styleDistribution[style] !== undefined
+          styleDistribution[style as string] !== undefined
         ) {
-          styleDistribution[style]++;
+          (styleDistribution[style as string] as number)++;
         } else if (styleDistribution.other !== undefined) {
           styleDistribution.other++;
         }
@@ -386,7 +387,7 @@ export class AnalyticsService {
     } catch (error) {
       // In development, fall back to mock data on database error
       if (isDevelopmentEnvironment()) {
-        console.warn('Failed to get analytics from database, using mock data:', error);
+        logger.warn('Failed to get analytics from database, using mock data', { error });
         return getMockAnalytics(userId);
       }
       // In production, throw the error
@@ -448,7 +449,7 @@ export class AnalyticsService {
       return topPerformers;
     } catch (error) {
       if (isDevelopmentEnvironment()) {
-        console.warn('Failed to get top performers from database, using mock data:', error);
+        logger.warn('Failed to get top performers from database, using mock data', { error });
         return [
           { id: '1', title: 'Gaming Setup Tour', imageUrl: '/mock-1.jpg', performanceScore: 45.5, socialShares: 12, downloads: 8, edits: 5, daysActive: 15 },
           { id: '2', title: 'React Tutorial Part 1', imageUrl: '/mock-2.jpg', performanceScore: 38.2, socialShares: 10, downloads: 6, edits: 3, daysActive: 12 },
@@ -529,7 +530,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const style = (thumbnail.parameters as any).style || 'other';
+        const style = String((thumbnail.parameters as Record<string, unknown>).style || 'other');
         if (style in styleStats && styleStats[style] !== undefined) {
           styleStats[style]++;
         } else if (styleStats.other !== undefined) {
@@ -549,7 +550,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && Object.keys(edits).length > 0) {
           totalEditedThumbnails++;
           totalEdits += Object.keys(edits).length;
@@ -683,7 +684,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
@@ -813,8 +814,9 @@ export class AnalyticsService {
     }
 
     // Productivity metrics
+    const lastThumbnail = filteredThumbnails[filteredThumbnails.length - 1];
     const firstThumbnailDate = new Date(
-      filteredThumbnails[filteredThumbnails.length - 1].createdAt
+      lastThumbnail ? lastThumbnail.createdAt : new Date()
     );
     const today = new Date();
     const totalDays =
@@ -825,7 +827,7 @@ export class AnalyticsService {
     // Count thumbnails per day
     const thumbnailsPerDay: Record<string, number> = {};
     filteredThumbnails.forEach(thumbnail => {
-      const date = thumbnail.createdAt.toISOString().split('T')[0];
+      const date = new Date(thumbnail.createdAt).toISOString().split('T')[0];
       if (date) {
         thumbnailsPerDay[date] = (thumbnailsPerDay[date] || 0) + 1;
       }
@@ -844,7 +846,7 @@ export class AnalyticsService {
     // Count thumbnails per hour
     const thumbnailsPerHour: Record<number, number> = {};
     filteredThumbnails.forEach(thumbnail => {
-      const hour = thumbnail.createdAt.getHours();
+      const hour = new Date(thumbnail.createdAt).getHours();
       thumbnailsPerHour[hour] = (thumbnailsPerHour[hour] || 0) + 1;
     });
 
@@ -881,7 +883,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
@@ -909,7 +911,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && typeof edits === 'object') {
           editCounts.push(Object.keys(edits).length);
         } else {
@@ -1025,10 +1027,10 @@ export class AnalyticsService {
   }
 
   // Helper method to filter thumbnails by timeframe
-  private filterThumbnailsByTimeframe(
-    thumbnails: any[],
+  private filterThumbnailsByTimeframe<T extends { createdAt: Date | string }>(
+    thumbnails: T[],
     timeframe: 'daily' | 'weekly' | 'monthly'
-  ) {
+  ): T[] {
     const now = new Date();
     let startDate: Date;
 
@@ -1250,7 +1252,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && typeof edits === 'object') {
           const editCount = Object.keys(edits).length;
           totalEditComplexity += editCount;
@@ -1278,7 +1280,7 @@ export class AnalyticsService {
         typeof thumbnail.parameters === 'object' &&
         thumbnail.parameters !== null
       ) {
-        const edits = (thumbnail.parameters as any).edits;
+        const edits = (thumbnail.parameters as Record<string, unknown>).edits;
         if (edits && typeof edits === 'object') {
           editCounts.push(Object.keys(edits).length);
         } else {

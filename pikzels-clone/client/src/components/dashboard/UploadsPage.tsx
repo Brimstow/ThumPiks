@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Search, RefreshCw, Loader2, AlertCircle, Trash2, X, Image } from 'lucide-react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { useDraggable, useDroppable } from '@dnd-kit/react';
+import type { DndEvent } from '../../features/drag-drop/types';
 import { getUserAssets, uploadAsset, deleteAsset, getStorageUsage, recategorizeAsset, UserAsset } from '../../services/quickEditService';
 import { formatRelativeTime, formatFileSize } from '../../lib/formatters';
 import ImagePreviewModal from '../ui/ImagePreviewModal';
 import AssetContextMenu, { AssetType } from '../ui/AssetContextMenu';
+import Tooltip from '../ui/Tooltip';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -36,6 +38,62 @@ const ASSET_TYPE_BADGE: Record<string, { label: string; className: string }> = {
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+let uploadsAssetsCache: UserAsset[] | null = null;
+let uploadsAssetsPromise: Promise<UserAsset[]> | null = null;
+let uploadsStorageCache: { usage: { totalBytes: number; count: number }; counts: Record<string, number> } | null = null;
+let uploadsStoragePromise: Promise<{ usage: { totalBytes: number; count: number }; counts: Record<string, number> }> | null = null;
+
+async function fetchDefaultUploadsAssetsWithCache(): Promise<UserAsset[]> {
+  if (uploadsAssetsCache) {
+    return uploadsAssetsCache;
+  }
+
+  if (!uploadsAssetsPromise) {
+    uploadsAssetsPromise = getUserAssets(undefined)
+      .then((data) => {
+        uploadsAssetsCache = data;
+        return data;
+      })
+      .catch((err) => {
+        uploadsAssetsPromise = null;
+        throw err;
+      });
+  }
+
+  return uploadsAssetsPromise;
+}
+
+async function fetchUploadsStorageWithCache(): Promise<{ usage: { totalBytes: number; count: number }; counts: Record<string, number> }> {
+  if (uploadsStorageCache) {
+    return uploadsStorageCache;
+  }
+
+  if (!uploadsStoragePromise) {
+    uploadsStoragePromise = getStorageUsage()
+      .then((data) => {
+        uploadsStorageCache = data;
+        return data;
+      })
+      .catch((err) => {
+        uploadsStoragePromise = null;
+        throw err;
+      });
+  }
+
+  return uploadsStoragePromise;
+}
+
+export async function prefetchUploadsData(): Promise<void> {
+  try {
+    await Promise.all([
+      fetchDefaultUploadsAssetsWithCache(),
+      fetchUploadsStorageWithCache(),
+    ]);
+  } catch (err) {
+    console.error('Error prefetching uploads data:', err);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // DRAG-DROP HELPERS
@@ -73,8 +131,8 @@ const DroppableFilterTab: React.FC<{
 
 const UploadsPage: React.FC = () => {
   // Asset data
-  const [assets, setAssets] = useState<UserAsset[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assets, setAssets] = useState<UserAsset[]>(uploadsAssetsCache ?? []);
+  const [loading, setLoading] = useState(uploadsAssetsCache === null);
   const [error, setError] = useState<string | null>(null);
 
   // Filters & search
@@ -82,8 +140,8 @@ const UploadsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Storage
-  const [storageUsage, setStorageUsage] = useState<{ totalBytes: number; count: number } | null>(null);
-  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  const [storageUsage, setStorageUsage] = useState<{ totalBytes: number; count: number } | null>(uploadsStorageCache?.usage ?? null);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>(uploadsStorageCache?.counts ?? {});
 
   // Upload
   const [isUploading, setIsUploading] = useState(false);
@@ -104,10 +162,19 @@ const UploadsPage: React.FC = () => {
 
   const fetchAssets = useCallback(async () => {
     try {
+      const isDefaultFilter = typeFilter === 'all';
+      if (isDefaultFilter && uploadsAssetsCache) {
+        setAssets(uploadsAssetsCache);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      const filterParam = typeFilter === 'all' ? undefined : typeFilter;
-      const data = await getUserAssets(filterParam);
+      const data = isDefaultFilter
+        ? await fetchDefaultUploadsAssetsWithCache()
+        : await getUserAssets(typeFilter);
+
       setAssets(data);
     } catch (err) {
       console.error('Error fetching assets:', err);
@@ -119,7 +186,13 @@ const UploadsPage: React.FC = () => {
 
   const fetchStorageUsage = useCallback(async () => {
     try {
-      const data = await getStorageUsage();
+      if (uploadsStorageCache) {
+        setStorageUsage(uploadsStorageCache.usage);
+        setTypeCounts(uploadsStorageCache.counts);
+        return;
+      }
+
+      const data = await fetchUploadsStorageWithCache();
       setStorageUsage(data.usage);
       setTypeCounts(data.counts);
     } catch (err) {
@@ -266,14 +339,13 @@ const UploadsPage: React.FC = () => {
   // Map filter tab value → asset type for drag-drop recategorization
   const tabToAssetType: Record<string, AssetType> = { face: 'face', background: 'background', logo: 'logo' };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragEnd = useCallback((event: DndEvent) => {
     const source = event.operation?.source;
     const target = event.operation?.target;
     if (!source || !target) return;
 
-    const assetId = source.data?.assetId as string | undefined;
-    const tabValue = target.data?.tabValue as AssetTypeFilter | undefined;
+    const assetId = (source.data as Record<string, unknown>)?.assetId as string | undefined;
+    const tabValue = (target.data as Record<string, unknown>)?.tabValue as AssetTypeFilter | undefined;
     if (assetId && tabValue && tabValue !== 'all' && tabToAssetType[tabValue]) {
       handleRecategorizeAsset(assetId, tabToAssetType[tabValue]);
     }
@@ -312,14 +384,15 @@ const UploadsPage: React.FC = () => {
               <Search className="w-4 h-4" />
             </div>
           </div>
+          <Tooltip content="Refresh uploads">
           <button
             onClick={handleRefresh}
             disabled={loading}
             className="p-2.5 rounded-lg border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
-            title="Refresh uploads"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          </Tooltip>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
@@ -524,16 +597,17 @@ const UploadsPage: React.FC = () => {
                       <span className="text-xs text-slate-300 truncate">
                         {asset.sizeBytes ? formatFileSize(asset.sizeBytes) : ''}
                       </span>
+                      <Tooltip content="Delete" side="top">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteConfirmId(asset.id);
                         }}
                         className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 hover:text-red-200 transition-colors"
-                        title="Delete"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

@@ -84,40 +84,12 @@ const mockProjectService = {
   setFeaturedThumbnail: jest.fn(),
 };
 
-const mockSocialShareService = {
-  createSocialShare: jest.fn(),
-  updateSocialShare: jest.fn(),
-  getSocialSharesByUser: jest.fn(),
-  getSocialSharesByThumbnail: jest.fn(),
-  getSocialShareStats: jest.fn(),
-  deleteSocialShare: jest.fn(),
-};
-
 jest.mock('../modules/thumbnail/thumbnail.service', () => ({
   ThumbnailService: jest.fn().mockImplementation(() => mockThumbnailService),
 }));
 
 jest.mock('../modules/project/project.service', () => ({
   ProjectService: jest.fn().mockImplementation(() => mockProjectService),
-}));
-
-jest.mock('../modules/social-share/social-share.service', () => ({
-  SocialShareService: jest
-    .fn()
-    .mockImplementation(() => mockSocialShareService),
-}));
-
-jest.mock('../modules/social-share/social-media-factory', () => ({
-  SocialMediaFactory: {
-    createClient: jest.fn().mockReturnValue({
-      uploadMedia: jest.fn().mockResolvedValue({ mediaId: 'mock-media-id' }),
-      createPost: jest.fn().mockResolvedValue({
-        success: true,
-        postUrl: 'https://mock-url',
-        postId: 'mock-post-id',
-      }),
-    }),
-  },
 }));
 
 // Mock Prisma Client
@@ -129,6 +101,23 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+  },
+  subscription: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
+  passwordResetToken: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    count: jest.fn(),
+  },
+  userSession: {
+    updateMany: jest.fn(),
+  },
+  auditLog: {
+    create: jest.fn(),
   },
   thumbnail: {
     findMany: jest.fn(),
@@ -144,16 +133,13 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
-  socialShare: {
-    findMany: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+  PrismaClient: jest.fn().mockImplementation(() => ({
+    ...mockPrisma,
+    $transaction: jest.fn(callback => callback(mockPrisma)),
+  })),
 }));
 
 // Now import the modules
@@ -169,7 +155,6 @@ import profileRoutes from '../modules/auth/profile.routes';
 import thumbnailRoutes from '../modules/thumbnail/thumbnail.routes';
 import projectRoutes from '../modules/project/project.routes';
 import analyticsRoutes from '../modules/analytics/analytics.routes';
-import socialShareRoutes from '../modules/social-share/social-share.routes';
 import templateRoutes from '../modules/templates/template.routes';
 
 // Create test app
@@ -183,7 +168,6 @@ const createTestApp = () => {
   app.use('/api/thumbnails', thumbnailRoutes);
   app.use('/api/projects', projectRoutes);
   app.use('/api/analytics', analyticsRoutes);
-  app.use('/api/social-share', socialShareRoutes);
   app.use('/api/templates', templateRoutes);
 
   return app;
@@ -347,7 +331,7 @@ describe('User App API Routes Tests', () => {
       });
     });
 
-    describe('POST /api/auth/forgot-password', () => {
+    describe('POST /api/auth/request-password-reset', () => {
       it('should handle password reset request', async () => {
         const user = {
           id: 'user123',
@@ -356,7 +340,13 @@ describe('User App API Routes Tests', () => {
         };
 
         mockPrisma.user.findUnique.mockResolvedValue(user);
-        mockPrisma.user.update.mockResolvedValue(user);
+        mockPrisma.passwordResetToken.create.mockResolvedValue({
+          id: 'token-id',
+          userId: 'user123',
+          token: 'valid-reset-token',
+          expiresAt: new Date(Date.now() + 3600000),
+        });
+        mockPrisma.passwordResetToken.count.mockResolvedValue(0);
 
         const response = await request(createServer(app))
           .post('/api/auth/request-password-reset')
@@ -371,18 +361,13 @@ describe('User App API Routes Tests', () => {
 
     describe('POST /api/auth/reset-password', () => {
       it('should reset password with valid token', async () => {
-        const user = {
-          id: 'user123',
-          email: 'user@test.com',
-          passwordResetToken: 'valid-reset-token',
-          passwordResetExpires: new Date(Date.now() + 3600000), // 1 hour from now
-        };
-
-        // Mock JWT verification for reset token
-        (jwt.verify as jest.Mock).mockReturnValue({
+        const tokenRecord = {
+          id: 'token-id',
           userId: 'user123',
-          action: 'reset-password',
-        });
+          token: 'valid-reset-token',
+          isUsed: false,
+          expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
+        };
 
         // Mock password validation to pass
         const PasswordUtils = require('../utils/password.utils').PasswordUtils;
@@ -390,8 +375,16 @@ describe('User App API Routes Tests', () => {
           .spyOn(PasswordUtils, 'validate')
           .mockReturnValue({ valid: true, errors: [] });
 
-        mockPrisma.user.findFirst.mockResolvedValue(user);
-        mockPrisma.user.update.mockResolvedValue(user);
+        mockPrisma.passwordResetToken.findUnique.mockResolvedValue(tokenRecord);
+        mockPrisma.passwordResetToken.update.mockResolvedValue({
+          ...tokenRecord,
+          isUsed: true,
+        });
+        mockPrisma.user.update.mockResolvedValue({
+          id: 'user123',
+          email: 'user@test.com',
+        });
+        mockPrisma.userSession.updateMany.mockResolvedValue({ count: 1 });
         (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
 
         const response = await request(createServer(app))
@@ -606,7 +599,7 @@ describe('User App API Routes Tests', () => {
         expect(response.status).toBe(400);
         expect(response.body).toHaveProperty(
           'error',
-          'Title, prompt, and projectId are required'
+          'Title and projectId are required'
         );
       });
     });
@@ -720,97 +713,6 @@ describe('User App API Routes Tests', () => {
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('project');
         expect(response.body.project.name).toBe(projectData.name);
-      });
-    });
-  });
-
-  describe('Social Share Routes', () => {
-    const mockUserToken = 'valid-user-token';
-
-    beforeEach(() => {
-      // Setup mock user authentication
-      const mockDecoded = {
-        userId: 'user123',
-        email: 'user@test.com',
-      };
-
-      const mockUser = {
-        id: 'user123',
-        email: 'user@test.com',
-        name: 'Test User',
-        isActive: true,
-      };
-
-      (jwt.verify as jest.Mock).mockReturnValue(mockDecoded);
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-    });
-
-    describe('POST /api/social-share/share', () => {
-      it('should create social share', async () => {
-        const shareData = {
-          thumbnailId: 'thumb123',
-          platforms: ['twitter', 'facebook'],
-          message: 'Check out my thumbnail!',
-        };
-
-        // Mock thumbnail exists and belongs to user
-        const mockThumbnail = {
-          id: 'thumb123',
-          userId: 'user123',
-          title: 'Test Thumbnail',
-        };
-
-        // Mock social share creation
-        const createdShare = {
-          id: 'share123',
-          thumbnailId: shareData.thumbnailId,
-          platform: 'twitter',
-          status: 'pending',
-          userId: 'user123',
-          createdAt: new Date(),
-        };
-
-        mockThumbnailService.getThumbnailById.mockResolvedValue(mockThumbnail);
-        mockSocialShareService.createSocialShare.mockResolvedValue(
-          createdShare
-        );
-        mockSocialShareService.updateSocialShare.mockResolvedValue({
-          ...createdShare,
-          status: 'failed',
-          errorMessage: 'No access token for twitter',
-        });
-
-        const response = await request(createServer(app))
-          .post('/api/social-share/share')
-          .set('Authorization', `Bearer ${mockUserToken}`)
-          .send(shareData);
-
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty('message');
-        expect(response.body).toHaveProperty('results');
-      });
-    });
-
-    describe('GET /api/social-share/stats', () => {
-      it('should return sharing statistics', async () => {
-        const mockStats = {
-          totalShares: 25,
-          platformBreakdown: {
-            twitter: 10,
-            facebook: 8,
-            linkedin: 7,
-          },
-          topSharedThumbnails: [],
-        };
-
-        mockSocialShareService.getSocialShareStats.mockResolvedValue(mockStats);
-
-        const response = await request(createServer(app))
-          .get('/api/social-share/stats')
-          .set('Authorization', `Bearer ${mockUserToken}`);
-
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty('stats');
       });
     });
   });

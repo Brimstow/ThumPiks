@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import {
   createCheckout,
   getCurrent,
@@ -6,11 +6,28 @@ import {
   webhook,
   deduct,
   demoComplete,
+  getPlans,
+  getPricing,
+  useWatermarkFreeExport,
 } from './subscription.controller';
 import { validateRequest } from '../../middleware/validation.middleware';
 import { authenticate } from '../../middleware/auth.middleware';
 
 const router = Router();
+
+/**
+ * GET /api/subscription/plans
+ * Retrieve all public pricing plans, credit packs, and FAQs
+ * Public — no authentication required
+ */
+router.get('/plans', getPlans);
+
+/**
+ * GET /api/subscription/pricing
+ * Phase-aware pricing: returns discounted prices, spots left, and time remaining.
+ * Public — no authentication required
+ */
+router.get('/pricing', getPricing);
 
 /**
  * POST /api/subscription/create-checkout
@@ -36,7 +53,7 @@ router.post(
       },
     ],
   }),
-  createCheckout
+  createCheckout as unknown as RequestHandler
 );
 
 /**
@@ -44,14 +61,14 @@ router.post(
  * Get current user's subscription details
  * Requires authentication
  */
-router.get('/current', authenticate, getCurrent);
+router.get('/current', authenticate, getCurrent as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/cancel
  * Cancel current subscription (at period end)
  * Requires authentication
  */
-router.post('/cancel', authenticate, cancel);
+router.post('/cancel', authenticate, cancel as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/deduct-credits
@@ -76,8 +93,15 @@ router.post(
       },
     ],
   }),
-  deduct
+  deduct as unknown as RequestHandler
 );
+
+/**
+ * POST /api/subscription/use-watermark-free-export
+ * Consume one watermark-free export for the current month
+ * Requires authentication
+ */
+router.post('/use-watermark-free-export', authenticate, useWatermarkFreeExport as unknown as RequestHandler);
 
 /**
  * POST /api/subscription/webhook
@@ -114,7 +138,7 @@ router.post(
       },
     ],
   }),
-  demoComplete
+  demoComplete as unknown as RequestHandler
 );
 
 export default router;

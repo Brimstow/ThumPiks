@@ -1,8 +1,11 @@
 /**
  * Drag-and-Drop Feature Types
  * 
- * Domain types for layer reordering drag-drop functionality.
+ * Domain types for layer reordering drag-drop functionality
+ * and template-to-canvas drag-drop functionality.
  */
+
+import type { LayoutPreset, CompositionState } from '../composition-templates/types';
 
 /**
  * Data transferred when dragging a layer item
@@ -14,6 +17,76 @@ export interface LayerDragItem {
   index: number;
   /** Item type discriminator */
   type: 'layer';
+}
+
+/**
+ * Data transferred when dragging a canvas layer to trash/removal zone.
+ * Extends LayerDragItem with additional metadata for group operations.
+ */
+export interface CanvasLayerDragItem {
+  /** Item type discriminator */
+  type: 'canvas-layer';
+  /** Unique layer ID */
+  layerId: string;
+  /** Layer name for display */
+  layerName: string;
+  /** Layer type (image, text, shape, etc.) */
+  layerType: string;
+  /** Group ID if this layer was created from a template drop */
+  groupId?: string;
+}
+
+/**
+ * Data transferred when dragging a composition template
+ */
+export interface TemplateDragItem {
+  /** Item type discriminator */
+  type: 'template';
+  /** The template being dragged */
+  template: LayoutPreset;
+  /** Current composition state (filled slots) */
+  compositionState: CompositionState;
+}
+
+/**
+ * Union type for all drag item types
+ */
+export type DragItemData = LayerDragItem | TemplateDragItem | CanvasLayerDragItem;
+
+/**
+ * Type guard for template drag items
+ */
+export function isTemplateDragItem(data: unknown): data is TemplateDragItem {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
+    (data as { type: string }).type === 'template'
+  );
+}
+
+/**
+ * Type guard for layer drag items
+ */
+export function isLayerDragItem(data: unknown): data is LayerDragItem {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
+    (data as { type: string }).type === 'layer'
+  );
+}
+
+/**
+ * Type guard for canvas layer drag items (for trash/removal)
+ */
+export function isCanvasLayerDragItem(data: unknown): data is CanvasLayerDragItem {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
+    (data as { type: string }).type === 'canvas-layer'
+  );
 }
 
 /**
@@ -70,4 +143,25 @@ export interface DragHandleProps {
   isDragging: boolean;
   /** Optional aria-label override */
   ariaLabel?: string;
+}
+
+/**
+ * Minimal type for @dnd-kit drag events.
+ * Uses structural compatibility to accept DragStartEvent/DragEndEvent/DragMoveEvent.
+ */
+export interface DndEvent {
+  operation: {
+    source: {
+      id: string | number;
+      data: unknown;
+    } | null;
+    target?: {
+      id: string | number;
+      data: unknown;
+    } | null;
+    position?: {
+      current?: { x: number; y: number };
+    };
+  };
+  canceled?: boolean;
 }

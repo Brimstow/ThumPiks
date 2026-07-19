@@ -19,10 +19,10 @@ export const authenticateToken = async (
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     // Try to get token from cookie first (secure HttpOnly), then fallback to Authorization header
-    let token = (req as any).cookies?.token;
+    let token = (req as Request & { cookies?: Record<string, string> }).cookies?.token;
 
     // Fallback to Authorization header for backwards compatibility
     if (!token) {
@@ -112,8 +112,8 @@ export const authenticateToken = async (
     });
 
     next();
-  } catch (error: any) {
-    logger.error('Authentication middleware error', error, {
+  } catch (error: unknown) {
+    logger.error('Authentication middleware error', error instanceof Error ? error : new Error(String(error)), {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       url: req.url,
@@ -126,15 +126,71 @@ export const authenticateToken = async (
   }
 };
 
+/**
+ * Optional authentication middleware.
+ * If a valid token is present, attaches user to request.
+ * If no token or invalid token, silently continues (req.user = undefined).
+ * Useful for endpoints that work for both logged-in and anonymous users
+ * but offer enhanced behaviour (e.g. higher rate limits) when authenticated.
+ */
+export const optionalAuth = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    let token = (req as Request & { cookies?: Record<string, string> }).cookies?.token;
+    if (!token) {
+      const authHeader = req.headers['authorization'];
+      token = authHeader?.split(' ')[1];
+    }
+    if (!token) {
+      next();
+      return;
+    }
+
+    const decoded = EnhancedJWTService.verifyAccessToken(token);
+    if (!decoded) {
+      next();
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, email: true, name: true, emailVerified: true },
+    });
+
+    if (user) {
+      (req as AuthRequest).user = {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        role: 'user' as UserRole,
+        permissions: [
+          'thumbnails:read',
+          'thumbnails:write',
+          'projects:read',
+          'projects:write',
+        ] as Permission[],
+        sessionId: decoded.sessionId || 'legacy-session',
+        lastActivity: new Date(),
+      } as SecureUser;
+    }
+  } catch {
+    // Silently continue without auth
+  }
+  next();
+};
+
 // Refresh token middleware
 export const authenticateRefreshToken = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     // Try to get refresh token from cookie first, then fallback to request body
-    let refreshToken = (req as any).cookies?.refreshToken;
+    let refreshToken = (req as Request & { cookies?: Record<string, string> }).cookies?.refreshToken;
 
     // Fallback to request body for backwards compatibility
     if (!refreshToken) {
@@ -190,8 +246,8 @@ export const authenticateRefreshToken = async (
     } as SecureUser;
 
     next();
-  } catch (error: any) {
-    logger.error('Refresh token middleware error', error);
+  } catch (error: unknown) {
+    logger.error('Refresh token middleware error', error instanceof Error ? error : new Error(String(error)));
     return res.status(403).json({
       error: 'Token refresh failed',
       code: 'REFRESH_ERROR',
@@ -207,7 +263,7 @@ export const requireFeature = (feature: FeatureKey) => {
     req: Request,
     res: Response,
     next: NextFunction
-  ): Promise<any> => {
+  ): Promise<Response | void> => {
     const authReq = req as AuthRequest;
 
     if (!authReq.user) {
@@ -262,8 +318,8 @@ export const requireFeature = (feature: FeatureKey) => {
       authReq.planFeatures = plan.features;
 
       next();
-    } catch (error: any) {
-      logger.error('Feature gate middleware error', error, {
+    } catch (error: unknown) {
+      logger.error('Feature gate middleware error', error instanceof Error ? error : new Error(String(error)), {
         userId: authReq.user?.id,
         feature,
       });
@@ -277,3 +333,18 @@ export const requireFeature = (feature: FeatureKey) => {
 
 // Export alias for consistency with route imports
 export const authenticate = authenticateToken;
+
+/**
+ * Extracts and type-narrows req.user, sending a 401 response if absent.
+ * Returns the user or null (null means response already sent).
+ *
+ * Usage in controllers:
+ *   const user = requireUser(req, res);
+ *   if (!user) return;
+ *   // user is now SecureUser (not undefined)
+ */
+export function requireUser(req: AuthRequest, res: Response): SecureUser | null {
+  if (req.user) return req.user;
+  res.status(401).json({ error: 'Unauthorized' });
+  return null;
+}

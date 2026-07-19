@@ -1,4 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { copyToClipboard } from '@/utils/browserCompat';
+
+/** Chrome-only Navigator API for device memory detection */
+declare global {
+  interface Navigator {
+    deviceMemory?: number;
+  }
+}
+
+/** Custom properties stored on WebGL context for resume functionality */
+interface WebGLContextRefs {
+  __shaderProgram: WebGLProgram;
+  __programInfo: {
+    resolution: WebGLUniformLocation | null;
+    time: WebGLUniformLocation | null;
+    vertexPosition: number;
+  };
+  __positionBuffer: WebGLBuffer;
+  __startTime: number;
+  __render: () => void;
+}
+
+type GLWithRefs = WebGLRenderingContext & Partial<WebGLContextRefs>;
 
 interface AnimatedBackgroundProps {
   opacity?: number; // 0-1, default 1
@@ -15,6 +38,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [debugMode, setDebugMode] = useState(debug);
+  const debugModeRef = useRef(debug);
 
   // Toggle debug mode with Ctrl+Shift+D
   useEffect(() => {
@@ -34,6 +58,10 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  useEffect(() => {
+    debugModeRef.current = debugMode;
+  }, [debugMode]);
+
   // Determine quality immediately (synchronous) to avoid re-renders
   const getDeviceQuality = (): {
     shouldRender: boolean;
@@ -51,7 +79,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
 
     // Detect low-end devices based on hardware concurrency and memory
     const hardwareConcurrency = navigator.hardwareConcurrency || 2;
-    const deviceMemory = (navigator as any).deviceMemory || 4;
+    const deviceMemory = navigator.deviceMemory || 4;
 
     if (hardwareConcurrency <= 2 || deviceMemory <= 2) {
       return { shouldRender: true, quality: 'low' };
@@ -63,7 +91,15 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
   };
 
   const deviceConfig = getDeviceQuality();
-  const [shouldRender, setShouldRender] = useState(deviceConfig.shouldRender);
+
+  // Respect prefers-reduced-motion for accessibility & Safari perf
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const [shouldRender, setShouldRender] = useState(
+    deviceConfig.shouldRender && !prefersReducedMotion
+  );
   const [quality] = useState(deviceConfig.quality);
   const [fps, setFps] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -267,7 +303,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    let startTime = Date.now();
+    const startTime = Date.now();
     let localFrameCount = 0;
     let lastFpsCheck = Date.now();
 
@@ -275,24 +311,28 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
 
     function render() {
       if (!gl || !canvas) {
-        console.error('AnimatedBackground: Canvas or GL context lost!');
+        if (debugModeRef.current) {
+          console.error('AnimatedBackground: Canvas or GL context lost!');
+        }
         return;
       }
 
       // FPS monitoring
       localFrameCount++;
-      setFrameCount(prev => prev + 1);
       const now = Date.now();
-      if (now - lastFpsCheck > 1000) {
+      if (debugModeRef.current && now - lastFpsCheck > 1000) {
         const currentFps = localFrameCount;
-        console.log(`AnimatedBackground FPS: ${currentFps}`);
         setFps(currentFps);
+        setFrameCount(prev => prev + localFrameCount);
         localFrameCount = 0;
         lastFpsCheck = now;
 
         if (currentFps < 20 && quality !== 'low') {
           console.warn('Low FPS detected, consider reducing quality');
         }
+      } else if (now - lastFpsCheck > 1000) {
+        localFrameCount = 0;
+        lastFpsCheck = now;
       }
 
       // Calculate time - freeze when paused using ref
@@ -308,7 +348,9 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
         frozenTimeRef.current = null;
         currentTime = (Date.now() - startTime) / 1000;
       }
-      setCurrentTime(currentTime);
+      if (debugModeRef.current) {
+        setCurrentTime(currentTime);
+      }
 
       // Render
       gl.clearColor(0.0, 0.0, 0.0, 0.0);
@@ -338,23 +380,27 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
       }
     }
 
-    console.log('AnimatedBackground: Starting animation loop...');
+    if (debugModeRef.current) {
+      console.log('AnimatedBackground: Starting animation loop...');
+    }
 
     // Store references on the GL context for resume functionality
-    (gl as any).__shaderProgram = shaderProgram;
-    (gl as any).__programInfo = {
+    (gl as GLWithRefs).__shaderProgram = shaderProgram;
+    (gl as GLWithRefs).__programInfo = {
       resolution: programInfo.uniformLocations.resolution,
       time: programInfo.uniformLocations.time,
       vertexPosition: programInfo.attribLocations.vertexPosition,
     };
-    (gl as any).__positionBuffer = positionBuffer;
-    (gl as any).__startTime = startTime;
-    (gl as any).__render = render;
+    (gl as GLWithRefs).__positionBuffer = positionBuffer;
+    (gl as GLWithRefs).__startTime = startTime;
+    (gl as GLWithRefs).__render = render;
 
     animationIdRef.current = requestAnimationFrame(render);
 
     return () => {
-      console.log('AnimatedBackground: Cleanup called - stopping animation');
+      if (debugModeRef.current) {
+        console.log('AnimatedBackground: Cleanup called - stopping animation');
+      }
       setIsAnimating(false);
       window.removeEventListener('resize', resizeCanvas);
       if (animationIdRef.current) {
@@ -420,18 +466,26 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
     );
   };
 
-  const copySelectedColors = () => {
+  const copySelectedColors = async () => {
     const colorsText = selectedColors.join(', ');
-    navigator.clipboard.writeText(colorsText);
-    console.log('Copied to clipboard:', colorsText);
-    alert(`Copied ${selectedColors.length} colors to clipboard!`);
+    const ok = await copyToClipboard(colorsText);
+    if (ok) {
+      console.log('Copied to clipboard:', colorsText);
+      alert(`Copied ${selectedColors.length} colors to clipboard!`);
+    } else {
+      alert('Failed to copy — try again');
+    }
   };
 
-  const copyAllColors = () => {
+  const copyAllColors = async () => {
     const colorsText = colorSamples.join(', ');
-    navigator.clipboard.writeText(colorsText);
-    console.log('Copied all colors to clipboard:', colorsText);
-    alert(`Copied all ${colorSamples.length} colors to clipboard!`);
+    const ok = await copyToClipboard(colorsText);
+    if (ok) {
+      console.log('Copied all colors to clipboard:', colorsText);
+      alert(`Copied all ${colorSamples.length} colors to clipboard!`);
+    } else {
+      alert('Failed to copy — try again');
+    }
   };
 
   return (
@@ -442,6 +496,8 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
         style={{
           opacity,
           zIndex: 0,
+          willChange: 'transform',
+          transform: 'translateZ(0)', // Force GPU compositing on Safari
         }}
       />
 
@@ -503,7 +559,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
                     if (!gl) return;
 
                     // Use the stored render function to maintain sync
-                    const render = (gl as any).__render;
+                    const render = (gl as GLWithRefs).__render;
                     if (render) {
                       animationIdRef.current = requestAnimationFrame(render);
                     }
@@ -522,6 +578,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
                 disabled={selectedColors.length === 0}
                 className="px-3 py-1 rounded text-xs font-bold bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Copy selected colors to clipboard"
+                aria-label="Copy selected colors to clipboard"
               >
                 📋 Copy ({selectedColors.length})
               </button>
@@ -529,6 +586,7 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({
                 onClick={copyAllColors}
                 className="px-3 py-1 rounded text-xs font-bold bg-purple-500 text-white"
                 title="Copy all colors to clipboard"
+                aria-label="Copy all colors to clipboard"
               >
                 📋 All
               </button>

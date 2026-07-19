@@ -1,7 +1,47 @@
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import { logger } from '../../utils/logger';
 
 dotenv.config();
+
+interface ZenmuxErrorResponse {
+  error?: { message?: string };
+}
+
+interface ZenmuxVertexInlineData {
+  mimeType?: string;
+  data?: string;
+}
+
+interface ZenmuxVertexFileData {
+  mimeType?: string;
+  fileUri?: string;
+  data?: string;
+}
+
+interface ZenmuxVertexPart {
+  text?: string;
+  inlineData?: ZenmuxVertexInlineData;
+  fileData?: ZenmuxVertexFileData;
+}
+
+interface ZenmuxVertexContent {
+  parts?: ZenmuxVertexPart[];
+}
+
+interface ZenmuxVertexCandidate {
+  content?: ZenmuxVertexContent;
+}
+
+interface ZenmuxVertexResponse {
+  candidates?: ZenmuxVertexCandidate[];
+  parts?: ZenmuxVertexPart[];
+  images?: Array<string | { url?: string; data?: string; mimeType?: string }>;
+}
+
+interface ZenmuxChatResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
 
 /**
  * ZenmuxAIService - AI Service using ZenMux API aggregation platform
@@ -44,7 +84,7 @@ export class ZenmuxAIService {
       ZenmuxAIService.IMAGE_MODELS.GEMINI_2_5_FLASH;
 
     if (!this.apiKey) {
-      console.warn(
+      logger.warn(
         'ZENMUX_API_KEY not found in environment variables. Zenmux AI features will not work.'
       );
     }
@@ -162,7 +202,7 @@ export class ZenmuxAIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData: any = {};
+        let errorData: ZenmuxErrorResponse = {};
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -201,7 +241,7 @@ export class ZenmuxAIService {
         );
       }
 
-      const data: any = await response.json();
+      const data = await response.json() as ZenmuxVertexResponse;
 
       // Extract images from Vertex AI response format
       return this.extractImagesFromVertexResponse(data);
@@ -235,7 +275,7 @@ export class ZenmuxAIService {
    * @param data The API response data
    * @returns Array of image URLs (base64 data URIs)
    */
-  private extractImagesFromVertexResponse(data: any): string[] {
+  private extractImagesFromVertexResponse(data: ZenmuxVertexResponse): string[] {
     const images: string[] = [];
 
     // Handle Vertex AI response format
@@ -349,13 +389,13 @@ export class ZenmuxAIService {
       });
 
       if (!response.ok) {
-        const errorData: any = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as ZenmuxErrorResponse;
         throw new Error(
           errorData.error?.message || `Zenmux API error (${response.status})`
         );
       }
 
-      const data: any = await response.json();
+      const data = await response.json() as ZenmuxChatResponse;
 
       if (data.choices?.[0]?.message?.content) {
         return data.choices[0].message.content;

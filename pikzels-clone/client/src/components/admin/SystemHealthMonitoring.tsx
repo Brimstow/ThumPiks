@@ -39,6 +39,22 @@ interface ServerInfo {
   status: 'healthy' | 'warning' | 'critical';
 }
 
+interface ServiceStatusApi {
+  service?: string;
+  name?: string;
+  status?: string;
+  uptime?: string;
+  responseTime?: number;
+  lastChecked?: string;
+}
+
+interface PerformanceMetricsApi {
+  cpu?: { usage: number };
+  memory?: { percentage: number };
+  disk?: { percentage: number };
+  requests?: { averageResponseTime: number };
+}
+
 const StatusBadge: React.FC<{ status: 'good' | 'warning' | 'critical' | 'online' | 'offline' | 'degraded' | 'healthy' }> = ({ status }) => {
   const getStatusConfig = () => {
     switch (status) {
@@ -206,10 +222,10 @@ const SystemHealthMonitoring: React.FC = () => {
       ]);
 
       if (healthResult.success && healthResult.data) {
-        const h = healthResult.data as any;
+        const h = healthResult.data as { services?: ServiceStatusApi[] };
         if (h.services && Array.isArray(h.services)) {
-          setServices(h.services.map((s: any) => ({
-            name: s.service || s.name,
+          setServices(h.services.map((s) => ({
+            name: s.service || s.name || 'unknown',
             status: s.status === 'healthy' ? 'online' : s.status === 'degraded' ? 'degraded' : 'online',
             uptime: s.uptime ?? '99.9%',
             responseTime: s.responseTime ?? 0,
@@ -219,7 +235,7 @@ const SystemHealthMonitoring: React.FC = () => {
       }
 
       if (perfResult.success && perfResult.data) {
-        const p = perfResult.data as any;
+        const p = perfResult.data as PerformanceMetricsApi;
         setSystemMetrics(prev => prev.map(metric => {
           if (metric.name === 'CPU Usage' && p.cpu) {
             return { ...metric, value: p.cpu.usage, history: [...metric.history.slice(1), p.cpu.usage] };

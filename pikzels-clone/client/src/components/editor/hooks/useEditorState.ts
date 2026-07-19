@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useEditorStore } from '../../../stores/editorStore';
+import { useEditorStore, type EditorStore } from '../../../stores/editorStore';
 import type {
   EditorState,
   EditorAction,
@@ -18,6 +18,9 @@ import type {
   SmartSelectionState,
 } from '../types/editor.types';
 import { DEFAULT_ADJUSTMENTS, DEFAULT_SMART_SELECTION } from '../types/editor.types';
+
+// Type for any Zustand store hook created by our factory
+type EditorStoreHook = typeof useEditorStore;
 
 // Generate unique IDs
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -176,6 +179,10 @@ const pushHistory = (
   newSelection: Selection,
   newAdjustments: AdjustmentState,
 ): { history: HistoryEntry[]; historyIndex: number } => {
+  // During a batch, skip pushing history entries — one consolidated entry is pushed on BATCH_END
+  if (state.batchInProgress) {
+    return { history: state.history, historyIndex: state.historyIndex };
+  }
   let newHistory = state.history.slice(0, state.historyIndex + 1);
   newHistory.push(
     createHistoryEntry(actionLabel, newLayers, newLayerOrder, newSelection, newAdjustments),
@@ -223,6 +230,66 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'REMOVE_LAYERS_BATCH': {
+      // Remove multiple layers in a single history entry (for undo/redo)
+      const idsToRemove = new Set(action.layerIds);
+      const newLayers = state.layers.filter(l => !idsToRemove.has(l.id));
+      const newLayerOrder = state.layerOrder.filter(id => !idsToRemove.has(id));
+      const newSelection = {
+        layerIds: state.selection.layerIds.filter(id => !idsToRemove.has(id)),
+      };
+      const hist = pushHistory(
+        state, 
+        `Remove ${action.layerIds.length} layers`, 
+        newLayers, 
+        newLayerOrder, 
+        newSelection, 
+        state.adjustments
+      );
+      
+      return {
+        ...state,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
+    case 'REMOVE_LAYERS_BY_GROUP': {
+      // Remove all layers sharing a groupId (for template group removal)
+      const layersToRemove = state.layers
+        .filter(l => l.groupId === action.groupId)
+        .map(l => l.id);
+      
+      if (layersToRemove.length === 0) return state;
+
+      const idsToRemove = new Set(layersToRemove);
+      const newLayers = state.layers.filter(l => !idsToRemove.has(l.id));
+      const newLayerOrder = state.layerOrder.filter(id => !idsToRemove.has(id));
+      const newSelection = {
+        layerIds: state.selection.layerIds.filter(id => !idsToRemove.has(id)),
+      };
+      const hist = pushHistory(
+        state, 
+        `Remove template group (${layersToRemove.length} layers)`, 
+        newLayers, 
+        newLayerOrder, 
+        newSelection, 
+        state.adjustments
+      );
+      
+      return {
+        ...state,
+        layers: newLayers,
+        layerOrder: newLayerOrder,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
     case 'UPDATE_LAYER': {
       const newLayers = state.layers.map(layer =>
         layer.id === action.layerId
@@ -237,6 +304,29 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         ...hist,
         isModified: true,
       };
+    }
+
+    case 'UPDATE_LAYER_SILENT': {
+      // Same as UPDATE_LAYER but NO history push — used for real-time typing
+      const newLayers = state.layers.map(layer =>
+        layer.id === action.layerId
+          ? { ...layer, ...action.updates } as Layer
+          : layer
+      );
+      return { ...state, layers: newLayers };
+    }
+
+    case 'MOVE_GROUP_SILENT': {
+      // Move all layers in a group by a delta — no history push, used for real-time group dragging
+      const moveMap = new Map<string, { x: number; y: number }>(
+        action.moves.map((m: { layerId: string; x: number; y: number }) => [m.layerId, m])
+      );
+      const newLayers = state.layers.map(layer => {
+        const move = moveMap.get(layer.id);
+        if (!move) return layer;
+        return { ...layer, transform: { ...layer.transform, x: move.x, y: move.y } };
+      });
+      return { ...state, layers: newLayers };
     }
 
     case 'REORDER_LAYERS': {
@@ -417,6 +507,155 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'FILL_UPLOAD_ZONE': {
+      // Find the placeholder ShapeLayer with slotMetadata
+      const layerIndex = state.layers.findIndex(l => l.id === action.layerId);
+      if (layerIndex === -1) return state;
+      const existing = state.layers[layerIndex];
+      if (existing.type !== 'shape' || !(existing as ShapeLayer).slotMetadata) return state;
+
+      const meta = (existing as ShapeLayer).slotMetadata!;
+
+      // Create replacement ImageLayer with same id (keeps layerOrder intact)
+      const imageLayer: ImageLayer = {
+        id: existing.id,
+        name: `${meta.label}`,
+        type: 'image',
+        visible: existing.visible,
+        locked: existing.locked,
+        opacity: meta.opacity,
+        blendMode: meta.blendMode as BlendMode,
+        transform: { ...existing.transform },
+        effects: [],
+        src: action.imageSrc,
+        originalWidth: action.imageWidth,
+        originalHeight: action.imageHeight,
+        filters: {
+          brightness: 100,
+          contrast: 100,
+          saturation: 100,
+          hue: 0,
+          blur: 0,
+          sharpen: 0,
+          noise: 0,
+          sepia: 0,
+          grayscale: 0,
+          invert: 0,
+        },
+        slotMetadata: meta,
+        ...(existing.groupId ? { groupId: existing.groupId } : {}),
+      };
+
+      // Replace in-place (same index)
+      const newLayers = [...state.layers];
+      newLayers[layerIndex] = imageLayer;
+      const newSelection = { layerIds: [existing.id] };
+      const hist = pushHistory(state, `Fill: ${meta.label}`, newLayers, state.layerOrder, newSelection, state.adjustments);
+
+      return {
+        ...state,
+        layers: newLayers,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
+    case 'CLEAR_UPLOAD_ZONE': {
+      // Find the filled ImageLayer with slotMetadata
+      const layerIndex = state.layers.findIndex(l => l.id === action.layerId);
+      if (layerIndex === -1) return state;
+      const existing = state.layers[layerIndex];
+      if (existing.type !== 'image' || !(existing as ImageLayer).slotMetadata) return state;
+
+      const meta = (existing as ImageLayer).slotMetadata!;
+
+      // Rebuild placeholder ShapeLayer
+      const placeholderLayer: ShapeLayer = {
+        id: existing.id,
+        name: `📷 ${meta.label} (drop image)`,
+        type: 'shape',
+        visible: existing.visible,
+        locked: existing.locked,
+        opacity: 100,
+        blendMode: 'normal',
+        transform: { ...existing.transform },
+        effects: [],
+        shapeType: 'rectangle',
+        fill: 'rgba(99, 102, 241, 0.1)',
+        stroke: '#6366f1',
+        strokeWidth: 2,
+        cornerRadius: 4,
+        slotMetadata: meta,
+        ...(existing.groupId ? { groupId: existing.groupId } : {}),
+      };
+
+      // Replace in-place
+      const newLayers = [...state.layers];
+      newLayers[layerIndex] = placeholderLayer;
+      const newSelection = { layerIds: [existing.id] };
+      const hist = pushHistory(state, `Clear: ${meta.label}`, newLayers, state.layerOrder, newSelection, state.adjustments);
+
+      return {
+        ...state,
+        layers: newLayers,
+        selection: newSelection,
+        ...hist,
+        isModified: true,
+      };
+    }
+
+    case 'BATCH_START': {
+      // If already in a batch, auto-end the previous one first
+      if (state.batchInProgress) {
+        const hist = pushHistory(
+          { ...state, batchInProgress: false },
+          state.batchLabel || 'AI batch',
+          state.layers,
+          state.layerOrder,
+          state.selection,
+          state.adjustments,
+        );
+        return {
+          ...state,
+          ...hist,
+          batchInProgress: true,
+          batchLabel: action.label,
+        };
+      }
+      return {
+        ...state,
+        batchInProgress: true,
+        batchLabel: action.label,
+      };
+    }
+
+    case 'BATCH_END': {
+      if (!state.batchInProgress) return state;
+      // Push a single consolidated history entry for the entire batch
+      let newHistory = state.history.slice(0, state.historyIndex + 1);
+      newHistory.push(
+        createHistoryEntry(
+          state.batchLabel || 'AI batch',
+          state.layers,
+          state.layerOrder,
+          state.selection,
+          state.adjustments,
+        ),
+      );
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory = newHistory.slice(newHistory.length - MAX_HISTORY);
+      }
+      return {
+        ...state,
+        batchInProgress: false,
+        batchLabel: undefined,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isModified: true,
+      };
+    }
+
     case 'UNDO': {
       if (state.historyIndex <= 0) return state; // Can't undo past initial state
       const prevEntry = state.history[state.historyIndex - 1];
@@ -461,6 +700,31 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         smartSelection: { ...DEFAULT_SMART_SELECTION },
       };
 
+    case 'CLEAR_CANVAS': {
+      // Preserve canvas dimensions/settings and tool settings, clear everything else
+      const emptyLayers: Layer[] = [];
+      const emptyLayerOrder: string[] = [];
+      const emptySelection: Selection = { layerIds: [] };
+      const freshAdjustments: AdjustmentState = { ...DEFAULT_ADJUSTMENTS };
+      const freshSmartSelection: SmartSelectionState = { ...DEFAULT_SMART_SELECTION };
+      const initialSnapshot = createHistoryEntry('Clear canvas', emptyLayers, emptyLayerOrder, emptySelection, freshAdjustments);
+
+      return {
+        ...state,
+        layers: emptyLayers,
+        layerOrder: emptyLayerOrder,
+        selection: emptySelection,
+        activeTool: 'select',
+        // canvas is preserved (dimensions, zoom, pan, bg, grid)
+        // toolSettings is preserved
+        adjustments: freshAdjustments,
+        smartSelection: freshSmartSelection,
+        history: [initialSnapshot],
+        historyIndex: 0,
+        isModified: true,
+      };
+    }
+
     case 'RESET':
       return createInitialState();
 
@@ -470,9 +734,14 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 // Hook
-export function useEditorState(initialWidth?: number, initialHeight?: number) {
+export function useEditorState(
+  initialWidth?: number,
+  initialHeight?: number,
+  options?: { store?: EditorStoreHook }
+) {
   // Get persisted state from Zustand store (if any)
-  const store = useEditorStore();
+  const storeHook = options?.store ?? useEditorStore;
+  const store = storeHook();
   const persistedState = useMemo(() => ({
     layers: store.layers,
     layerOrder: store.layerOrder,
@@ -607,13 +876,16 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
       fontSize: state.toolSettings.text.fontSize,
       fontWeight: state.toolSettings.text.fontWeight,
       fontStyle: 'normal',
-      textAlign: 'left',
+      textAlign: 'center',
       verticalAlign: 'top',
       fill: state.toolSettings.text.color,
       letterSpacing: 0,
       lineHeight: 1.4,
       textDecoration: 'none',
       textTransform: 'none',
+      textShadow: '',
+      backgroundColor: '',
+      backgroundPadding: 8,
     };
     dispatch({ type: 'ADD_LAYER', layer });
     return layer.id;
@@ -750,6 +1022,25 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
     dispatch({ type: 'MARK_SAVED' });
   }, []);
 
+  // Clear canvas — removes all layers/history but preserves canvas dimensions and tool settings
+  // JJ: Sync immediately (not debounced) to the Zustand store so that navigating away
+  // before the 300ms debounce fires doesn't leave stale layers in sessionStorage.
+  const clearCanvas = useCallback(() => {
+    dispatch({ type: 'CLEAR_CANVAS' });
+    // Flush the empty state to the persistent store RIGHT NOW.
+    // Without this, the 300ms-debounced sync effect may not fire before unmount,
+    // and the old layers (with the image base64) survive in sessionStorage.
+    store.syncFromReducer({
+      layers: [],
+      layerOrder: [],
+      selection: { layerIds: [] },
+      activeTool: 'select',
+      adjustments: { ...DEFAULT_ADJUSTMENTS },
+      smartSelection: { ...DEFAULT_SMART_SELECTION },
+      isModified: true,
+    });
+  }, [store]);
+
   return {
     state,
     dispatch,
@@ -776,6 +1067,8 @@ export function useEditorState(initialWidth?: number, initialHeight?: number) {
     // Save state
     markSaved,
     isModified: state.isModified,
+    // Clear canvas
+    clearCanvas,
   };
 }
 

@@ -11,15 +11,9 @@ module.exports = {
     ecmaVersion: 2020,
     sourceType: 'module',
     project: './tsconfig.json',
+    tsconfigRootDir: __dirname,
   },
-  ignorePatterns: [
-    '**/*.test.ts',
-    '**/*.spec.ts',
-    '**/__tests__/**/*',
-    'dist/',
-    'node_modules/',
-    'src/generated/**/*',
-  ],
+  ignorePatterns: ['dist/', 'node_modules/', 'src/generated/**/*'],
   rules: {
     // Naming conventions
     '@typescript-eslint/naming-convention': [
@@ -39,6 +33,7 @@ module.exports = {
       {
         selector: 'function',
         format: ['camelCase', 'PascalCase'],
+        leadingUnderscore: 'allow',
       },
       {
         selector: 'variable',
@@ -51,11 +46,17 @@ module.exports = {
     '@typescript-eslint/prefer-optional-chain': 'warn', // Consistent warning level
     '@typescript-eslint/no-unused-vars': [
       'error',
-      { argsIgnorePattern: '^_', caughtErrors: 'none' },
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrors: 'none',
+      },
     ],
     '@typescript-eslint/explicit-function-return-type': 'off',
     // PROFESSIONAL CODE QUALITY RULES
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': 'error',
+    // Console logging: use structured logger (src/utils/logger.ts) in production code
+    'no-console': ['error', { allow: ['warn'] }],
     // v8 new strict rules - disabled for now, enable incrementally
     '@typescript-eslint/no-require-imports': 'off',
     '@typescript-eslint/no-unsafe-function-type': 'off',
@@ -71,4 +72,66 @@ module.exports = {
     node: true,
     es6: true,
   },
+  overrides: [
+    {
+      files: ['*.js', '*.cjs', '*.mjs'],
+      parserOptions: {
+        project: null,
+      },
+      rules: {
+        // Disable type-aware rules for plain JS files
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+        '@typescript-eslint/no-unsafe-call': 'off',
+        '@typescript-eslint/no-unsafe-member-access': 'off',
+        '@typescript-eslint/no-unsafe-return': 'off',
+        '@typescript-eslint/no-unsafe-argument': 'off',
+        '@typescript-eslint/restrict-template-expressions': 'off',
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/require-await': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+        '@typescript-eslint/await-thenable': 'off',
+        '@typescript-eslint/unbound-method': 'off',
+        '@typescript-eslint/prefer-nullish-coalescing': 'off',
+        '@typescript-eslint/prefer-optional-chain': 'off',
+        '@typescript-eslint/naming-convention': 'off',
+        '@typescript-eslint/consistent-type-definitions': 'off',
+      },
+    },
+    {
+      files: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**/*'],
+      env: {
+        jest: true,
+      },
+      rules: {
+        // Relax rules that are noisy in test files
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/consistent-type-definitions': 'off',
+        '@typescript-eslint/naming-convention': 'off',
+        'no-magic-numbers': 'off',
+        'max-lines-per-function': 'off',
+        'no-console': 'off',
+        complexity: 'off',
+        'max-depth': 'off',
+        // Keep these enforced in tests
+        // '@typescript-eslint/no-unused-vars': 'error',
+        // 'prefer-const': 'error',
+        // 'no-var': 'error',
+      },
+    },
+    {
+      files: ['src/scripts/**/*'],
+      rules: {
+        // Scripts are CLI utilities — console output is expected
+        'no-console': 'off',
+        'max-lines-per-function': 'off',
+      },
+    },
+    {
+      files: ['src/utils/logger.ts'],
+      rules: {
+        // Logger uses console internally by design (outputs to stdout for transports)
+        'no-console': 'off',
+      },
+    },
+  ],
 };
