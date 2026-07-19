@@ -40,9 +40,8 @@ module.exports = {
     '/node_modules/',
     // Playwright E2E specs rely on a global `page` and must run via Playwright, not Jest.
     '\\.e2e\\.test\\.(ts|tsx)$',
-    // ThumbnailStudio(Page) are canvas + @ffmpeg.wasm browser-integration suites that
-    // require a real browser/canvas; they are covered by Playwright E2E, not jsdom.
-    'editor[\\\\/](.*[\\\\/])?ThumbnailStudio\\.test\\.tsx$',
-    'editor[\\\\/]__tests__[\\\\/]ThumbnailStudioPage\\.test\\.tsx$',
+    // ThumbnailStudio is a canvas + browser-integration component suite that
+    // requires a real browser/canvas; covered by Playwright E2E, not jsdom.
+    'editor[\\\\/]ThumbnailStudio\\.test\\.tsx$',
   ],
 };

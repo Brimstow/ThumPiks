@@ -72,6 +72,33 @@ jest.mock('../panels/ToolsPanel', () => ({
   },
 }));
 
+// Mock EditorRouter to avoid pulling in ThumbnailStudio's complex dependencies.
+// ThumbnailStudioPage tests focus on routing/loading/error states, not editor internals.
+jest.mock('../EditorRouter', () => ({
+  __esModule: true,
+  EditorRouter: function MockEditorRouter() {
+    return (
+      <div>
+        <h1>Thumbnail Studio</h1>
+        <div data-testid="canvas-engine">Canvas Engine</div>
+        <button>Layers</button>
+        <button>Adjust</button>
+        <button>AI</button>
+        <button>Props</button>
+        <button>Save</button>
+        <button>Export</button>
+        <button title="Undo (Ctrl+Z)" disabled>Undo</button>
+        <button title="Redo (Ctrl+Y)" disabled>Redo</button>
+        <div data-testid="adjustments-panel">
+          <span>Brightness</span>
+          <span>Contrast</span>
+          <span>Saturation</span>
+        </div>
+      </div>
+    );
+  },
+}));
+
 const renderWithRouter = (initialEntry: string) => {
   const routes = [
     { path: '/dashboard/editor', element: <ThumbnailStudioPage /> },

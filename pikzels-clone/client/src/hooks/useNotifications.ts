@@ -11,11 +11,14 @@
  * 4. UI automatically updates with fresh data
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authGet, authPatch, authPost, authDelete } from '@/utils/api';
 import config from '@/config/environment';
 import { useAuth } from '@/contexts/AuthContext';
+
+const MAX_SSE_FAILURES = 3;
+const SSE_POLL_FALLBACK_INTERVAL = 30_000;
 
 // ═══════════════════════════════════════════════════════════════════
 // Types
@@ -112,9 +115,11 @@ async function bulkDeleteNotificationsApi(ids: string[]): Promise<void> {
 // SSE Connection Hook
 // ═══════════════════════════════════════════════════════════════════
 
-function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) {
+function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean): boolean {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failureCountRef = useRef(0);
+  const [sseAvailable, setSseAvailable] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -129,7 +134,12 @@ function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) 
     let mounted = true;
 
     const connect = () => {
-      if (!mounted) return;
+      if (!mounted || failureCountRef.current >= MAX_SSE_FAILURES) {
+        if (failureCountRef.current >= MAX_SSE_FAILURES) {
+          setSseAvailable(false);
+        }
+        return;
+      }
 
       // Build SSE URL
       const sseUrl = `${config.apiBaseUrl}/api/notifications/stream`;
@@ -152,6 +162,14 @@ function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) 
       es.onerror = () => {
         // Connection lost — attempt reconnect after delay
         es.close();
+        failureCountRef.current += 1;
+
+        if (failureCountRef.current >= MAX_SSE_FAILURES) {
+          // SSE not available (e.g., Netlify proxy timeout) — switch to polling
+          setSseAvailable(false);
+          return;
+        }
+
         reconnectTimeoutRef.current = setTimeout(connect, 5000);
       };
     };
@@ -166,6 +184,8 @@ function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) 
       }
     };
   }, [onInvalidate, isAuthenticated]);
+
+  return sseAvailable;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -175,6 +195,15 @@ function useNotificationSSE(onInvalidate: () => void, isAuthenticated: boolean) 
 export function useNotifications(page = 1, limit = 20, filters?: NotificationFilters) {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
+
+  // Invalidation callback for SSE
+  const handleInvalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+  }, [queryClient]);
+
+  // Connect to SSE for real-time updates (returns false if SSE unavailable)
+  const sseAvailable = useNotificationSSE(handleInvalidate, isAuthenticated);
 
   // Fetch notifications list (query key includes filter for per-tab caching)
   const {
@@ -188,6 +217,8 @@ export function useNotifications(page = 1, limit = 20, filters?: NotificationFil
     staleTime: 30_000, // 30 seconds — SSE will invalidate when needed
     refetchOnWindowFocus: true,
     enabled: isAuthenticated,
+    // Poll as fallback when SSE is unavailable (e.g., Netlify proxy timeout)
+    refetchInterval: sseAvailable ? false : SSE_POLL_FALLBACK_INTERVAL,
   });
 
   // Fetch unread count (separate for badge updates)
@@ -200,16 +231,9 @@ export function useNotifications(page = 1, limit = 20, filters?: NotificationFil
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     enabled: isAuthenticated,
+    // Poll as fallback when SSE is unavailable
+    refetchInterval: sseAvailable ? false : SSE_POLL_FALLBACK_INTERVAL,
   });
-
-  // Invalidation callback for SSE
-  const handleInvalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
-  }, [queryClient]);
-
-  // Connect to SSE for real-time updates
-  useNotificationSSE(handleInvalidate, isAuthenticated);
 
   // Mark single notification as read
   const markReadMutation = useMutation({
