@@ -908,7 +908,7 @@ message: "API key or secret detected in source code — use environment variable
 exclude: ["**/*.test.*", "**/*.spec.*", "**/node_modules/**", "**/.env.example"]
 ---
 id: no-auth-bypass
-trigger: "pikzels-clone/src/**/*.{ts,js}"
+trigger: "thumpiks/src/**/*.{ts,js}"
 severity: block
 antipattern: /authenticateToken|authenticateAdmin|requireAuth/
 message: "Route handler missing authentication middleware — all endpoints must be protected"
@@ -922,20 +922,20 @@ message: "eval() or new Function() detected — potential code injection vector"
 exclude: ["**/*.test.*", "**/node_modules/**"]
 ---
 id: no-unsafe-csp
-trigger: "pikzels-clone/src/**/*.{ts,js}"
+trigger: "thumpiks/src/**/*.{ts,js}"
 severity: warn
 pattern: /unsafe-eval|unsafe-inline/
 message: "unsafe-eval or unsafe-inline in CSP — weakens XSS protection"
 ---
 id: no-hardcoded-cors-star
-trigger: "pikzels-clone/src/**/*.{ts,js}"
+trigger: "thumpiks/src/**/*.{ts,js}"
 severity: warn
 pattern: /cors\(\s*\)|origin:\s*['"]?\*/
 message: "Wildcard CORS origin detected — restrict to known domains"
 exclude: ["**/*.test.*"]
 ---
 id: auth-middleware-order
-trigger: "pikzels-clone/src/server.ts"
+trigger: "thumpiks/src/server.ts"
 severity: warn
 pattern: /app\.(get|post|put|patch|delete)\s*\(\s*['"][^'"]+['"]\s*,\s*[^a]/
 message: "Route registered without middleware — verify auth is applied"

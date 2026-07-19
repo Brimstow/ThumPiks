@@ -8,7 +8,7 @@ This guide explains how to extend the user settings feature to add new preferenc
 
 ### 1. Update the Settings Interface
 
-First, update the [UserSettings](file:///b:/Thumbnail_maker/pikzels-clone/client/src/components/UserSettings.tsx#L4-L16) interface in `client/src/components/UserSettings.tsx`:
+First, update the [UserSettings](file:///b:/Thumbnail_maker/thumpiks/client/src/components/UserSettings.tsx#L4-L16) interface in `client/src/components/UserSettings.tsx`:
 
 ```typescript
 interface UserSettings {

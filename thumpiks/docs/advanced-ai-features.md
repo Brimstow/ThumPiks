@@ -34,7 +34,7 @@ The advanced AI features follow a modular architecture with the following compon
 
 ### AI Enhancement Service
 
-The [AIEnhancementService](file:///B:/Thumbnail_maker/pikzels-clone/src/modules/ai/ai-enhancement.service.ts#L12-L396) provides two main categories of features:
+The [AIEnhancementService](file:///B:/Thumbnail_maker/thumpiks/src/modules/ai/ai-enhancement.service.ts#L12-L396) provides two main categories of features:
 
 1. **Style Transfer**:
    - Apply artistic styles to thumbnails
