@@ -114,6 +114,6 @@ ThumPiks is in **public beta / early access**. Plans range from a free tier up t
 
 ## Contact
 
-Crafted by **Augment Required** — questions or feedback: **davisk.dev@mail.com**
+Crafted by **Augment Required** — questions or feedback: **150487688+davisk360@users.noreply.github.com**
 
 <sub>© 2025 ThumPiks LLC</sub>
