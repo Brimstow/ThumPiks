@@ -114,6 +114,6 @@ ThumPiks is in **public beta / early access**. Plans range from a free tier up t
 
 ## Contact
 
-Built by the ThumPiks team — questions or feedback: **contact@thumpiks.com**
+Built under the **Augment Required** studio — questions or feedback: **contact@thumpiks.com**
 
 <sub>© 2025 ThumPiks LLC</sub>
