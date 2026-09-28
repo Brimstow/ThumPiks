@@ -35,7 +35,7 @@ ThumPiks is that product. It is live, in beta, and also the largest thing I have
 - **A/B testing & analytics** — compare thumbnail variants and track engagement.
 - **Templates** — browse and reuse thumbnail templates.
 - **Video tools** — frame extraction and editing plus YouTube trending insights.
-- **Collaboration** — projects, teams, sharing, and real-time chat.
+- **Projects & organization** — projects with bulk move and organizing, reusable templates, and curated composition layouts.
 - **Billing & credits** — Stripe and Polar subscriptions with a credit system.
 - **Auth & security** — email/password, Google + GitHub OAuth, MFA (TOTP), and password reset.
 
@@ -100,6 +100,14 @@ ThumPiks/
     └── tests/e2e/          # Playwright specs
 ```
 
+
+## Roadmap
+
+Features on the way, as listed on the public changelog (published January 2026):
+
+- **Video-to-Thumbnail AI** — upload a video and let AI suggest the perfect thumbnail moments (expected Q1 2026)
+- **Browser Extension** — generate thumbnails from YouTube Studio in one click (expected Q1 2026)
+- **Competitor Analysis** — analyze competitor thumbnails with AI recommendations (expected Q2 2026)
 ## Tech stack
 
 **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Radix UI, Zustand, TanStack Query, React Router, Framer Motion, TensorFlow.js / MediaPipe, Zod.
