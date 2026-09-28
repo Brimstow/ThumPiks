@@ -40,6 +40,19 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "credentialless"
 
+# ═══════════════════════════════════════════════════════════════════
+# PRE-LAUNCH CLOAK (thumpiks.com) — REMOVE AT PRIMETIME
+# ═══════════════════════════════════════════════════════════════════
+# Keeps the site out of search engines and AI indexes until launch.
+# PAIRED WITH: client/public/robots.txt (Disallow: /) — update BOTH at launch.
+# Launch checklist: 1) delete this header block  2) empty public/robots.txt
+#   Disallow  3) add sitemap.xml on the live host  4) submit in Google
+#   Search Console  5) verify via `curl -sI thumpiks.com | grep -i x-robots`.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 # Admin SPA fallback (must be before the main catch-all)
 [[redirects]]
   from = "/admin/*"

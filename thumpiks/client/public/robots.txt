@@ -1,0 +1,6 @@
+# PRE-LAUNCH CLOAK — REMOVE AT PRIMETIME (see thumpiks.com launch checklist).
+# PAIRED WITH: netlify.toml [[headers]] X-Robots-Tag: noindex — update BOTH.
+# robots.txt alone does NOT prevent indexing of externally-linked URLs; the
+# noindex header is the real directive. Both are staging-only artifacts.
+User-agent: *
+Disallow: /
