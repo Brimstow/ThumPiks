@@ -77,7 +77,10 @@
   NODE_ENV = "production"
   VITE_ENV = "production"
   VITE_API_URL = ""
-  API_PROXY_TARGET = "https://thumbnail-maker-studio-production.up.railway.app"
+  # TEMP: domain launch points the API at the staging backend until primetime.
+  # REVERT to https://thumbnail-maker-studio-production.up.railway.app after
+  # the production Railway env is refreshed (Polar token, Google OAuth, CORS).
+  API_PROXY_TARGET = "https://thumbnail-maker-studio-staging.up.railway.app"
 
 # Deploy Preview context - for PR previews
 [context.deploy-preview]
