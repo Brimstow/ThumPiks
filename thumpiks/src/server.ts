@@ -5,7 +5,7 @@ import path from 'path';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
-import { isProductionLike, isDevelopmentEnv } from './utils/env';
+import { isProductionLike, isDevelopmentEnv, validateDatabaseUrl } from './utils/env';
 
 // Load environment variables FIRST
 dotenv.config();
@@ -500,6 +500,17 @@ export default app;
 
 // Only start server if this file is run directly (not imported by tests)
 if (require.main === module) {
+  // Fail fast on misconfigured database networking (e.g., public TCP proxy)
+  try {
+    validateDatabaseUrl();
+  } catch (error) {
+    logger.error(
+      'Startup aborted: invalid DATABASE_URL configuration',
+      error instanceof Error ? error : undefined
+    );
+    process.exit(1);
+  }
+
   // Initialize and start server
   const serverPromise = initializeServer();
 
