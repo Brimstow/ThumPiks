@@ -6,6 +6,9 @@ module.exports = {
     '**/__tests__/**/*.+(ts|tsx|js)',
     '**/?(*.)+(spec|test).+(ts|tsx|js)',
   ],
+  // test-utils.ts is a shared mock helper, not a test suite — exclude it from
+  // collection so Jest doesn't run it as an empty suite. Imports still resolve.
+  testPathIgnorePatterns: ['/node_modules/', '/__tests__/test-utils\\.ts$'],
   transform: {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',

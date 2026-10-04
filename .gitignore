@@ -169,6 +169,7 @@ setup-*.js
 verify-*.js
 test-*.js
 test-*.ts
+!test-utils.ts
 seed-*.js
 fix-*.js
 cleanup-*.js
