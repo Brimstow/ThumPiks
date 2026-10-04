@@ -42,7 +42,7 @@ ThumPiks is that product. It is live, in beta, and also the largest thing I have
 
 ## Try it
 
-Live at **[thumpiks.com](https://thumpiks.com)** (public beta). The frontend is served by Netlify; `thumbnail-maker-studio.netlify.app` redirects there.
+Live at **[thumpiks.com](https://thumpiks.com)** (public beta), also reachable via `thumbnail-maker-studio.netlify.app`.
 
 The Free plan needs no credit card and includes 150 AI thumbnail credits/month and 1 watermark-free export/month, so you can create a real thumbnail without signing up for anything paid.
 
