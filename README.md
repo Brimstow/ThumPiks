@@ -10,7 +10,6 @@
 
 <p align="center">
   <img alt="Status: Beta" src="https://img.shields.io/badge/status-beta-blue">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-~134K%20LOC-3178c6">
   <img alt="Backend modules" src="https://img.shields.io/badge/backend%20modules-38-6f42c1">
   <img alt="Prisma models" src="https://img.shields.io/badge/prisma%20models-45-2d3748">
 </p>
