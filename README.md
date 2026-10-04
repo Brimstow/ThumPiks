@@ -3,7 +3,7 @@
 **AI-powered YouTube thumbnail studio.** Paste a video link, generate a click-worthy thumbnail with AI, then fine-tune it in a full canvas editor with brand kits, A/B testing, and analytics.
 
 <p align="center">
-  <a href="https://thumbnail-maker-studio.netlify.app"><b>Live demo →</b></a> &nbsp;•&nbsp;
+  <a href="https://thumpiks.com"><b>Live at thumpiks.com →</b></a> &nbsp;•&nbsp;
   <a href="#try-it">Try it with a free account</a> &nbsp;•&nbsp;
   <a href="#engineering-highlights">Engineering highlights</a>
 </p>
@@ -42,7 +42,7 @@ ThumPiks is that product. It is live, in beta, and also the largest thing I have
 
 ## Try it
 
-Live at **[thumbnail-maker-studio.netlify.app](https://thumbnail-maker-studio.netlify.app)**.
+Live at **[thumpiks.com](https://thumpiks.com)** (public beta). The frontend is served by Netlify; `thumbnail-maker-studio.netlify.app` redirects there.
 
 The Free plan needs no credit card and includes 150 AI thumbnail credits/month and 1 watermark-free export/month, so you can create a real thumbnail without signing up for anything paid.
 
