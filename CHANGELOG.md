@@ -1,6 +1,6 @@
 # Changelog
 
-> Mirrors the public changelog at https://thumbnail-maker-studio.netlify.app/changelog.
+> Mirrors the public changelog at https://thumpiks.com/changelog.
 > The site remains the canonical source; this file is a snapshot for repository readers.
 
 ## 1.2.0 (MAJOR) — January 20, 2026

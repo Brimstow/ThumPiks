@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Brimstow/ThumPiks/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Brimstow/ThumPiks/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Status: Beta" src="https://img.shields.io/badge/status-beta-blue">
   <img alt="Backend modules" src="https://img.shields.io/badge/backend%20modules-38-6f42c1">
   <img alt="Prisma models" src="https://img.shields.io/badge/prisma%20models-45-2d3748">
@@ -102,11 +103,12 @@ ThumPiks/
 
 ## Roadmap
 
-Features on the way, as listed on the public changelog (published January 2026):
+Features on the way (not yet shipped as of the January 2026 changelog):
 
-- **Video-to-Thumbnail AI** — upload a video and let AI suggest the perfect thumbnail moments (expected Q1 2026)
-- **Browser Extension** — generate thumbnails from YouTube Studio in one click (expected Q1 2026)
-- **Competitor Analysis** — analyze competitor thumbnails with AI recommendations (expected Q2 2026)
+- **Video-to-Thumbnail AI** — upload a video and let AI suggest the perfect thumbnail moments (planned)
+- **Browser Extension** — generate thumbnails from YouTube Studio in one click (planned)
+- **Competitor Analysis** — analyze competitor thumbnails with AI recommendations (planned)
+
 ## Tech stack
 
 **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Radix UI, Zustand, TanStack Query, React Router, Framer Motion, TensorFlow.js / MediaPipe, Zod.
@@ -121,6 +123,6 @@ ThumPiks is in **public beta / early access**. Plans range from a free tier up t
 
 ## Contact
 
-Crafted by **Augment Required** — questions or feedback: **150487688+davisk360@users.noreply.github.com**
+Crafted by **Brimstow** of **Augment Required** — questions or feedback: **150487688+davisk360@users.noreply.github.com**
 
-<sub>© 2025 ThumPiks LLC</sub>
+<sub>© 2026 ThumPiks</sub>
